@@ -6,7 +6,7 @@ observability, and a compounding correction loop. Right now it is a good
 workflow that lives in one checkout. A personal stack is a workflow you can
 install, update, and trust on any machine.
 
-## Implemented in 0.2.0–0.3.1
+## Implemented in 0.2.0–0.4.0
 
 - Installer and `pagani` CLI for OpenCode and Claude Code.
 - `resources/` project templates, including `FEATURE-MAP.md`, `mistakes.md`,
@@ -39,15 +39,31 @@ install, update, and trust on any machine.
 - Eval scoring that treats any non-`PASS` verdict on a clean case as a false
   positive and counts a bug only on `CHANGES` plus the case keyword, with
   train/test/all summaries.
+- Optional format hook: Claude Code `PostToolUse` on `Edit|Write` runs
+  `scripts/format <file>`; `pagani init` copies the stub.
+- Optional gitleaks `pre-commit` and `pre-push` hooks:
+  `pagani hooks install|uninstall|status`, installed by `pagani init` when
+  `.git` exists, with backups of non-pagani hooks and a clean skip when
+  gitleaks is absent.
+- Optional PreCompact handoff hook: writes a snapshot to the newest job's
+  `handoff.md`, or `pagani/handoff.md`.
+- Optional retro scan: `pagani retro-scan [--write] [--exit-code]`; repeated
+  findings prompt `session-retro` at Close.
+- Optional skill-usage logging: the Claude Code `Skill` hook and the OpenCode
+  plugin append to `pagani/skill-usage.tsv`; `pagani skill-log <name>` logs
+  manually.
+- Optional weekly timer:
+  `pagani timer install|uninstall|status [path] [--at "Mon 09:00"]`; opt-in,
+  spends tokens, and runs headless `pagani weekly`.
 - No cloud sessions.
 
 Still intentionally not implemented: full sandbox, network allowlist, per-job
 spending cap, backups of `pagani/jobs/`, and prompt-injection defenses. Those are
 partial/optional; see the table below.
 
-Optional items, still not implemented: a format hook, a gitleaks pre-commit
-hook, a PreCompact handoff hook, a retro-scan, skill-usage logging, and an
-opt-in weekly timer.
+Optional items, still not implemented: a standalone ready-frontier script (the
+master computes the frontier inline), GitHub Actions PR automation, a dashboard
+or agent control plane, automatic cost attribution, and skill evals.
 
 ---
 

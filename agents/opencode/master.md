@@ -408,11 +408,25 @@ independent one. The approver runs them again before approving.
 1. Update `job.md` to the final stage.
 2. Run `pagani usage end <job-id>`.
 3. Run only the action the user chose.
-4. Load `session-retro`. Propose one environment change: a lint rule, a test, an
-   `AGENTS.md` line, or a skill edit. Ask before editing.
+4. Run `pagani retro-scan --exit-code`. If it exits 1, findings repeat across
+   jobs: load `session-retro` and propose Gotchas patches for the affected
+   skills. If it exits 0, load `session-retro` and propose one environment
+   change: a lint rule, a test, an `AGENTS.md` line, or a skill edit. Ask before
+   editing.
 5. If the job will continue in another session, load `session-handoff` and write
    `handoff.md`.
 6. Tell the user what merged, what remains, and where the artifacts are.
+
+## Optional automation
+
+`pagani init` copies a `scripts/format` stub and installs the gitleaks
+`pre-commit`/`pre-push` git hooks when `.git` exists; the format and
+`PreCompact`/`Skill` hooks it writes are Claude Code hooks and do not run in
+OpenCode sessions. For OpenCode, skill-use logging is provided by the
+`pagani-skill-log` plugin, installed by `./install.sh --target opencode`. The
+weekly timer is opt-in: `pagani timer install [path] [--at "Mon 09:00"]` spends
+tokens and is never installed by default. Do not install or enable it without
+the user asking.
 
 ## Spawning agents
 

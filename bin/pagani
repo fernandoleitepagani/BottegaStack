@@ -31,6 +31,11 @@ Usage:
   pagani usage [job]
   pagani status
   pagani pr <number>
+  pagani hooks install|uninstall|status [path]
+  pagani retro-scan [--write] [--exit-code]
+  pagani weekly
+  pagani timer install|uninstall|status [path] [--at "Mon 09:00"]
+  pagani skill-log <name>
 
 Targets:
   opencode  ~/.config/opencode
@@ -151,6 +156,15 @@ install_commands() {
   done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
 }
 
+install_plugins() {
+  local config="$1"
+  local src_dir="$ROOT/resources/opencode-plugin"
+  [ -d "$src_dir" ] || return 0
+  while IFS= read -r plugin; do
+    install_one "$plugin" "$config/plugins/$(basename "$plugin")" "$config"
+  done < <(find "$src_dir" -maxdepth 1 -name '*.ts' | sort)
+}
+
 model_for() {
   local target="$1" role="$2" tier="$3"
   awk -v t="$target" -v r="$role" -v tier="$tier" '
@@ -226,6 +240,9 @@ cmd_install() {
     install_agents "$config" "$t"
     install_agent_variants "$config" "$t"
     install_commands "$config" "$t"
+    if [ "$t" = "opencode" ]; then
+      install_plugins "$config"
+    fi
     echo "installed: $t"
   done
 }
@@ -493,12 +510,28 @@ cmd_lint() {
     fi
   done
 
-  for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json; do
+  for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
+           format.sh claude-hook.sh git-hooks/pre-commit git-hooks/pre-push \
+           systemd/pagani-weekly.service systemd/pagani-weekly.timer \
+           opencode-plugin/pagani-skill-log.ts; do
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"
       fail=1
     fi
   done
+
+  if [ -f "$ROOT/resources/claude-settings.json" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      if ! python3 -m json.tool "$ROOT/resources/claude-settings.json" >/dev/null 2>&1; then
+        echo "FAIL invalid JSON: resources/claude-settings.json"
+        fail=1
+      fi
+    fi
+    if ! grep -q 'scripts/claude-hook.sh' "$ROOT/resources/claude-settings.json"; then
+      echo "FAIL claude-settings.json does not reference scripts/claude-hook.sh"
+      fail=1
+    fi
+  fi
 
   for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md \
            CODING_STANDARDS.md BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
@@ -546,6 +579,7 @@ cmd_doctor() {
   command -v gh >/dev/null 2>&1 && echo "gh: yes" || echo "gh: no"
   command -v agent-browser >/dev/null 2>&1 && echo "agent-browser: yes" || echo "agent-browser: no (install: npm install -g agent-browser)"
   command -v node >/dev/null 2>&1 && echo "node: yes ($(node --version))" || echo "node: no"
+  command -v gitleaks >/dev/null 2>&1 && echo "gitleaks: yes" || echo "gitleaks: no"
 
   local skills
   skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
@@ -583,6 +617,23 @@ cmd_doctor() {
     echo "project claude settings: missing (run pagani init)"
   fi
 
+  local hook
+  for hook in pre-commit pre-push; do
+    if [ -f ".git/hooks/$hook" ] && grep -q 'pagani-managed' ".git/hooks/$hook"; then
+      echo "$hook hook: yes (pagani-managed)"
+    else
+      echo "$hook hook: no"
+    fi
+  done
+
+  local opencode_config
+  opencode_config="$(config_dir opencode)"
+  if [ -f "$opencode_config/plugins/pagani-skill-log.ts" ]; then
+    echo "skill-log plugin: yes ($opencode_config/plugins/pagani-skill-log.ts)"
+  else
+    echo "skill-log plugin: no ($opencode_config/plugins/pagani-skill-log.ts)"
+  fi
+
   for t in opencode claude; do
     local config
     config="$(config_dir "$t")"
@@ -600,6 +651,8 @@ cmd_init() {
   [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
   [ -f "$dest/scripts/verify" ] || cp "$ROOT/resources/verify.sh" "$dest/scripts/verify"
   [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
+  [ -f "$dest/scripts/format" ] || cp "$ROOT/resources/format.sh" "$dest/scripts/format"
+  [ -f "$dest/scripts/claude-hook.sh" ] || cp "$ROOT/resources/claude-hook.sh" "$dest/scripts/claude-hook.sh"
   [ -f "$dest/REVIEW.md" ] || cp "$ROOT/resources/REVIEW.md" "$dest/REVIEW.md"
   [ -f "$dest/CODING_STANDARDS.md" ] || cp "$ROOT/resources/CODING_STANDARDS.md" "$dest/CODING_STANDARDS.md"
   [ -f "$dest/GLOSSARY.md" ] || cp "$ROOT/resources/GLOSSARY.md" "$dest/GLOSSARY.md"
@@ -611,11 +664,19 @@ cmd_init() {
   [ -f "$dest/docs/FEATURE-MAP.md" ] || cp "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md"
   [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
   [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
-  chmod +x "$dest/scripts/check" "$dest/scripts/verify"
+  chmod +x "$dest/scripts/check" "$dest/scripts/verify" \
+    "$dest/scripts/format" "$dest/scripts/claude-hook.sh"
   if [ -f "$dest/.gitignore" ]; then
     grep -q '^pagani/jobs/' "$dest/.gitignore" || printf '\npagani/jobs/\n' >> "$dest/.gitignore"
+    local entry
+    for entry in pagani/skill-usage.tsv pagani/retro-scan.md pagani/weekly-review.md pagani/handoff.md; do
+      grep -qxF "$entry" "$dest/.gitignore" || printf '%s\n' "$entry" >> "$dest/.gitignore"
+    done
   else
     cp "$ROOT/resources/.gitignore" "$dest/.gitignore"
+  fi
+  if [ -e "$dest/.git" ]; then
+    install_git_hooks "$dest"
   fi
   echo "initialized: $dest"
 }
@@ -758,6 +819,287 @@ cmd_pr() {
   echo "Load the review-pr skill and write review-pr.md. Do not merge."
 }
 
+git_dir_for() {
+  local repo="$1" gitdir
+  [ -d "$repo" ] || { echo "pagani hooks: no such directory: $repo" >&2; exit 1; }
+  repo="$(cd "$repo" && pwd)"
+  if ! gitdir="$(git -C "$repo" rev-parse --git-dir 2>/dev/null)"; then
+    echo "pagani hooks: not a git repository: $repo" >&2
+    exit 1
+  fi
+  case "$gitdir" in
+    /*) ;;
+    *) gitdir="$repo/$gitdir" ;;
+  esac
+  printf '%s\n' "$gitdir"
+}
+
+install_git_hooks() {
+  local repo="$1" gitdir hooks
+  gitdir="$(git_dir_for "$repo")"
+  hooks="$gitdir/hooks"
+  mkdir -p "$hooks"
+  local hook src dest
+  for hook in pre-commit pre-push; do
+    src="$ROOT/resources/git-hooks/$hook"
+    dest="$hooks/$hook"
+    if [ -e "$dest" ] && ! grep -q 'pagani-managed' "$dest" 2>/dev/null; then
+      cp -p "$dest" "$dest.pagani-backup-$STAMP"
+      echo "backup: $dest -> $dest.pagani-backup-$STAMP"
+    fi
+    cp "$src" "$dest"
+    chmod +x "$dest"
+    echo "installed: $dest"
+  done
+}
+
+uninstall_git_hooks() {
+  local repo="$1" gitdir hooks
+  gitdir="$(git_dir_for "$repo")"
+  hooks="$gitdir/hooks"
+  local hook dest
+  for hook in pre-commit pre-push; do
+    dest="$hooks/$hook"
+    if [ -f "$dest" ] && grep -q 'pagani-managed' "$dest" 2>/dev/null; then
+      rm -f "$dest"
+      echo "removed: $dest"
+    else
+      echo "skipped: $dest (not pagani-managed)"
+    fi
+  done
+}
+
+status_git_hooks() {
+  local repo="$1" gitdir hooks
+  gitdir="$(git_dir_for "$repo")"
+  hooks="$gitdir/hooks"
+  local hook dest
+  for hook in pre-commit pre-push; do
+    dest="$hooks/$hook"
+    if [ -f "$dest" ] && grep -q 'pagani-managed' "$dest" 2>/dev/null; then
+      echo "$hook: installed"
+    elif [ -f "$dest" ]; then
+      echo "$hook: present (not pagani-managed)"
+    else
+      echo "$hook: missing"
+    fi
+  done
+}
+
+cmd_hooks() {
+  local action="${1:-}" path="${2:-$PWD}"
+  case "$action" in
+    install) install_git_hooks "$path" ;;
+    uninstall) uninstall_git_hooks "$path" ;;
+    status) status_git_hooks "$path" ;;
+    *)
+      echo "usage: pagani hooks install|uninstall|status [path]" >&2
+      exit 1
+      ;;
+  esac
+}
+
+retro_title() {
+  local line="$1"
+  line="$(printf '%s\n' "$line" \
+    | sed -E 's/^(##|###) //; s/^PROBLEM: //; s/^- PROBLEM: //' \
+    | sed -E 's/[[:space:]]*→.*$//' \
+    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  printf '%s\n' "$line"
+}
+
+retro_generic() {
+  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
+    summary|findings|notes|evidence|verdict|blocking|non-blocking|what|why|how|where|output|tests|test|decision)
+      return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+cmd_retro_scan() {
+  local write=0 exit_code=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --write) write=1; shift ;;
+      --exit-code) exit_code=1; shift ;;
+      *) echo "unknown flag: $1" >&2; exit 1 ;;
+    esac
+  done
+
+  local -A job_count=() files_for=() seen=()
+  local file rel job raw title key
+  shopt -s nullglob
+  local files=(pagani/jobs/*/round-*/review-*.md pagani/jobs/*/fix-*.md)
+  shopt -u nullglob
+  for file in "${files[@]}"; do
+    [ -f "$file" ] || continue
+    rel="${file#pagani/jobs/}"
+    job="${rel%%/*}"
+    while IFS= read -r raw; do
+      [ -n "$raw" ] || continue
+      title="$(retro_title "$raw")"
+      [ -n "$title" ] || continue
+      retro_generic "$title" && continue
+      key="$title"$'\t'"$job"
+      [ -n "${seen[$key]:-}" ] && continue
+      seen[$key]=1
+      job_count[$title]=$(( ${job_count[$title]:-0} + 1 ))
+      files_for[$title]+="$file"$'\n'
+    done < <(grep -E '^(##|###) |^PROBLEM: |^- PROBLEM: ' "$file" 2>/dev/null || true)
+  done
+
+  local repeats=0
+  local -a report=()
+  if [ "${#job_count[@]}" -gt 0 ]; then
+    while IFS= read -r title; do
+      [ -n "$title" ] || continue
+      [ "${job_count[$title]}" -ge 2 ] || continue
+      repeats=1
+      report+=("${job_count[$title]} jobs: $title")
+      local shown=0 f
+      while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        [ "$shown" -lt 3 ] || break
+        report+=("  $f")
+        shown=$((shown + 1))
+      done <<< "${files_for[$title]}"
+    done < <(printf '%s\n' "${!job_count[@]}" | sort)
+  fi
+
+  if [ "$repeats" = "0" ]; then
+    echo "retro-scan: no repeated findings"
+    report=("retro-scan: no repeated findings")
+  else
+    printf '%s\n' "${report[@]}"
+  fi
+
+  if [ "$write" = "1" ]; then
+    mkdir -p pagani
+    {
+      echo "# Retro scan"
+      echo
+      echo "Generated: $(date -Iseconds)"
+      echo
+      printf '%s\n' "${report[@]}"
+    } > pagani/retro-scan.md
+    echo "wrote: pagani/retro-scan.md"
+  fi
+
+  if [ "$exit_code" = "1" ] && [ "$repeats" = "1" ]; then
+    return 1
+  fi
+  return 0
+}
+
+cmd_weekly() {
+  command -v opencode >/dev/null 2>&1 || {
+    echo "pagani weekly: opencode is not installed" >&2
+    exit 1
+  }
+  mkdir -p pagani
+  local prompt out
+  out="pagani/weekly-review.md"
+  prompt='Load the weekly-review skill. Read BACKLOG.md, the newest job under pagani/jobs, and pagani/metrics.tsv. Propose at most 5 backlog items and one environment change. Do not push, merge, deploy, or open a PR. Write the result to pagani/weekly-review.md.'
+  opencode run --agent master --auto "$prompt" 2>&1 | tee "$out"
+  echo "wrote: $out"
+}
+
+cmd_timer() {
+  local action="${1:-}"
+  [ -n "$action" ] || {
+    echo 'usage: pagani timer install|uninstall|status [path] [--at "Mon 09:00"]' >&2
+    exit 1
+  }
+  shift || true
+  local project="$PWD" oncalendar="Mon 09:00"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --at) oncalendar="${2:-}"; shift 2 ;;
+      -*) echo "unknown flag: $1" >&2; exit 1 ;;
+      *) project="$1"; shift ;;
+    esac
+  done
+  [ -d "$project" ] || { echo "pagani timer: no such directory: $project" >&2; exit 1; }
+  project="$(cd "$project" && pwd)"
+
+  local unit_dir hash unit service_path timer_path
+  unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  hash="$(printf '%s' "$project" | cksum | awk '{print $1}')"
+  unit="pagani-weekly-$hash"
+  service_path="$unit_dir/$unit.service"
+  timer_path="$unit_dir/$unit.timer"
+
+  local service timer
+  service="$(cat "$ROOT/resources/systemd/pagani-weekly.service")"
+  service="${service//@PROJECT@/$project}"
+  service="${service//@PAGANI@/$ROOT/bin/pagani}"
+  timer="$(cat "$ROOT/resources/systemd/pagani-weekly.timer")"
+  timer="${timer//@PROJECT@/$project}"
+  timer="${timer//@ONCALENDAR@/$oncalendar}"
+
+  case "$action" in
+    install)
+      mkdir -p "$unit_dir"
+      printf '%s\n' "$service" > "$service_path"
+      printf '%s\n' "$timer" > "$timer_path"
+      local enabled=0
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+        if systemctl --user enable --now "$unit.timer" >/dev/null 2>&1; then
+          enabled=1
+        fi
+      fi
+      echo "service: $service_path"
+      echo "timer: $timer_path"
+      echo "note: this timer runs 'pagani weekly' and spends tokens"
+      if [ "$enabled" = "1" ]; then
+        echo "enabled: $unit.timer"
+      else
+        echo "not enabled automatically; enable with: systemctl --user daemon-reload && systemctl --user enable --now $unit.timer"
+      fi
+      ;;
+    uninstall)
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user disable --now "$unit.timer" >/dev/null 2>&1 || true
+      fi
+      rm -f "$service_path" "$timer_path"
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user daemon-reload >/dev/null 2>&1 || true
+      fi
+      echo "removed: $service_path"
+      echo "removed: $timer_path"
+      ;;
+    status)
+      if command -v systemctl >/dev/null 2>&1; then
+        systemctl --user list-timers 'pagani-weekly-*' --all 2>/dev/null || true
+      fi
+      if [ -f "$service_path" ]; then
+        echo "service: installed ($service_path)"
+      else
+        echo "service: missing ($service_path)"
+      fi
+      if [ -f "$timer_path" ]; then
+        echo "timer: installed ($timer_path)"
+      else
+        echo "timer: missing ($timer_path)"
+      fi
+      ;;
+    *)
+      echo 'usage: pagani timer install|uninstall|status [path] [--at "Mon 09:00"]' >&2
+      exit 1
+      ;;
+  esac
+}
+
+cmd_skill_log() {
+  local name="${1:-}"
+  [ -n "$name" ] || { echo "usage: pagani skill-log <name>" >&2; exit 1; }
+  mkdir -p pagani
+  printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$PWD")" "$name" \
+    >> pagani/skill-usage.tsv
+  echo "logged: $name"
+}
+
 # Parse top-level command and flags.
 cmd="${1:-}"
 shift || true
@@ -791,6 +1133,11 @@ case "$cmd" in
   usage) cmd_usage "$@" ;;
   status) cmd_status ;;
   pr) cmd_pr "$@" ;;
+  hooks) cmd_hooks "$@" ;;
+  retro-scan) cmd_retro_scan "$@" ;;
+  weekly) cmd_weekly ;;
+  timer) cmd_timer "$@" ;;
+  skill-log) cmd_skill_log "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

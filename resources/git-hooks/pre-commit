@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# pagani-managed
+set -euo pipefail
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pagani: gitleaks not installed; skipping secret scan" >&2
+  exit 0
+fi
+if gitleaks protect --staged --redact --no-banner 2>/dev/null; then
+  exit 0
+fi
+if gitleaks git --staged --redact --no-banner 2>/dev/null; then
+  exit 0
+fi
+echo "pagani: gitleaks found a secret in staged changes" >&2
+exit 1

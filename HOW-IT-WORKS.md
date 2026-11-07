@@ -299,9 +299,11 @@ or PR.
 
 The master updates `job.md`, records the decision in `human.md`, runs
 `pagani usage end <job>` to append the lane, rounds, fix rounds, human reworks,
-and `checks_first_pass` to `pagani/metrics.tsv`, loads `session-retro` to
-propose one environment change, and loads `session-handoff` if the job will
-continue in another session.
+and `checks_first_pass` to `pagani/metrics.tsv`, runs
+`pagani retro-scan --exit-code`, and loads `session-retro` to propose one
+environment change. When the scan reports findings repeated across jobs, the
+master loads `session-retro` and proposes Gotchas patches. It loads
+`session-handoff` if the job will continue in another session.
 
 ### Split runner
 
@@ -769,7 +771,55 @@ pagani usage start|end <job>
 pagani usage [job]
 pagani status
 pagani pr <number>
+pagani hooks install|uninstall|status [path]
+pagani retro-scan [--write] [--exit-code]
+pagani weekly
+pagani timer install|uninstall|status [path] [--at "Mon 09:00"]
+pagani skill-log <name>
 ```
+
+### Optional automation
+
+Six automations are opt-in. `pagani init` installs the format, PreCompact, and
+skill-log hooks plus the git hooks; the weekly timer is separate.
+
+- **Format hook.** `pagani init` copies `resources/format.sh` to
+  `scripts/format` and writes a Claude Code `PostToolUse` hook on `Edit|Write`
+  that runs `scripts/format <file>`. Replace the stub with the project
+  formatter. A formatter failure prints a warning and exits 0, so it never
+  blocks an edit.
+- **Gitleaks git hooks.** `pagani hooks install [path]` copies a `pre-commit`
+  hook that scans staged changes with gitleaks and a `pre-push` hook that runs
+  `scripts/check`. `pagani init` installs both when the project has `.git`.
+  Existing non-pagani hooks are backed up as
+  `<hook>.pagani-backup-<stamp>` first. If gitleaks is not installed, the
+  pre-commit hook prints a note and skips cleanly. `pagani hooks status` shows
+  what is installed and `pagani hooks uninstall` removes only pagani-managed
+  hooks.
+- **PreCompact handoff.** A Claude Code `PreCompact` hook appends a
+  `## PreCompact snapshot` section with `Stage`, `Lane`, `Branch`, and
+  `Resume with: /pagani resume` to the newest job's `handoff.md`, or to
+  `pagani/handoff.md` when there is no job. It never fails compaction.
+- **Retro scan.** `pagani retro-scan` scans review and fix files across jobs and
+  reports titles found in at least two jobs. `--write` saves
+  `pagani/retro-scan.md`; `--exit-code` exits 1 when repeats exist. At Close the
+  master runs it and, on repeats, loads `session-retro` to propose Gotchas
+  patches.
+- **Skill-usage logging.** The Claude Code `Skill` hook and the OpenCode
+  `pagani-skill-log` plugin append tab-separated rows to
+  `pagani/skill-usage.tsv` (gitignored): ISO date, project basename, skill.
+  `pagani skill-log <name>` records a use manually. The plugin is installed by
+  `./install.sh --target opencode`.
+- **Weekly timer.** `pagani timer install [path] [--at "Mon 09:00"]` writes
+  `pagani-weekly-<hash>.service` and `.timer` to the systemd user directory and
+  enables the timer when `systemctl --user` works; otherwise it prints the
+  manual enable command. The timer runs headless `pagani weekly`, which spends
+  tokens: it runs `opencode run --agent master --auto`, reads `BACKLOG.md`, the
+  newest job, and `pagani/metrics.tsv`, proposes at most five backlog items and
+  one environment change, and writes `pagani/weekly-review.md`. Nothing is
+  pushed, merged, deployed, or opened as a PR. `pagani timer status` and
+  `pagani timer uninstall` inspect or remove it. It is never installed by
+  default.
 
 The installer:
 

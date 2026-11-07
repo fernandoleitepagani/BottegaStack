@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# pagani-managed
+set -euo pipefail
+if [ -x ./scripts/check ]; then
+  ./scripts/check
+else
+  echo "pagani: scripts/check not found; skipping pre-push checks" >&2
+fi

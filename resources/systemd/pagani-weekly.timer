@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly PaganiStack review for @PROJECT@
+
+[Timer]
+OnCalendar=@ONCALENDAR@
+Persistent=true
+
+[Install]
+WantedBy=timers.target

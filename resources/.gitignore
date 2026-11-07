@@ -1,5 +1,9 @@
 # PaganiStack runtime state
 pagani/jobs/
+pagani/skill-usage.tsv
+pagani/retro-scan.md
+pagani/weekly-review.md
+pagani/handoff.md
 
 # Secrets
 .env

@@ -1,0 +1,7 @@
+[Unit]
+Description=PaganiStack weekly review for @PROJECT@
+
+[Service]
+Type=oneshot
+WorkingDirectory=@PROJECT@
+ExecStart=@PAGANI@ weekly

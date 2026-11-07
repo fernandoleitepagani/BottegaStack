@@ -88,9 +88,19 @@ suggests a higher lane.
 9. **Human decision.** Load `closeout`. Use `AskUserQuestion` for merge, commit,
    push, PR, rework, or reject. Show the exact git command and confirm.
 10. **Close.** Update `job.md`, run `pagani usage end <job-id>`, record the
-    decision in `human.md`, load `session-retro`, and load `session-handoff` if
-    the job continues elsewhere. Propose one lesson for `AGENTS.md` or
-    `mistakes.md`, and stop.
+    decision in `human.md`, and run `pagani retro-scan --exit-code`. Load
+    `session-retro`. If the scan exits 1, findings repeat across jobs: propose
+    Gotchas patches for the affected skills. Otherwise propose one lesson for
+    `AGENTS.md` or `mistakes.md`. Load `session-handoff` if the job continues
+    elsewhere, then stop.
+
+## Optional automation
+
+`pagani init` installs the format hook (`PostToolUse` on `Edit|Write`), the
+PreCompact handoff hook, the skill-usage `Skill` hook, and the gitleaks
+`pre-commit`/`pre-push` hooks. The weekly timer is opt-in:
+`pagani timer install [path] [--at "Mon 09:00"]` spends tokens and is never
+installed by default. Do not install or enable it without the user asking.
 
 ## Subagent rules
 

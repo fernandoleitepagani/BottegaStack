@@ -18,6 +18,7 @@ It is designed for OpenCode and Claude Code. It does not use cloud sessions.
 - `gh` for PR helpers.
 - `agent-browser` for browser verification: `npm install -g agent-browser`.
 - Node 22+ for the design inspector.
+- Optional: `gitleaks` for the git secret hooks; without it the hook skips.
 
 ## Install
 
@@ -48,6 +49,11 @@ Useful flags:
 ./bin/pagani check <job>
 ./bin/pagani gate <job>
 ./bin/pagani usage start|end <job>
+./bin/pagani hooks install|uninstall|status [path]
+./bin/pagani retro-scan [--write] [--exit-code]
+./bin/pagani weekly
+./bin/pagani timer install|uninstall|status [path] [--at "Mon 09:00"]
+./bin/pagani skill-log <name>
 ```
 
 The installer backs up existing files, writes a manifest, flattens the category
@@ -112,6 +118,44 @@ the process group it started, reaps it, removes the pid file, and prints the log
 tail, so no stray dev server survives. Set `PORT` before `READY_URL` in
 `scripts/verify.conf` so `READY_URL` expands to the configured port.
 
+## Optional automation
+
+Six automations are opt-in. Nothing runs until you install or invoke it.
+
+**Format hook.** `pagani init` copies the `scripts/format` stub and a Claude Code
+`PostToolUse` hook on `Edit|Write` that runs `scripts/format <file>`. Fill the
+stub with the project formatter (Prettier, Black, gofmt, and so on). The hook
+warns and exits 0 when the formatter fails, so it never blocks an edit.
+
+**Gitleaks git hooks.** `pagani hooks install [path]` installs a `pre-commit`
+hook that scans staged changes with gitleaks and a `pre-push` hook that runs
+`scripts/check`. `pagani init` installs both when the project has a `.git`
+directory. Existing hooks that are not pagani-managed are backed up first. When
+gitleaks is not installed the pre-commit hook prints a note and skips cleanly.
+`pagani hooks status` and `pagani hooks uninstall` manage them.
+
+**PreCompact handoff.** A Claude Code `PreCompact` hook writes a snapshot with
+`Stage`, `Lane`, `Branch`, and `Resume with: /pagani resume` to the newest job's
+`handoff.md`, or to `pagani/handoff.md` when there is no job. It never fails
+compaction.
+
+**Retro scan.** `pagani retro-scan` finds findings repeated across at least two
+jobs. `--write` saves the report to `pagani/retro-scan.md`; `--exit-code` exits 1
+when repeats exist. At Close the master runs it and, on repeats, loads
+`session-retro` to propose Gotchas patches.
+
+**Skill-usage logging.** The Claude Code `Skill` hook and the OpenCode
+`pagani-skill-log` plugin append a tab-separated row (`<ISO date>`,
+`<project>`, `<skill>`) to `pagani/skill-usage.tsv` (gitignored). `pagani
+skill-log <name>` logs a use by hand.
+
+**Weekly timer.** `pagani timer install [path] [--at "Mon 09:00"]` writes and
+enables a systemd user timer that runs headless `pagani weekly`. It is never
+installed by default and it spends tokens: `pagani weekly` runs
+`opencode run --agent master --auto`, reads `BACKLOG.md`, the newest job, and
+`pagani/metrics.tsv`, and writes `pagani/weekly-review.md`. Use `pagani timer
+status` and `pagani timer uninstall` to inspect or remove it.
+
 ## Skills
 
 Skills use the nine Claude Code categories plus two extensions:
@@ -147,10 +191,12 @@ The bodies are the same workflow. The frontmatter and tool names differ.
 
 `resources/` contains `AGENTS.md`, `checks.sh`, `verify.sh`, `REVIEW.md`,
 `PR-TEMPLATE.md`, `BACKLOG.md`, `GLOSSARY.md`, `CODING_STANDARDS.md`,
-`TASKS.md`, and an ADR template. `pagani init` copies them into a project.
-`pagani lint` checks skill names and descriptions, the required `resources/`
-templates, unresolved skill references, and any project file that agents or
-skills read but has no template in `resources/` (for example `CONTEXT.md`).
+`TASKS.md`, an ADR template, and the optional automation templates
+(`format.sh`, `claude-hook.sh`, git hooks, and systemd units). `pagani init`
+copies them into a project. `pagani lint` checks skill names and descriptions,
+the required `resources/` templates, unresolved skill references, and any
+project file that agents or skills read but has no template in `resources/` (for
+example `CONTEXT.md`).
 
 ## Review convergence and evals
 
