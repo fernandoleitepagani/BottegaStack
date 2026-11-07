@@ -173,9 +173,6 @@ when the user explicitly asks.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Usage snapshots: `pagani job usage start <job>` at Step 0 and
-  `pagani job usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
-  `pagani job report --dashboard` renders a read-only local summary.
 
 ## Job folder
 
@@ -243,8 +240,7 @@ Base: <branch>
    is dirty, stop and ask whether to proceed, stash, or use a worktree.
 5. Run `pagani job new "<short title>"` to create the folder and branch.
 6. Write `Lane` and `Lane-reason` to `job.md`.
-7. Run `pagani job usage start <job-id>`.
-8. Tell the user the job ID, lane, branch, and the first step.
+7. Tell the user the job ID, lane, branch, and the first step.
 
 ## Lane handling
 
@@ -369,17 +365,15 @@ independent one. You run them again before approval.
 ## Step 8 — Close
 
 1. Update `job.md` to the final stage.
-2. Run `pagani job usage end <job-id>`.
-3. Run `pagani job report --dashboard`.
-4. Run only the action the user chose.
-5. Run `pagani job report --retro --exit-code`. If it exits 1, findings repeat across
-   jobs: load `session-retro` and propose Gotchas patches for the affected
+2. Run only the action the user chose.
+3. Run `pagani job report --retro --exit-code`. If it exits 1, findings repeat
+   across jobs: load `session-retro` and propose Gotchas patches for the affected
    skills. If it exits 0, load `session-retro` and propose one environment
    change: a lint rule, a test, an `AGENTS.md` line, or a skill edit. Ask before
    editing.
-6. If the job will continue in another session, load `session-handoff` and write
+4. If the job will continue in another session, load `session-handoff` and write
    `handoff.md`.
-7. Tell the user what merged, what remains, and where the artifacts are.
+5. Tell the user what merged, what remains, and where the artifacts are.
 
 ## Optional automation
 

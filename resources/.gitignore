@@ -2,9 +2,7 @@
 pagani/jobs/
 pagani/retro-scan.md
 pagani/handoff.md
-pagani/dashboard.html
 .claude/settings.json.pagani-backup-*
-pagani/metrics.tsv
 
 # Secrets
 .env

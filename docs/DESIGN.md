@@ -97,6 +97,7 @@ removed; the master does those checks directly.
 | `plan.md`, `spec.md`, `tickets/` | Replaced by one job `SPEC.md` with a task graph. |
 | `job frontier`, `job classify`, `job route` | The master reads `SPEC.md` and checks the diff directly. |
 | Separate `uninstall` command | `pagani install --uninstall` keeps install and removal together. |
+| Dashboard, usage snapshots, and metrics | `job.md`, `checks.md`, and the retro scan are the state; `pagani job report` reads them directly. |
 | `review-ui`, `review-ux`, `review-security` agents and skills | Folded into the `review-code` checklists. |
 | `approver` agent and skill | The master writes `decision.md` and presents it. |
 | Security and approval model variants | One reviewer, one approver; variants scale by lane instead. |
@@ -122,8 +123,8 @@ removed; the master does those checks directly.
 - A control plane that starts or stops agents.
 - A network allowlist for shell or `agent-browser` egress. The opt-in allowlist
   covers Claude `WebFetch` only.
-- Cost tracking, a spending cap, backups, a weekly timer, skill usage logging,
-  or a GitHub Actions workflow. Those belong to the project, not the stack.
+- Cost tracking, a spending cap, backups, a weekly timer, or a GitHub Actions
+  workflow. Those belong to the project, not the stack.
 - Prompt-injection enforcement. `untrusted-content` is a convention, not a
   sandbox.
 - Cloud sessions and paid skills.

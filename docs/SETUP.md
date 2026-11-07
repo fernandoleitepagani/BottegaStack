@@ -108,7 +108,6 @@ pagani worktree prune <job> [--force]
 | Git hooks missing | Run `pagani hooks install [path]`. |
 | `pagani upgrade` fails | Install `python3`. |
 | Network check denies a host | Add it to `pagani/network-allowlist.txt`, or remove the file. |
-| Dashboard is stale | Re-run `pagani job report --dashboard`; it is a static file. |
 | Context full | Load `session-handoff`, write `TASKS.md`, start a fresh session. |
 
 ## Claude smoke test

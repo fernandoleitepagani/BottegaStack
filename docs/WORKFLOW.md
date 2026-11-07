@@ -7,7 +7,7 @@ state; there is no database or state machine.
 ## The workflow
 
 ```
-0. SETUP     lane, job folder, branch, usage start
+0. SETUP     lane, job folder, branch
 1. SPEC      interview -> SPEC.md                    [approve]
 2. BUILD     one builder per ready task              [approve per wave]
 3. CHECKS    pagani job check -> checks.md           (fail -> builder)
@@ -15,15 +15,15 @@ state; there is no database or state machine.
 5. FIX       fix.md -> fresh builder -> checks -> re-review
 6. APPROVAL  master -> decision.md + quiz
 7. HUMAN     approve, rework, or reject
-8. CLOSE     usage end, dashboard, retro, merge/commit/push/PR on request
+8. CLOSE     retro, merge/commit/push/PR on request
 ```
 
 ### Step 0: Set up and choose a lane
 
 The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
 `REVIEW.md`. It loads `lanes`, proposes a lane, and asks you to confirm or
-override. It creates the job folder and branch, writes `Lane` and `Lane-reason`
-to `job.md`, and starts the cost snapshot.
+override. It creates the job folder and branch and writes `Lane` and
+`Lane-reason` to `job.md`.
 
 If the project predates the current hooks, run `pagani upgrade` once. Run
 `pagani network init` only if you want the opt-in Claude `WebFetch` allowlist.
@@ -97,7 +97,6 @@ rework, or reject. The master shows the exact git command before running it.
 ### Step 8: Close
 
 The master updates `job.md`, records the decision in `human.md`, runs
-`pagani job usage end <job>` and `pagani job report --dashboard`, runs
 `pagani job report --retro --exit-code`, and loads `session-retro` to propose one
 environment change. On repeated findings it proposes Gotchas patches. It loads
 `session-handoff` if the job continues elsewhere.
@@ -181,8 +180,7 @@ PaganiStack has eight top-level commands: `install` (with `--uninstall`),
 pagani job new "<title>"
 pagani job check <job>
 pagani job gate <job> [--allow-dirty]
-pagani job usage start|end <job>
-pagani job report [--dashboard] [--retro] [--write] [--exit-code] [--open]
+pagani job report [--retro] [--write] [--exit-code]
 
 pagani worktree create <job> <task>
 pagani worktree prune <job> [--force]
@@ -229,7 +227,6 @@ pagani/jobs/<id>/
   fix-*.md
   decision.md
   human.md
-  usage.md
   TASKS.md
   handoff.md
 ```
@@ -258,12 +255,6 @@ Everything here is optional and local. Nothing starts an agent or a server.
   the newest job's `handoff.md`, or `pagani/handoff.md`.
 - **Network allowlist.** `pagani network init` enables an opt-in Claude
   `WebFetch` allowlist. Shell and `agent-browser` egress are not covered.
-- **Dashboard.** `pagani job report --dashboard` writes a local, read-only
-  `pagani/dashboard.html` with jobs, checks, and metrics.
-- **Usage snapshots.** `pagani job usage start|end <job>` appends raw
-  `opencode`/`ccusage` snapshots to `usage.md` and records lane, rounds, fixes,
-  reworks, and first-pass checks in `metrics.tsv`. It does not calculate exact
-  per-job cost.
 - **Skill evals.** `evals/skills/run.sh` checks skill triggers. It spends tokens
   and is opt-in.
 
@@ -282,9 +273,8 @@ Everything here is optional and local. Nothing starts an agent or a server.
 - The human decides the merge.
 
 **Opt-in and limited:** the Claude `WebFetch` allowlist covers only that tool.
-Shell, `curl`, and `agent-browser` egress are not covered. The dashboard is a
-read-only local file. There is no exact cost tracking, budget enforcement, or
-backup command.
+Shell, `curl`, and `agent-browser` egress are not covered. There is no exact cost
+tracking, budget enforcement, or backup command.
 
 **Deliberate non-goals:** full OS sandboxing and a control plane that starts or
 stops agents. Untrusted content still reaches agents through browser pages, PR

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed the dashboard, usage snapshots, and metrics. `pagani job report` now
+  accepts only `--retro`, `--write`, and `--exit-code`; the retro scan is kept.
 - Deleted `GAPS.md`, `CATEGORIES.md`, and `VENDOR.md`; merged the useful
   category and vendor notes into the workflow doc.
 - Simplified `README.md` and the docs around workflow, skills, usage, and

@@ -22,8 +22,8 @@ Improve the environment, not just the code.
 - **Global `AGENTS.md`:** lines that belong in a check or a skill instead.
 - **Tool economy:** an expensive tool call or a missing helper.
 - **No-ops:** instructions that do not change behavior.
-- **Information access:** a log, dashboard, or read-only source the agent needed
-  but did not have.
+- **Information access:** a log or read-only source the agent needed but did not
+  have.
 
 ## Correction hierarchy
 

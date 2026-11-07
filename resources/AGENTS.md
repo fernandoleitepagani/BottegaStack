@@ -27,10 +27,9 @@ not obvious facts the code already shows.
 
 ```bash
 pagani install --uninstall
-pagani job report --dashboard
+pagani job report [--retro] [--write] [--exit-code]
 pagani job check <job>
 pagani job gate <job>
-pagani job usage start|end <job>
 pagani upgrade [path]
 pagani network init|check <url>
 ```

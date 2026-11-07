@@ -50,8 +50,7 @@ Add `pagani/jobs/` to `.gitignore`.
 0. **Step 0 — Explore and set up.** Read `AGENTS.md`, `GLOSSARY.md` if it exists, and the
    `## Risk paths` section of `REVIEW.md`. Inspect the code. Load `lanes`,
    propose a lane, confirm it. Run `pagani job new "<short title>"` to create the
-   folder and branch, then write `Lane`/`Lane-reason` to `job.md`. Run
-   `pagani job usage start <job-id>`.
+   folder and branch, then write `Lane`/`Lane-reason` to `job.md`.
 
 **Lane handling.** Read `Lane:` from `job.md` at every step.
 
@@ -95,9 +94,8 @@ the lane's file limit; escalate if it suggests a higher lane.
    to the human with `AskUserQuestion`.
 7. **Step 7 — Human decision.** Load `closeout`. Use `AskUserQuestion` for merge, commit,
    push, PR, rework, or reject. Show the exact git command and confirm.
-8. **Step 8 — Close.** Update `job.md`, run `pagani job usage end <job-id>` and
-   `pagani job report --dashboard`, record the decision in `human.md`, and run
-   `pagani job report --retro --exit-code`. Load `session-retro`.
+8. **Step 8 — Close.** Update `job.md`, record the decision in `human.md`, and
+   run `pagani job report --retro --exit-code`. Load `session-retro`.
    If the scan exits 1, findings repeat across jobs: propose Gotchas patches
    for the affected skills. Otherwise propose one lesson for `AGENTS.md` or
    `mistakes.md`. Load `session-handoff` if the job continues elsewhere, then
@@ -159,9 +157,6 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Usage snapshots: `pagani job usage start <job>` at Step 0 and
-  `pagani job usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
-  `pagani job report --dashboard` renders a read-only local summary.
 
 ## Git
 

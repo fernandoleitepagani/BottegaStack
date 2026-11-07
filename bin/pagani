@@ -19,11 +19,11 @@ Usage:
   pagani doctor
   pagani init [path]
   pagani upgrade [path]
+  pagani job new|check|gate|report
   pagani job new "<title>"
   pagani job check <job>
   pagani job gate <job> [--allow-dirty]
-  pagani job usage start|end <job>
-  pagani job report [--dashboard] [--retro] [--write] [--exit-code] [--open]
+  pagani job report [--retro] [--write] [--exit-code]
   pagani worktree create <job> <task>
   pagani worktree prune <job> [--force]
   pagani hooks install|uninstall [path]
@@ -696,8 +696,8 @@ append_runtime_gitignore() {
   if [ -s "$gitignore" ] && [ -n "$(tail -c 1 "$gitignore")" ]; then
     printf '\n' >> "$gitignore"
   fi
-  for entry in pagani/jobs/ pagani/metrics.tsv pagani/retro-scan.md \
-               pagani/handoff.md pagani/dashboard.html evals/skills/results.tsv; do
+  for entry in pagani/jobs/ pagani/retro-scan.md \
+               pagani/handoff.md evals/skills/results.tsv; do
     if ! grep -qxF "$entry" "$gitignore"; then
       printf '%s\n' "$entry" >> "$gitignore"
       echo "gitignore: $entry"
@@ -946,245 +946,35 @@ cmd_worktree() {
   esac
 }
 
-
-usage_snapshot() {
-  local job="$1" action="$2" file="$3" found=0
-  {
-    echo "## $action $(date -Iseconds)"
-    if command -v opencode >/dev/null 2>&1; then
-      found=1
-      echo "### opencode stats"
-      opencode stats 2>/dev/null || true
-    fi
-    if command -v ccusage >/dev/null 2>&1; then
-      found=1
-      echo "### ccusage"
-      ccusage 2>/dev/null || true
-    fi
-    if [ "$found" = "0" ]; then
-      echo "(no usage tool found: install opencode or ccusage)"
-    fi
-  } >> "$file"
-  if [ "$found" = "0" ]; then
-    echo "warning: no usage tool found: install opencode or ccusage" >&2
-  fi
-}
-
-ensure_metrics_header() {
-  local f="pagani/metrics.tsv"
-  if [ ! -f "$f" ]; then
-    printf 'date\tjob\tlane\treview_rounds\tfix_rounds\thuman_reworks\tchecks_first_pass\n' > "$f"
-    return 0
-  fi
-  if head -1 "$f" | grep -q 'cost_usd'; then
-    local tmp
-    tmp="$(mktemp)"
-    {
-      head -1 "$f" | cut -f1-7
-      tail -n +2 "$f" | cut -f1-7
-    } > "$tmp"
-    mv "$tmp" "$f"
-  fi
-  return 0
-}
-
-cmd_usage() {
-  local action="${1:-}" job="${2:-}"
-  case "$action" in
-    start)
-      [ -n "$job" ] || { echo "job id required" >&2; exit 1; }
-      local dir file
-      dir="pagani/jobs/$job"
-      file="$dir/usage.md"
-      mkdir -p "$dir"
-      usage_snapshot "$job" start "$file"
-      echo "usage: start $job -> $file"
-      return 0
-      ;;
-    end)
-      [ -n "$job" ] || { echo "job id required" >&2; exit 1; }
-      local dir file
-      dir="pagani/jobs/$job"
-      file="$dir/usage.md"
-      mkdir -p "$dir"
-      usage_snapshot "$job" end "$file"
-
-      local lane rounds fixes reworks first first_result
-      lane="$(grep -m1 '^Lane:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Lane:[[:space:]]*//' || true)"
-      rounds="$(grep -m1 '^Round:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Round:[[:space:]]*//' || true)"
-      fixes="$(find "pagani/jobs/$job" -maxdepth 1 -name 'fix-*.md' 2>/dev/null | wc -l | tr -d ' ')"
-      reworks="$(grep -ci 'rework' "pagani/jobs/$job/human.md" 2>/dev/null || true)"
-      if [ -f "pagani/jobs/$job/checks.log" ]; then
-        first_result="$(head -1 "pagani/jobs/$job/checks.log" | cut -f3)"
-        if [ "$first_result" = "PASS" ]; then first="y"; else first="n"; fi
-      else
-        first_result="$(grep -m1 '^RESULT:' "pagani/jobs/$job/checks.md" 2>/dev/null | sed 's/^RESULT:[[:space:]]*//' || true)"
-        case "$first_result" in
-          PASS) first="y" ;;
-          FAIL) first="n" ;;
-          *) first="?" ;;
-        esac
-      fi
-      ensure_metrics_header
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$(date +%F)" "$job" "${lane:-?}" "${rounds:-0}" "$fixes" "${reworks:-0}" "${first:-?}" >> pagani/metrics.tsv
-      echo "metrics: pagani/metrics.tsv"
-      return 0
-      ;;
-  esac
-  if command -v opencode >/dev/null 2>&1; then
-    opencode stats 2>/dev/null || true
-  fi
-  if ! command -v opencode >/dev/null 2>&1 && ! command -v ccusage >/dev/null 2>&1; then
-    echo "warning: no usage tool found: install opencode or ccusage" >&2
-  fi
-  if [ -n "$action" ] && [ -f "pagani/jobs/$action/usage.md" ]; then
-    echo "== usage: $action =="
-    cat "pagani/jobs/$action/usage.md"
-  fi
-}
-
-
-
-html_escape() {
-  printf '%s' "$1" | sed \
-    -e 's/&/\&amp;/g' \
-    -e 's/</\&lt;/g' \
-    -e 's/>/\&gt;/g' \
-    -e 's/"/\&quot;/g' \
-    -e "s/'/\&#39;/g"
-}
-
-cmd_dashboard() {
-  local open=0
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --open) open=1; shift ;;
-      -*) echo "unknown flag: $1" >&2; exit 1 ;;
-      *) echo "unknown argument: $1" >&2; exit 1 ;;
-    esac
-  done
-  mkdir -p pagani
-  local path="pagani/dashboard.html"
-  {
-    echo '<!doctype html>'
-    echo '<html lang="en">'
-    echo '<head>'
-    echo '<meta charset="utf-8">'
-    echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
-    echo '<title>PaganiStack dashboard</title>'
-    echo '<style>'
-    cat <<'CSS'
-body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; margin: 2rem; color: #1f2328; background: #f6f8fa; }
-h1 { margin-top: 0; }
-table { border-collapse: collapse; width: 100%; margin: 1rem 0 2rem; background: #fff; }
-th, td { border: 1px solid #d0d7de; padding: 0.4rem 0.6rem; text-align: left; font-size: 0.9rem; }
-th { background: #eaeef2; }
-.muted { color: #57606a; }
-CSS
-    echo '</style>'
-    echo '</head>'
-    echo '<body>'
-    echo '<h1>PaganiStack dashboard</h1>'
-    printf '<p class="muted">Generated: %s</p>\n' "$(html_escape "$(date -Iseconds)")"
-    echo '<h2>Jobs</h2>'
-    echo '<table>'
-    echo '<thead><tr><th>ID</th><th>Lane</th><th>Stage</th><th>Round</th><th>Branch</th><th>Checks</th></tr></thead>'
-    echo '<tbody>'
-    local jobfile id lane stage round branch result
-    for jobfile in pagani/jobs/*/job.md; do
-      [ -f "$jobfile" ] || continue
-      id="$(basename "$(dirname "$jobfile")")"
-      lane="$(grep -m1 '^Lane:' "$jobfile" | sed 's/^Lane:[[:space:]]*//' || true)"
-      stage="$(grep -m1 '^Stage:' "$jobfile" | sed 's/^Stage:[[:space:]]*//' || true)"
-      round="$(grep -m1 '^Round:' "$jobfile" | sed 's/^Round:[[:space:]]*//' || true)"
-      branch="$(grep -m1 '^Branch:' "$jobfile" | sed 's/^Branch:[[:space:]]*//' || true)"
-      result="-"
-      if [ -f "pagani/jobs/$id/checks.md" ]; then
-        result="$(grep -m1 '^RESULT:' "pagani/jobs/$id/checks.md" | sed 's/^RESULT:[[:space:]]*//' || true)"
-        [ -n "$result" ] || result="-"
-      fi
-      printf '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' \
-        "$(html_escape "$id")" "$(html_escape "${lane:-?}")" "$(html_escape "${stage:-?}")" \
-        "$(html_escape "${round:-0}")" "$(html_escape "${branch:-?}")" \
-        "$(html_escape "$result")"
-    done
-    echo '</tbody>'
-    echo '</table>'
-    echo '<h2>Metrics</h2>'
-    if [ -f pagani/metrics.tsv ]; then
-      echo '<table>'
-      local header c
-      header="$(head -1 pagani/metrics.tsv)"
-      local -a cells
-      IFS=$'\t' read -r -a cells <<< "$header"
-      printf '<thead><tr>'
-      for c in "${cells[@]}"; do printf '<th>%s</th>' "$(html_escape "$c")"; done
-      printf '</tr></thead>\n<tbody>\n'
-      while IFS=$'\t' read -r -a cells; do
-        printf '<tr>'
-        for c in "${cells[@]}"; do printf '<td>%s</td>' "$(html_escape "$c")"; done
-        printf '</tr>\n'
-      done < <(tail -n +2 pagani/metrics.tsv)
-      echo '</tbody>'
-      echo '</table>'
-    else
-      echo '<p class="muted">No metrics yet.</p>'
-    fi
-    echo '</body>'
-    echo '</html>'
-  } > "$path"
-  echo "wrote: $path"
-  if [ "$open" = "1" ]; then
-    if command -v xdg-open >/dev/null 2>&1; then
-      xdg-open "$path" >/dev/null 2>&1 || true
-    elif command -v open >/dev/null 2>&1; then
-      open "$path" >/dev/null 2>&1 || true
-    else
-      echo "$path"
-    fi
-  fi
-}
-
-
-
 cmd_report() {
-  local dashboard=0 retro=0 open=0
+  local retro=0
   local -a retro_args=()
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --dashboard) dashboard=1; shift ;;
       --retro) retro=1; shift ;;
-      --open) open=1; shift ;;
-      --write) retro_args+=(--write); shift ;;
-      --exit-code) retro_args+=(--exit-code); shift ;;
+      --write) retro=1; retro_args+=(--write); shift ;;
+      --exit-code) retro=1; retro_args+=(--exit-code); shift ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
   done
-  if [ "$dashboard" = "1" ]; then
-    if [ "$open" = "1" ]; then cmd_dashboard --open; else cmd_dashboard; fi
-  fi
   if [ "$retro" = "1" ]; then
     cmd_retro_scan "${retro_args[@]}"
     return
   fi
-  if [ "$dashboard" = "0" ]; then
-    cmd_status
-  fi
+  cmd_status
 }
 
 cmd_job() {
   local action="${1:-}"
-  [ -n "$action" ] || { echo "usage: pagani job new|check|gate|usage|report"; exit 0; }
+  [ -n "$action" ] || { echo "usage: pagani job new|check|gate|report"; exit 0; }
   shift || true
   case "$action" in
     new) cmd_job_new "$@" ;;
     check) cmd_check "$@" ;;
     gate) cmd_gate "$@" ;;
-    usage) cmd_usage "$@" ;;
     report) cmd_report "$@" ;;
-    *) echo "usage: pagani job new|check|gate|usage|report" >&2; exit 1 ;;
+    *) echo "usage: pagani job new|check|gate|report" >&2; exit 1 ;;
   esac
 }
 
