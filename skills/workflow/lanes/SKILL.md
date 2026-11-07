@@ -38,18 +38,18 @@ Lane-reason: one feature, one area, no risk path
 
 ## Escalation
 
-After the first builder commit, run:
+After the first builder commit, compare the diff against the lane:
 
 ```bash
-pagani job classify --diff
+git diff --stat <base>...HEAD
+git diff --name-only <base>...HEAD
 ```
 
-If the diff touches a risk glob, exceeds ~300 changed lines, or touches more
-files than the lane allows, **escalate** the lane, write the new lane and reason
-to `job.md`, and tell the user in one line. Never downgrade.
-
-Risk paths live in the project `REVIEW.md` under `## Risk paths`. Defaults are
-in `resources/REVIEW.md`.
+Read the risk globs from the project `REVIEW.md` under `## Risk paths` (defaults
+in `resources/REVIEW.md`). If the diff touches a risk glob, exceeds ~300 changed
+lines, or touches more files than the lane allows, **escalate** the lane, write
+the new lane and reason to `job.md`, and tell the user in one line. Never
+downgrade.
 
 ## Model tiers
 
@@ -79,7 +79,7 @@ the tier variants from `agents/models.conf`:
 - **Classifying by file count alone.** A one-file change to `auth/` is
   high-risk, not trivial.
 - **Forgetting to escalate.** A small job that grows into a migration is
-  high-risk; re-run `pagani job classify --diff` after the first builder commit.
+  high-risk; re-run the diff check after the first builder commit.
 - **Running the approver on a trivial job.** It is wasted tokens; the human
   checkpoint is enough.
 - **Skipping checks on a trivial job.** `pagani job check` still runs.

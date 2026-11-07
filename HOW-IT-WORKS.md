@@ -72,10 +72,10 @@ vertical slice that fits one fresh context. You approve the graph.
 
 ### Step 4: Build
 
-The master runs `pagani job frontier <job>` and spawns one builder per ready ticket.
-Parallel only when files are disjoint; one worktree per ticket when parallel.
-Each builder writes `build/<ticket>.md`. The master merges ticket branches into
-the job branch and posts a wave summary.
+The master reads the ready tickets from the plan and spawns one builder per ready
+ticket. Parallel only when files are disjoint; one worktree per ticket when
+parallel. Each builder writes `build/<ticket>.md`. The master merges ticket
+branches into the job branch and posts a wave summary.
 
 ### Step 5: Checks
 
@@ -87,8 +87,7 @@ no reviewer runs on a failing build.
 ### Step 6: Review
 
 The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate stops
-the review. It runs `pagani job route <job>` for a suggested lens set, then uses only
-the needed lenses:
+the review. It then uses only the needed lenses:
 
 - `review-code` — always.
 - `review-ui` — components, styles, pages, templates, or UI criteria.
@@ -146,10 +145,10 @@ Both masters read `Stage:` from `job.md` and never re-plan completed steps.
 | `standard` | normal product change | full flow |
 | `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 
-The master picks the lane at Step 0. `pagani job classify` prints `unknown` when
-there is no changed file; run it again after the first change. After the first
-builder commit, `pagani job classify --diff` escalates if the diff grows or touches
-a risk path. Lanes never downgrade.
+The master picks the lane at Step 0. After the first builder commit, compare
+`git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD` against
+the risk paths in `REVIEW.md` and the lane's file limit. Escalate if the diff
+grows or touches a risk path. Lanes never downgrade.
 
 ## Agents and models
 
@@ -228,6 +227,7 @@ Setup and install:
 
 ```bash
 ./install.sh --target both
+./bin/pagani install --uninstall
 ./bin/pagani doctor
 ./bin/pagani init [path]
 ./bin/pagani upgrade [path]
@@ -237,16 +237,15 @@ Jobs and review:
 
 ```bash
 pagani job new "<title>"
-pagani job frontier <job>
-pagani job classify [--diff] [request text]
-pagani job route <job>
 pagani job report
 pagani job check <job>
 pagani job gate <job> [--allow-dirty]
 pagani worktree create <job> <ticket>
 pagani worktree prune <job> [--force]
-/pagani pr <number>
 ```
+
+Other skills are invoked directly by name, not through `/pagani`: `/wizard`,
+`/backlog-triage`, `/wayfinding`, `/improve-architecture`, `/review-pr`.
 
 Automation:
 

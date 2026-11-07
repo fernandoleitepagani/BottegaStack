@@ -57,8 +57,8 @@ and stops for approval. You drive the rest with `approve`, `rework <note>`,
 | `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 
 Use `/pagani --lane small <feature>` or `/pagani quick <feature>` to override.
-`pagani job classify` prints `unknown` when there is no changed file; run it again
-after the first change. Lanes only escalate.
+After the first builder commit, check the diff against the risk paths in
+`REVIEW.md` and escalate if it grows. Lanes only escalate.
 
 ## Use
 
@@ -68,11 +68,20 @@ after the first change. Lanes only escalate.
 /pagani quick <feature>
 /pagani status
 /pagani resume
-/pagani triage
-/pagani wayfind
-/pagani improve
-/pagani wizard
-/pagani pr <number>
+```
+
+The master runs the workflow and stops at the checkpoints. You approve, rework,
+or reject. At the end, the master takes the approver role, writes the explainer
+and quiz, and lets you decide.
+
+Other skills are invoked directly by name, not through `/pagani`:
+
+```
+/wizard
+/backlog-triage
+/wayfinding
+/improve-architecture
+/review-pr
 ```
 
 ## Skills

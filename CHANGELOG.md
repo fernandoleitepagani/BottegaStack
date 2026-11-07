@@ -25,11 +25,13 @@
 - Removed all five design skills (`design-taste-frontend`, `frontend-design`,
   `mobile-app-ui-design`, `openui`, `emil-design-eng`), the `design/` category,
   and the `/pagani design` command branch. Skills are now 37.
-- Collapsed the CLI to nine top-level commands: `install`, `uninstall`,
-  `doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, `network`. `job`
-  owns the lifecycle subcommands; `job report` merges status, dashboard, and
-  retro; `doctor` absorbs lint. Removed `pr`, `worktree remove`, and
-  `hooks status`.
+- Collapsed the CLI to eight top-level commands: `install` (with
+  `--uninstall`), `doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`,
+  `network`. `job` owns the lifecycle subcommands; `job report` merges status,
+  dashboard, and retro; `doctor` absorbs lint. Removed `pr`, `worktree remove`,
+  and `hooks status`.
+- Removed the `job frontier`, `job classify`, and `job route` subcommands, and
+  merged `uninstall` into `pagani install --uninstall`, which honors `--dry-run`.
 
 ## 0.5.0
 

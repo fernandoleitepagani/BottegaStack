@@ -8,21 +8,18 @@ TARGET="opencode"
 MODE="link"
 DRY_RUN=0
 ASSUME_YES=0
+UNINSTALL=0
 COMMAND_DIR="commands"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 usage() {
   cat <<'EOF'
 Usage:
-  pagani install [--target opencode|claude|both] [--link|--copy] [--dry-run]
-  pagani uninstall [--target opencode|claude|both] [--yes]
+  pagani install [--uninstall] [--target opencode|claude|both] [--link|--copy] [--dry-run] [--yes]
   pagani doctor
   pagani init [path]
   pagani upgrade [path]
   pagani job new "<title>"
-  pagani job frontier <job>
-  pagani job classify [--diff] [request text]
-  pagani job route <job>
   pagani job check <job>
   pagani job gate <job> [--allow-dirty]
   pagani job usage start|end <job>
@@ -247,7 +244,17 @@ cmd_uninstall() {
     local config manifest
     config="$(config_dir "$t")"
     manifest="$config/.pagani-manifest-$(basename "$config").txt"
-    [ -f "$manifest" ] || { echo "no manifest for $t"; continue; }
+    if [ ! -f "$manifest" ]; then
+      [ "$DRY_RUN" = "1" ] || echo "no manifest for $t"
+      continue
+    fi
+    if [ "$DRY_RUN" = "1" ]; then
+      while IFS= read -r path; do
+        [ -n "$path" ] || continue
+        echo "would remove: $path"
+      done < "$manifest"
+      continue
+    fi
     if [ "$ASSUME_YES" != "1" ]; then
       echo "Remove the paths in $manifest? [y/N]"
       read -r answer
@@ -267,46 +274,8 @@ cmd_uninstall() {
   done
 }
 
-risk_awk() {
-  awk '
-    /^## Risk paths/ { flag=1; next }
-    flag && /^## / { exit }
-    flag && /^- `/ {
-      line=$0
-      sub(/^- `/, "", line)
-      sub(/`.*$/, "", line)
-      print line
-    }
-  ' "$1"
-}
 
-risk_patterns() {
-  local file="REVIEW.md" out=""
-  [ -f "$file" ] || file="$ROOT/resources/REVIEW.md"
-  if [ -f "$file" ]; then
-    out="$(risk_awk "$file")"
-  fi
-  if [ -z "$out" ] && [ "$file" != "$ROOT/resources/REVIEW.md" ] && [ -f "$ROOT/resources/REVIEW.md" ]; then
-    out="$(risk_awk "$ROOT/resources/REVIEW.md")"
-  fi
-  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
-  return 0
-}
 
-risk_match() {
-  local f="$1" p q
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    # shellcheck disable=SC2053
-    if [[ "$f" == $p ]]; then return 0; fi
-    if [[ "$p" == \*\*/* ]]; then
-      q="${p#\*\*/}"
-      # shellcheck disable=SC2053
-      if [[ "$f" == $q ]]; then return 0; fi
-    fi
-  done < <(risk_patterns)
-  return 1
-}
 
 # Print the host from a URL. Matches the webfetch-guard hook: python3 handles
 # credentials, ports, and IPv6; sed is the fallback.
@@ -331,16 +300,6 @@ except Exception:
 }
 
 # Lane order. Lanes only escalate, so compare ranks and keep the higher one.
-lane_rank() {
-  case "$1" in
-    high-risk) echo 4 ;;
-    standard) echo 3 ;;
-    small) echo 2 ;;
-    bugfix) echo 1 ;;
-    trivial) echo 0 ;;
-    *) echo -1 ;;
-  esac
-}
 
 cmd_job_new() {
   local title="${1:?title required}"
@@ -393,225 +352,9 @@ EOF
   echo "branch: pagani/$id"
 }
 
-ticket_done() {
-  local dir="$1" id="$2"
-  local f="$dir/build/$id.md"
-  [ -f "$f" ] || return 1
-  grep -qi 'STATUS:[[:space:]]*DONE' "$f"
-}
 
-cmd_frontier() {
-  local job="${1:-}"
-  [ -n "$job" ] || { echo "usage: pagani job frontier <job>" >&2; exit 1; }
-  local dir="pagani/jobs/$job"
-  [ -d "$dir" ] || { echo "job not found: $job" >&2; exit 1; }
 
-  local -a ids=() deps=()
-  local line id dep f
-  if [ -f "$dir/tickets/index.md" ]; then
-    while IFS= read -r line; do
-      line="$(printf '%s' "$line" | sed -E 's/^[[:space:]]+//')"
-      case "$line" in
-        -*) ;;
-        *) continue ;;
-      esac
-      id="$(printf '%s' "$line" | sed -E 's/^[[:space:]]*-[[:space:]]+([^[:space:]]+).*/\1/')"
-      [ -n "$id" ] || continue
-      dep="$(printf '%s' "$line" | sed -nE 's/.*[Bb]locked by:[[:space:]]*(.*)$/\1/p')"
-      ids+=("$id")
-      deps+=("$dep")
-    done < "$dir/tickets/index.md"
-  else
-    for f in "$dir"/tickets/*.md; do
-      [ -f "$f" ] || continue
-      if [ "$(basename "$f")" = "index.md" ]; then
-        continue
-      fi
-      id="$(basename "$f" .md)"
-      dep="$(sed -nE 's/^\*\*Blocked by:\*\*[[:space:]]*(.*)$/\1/p' "$f" | head -1)"
-      [ -n "$dep" ] || dep="$(sed -nE 's/^Blocked by:[[:space:]]*(.*)$/\1/p' "$f" | head -1)"
-      ids+=("$id")
-      deps+=("$dep")
-    done
-  fi
 
-  if [ "${#ids[@]}" -eq 0 ]; then
-    echo "READY: none"
-    return 0
-  fi
-
-  local ready=0 i d ok token tokens
-  for i in "${!ids[@]}"; do
-    id="${ids[$i]}"
-    d="${deps[$i]}"
-    d="$(printf '%s' "$d" | sed -E 's/[[:space:]]+$//; s/\.$//')"
-    ok=1
-    tokens="$(printf '%s' "$d" | tr ',' ' ')"
-    for token in $tokens; do
-      case "$token" in
-        ''|none|None|NONE|and|AND|-) continue ;;
-      esac
-      token="${token%.}"
-      if ! ticket_done "$dir" "$token"; then
-        ok=0
-        break
-      fi
-    done
-    if [ "$ok" = "1" ]; then
-      echo "READY: $id"
-      ready=1
-    else
-      echo "BLOCKED: $id <- $d"
-    fi
-  done
-  [ "$ready" = "1" ] || echo "READY: none"
-}
-
-cmd_classify() {
-  local diff=0
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --diff) diff=1; shift ;;
-      *) break ;;
-    esac
-  done
-  local request="$*"
-
-  local base="main"
-  local jobfile
-  jobfile="$(ls -1t pagani/jobs/*/job.md 2>/dev/null | head -1 || true)"
-  if [ -n "$jobfile" ]; then
-    base="$(grep -m1 '^Base:' "$jobfile" | sed 's/^Base:[[:space:]]*//')"
-    [ -n "$base" ] || base="main"
-  fi
-  local files
-  if [ "$diff" = "1" ]; then
-    files="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" 2>/dev/null || true)"
-  else
-    files="$(git status --porcelain | awk '{print $2}' | sed '/^$/d')"
-  fi
-
-  local risk=0 risk_file="" docs_only=1 count=0 lines=0 f
-  if [ -n "$files" ]; then
-    count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
-    for f in $files; do
-      if risk_match "$f"; then
-        risk=1
-        [ -n "$risk_file" ] || risk_file="$f"
-      fi
-      case "$f" in
-        *.md|*.txt|*.rst|*.json|*.yml|*.yaml) ;;
-        *) docs_only=0 ;;
-      esac
-    done
-    lines="$( { git diff --numstat "$base"...HEAD 2>/dev/null || true; } | awk '{a+=$1;d+=$2} END{print a+d+0}')"
-    [ -n "$lines" ] || lines=0
-  fi
-
-  local diff_lane diff_reason
-  if [ -z "$files" ]; then
-    diff_lane="unknown"
-    diff_reason="no changed files"
-  elif [ "$risk" = "1" ]; then
-    diff_lane="high-risk"
-    diff_reason="risk path: $risk_file"
-  elif [ "$docs_only" = "1" ] && [ "$count" -le 3 ]; then
-    diff_lane="trivial"
-    diff_reason="docs/config only, ${count} files"
-  elif [ "$lines" -gt 300 ] || [ "$count" -gt 10 ]; then
-    diff_lane="standard"
-    diff_reason="${count} files, ${lines} changed lines, no risk path"
-  else
-    diff_lane="small"
-    diff_reason="${count} files, ${lines} changed lines, no risk path"
-  fi
-
-  if [ -z "$request" ]; then
-    echo "LANE: $diff_lane"
-    echo "REASON: $diff_reason"
-    return 0
-  fi
-
-  local lower req_lane="" req_reason="" word
-  lower="$(printf '%s' "$request" | tr '[:upper:]' '[:lower:]')"
-
-  # Risk words win over every other request heuristic.
-  word="$(printf '%s' "$lower" | grep -oE '\b(auth|login|payment|billing|migration|schema|deploy|ci|dependenc(y|ies)|secret|token|password|crypto|permission(s)?|role|database)\b' | head -1 || true)"
-  if [ -n "$word" ]; then
-    req_lane="high-risk"
-    req_reason="request mentions risk word: $word"
-  fi
-
-  # Docs/copy words only apply when the diff is empty or docs-only, so they
-  # cannot lower a code diff.
-  if [ -z "$req_lane" ] && { [ -z "$files" ] || [ "$docs_only" = "1" ]; }; then
-    word="$(printf '%s' "$lower" | grep -oE '\b(typo|readme|docs|comment|copy)\b' | head -1 || true)"
-    if [ -n "$word" ]; then
-      req_lane="trivial"
-      req_reason="request is docs/copy only: $word"
-    fi
-  fi
-
-  if [ -z "$req_lane" ]; then
-    word="$(printf '%s' "$lower" | grep -oE '\b(bug|fix|broken|error|crash|regression)\b' | head -1 || true)"
-    if [ -n "$word" ]; then
-      req_lane="bugfix"
-      req_reason="request describes a bugfix: $word"
-    fi
-  fi
-
-  if [ -z "$req_lane" ]; then
-    word="$(printf '%s' "$lower" | grep -oE '\b(add|implement|build|feature)\b' | head -1 || true)"
-    if [ -n "$word" ]; then
-      if [ "$lines" -gt 300 ] || [ "$count" -gt 10 ]; then
-        req_lane="standard"
-        req_reason="request describes a feature and the diff is large: ${count} files, ${lines} lines"
-      else
-        req_lane="small"
-        req_reason="request describes a feature: $word"
-      fi
-    fi
-  fi
-
-  if [ -z "$req_lane" ]; then
-    req_lane="small"
-    req_reason="request has no lane keyword; default small"
-  fi
-
-  # Lanes only escalate: keep whichever of the request and diff lanes ranks
-  # higher. An unknown diff lane never lowers a request lane.
-  local diff_rank req_rank
-  diff_rank="$(lane_rank "$diff_lane")"
-  req_rank="$(lane_rank "$req_lane")"
-  if [ "$req_rank" -ge "$diff_rank" ]; then
-    echo "LANE: $req_lane"
-    echo "REASON: $req_reason"
-  else
-    echo "LANE: $diff_lane"
-    echo "REASON: $diff_reason"
-  fi
-}
-
-cmd_route() {
-  local job="${1:?job id required}"
-  local base="main"
-  [ -f "pagani/jobs/$job/job.md" ] && base="$(grep -m1 '^Base:' "pagani/jobs/$job/job.md" | sed 's/^Base:[[:space:]]*//')"
-  [ -n "$base" ] || base="main"
-  local files lenses="code" f
-  files="$(git diff --name-only "$base"...HEAD 2>/dev/null || true)"
-  for f in $files; do
-    case "$f" in
-      *component*|*style*|*.css|*.scss|*.vue|*.svelte|*.tsx|*.jsx|*page*|*template*)
-        lenses="$lenses ui ux" ;;
-    esac
-    if risk_match "$f"; then
-      lenses="$lenses security"
-    fi
-  done
-  lenses="$(printf '%s\n' $lenses | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ $//')"
-  echo "REVIEWERS: $lenses"
-  echo "FILES: $(printf '%s\n' "$files" | wc -l | tr -d ' ')"
-}
 
 cmd_check() {
   local job="${1:?job id required}"
@@ -1425,18 +1168,15 @@ cmd_report() {
 
 cmd_job() {
   local action="${1:-}"
-  [ -n "$action" ] || { echo "usage: pagani job new|frontier|classify|route|check|gate|usage|report" >&2; exit 1; }
+  [ -n "$action" ] || { echo "usage: pagani job new|check|gate|usage|report" >&2; exit 1; }
   shift || true
   case "$action" in
     new) cmd_job_new "$@" ;;
-    frontier) cmd_frontier "$@" ;;
-    classify) cmd_classify "$@" ;;
-    route) cmd_route "$@" ;;
     check) cmd_check "$@" ;;
     gate) cmd_gate "$@" ;;
     usage) cmd_usage "$@" ;;
     report) cmd_report "$@" ;;
-    *) echo "usage: pagani job new|frontier|classify|route|check|gate|usage|report" >&2; exit 1 ;;
+    *) echo "usage: pagani job new|check|gate|usage|report" >&2; exit 1 ;;
   esac
 }
 
@@ -1618,9 +1358,10 @@ cmd_retro_scan() {
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  install|uninstall)
+  install)
     while [ "$#" -gt 0 ]; do
       case "$1" in
+        --uninstall) UNINSTALL=1; shift ;;
         --target) TARGET="$2"; shift 2 ;;
         --link) MODE="link"; shift ;;
         --copy) MODE="copy"; shift ;;
@@ -1630,7 +1371,7 @@ case "$cmd" in
         *) echo "unknown flag: $1" >&2; exit 1 ;;
       esac
     done
-    if [ "$cmd" = "install" ]; then cmd_install; else cmd_uninstall; fi
+    if [ "$UNINSTALL" = "1" ]; then cmd_uninstall; else cmd_install; fi
     ;;
   doctor) cmd_doctor ;;
   init) cmd_init "${1:-$PWD}" ;;
