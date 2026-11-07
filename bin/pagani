@@ -24,7 +24,7 @@ Usage:
   pagani job gate <job> [--allow-dirty]
   pagani job usage start|end <job>
   pagani job report [--dashboard] [--retro] [--write] [--exit-code] [--open]
-  pagani worktree create <job> <ticket>
+  pagani worktree create <job> <task>
   pagani worktree prune <job> [--force]
   pagani hooks install|uninstall [path]
   pagani network init|check <url>
@@ -891,14 +891,14 @@ cmd_worktree() {
   local action="${1:-}"
   case "$action" in
     create)
-      local job="${2:?job id required}" ticket="${3:?ticket required}"
+      local job="${2:?job id required}" task="${3:?task required}"
       local repo name base
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
       base="$(git branch --show-current)"
-      git worktree add -b "pagani/$job-$ticket" "../$name-pagani/$job/$ticket" "pagani/$job" 2>/dev/null \
-        || git worktree add -b "pagani/$job-$ticket" "../$name-pagani/$job/$ticket" "$base"
-      local path="../$name-pagani/$job/$ticket"
+      git worktree add -b "pagani/$job-$task" "../$name-pagani/$job/$task" "pagani/$job" 2>/dev/null \
+        || git worktree add -b "pagani/$job-$task" "../$name-pagani/$job/$task" "$base"
+      local path="../$name-pagani/$job/$task"
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
       echo "worktree: $path"
       echo "port: $port"
@@ -940,7 +940,7 @@ cmd_worktree() {
       fi
       ;;
     *)
-      echo "usage: pagani worktree create <job> <ticket> | prune <job> [--force]" >&2
+      echo "usage: pagani worktree create <job> <task> | prune <job> [--force]" >&2
       exit 1
       ;;
   esac
@@ -1176,7 +1176,7 @@ cmd_report() {
 
 cmd_job() {
   local action="${1:-}"
-  [ -n "$action" ] || { echo "usage: pagani job new|check|gate|usage|report" >&2; exit 1; }
+  [ -n "$action" ] || { echo "usage: pagani job new|check|gate|usage|report"; exit 0; }
   shift || true
   case "$action" in
     new) cmd_job_new "$@" ;;

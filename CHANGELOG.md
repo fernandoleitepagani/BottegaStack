@@ -3,9 +3,9 @@
 ## Unreleased
 
 - Deleted `GAPS.md`, `CATEGORIES.md`, and `VENDOR.md`; merged the useful
-  category and vendor notes into `HOW-IT-WORKS.md`.
-- Simplified `README.md`, `HOW-IT-WORKS.md`, and `PLAN.md` around workflow,
-  skills, usage, and concept.
+  category and vendor notes into the workflow doc.
+- Simplified `README.md` and the docs around workflow, skills, usage, and
+  concept.
 - Removed duplicate repo copies: `scripts/claude-hook.sh` is now a symlink to
   `resources/claude-hook.sh`; `scripts/format` was removed.
 - Removed empty `plugins/` and `pagani/` dirs, generated eval result files, and
@@ -34,8 +34,8 @@
   merged `uninstall` into `pagani install --uninstall`, which honors `--dry-run`.
 - Replaced the `plan -> spec -> tickets` planning chain with one planner pass
   that writes `pagani/jobs/<id>/SPEC.md`, including the tracer-bullet task graph.
-  Project templates are now `SPEC.md`, `ROADMAP.md`, and `TASKS.md`;
-  `resources/PLAN.md` is gone, and `pagani init`/`pagani upgrade` create the new
+  Project templates are now `SPEC.md`, `ROADMAP.md`, and `TASKS.md`; the old
+  plan template is gone, and `pagani init`/`pagani upgrade` create the new
   project docs.
 - Collapsed the four review lenses into one `review-code` reviewer with code, UI,
   UX, and security checklists and one verdict. The master now loads `approval`,
@@ -47,6 +47,10 @@
   `README.md`, and added `scripts/validate.sh` as the release gate.
   `pagani doctor` now checks local links in `docs/*.md` and requires the four
   docs.
+- Verified the simplified workflow end to end: syntax checks,
+  `./scripts/validate.sh`, CLI help and dry-run install/uninstall, a
+  temp-project `init`/`job` smoke test, and both eval suites (8/8 skill cases,
+  100% reviewer recall with 0% noise).
 
 ## 0.5.0
 
