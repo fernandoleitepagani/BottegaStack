@@ -1,3 +1,6 @@
+# Orchestration artifacts
+.opencode/
+
 # PaganiStack runtime state
 pagani/jobs/
 pagani/metrics.tsv

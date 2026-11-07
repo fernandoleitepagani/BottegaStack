@@ -808,15 +808,65 @@ cmd_lint() {
   done
 
   if [ -f "$ROOT/.claude/settings.json" ]; then
-    if ! grep -q 'scripts/claude-hook.sh' "$ROOT/.claude/settings.json"; then
-      echo "FAIL .claude/settings.json does not reference scripts/claude-hook.sh"
-      fail=1
+    if command -v python3 >/dev/null 2>&1; then
+      if ! python3 - "$ROOT/resources/claude-settings.json" "$ROOT/.claude/settings.json" <<'PY'
+import json, sys
+a = json.load(open(sys.argv[1]))
+b = json.load(open(sys.argv[2]))
+def norm(d):
+    hooks = d.get("hooks", {})
+    out = {}
+    for event, entries in hooks.items():
+        rows = []
+        for entry in entries:
+            handlers = sorted(
+                (h.get("command", ""), tuple(h.get("args", [])))
+                for h in entry.get("hooks", [])
+            )
+            rows.append((entry.get("matcher", ""), tuple(handlers)))
+        out[event] = sorted(rows)
+    return out
+if a.get("permissions") != b.get("permissions") or norm(a) != norm(b):
+    sys.exit(1)
+PY
+      then
+        echo "FAIL .claude/settings.json hooks/permissions differ from resources/claude-settings.json; run: pagani upgrade ."
+        fail=1
+      fi
+    else
+      if ! grep -q 'scripts/claude-hook.sh' "$ROOT/.claude/settings.json"; then
+        echo "FAIL .claude/settings.json does not reference scripts/claude-hook.sh"
+        fail=1
+      fi
+      if ! grep -q 'PreCompact' "$ROOT/.claude/settings.json"; then
+        echo "FAIL .claude/settings.json does not reference PreCompact"
+        fail=1
+      fi
     fi
-    if ! grep -q 'PreCompact' "$ROOT/.claude/settings.json"; then
-      echo "FAIL .claude/settings.json does not reference PreCompact"
+  fi
+
+  if [ -f "$ROOT/.github/workflows/pagani-check.yml" ] && [ -f "$ROOT/resources/github/workflows/pagani-check.yml" ]; then
+    if ! cmp -s "$ROOT/.github/workflows/pagani-check.yml" "$ROOT/resources/github/workflows/pagani-check.yml"; then
+      echo "FAIL .github/workflows/pagani-check.yml differs from resources/github/workflows/pagani-check.yml"
       fail=1
     fi
   fi
+
+  local md link target
+  for md in "$ROOT"/*.md; do
+    [ -f "$md" ] || continue
+    while IFS= read -r link; do
+      case "$link" in
+        http://*|https://*|mailto:*|'#'*) continue ;;
+      esac
+      target="${link%%#*}"
+      [ -n "$target" ] || continue
+      if [ ! -e "$ROOT/$target" ]; then
+        echo "FAIL broken link: $(basename "$md") -> $link"
+        fail=1
+      fi
+    done < <(grep -oE '\]\([^)]+\)' "$md" | sed -E 's/^\]\(//; s/\)$//')
+  done
 
   if [ "$fail" = "0" ]; then
     echo "lint: PASS"
@@ -883,7 +933,7 @@ cmd_doctor() {
   fi
 
   local scripts_file
-  for scripts_file in scripts/claude-hook.sh scripts/format; do
+  for scripts_file in scripts/claude-hook.sh; do
     if [ -f "$scripts_file" ] && [ -x "$scripts_file" ]; then
       echo "$scripts_file: yes (executable)"
     elif [ -f "$scripts_file" ]; then
@@ -892,6 +942,11 @@ cmd_doctor() {
       echo "$scripts_file: missing"
     fi
   done
+  if [ -f scripts/format ] && [ -x scripts/format ]; then
+    echo "scripts/format: yes (optional)"
+  else
+    echo "scripts/format: optional (not configured)"
+  fi
 
   local gitdir hook
   gitdir="$(git -C . rev-parse --git-dir 2>/dev/null || true)"

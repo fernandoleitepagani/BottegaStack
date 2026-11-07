@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Deleted `GAPS.md`, `CATEGORIES.md`, and `VENDOR.md`; merged the useful
+  category and vendor notes into `HOW-IT-WORKS.md`.
+- Simplified `README.md`, `HOW-IT-WORKS.md`, and `PLAN.md` around workflow,
+  skills, usage, and concept.
+- Removed duplicate repo copies: `scripts/claude-hook.sh` is now a symlink to
+  `resources/claude-hook.sh`; `scripts/format` was removed.
+- Removed empty `plugins/` and `pagani/` dirs, generated eval result files, and
+  `.opencode/` plan artifacts; `.opencode/` is ignored.
+- Added `pagani lint` checks for local doc links, `.claude/settings.json` hook
+  parity, and GitHub workflow parity.
+
 ## 0.5.0
 
 Local automation and observability. Everything here is local and opt-in where it
