@@ -140,6 +140,16 @@ install_claude_command() {
   printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
 }
 
+install_global_files() {
+  local config="$1" target="$2"
+  [ "$target" = "claude" ] || return 0
+  local f
+  for f in settings.json CLAUDE.md; do
+    [ -f "$ROOT/claude/global/$f" ] && install_one "$ROOT/claude/global/$f" "$config/$f" "$config"
+  done
+  return 0
+}
+
 install_commands() {
   local config="$1" target="$2"
   if [ "$target" = "claude" ]; then
@@ -224,6 +234,7 @@ cmd_install() {
     install_agents "$config" "$t"
     install_agent_variants "$config" "$t"
     install_commands "$config" "$t"
+    install_global_files "$config" "$t"
     echo "installed: $t"
   done
 }
