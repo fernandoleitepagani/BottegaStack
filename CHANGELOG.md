@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Verified the trim end to end: `bash -n`, `./scripts/validate.sh`, the help and
+  install/uninstall dry-runs, a temp-project `init` and `job` smoke test, and
+  the skill (8/8) and reviewer (100% recall, 0% noise) evals all pass.
 - Added an explicit entry rule to both masters: a feature request starts at
   Step 0, `status` reads the newest job, and `resume` continues from `Stage:`.
   Builds default to sequential and run a parallel wave when the ready tasks
