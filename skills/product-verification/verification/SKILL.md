@@ -1,6 +1,6 @@
 ---
 name: verification
-description: Start a project, drive it in a browser, and collect evidence for PaganiStack acceptance criteria. Use by the builder, UI reviewer, UX reviewer, and approver when a change has UI or end-to-end behaviour.
+description: Start a project, drive it in a browser, and collect evidence for PaganiStack acceptance criteria. Use by the builder and reviewer when a change has UI or end-to-end behaviour.
 ---
 
 # PaganiStack Verification

@@ -37,6 +37,11 @@
   Project templates are now `SPEC.md`, `ROADMAP.md`, and `TASKS.md`;
   `resources/PLAN.md` is gone, and `pagani init`/`pagani upgrade` create the new
   project docs.
+- Collapsed the four review lenses into one `review-code` reviewer with code, UI,
+  UX, and security checklists and one verdict. The master now loads `approval`,
+  writes `decision.md`, and presents the explainer and quiz itself. Removed the
+  `review-ui`, `review-ux`, `review-security`, and `approver` agents and skills;
+  skills are now 34.
 
 ## 0.5.0
 

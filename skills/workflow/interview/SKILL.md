@@ -147,7 +147,7 @@ user confirms the shared understanding.
 ### 12. Definition of done
 
 - What must be true before the human merges?
-- What evidence should the approver see?
+- What evidence should the review see?
 
 ## Stop condition
 

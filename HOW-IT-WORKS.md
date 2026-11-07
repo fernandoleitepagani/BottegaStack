@@ -1,7 +1,7 @@
 # How PaganiStack Works
 
 PaganiStack is a personal development workflow. It gives an agent a job folder,
-a SPEC with a task graph, deterministic checks, focused reviewers, and a human
+a SPEC with a task graph, deterministic checks, one reviewer, and a human
 decision. The job folder is the state; there is no database or state machine.
 
 ## Quick start
@@ -35,9 +35,9 @@ Then, in OpenCode or Claude Code:
 1. SPEC      interview -> SPEC.md                    [approve]
 2. BUILD     one builder per ready task             [approve per wave]
 3. CHECKS    pagani job check -> checks.md          (fail -> builder)
-4. REVIEW    only the needed lenses                 [summary]
-5. FIX       fix.md -> fresh builder -> checks -> affected reviews
-6. APPROVAL  approver -> decision.md + quiz
+4. REVIEW    one review-code review (code, UI, UX, security) [summary]
+5. FIX       fix.md -> fresh builder -> checks -> re-review
+6. APPROVAL  master -> decision.md + quiz
 7. HUMAN     approve, rework, or reject
 8. CLOSE     usage end, dashboard, retro, merge/commit/push/PR on request
 ```
@@ -78,16 +78,21 @@ no reviewer runs on a failing build.
 ### Step 4: Review
 
 The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate stops
-the review. It then uses only the needed lenses:
+the review. It then spawns one `review-code` reviewer, which covers code, UI, UX,
+and security in one pass and returns one verdict:
 
-- `review-code` — always.
-- `review-ui` — components, styles, pages, templates, or UI criteria.
-- `review-ux` — flows, states, copy, accessibility, mobile, or UX criteria.
-- `review-security` — auth, permissions, payments, input, API, data, secrets,
-  dependencies, or security criteria.
+- **Code** — correctness, simplicity, conventions, tests, and spec fidelity.
+- **UI** — visual consistency, design-system fit, spacing, responsive layout,
+  contrast, and hover/focus/disabled/loading states.
+- **UX** — flows, empty/loading/error states, copy, accessibility, keyboard and
+  focus order, mobile, and edge cases.
+- **Security** — access control, input handling, XSS, data exposure,
+  payments/identity, abuse, secrets, dependencies, and sessions/auth.
 
-Reviewers run in parallel with fresh context. Each writes one file. The master
-writes `round-N/summary.md` and posts the summary.
+The reviewer loads `verification` and uses `agent-browser` when the change has
+UI, and loads `unslop` for copy. It writes `round-N/review-code.md` with one
+`VERDICT` for the whole change. The master writes `round-N/summary.md` and posts
+the summary.
 
 ### Step 5: Fix
 
@@ -98,8 +103,10 @@ fix rounds.
 
 ### Step 6: Approval
 
-The approver reads `SPEC.md`, the build reports, checks, and reviews. It writes
-`decision.md` with `APPROVE` or `ESCALATE`, an explainer, and a short quiz. The
+The master loads `approval` and reads `SPEC.md`, the build reports, checks, and
+reviews. It writes `decision.md` itself with `APPROVE` or `ESCALATE`, the
+acceptance-criteria mapping, risks, an explainer, and a short quiz. It then
+presents the decision, explainer, and quiz to you and asks for the decision. The
 quiz uses retrieval practice: no formatting hints, answers answerable from the
 artifacts.
 
@@ -123,7 +130,7 @@ Job state is files in `pagani/jobs/<id>/`, so the runtimes can share a job:
 1. Run Steps 0–1 in Claude Code.
 2. In the same project, run `/pagani resume` in OpenCode for build, checks,
    review, and fix.
-3. Optionally return to Claude Code at approval for the strong approver.
+3. Optionally return to Claude Code at approval.
 
 Both masters read `Stage:` from `job.md` and never re-plan completed steps.
 
@@ -135,7 +142,7 @@ Both masters read `Stage:` from `job.md` and never re-plan completed steps.
 | `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code-lite → human |
 | `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code-lite → human |
 | `standard` | normal product change | full flow |
-| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
+| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + review-code-strong |
 
 The master picks the lane at Step 0. After the first builder commit, compare
 `git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD` against
@@ -146,19 +153,16 @@ grows or touches a risk path. Lanes never downgrade.
 
 | Agent | Role |
 |---|---|
-| `master` | Talks to you, asks questions, runs checks, posts summaries, executes git only on request. |
+| `master` | Talks to you, asks questions, runs checks, posts summaries, writes `decision.md`, executes git only on request. |
 | `explorer` | Cheap read-only search and log reading. |
 | `planner` | Writes `SPEC.md` with the requirements, decisions, and tracer-bullet task graph. |
 | `builder` | Implements exactly one task and writes `build/<task>.md`. |
-| `review-code` | Correctness, simplicity, conventions, tests, spec fidelity. |
-| `review-ui` | Visual consistency, responsive layout, contrast, design-system fit. |
-| `review-ux` | Flows, states, copy, accessibility, mobile. |
-| `review-security` | Access control, input, data exposure, secrets, dependencies. |
-| `approver` | Final gate, explainer, and quiz. |
+| `review-code` | One reviewer for code, UI, UX, and security; one file, one verdict. |
 
 The installer generates `lite`, `std`, and `strong` variants from
-`agents/models.conf`. The master picks the variant by role and lane. Planning,
-security, and approval use the strong tier; search uses the cheap tier.
+`agents/models.conf`. The master picks the variant by role and lane. Planning
+uses the strong tier; the builder and reviewer scale with risk and lane. There
+is no separate security or approval variant.
 
 ## Skills
 
@@ -177,13 +181,15 @@ Skills use the Claude Code categories plus `workflow/`:
 | `workflow` | Lanes, interview, planning, summary, closeout, handoff, retro, untrusted content. |
 
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
-`verification`, `review-code`, `review-security`, `approval`, `summary`,
-`closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
-`untrusted-content`. The rest are situational.
+`verification`, `review-code`, `approval`, `summary`, `closeout`,
+`session-handoff`, `session-retro`, `diagnosis`, and `untrusted-content`. The
+`review-code` reviewer covers code, UI, UX, and security. The rest are
+situational.
 
-The full skill list is the `skills/<category>/<skill>/SKILL.md` tree. The
-installer flattens it to `<target>/skills/<skill>/SKILL.md` because both
-runtimes discover skills at that depth.
+PaganiStack ships 34 skills. The full list is the
+`skills/<category>/<skill>/SKILL.md` tree. The installer flattens it to
+`<target>/skills/<skill>/SKILL.md` because both runtimes discover skills at that
+depth.
 
 ### Vendored skills
 

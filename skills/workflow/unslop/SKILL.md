@@ -10,7 +10,7 @@ patterns below, then rewrite. Preserve meaning and match the intended tone.
 
 Use this on:
 - `summary.md` before posting it,
-- UX copy in `review-ux`,
+- UX copy in `review-code`,
 - `AGENTS.md`, `PLAN.md`, and skill text when you edit them.
 
 ## Patterns to detect and fix

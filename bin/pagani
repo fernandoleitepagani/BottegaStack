@@ -206,8 +206,6 @@ install_agent_variants() {
   install_variant "$target" builder builder-strong strong "$config"
   install_variant "$target" review-code review-code-lite lite "$config"
   install_variant "$target" review-code review-code-strong strong "$config"
-  install_variant "$target" review-security review-security-strong strong "$config"
-  install_variant "$target" approver approver-strong strong "$config"
 }
 
 cmd_install() {

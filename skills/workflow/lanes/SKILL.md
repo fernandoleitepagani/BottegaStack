@@ -5,7 +5,7 @@ description: Classify a PaganiStack job into a lane at Step 0 and escalate it wh
 
 # PaganiStack Lanes
 
-Not every request needs the full ten-step pipeline. Pick a lane, write it to
+Not every request needs the full nine-step pipeline. Pick a lane, write it to
 `job.md`, and skip the steps the lane does not need. Lanes only escalate.
 
 ## Lanes
@@ -13,13 +13,13 @@ Not every request needs the full ten-step pipeline. Pick a lane, write it to
 | Lane | Use when | Steps that run | Human checkpoints |
 |---|---|---|---|
 | `trivial` | docs, copy, comments, config-only; ≤3 files; no risk path; no behaviour change | Step 0 → `builder-lite` → `pagani job check` → `review-code-lite` → human | one summary at the end |
-| `bugfix` | a reproducible symptom exists | Step 0 → `diagnosis` → failing test first → one `builder` → `pagani job check` → `review-code-lite` (+ `review-security` if a risk path is touched) → human | one summary at the end |
-| `small` | one feature, one area, ≲10 files, no risk path | Step 0 → short interview (≤3 questions) → `plan.md` with acceptance criteria (spec merged in) → one ticket → `builder` → `pagani job check` → `review-code-lite` + routed lens → human. No separate spec, tickets index, or approver | after plan, after review |
-| `standard` | normal product change | full flow; build/check summaries collapse into the review summary | after plan, spec, tickets, review |
-| `high-risk` | auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling | full flow + `adversarial-review` + `simplify` + `review-security-strong` + `approver-strong`; quiz mandatory | every step; the human must read the diff before merge |
+| `bugfix` | a reproducible symptom exists | Step 0 → `diagnosis` → failing test first → one `builder` → `pagani job check` → `review-code-lite` → human | one summary at the end |
+| `small` | one feature, one area, ≲10 files, no risk path | Step 0 → short interview (≤3 questions) → `SPEC.md` with acceptance criteria and one task → `builder` → `pagani job check` → `review-code-lite` → human. The master writes `decision.md` | after SPEC, after review |
+| `standard` | normal product change | full flow; build/check summaries collapse into the review summary | after SPEC, after review |
+| `high-risk` | auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling | full flow + `adversarial-review` + `simplify` + `review-code-strong`; quiz mandatory | every step; the human must read the diff before merge |
 
-Commands `pr`, `design`, `wayfind`, `triage`, `improve`, `wizard` are separate
-and are not lanes.
+Skills `wizard`, `wayfinding`, `backlog-triage`, `improve-architecture`, and
+`review-pr` are separate and are not lanes.
 
 ## Step 0 classification
 
@@ -59,20 +59,16 @@ downgrade.
 | planner | — | — | `planner-std` | `planner-strong` | `planner-strong` |
 | builder | `builder-lite` | `builder` | `builder` | `builder` | `builder-strong` |
 | review-code | `review-code-lite` | `review-code-lite` | `review-code-lite` | `review-code` | `review-code-strong` |
-| review-ui / review-ux | `review-ui` / `review-ux` | — | `review-ui` / `review-ux` | `review-ui` / `review-ux` | `review-ui` / `review-ux` |
-| review-security | only on risk path (`review-security`) | `review-security` on risk path | `review-security` on risk path | `review-security` | `review-security-strong` |
-| approver | — | — | — | `approver` | `approver-strong` |
-| search / logs | `explorer` | `explorer` | `explorer` | `explorer` | `explorer` |
 
-The base agents are `planner`, `builder`, `review-code`, `review-ui`,
-`review-ux`, `review-security`, `approver`, `explorer`. The installer generates
-the tier variants from `agents/models.conf`:
+One reviewer covers code, UI, UX, and security for every lane. The master writes
+`decision.md` at Step 6.
+
+The base agents are `master`, `explorer`, `planner`, `builder`, and `review-code`.
+The installer generates the tier variants from `agents/models.conf`:
 
 - `planner-std`, `planner-strong`
 - `builder-lite`, `builder-strong`
 - `review-code-lite`, `review-code-strong`
-- `review-security-strong`
-- `approver-strong`
 
 ## Gotchas
 
@@ -80,7 +76,8 @@ the tier variants from `agents/models.conf`:
   high-risk, not trivial.
 - **Forgetting to escalate.** A small job that grows into a migration is
   high-risk; re-run the diff check after the first builder commit.
-- **Running the approver on a trivial job.** It is wasted tokens; the human
-  checkpoint is enough.
+- **Spawning a separate UI, UX, or security reviewer.** The one `review-code`
+  reviewer covers all four areas.
 - **Skipping checks on a trivial job.** `pagani job check` still runs.
 - **Using a strong model for search.** `explorer` is lite for a reason.
+- **Waiting for a separate approval agent.** The master writes `decision.md`.

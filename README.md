@@ -57,7 +57,7 @@ The master picks a lane, creates the job, asks a few questions, writes a
 | `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code-lite → human |
 | `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code-lite → human |
 | `standard` | normal product change | full flow |
-| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
+| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + review-code-strong |
 
 Use `/pagani --lane small <feature>` or `/pagani quick <feature>` to override.
 After the first builder commit, check the diff against the risk paths in
@@ -74,8 +74,8 @@ After the first builder commit, check the diff against the risk paths in
 ```
 
 The master runs the workflow and stops at the checkpoints. You approve, rework,
-or reject. At the end, the master takes the approver role, writes the explainer
-and quiz, and lets you decide.
+or reject. At the end, the master loads `approval`, writes `decision.md`, and
+presents the explainer and quiz; you make the decision.
 
 Other skills are invoked directly by name, not through `/pagani`:
 
@@ -98,13 +98,14 @@ runbooks/               infrastructure-ops/    workflow/
 ```
 
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
-`verification`, `review-code`, `review-security`, `approval`, `summary`,
-`closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
-`untrusted-content`. The rest are situational: data, runbooks, infrastructure,
-scaffolding, library reference, and backlog triage.
+`verification`, `review-code`, `approval`, `summary`, `closeout`,
+`session-handoff`, `session-retro`, `diagnosis`, and `untrusted-content`. The
+`review-code` reviewer covers code, UI, UX, and security in one pass. The rest
+are situational: data, runbooks, infrastructure, scaffolding, library reference,
+and backlog triage.
 
-See [HOW-IT-WORKS.md](HOW-IT-WORKS.md) for the full skill list and how skills
-load.
+PaganiStack ships 34 skills. See [HOW-IT-WORKS.md](HOW-IT-WORKS.md) for the full
+skill list and how skills load.
 
 ## Docs
 

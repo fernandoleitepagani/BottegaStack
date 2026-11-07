@@ -1,14 +1,14 @@
 ---
 name: approval
-description: Act as the PaganiStack final gate. Read the spec, build, checks, and reviews, decide APPROVE or ESCALATE, and write decision.md with an explainer and quiz for the human.
+description: Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and quiz, and presents it to the human.
 ---
 
 # PaganiStack Approval
 
-You are the final gate for one job. Your prompt gives the job folder, the spec,
-the tickets, the build reports, `checks.md`, and every review file. You write
-exactly one file, `pagani/jobs/<id>/decision.md`. You never edit code and never
-merge or push.
+You are the final gate for one job. The master runs this skill directly; there
+is no separate review or approval agent. Read the job folder, `SPEC.md`, the
+build reports, `checks.md`, and every review file, then write exactly one file,
+`pagani/jobs/<id>/decision.md`. Never edit code and never merge or push.
 
 ## Base skills
 
@@ -20,10 +20,10 @@ merge or push.
 ## Read
 
 1. `AGENTS.md`, `GLOSSARY.md`, and any docs they list.
-2. `plan.md`, `spec.md`, and every ticket.
-3. Every `build/<ticket>.md`.
+2. `SPEC.md`.
+3. Every `build/<task>.md`.
 4. `checks.md`.
-5. Every `round-*/review-*.md`, including earlier rounds.
+5. Every `round-*/review-code.md`, including earlier rounds.
 6. The diff: `git diff <base>...HEAD`.
 7. `git log --oneline <base>..HEAD` and `git merge-tree --write-tree <base> HEAD`
    if available.
@@ -35,10 +35,10 @@ checkout. A failing check is `ESCALATE`.
 
 `APPROVE` only if all of these hold:
 
-- Every acceptance criterion in the spec is met, with evidence you find
+- Every acceptance criterion in `SPEC.md` is met, with evidence you find
   convincing. Spot-check at least one criterion yourself.
-- Every routed review in the final round is `VERDICT: PASS`, and no Note
-  describes a real problem.
+- The final `review-code.md` is `VERDICT: PASS`, and no Note describes a real
+  problem.
 - The deterministic checks pass.
 - The branch merges cleanly into the base, or has no conflicts.
 
@@ -94,8 +94,21 @@ Rules:
   not the line numbers.
 - The quiz has 3-5 questions. They must be answerable from the artifacts and the
   code, not from hidden context. Include the answers.
-- Do not invent acceptance criteria. Use the spec.
+- Do not invent acceptance criteria. Use `SPEC.md`.
 - Do not approve a change you would not merge yourself.
+
+## Present the decision
+
+After writing `decision.md`, present it to the human in the conversation:
+
+1. State the decision and the one-line why.
+2. Show the explainer.
+3. Show the quiz without the answers first, then the answers after the human
+   attempts it, or together if they prefer.
+4. Ask for the decision with the native question tool. Offer approve and merge,
+   approve and commit, approve and push, approve and open PR, rework, and reject.
+
+The human decides. Do not merge or push before they answer.
 
 ## Report
 
@@ -112,3 +125,4 @@ QUIZ: <count> questions
 - A quiz with formatting hints or answers that are not in the artifacts.
 - Approving a change you cannot explain in two sentences.
 - Missing the risk tier: auth, payments, data, deploy, schema, dependencies.
+- Writing `decision.md` and merging without asking the human.
