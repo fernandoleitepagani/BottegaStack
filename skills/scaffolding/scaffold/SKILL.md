@@ -51,7 +51,7 @@ TESTS: <pass/fail>
 
 ## Gotchas
 
-- Adding a skill category outside the nine plus `workflow/` and `design/`.
+- Adding a skill category outside the Claude Code categories plus `workflow/`.
 - Copying a skill and forgetting that `name:` must equal its directory;
   `pagani doctor` fails.
 - Adding a `pagani-` prefix to a skill name.

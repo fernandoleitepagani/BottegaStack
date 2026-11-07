@@ -82,7 +82,7 @@ tier. The installer generates the variants from `agents/models.conf`.
 ## Skills
 
 Skills are the procedures the agents load. They use the Claude Code categories
-plus `workflow/` and `design/`:
+plus `workflow/`:
 
 - `library-api-reference`
 - `product-verification`
@@ -93,7 +93,6 @@ plus `workflow/` and `design/`:
 - `runbooks`
 - `infrastructure-ops`
 - `workflow`
-- `design`
 
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
 `verification`, `review-code`, `review-security`, `approval`, `summary`,

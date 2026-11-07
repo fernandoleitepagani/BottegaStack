@@ -1,7 +1,7 @@
 ---
 description: Start or continue a PaganiStack job.
 agent: master
-argument-hint: "<feature> | status | resume | triage | wayfind | improve | design | wizard | pr <n> | --lane <lane> <feature> | quick <feature>"
+argument-hint: "<feature> | status | resume | triage | wayfind | improve | wizard | pr <n> | --lane <lane> <feature> | quick <feature>"
 ---
 
 Use the PaganiStack workflow.
@@ -31,11 +31,6 @@ If the request is `wayfind`, load `wayfinding` and chart the map under
 
 If the request is `improve`, load `improve-architecture` and run its
 architecture review. Do not start a build job.
-
-If the request is `design`, load `design-taste-frontend` for a page or app
-screen, `mobile-app-ui-design` for mobile, and `frontend-design` if the direction
-needs a stronger point of view. Do not start a build job until the user approves
-the design direction.
 
 If the request is `pr <number>`, load `review-pr`, run `gh pr view`,
 `gh pr diff`, and `gh pr checks`, then write `review-pr.md`. Do not merge.

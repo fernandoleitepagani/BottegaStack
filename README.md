@@ -71,27 +71,25 @@ after the first change. Lanes only escalate.
 /pagani triage
 /pagani wayfind
 /pagani improve
-/pagani design
 /pagani wizard
 /pagani pr <number>
 ```
 
 ## Skills
 
-Skills use the Claude Code categories plus `workflow/` and `design/`:
+Skills use the Claude Code categories plus `workflow/`:
 
 ```
 library-api-reference/  product-verification/  data-analysis/
 business-automation/    scaffolding/           code-quality/
 runbooks/               infrastructure-ops/    workflow/
-design/
 ```
 
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
 `verification`, `review-code`, `review-security`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
-`untrusted-content`. The rest are situational: design, data, CI/CD, runbooks,
-infrastructure, scaffolding, library reference, and the weekly review.
+`untrusted-content`. The rest are situational: data, runbooks, infrastructure,
+scaffolding, library reference, and backlog triage.
 
 See [HOW-IT-WORKS.md](HOW-IT-WORKS.md) for the full skill list and how skills
 load.

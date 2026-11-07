@@ -11,7 +11,7 @@ full explanation.
 ## Rules
 
 - Keep skill names standalone. Do not use a `pagani-` prefix.
-- Keep the Claude Code categories plus `workflow/` and `design/`.
+- Keep the Claude Code categories plus `workflow/`.
 - Do not add paid skills or skills that require paid assets.
 - Do not add cloud-session workflows.
 - Lanes are the pipeline router; keep `skills/workflow/lanes/SKILL.md` and the

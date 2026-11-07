@@ -20,7 +20,10 @@
   `code-review` into `review-code`, `diagnosing-bugs` into `diagnosis`, `tdd`
   into `implementation`, and `pr` into `closeout`.
 - Added skill eval cases for `interview`, `diagnosis`, and `implementation`.
-- Removed the unused `ci-cd` skill.
+- Removed the unused `ci-cd` skill and the `weekly-review` skill.
+- Removed all five design skills (`design-taste-frontend`, `frontend-design`,
+  `mobile-app-ui-design`, `openui`, `emil-design-eng`), the `design/` category,
+  and the `/pagani design` command branch. Skills are now 37.
 - Collapsed the CLI to nine top-level commands: `install`, `uninstall`,
   `doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, `network`. `job`
   owns the lifecycle subcommands; `job report` merges status, dashboard, and

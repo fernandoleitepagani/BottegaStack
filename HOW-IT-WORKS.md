@@ -171,20 +171,19 @@ security, and approval use the strong tier; search uses the cheap tier.
 
 ## Skills
 
-Skills use the Claude Code categories plus two extensions:
+Skills use the Claude Code categories plus `workflow/`:
 
 | Category | What belongs there |
 |---|---|
 | `library-api-reference` | How to use a library, CLI, SDK, or internal API correctly. |
 | `product-verification` | How to test or verify the product: builds, browsers, screenshots, flows. |
 | `data-analysis` | How to answer a question from real data: SQL, logs, metrics, cohorts. |
-| `business-automation` | Recurring workflow: backlog triage, weekly review, release notes. |
+| `business-automation` | Recurring workflow: backlog triage and release notes. |
 | `scaffolding` | Create a new component, service, route, migration, or fixture. |
 | `code-quality` | Review lenses, implementation, design, simplification, tests. |
 | `runbooks` | Investigate a symptom: incident, alert, “why is this broken”. |
 | `infrastructure-ops` | Dependencies, cost, access, orphaned resources, least privilege. |
 | `workflow` | Lanes, interview, planning, summary, closeout, handoff, retro, untrusted content. |
-| `design` | UI/UX production: art direction, layout, mobile, motion, polish. |
 
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
 `verification`, `review-code`, `review-security`, `approval`, `summary`,
@@ -209,12 +208,7 @@ adapted, it is renamed and the change is noted in its `SKILL.md`.
 | `skill-creator` | anthropics/skills | see `LICENSE.txt` in the skill |
 | `agent-browser` | vercel-labs/agent-browser | see upstream |
 | `vercel-react-best-practices` | vercel-labs/agent-skills | see upstream |
-| `design-taste-frontend` | leonxlnx/taste-skill | see README/LICENSE in the skill |
-| `frontend-design` | anthropics/skills | see `LICENSE.txt` in the skill |
 | `web-design-guidelines` | vercel-labs/agent-skills | see upstream |
-| `mobile-app-ui-design` | ceorkm/mobile-app-ui-design | MIT |
-| `openui` | thesysdev/openui | see upstream |
-| `emil-design-eng` | emilkowalski/skills | see LICENSE in the skill |
 
 `handoff` and `retro` are adapted as `session-handoff` and `session-retro`.
 Some PaganiStack skills absorb upstream content: `interview` (from `grilling`),

@@ -158,8 +158,8 @@ actions only when the user explicitly asks.
 - `agent-browser` for browser verification.
 - `untrusted-content` before reading web pages, PR bodies/comments,
   `BACKLOG.md`, logs, screenshots, or OCR.
-- `runbook`, `infra-ops`, `library-reference`, `data-analysis`,
-  `weekly-review`, and `scaffold` for their categories.
+- `runbook`, `infra-ops`, `library-reference`, `data-analysis`, and `scaffold`
+  for their categories.
 
 ## Subagent rules
 

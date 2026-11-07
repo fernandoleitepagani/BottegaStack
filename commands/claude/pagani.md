@@ -1,6 +1,6 @@
 ---
 description: Start or continue a PaganiStack job.
-argument-hint: "<feature> | status | resume | triage | wayfind | improve | design | wizard | pr <n> | --lane <lane> <feature> | quick <feature>"
+argument-hint: "<feature> | status | resume | triage | wayfind | improve | wizard | pr <n> | --lane <lane> <feature> | quick <feature>"
 model: opus
 allowed-tools: Read, Grep, Glob, Bash, Write, Task, Skill, AskUserQuestion, TodoWrite
 ---
@@ -21,10 +21,6 @@ If the request is `triage`, load `backlog-triage` and work `BACKLOG.md`.
 If the request is `wayfind`, load `wayfinding` and chart `pagani/jobs/<id>/map/`.
 
 If the request is `improve`, load `improve-architecture` and run its review.
-
-If the request is `design`, load `design-taste-frontend` for a page or app
-screen, `mobile-app-ui-design` for mobile, and `frontend-design` for a stronger
-direction. Do not build until the user approves the design direction.
 
 If the request is `wizard`, load `wizard` and scope the human-only procedure.
 
