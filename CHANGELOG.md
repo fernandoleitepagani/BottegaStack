@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added `## Options considered` to the spec, finding examples to the reviewer,
+  and a rule-placement hierarchy with harness-decay checks. Both masters now
+  join parallel waves with `ALL` and share a context policy; closeout resumes
+  idempotently. Renamed the design doc to `docs/RATIONALE.md` and tightened
+  the stall-exit baseline and test-change wording.
 - Added a hard task contract: every task names `Allowed files`, `Test first`, and
   `Done when`, and every `SPEC.md` names `## Sensors`. Builders treat existing
   tests as evaluator inputs, reviewers block out-of-bounds edits and unjustified

@@ -22,8 +22,9 @@ the worktree, and the branch.
 7. Reply with the report format from `implementation`.
 
 Existing tests are evaluator inputs. Do not edit, delete, skip, or weaken one to
-make the task pass. If the task needs another file outside `Allowed files`, or
-genuinely requires a test change, stop and report `STATUS: BLOCKED`.
+make the task pass. The only paths are `STATUS: BLOCKED` or a master-approved
+change recorded under `## Test changes`. If the task needs another file outside
+`Allowed files`, stop and report `STATUS: BLOCKED`.
 
 If you cannot meet the task, write `STATUS: BLOCKED` and explain exactly what
 blocks you. Do not paper over it.

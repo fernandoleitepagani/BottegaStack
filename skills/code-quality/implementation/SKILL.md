@@ -30,10 +30,9 @@ one report file, `pagani/jobs/<id>/build/<task>.md`.
   work in vertical slices.
 - **Refactoring is not part of the loop.** It belongs to review.
 - **Test protection.** Existing tests are evaluator inputs. Do not edit,
-  delete, skip, or weaken an existing test to make the task pass. If the task
-  genuinely requires a test change, stop and report `STATUS: BLOCKED` with the
-  reason, or get explicit approval from the master. Record any approved change
-  under `## Test changes`.
+  delete, skip, or weaken an existing test to make the task pass. The only paths
+  are `STATUS: BLOCKED` with the reason, or a master-approved change recorded
+  under `## Test changes` in the build report.
 
 ## Read first
 

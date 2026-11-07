@@ -1,4 +1,4 @@
-# PaganiStack Design
+# PaganiStack Rationale
 
 PaganiStack is a workflow for shipping small, verified changes with an agent and
 a human in the loop. It is deliberately narrow: spec, build, check, review,
@@ -136,6 +136,29 @@ removed; the master does those checks directly.
   have no dependency between them, and stays sequential when tasks share a file,
   a migration, or one needs another's output. Parallel buys wall-clock time but
   costs worktrees, ports, and merge work.
+
+## Harness decay
+
+Every component — a rule, a skill line, a hook, a review checklist item — was
+added to fix a weakness. Models change, and a component that fixed an old
+weakness can become dead weight.
+
+On a model upgrade:
+
+1. List each component.
+2. Ask what weakness it was added for.
+3. Remove it on a branch.
+4. Run the evals.
+5. Keep or delete it.
+
+Test one component at a time. Removing several at once hides which one still
+earns its place.
+
+## Rule placement
+
+A repeated rule moves down the hierarchy until it sticks: hook or permission
+rule, lint/type/test, script or skill, `AGENTS.md` or `mistakes.md`, human
+review. See `## Rule placement` in [AGENTS.md](../AGENTS.md).
 
 ## Non-goals
 

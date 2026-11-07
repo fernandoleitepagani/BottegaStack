@@ -56,7 +56,7 @@ once at close, writes `decision.md`, and presents the explainer (and the quiz on
 - [docs/WORKFLOW.md](docs/WORKFLOW.md) — the 9 steps, lanes, agents, job folder, automation.
 - [docs/SKILLS.md](docs/SKILLS.md) — all 34 skills, invocation model, vendored sources.
 - [docs/SETUP.md](docs/SETUP.md) — install, uninstall, `doctor`, `init`, `upgrade`, troubleshooting.
-- [docs/DESIGN.md](docs/DESIGN.md) — why the workflow is shaped this way, what was removed, trade-offs.
+- [docs/RATIONALE.md](docs/RATIONALE.md) — the rationale: why the workflow is shaped this way, what was removed, and the trade-offs.
 
 ## License
 

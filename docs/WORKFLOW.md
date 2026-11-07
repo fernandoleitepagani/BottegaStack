@@ -55,6 +55,9 @@ used when tasks share a file, a migration, or one needs another's output. Each
 builder writes `build/<task>.md`. The master merges task branches into the job
 branch and posts a wave summary.
 
+A parallel wave joins with `ALL` by default: every task in the wave must pass
+before the wave is merged. Do not merge partial results.
+
 A builder is bounded by the task's `Allowed files`. If it needs another file, it
 reports `BLOCKED`; the master does not widen the task itself. Existing tests are
 evaluator inputs: the builder does not edit, delete, skip, or weaken one to make
@@ -117,6 +120,10 @@ You read the explainer, answer the quiz on `standard` and `high-risk` jobs, and
 choose merge, commit, push, PR, rework, or reject. The master shows the exact
 git command before running it and appends the decision to `## Human decision` in
 `decision.md`.
+
+Before it creates a branch, worktree, or PR, the master checks whether it already
+exists (`git branch --list`, `git worktree list`, `gh pr view`) so a resume does
+not duplicate a side effect.
 
 ### Step 8: Close
 
@@ -264,6 +271,16 @@ The job folder is the source of truth. No JSON state machine, no `plan.md`, no
 `summary.md` is written once at close, or at review for `standard` and
 `high-risk`. Every step still posts a short summary in chat.
 
+## Context policy
+
+```
+ALWAYS     SPEC.md, AGENTS.md, GLOSSARY.md, current task
+ON DEMAND  files, docs, skills, search results
+COMPACTED  old turns, summarized at a natural break
+ISOLATED   subagent work, returned as a short report
+NEVER      secrets, raw logs, whole directories, unrelated files
+```
+
 ## Project docs
 
 `pagani init` creates three project-level docs:
@@ -310,7 +327,7 @@ tracking, budget enforcement, or backup command.
 stops agents. Untrusted content still reaches agents through browser pages, PR
 bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
 `untrusted-content` skill is a convention, not a sandbox. See
-[DESIGN.md](DESIGN.md) for the trade-offs.
+[RATIONALE.md](RATIONALE.md) for the trade-offs.
 
 ## Sources
 

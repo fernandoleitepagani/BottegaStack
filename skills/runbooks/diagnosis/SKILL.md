@@ -105,9 +105,10 @@ skipping, or weakening it hides the failure instead of fixing it.
 
 ## Stall exit
 
-Track the number of failing checks and blocking findings. If neither decreased
-in two consecutive rounds, stop and escalate. Do not run a third identical
-round.
+Track the number of failing checks and blocking findings. Round 1 compares both
+counts to the initial failing build. Later rounds compare to the previous round.
+Stop after two consecutive comparisons with no decrease and escalate. Do not run
+a third identical round.
 
 ## Report
 

@@ -21,6 +21,8 @@ Improve the environment, not just the code.
   prose.
 - **Global `AGENTS.md`:** lines that belong in a check or a skill instead.
 - **Tool economy:** an expensive tool call or a missing helper.
+- **Rule placement:** a rule that sits too low in the hierarchy; move it to the
+  highest item that prevents recurrence.
 - **No-ops:** instructions that do not change behavior.
 - **Information access:** a log or read-only source the agent needed but did not
   have.
@@ -28,12 +30,22 @@ Improve the environment, not just the code.
 ## Correction hierarchy
 
 1. Architecture or data structure.
-2. Lint rule or test.
-3. Script or skill.
-4. `AGENTS.md`/`mistakes.md` rule.
-5. Human review.
+2. Hook or permission rule.
+3. Lint, type, or test.
+4. Script or skill.
+5. `AGENTS.md`/`mistakes.md` rule.
+6. Human review.
 
-Prefer the highest item that actually prevents recurrence.
+Prefer the highest item that actually prevents recurrence. This follows the
+`## Rule placement` order in `AGENTS.md`: move a repeated rule down the list
+until it sticks.
+
+## Model-upgrade decay check
+
+When the model changes, test one component at a time against the evals. Remove
+it on a branch, run the evals, then keep or delete it. A component that fixed an
+old model's weakness may be dead weight on the new one. Do not remove several at
+once: you will not know which one still earns its place.
 
 ## Output
 
@@ -65,3 +77,12 @@ CANDIDATES: <count>
 TOP: <one line>
 APPLIED: <none|list>
 ```
+
+## Gotchas
+
+- A retro that only adds prose. If the rule can be a hook, a lint rule, a test,
+  or a script, put it there instead.
+- A frozen harness. Never removing a rule lets the stack grow without limit;
+  check whether an old component still earns its place.
+- Adding a rule that duplicates a check the tooling already enforces.
+- Editing `AGENTS.md` or a skill before the human approves.

@@ -173,6 +173,16 @@ when the user explicitly asks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
 
+## Context policy
+
+```
+ALWAYS     SPEC.md, AGENTS.md, GLOSSARY.md, current task
+ON DEMAND  files, docs, skills, search results
+COMPACTED  old turns, summarized at a natural break
+ISOLATED   subagent work, returned as a short report
+NEVER      secrets, raw logs, whole directories, unrelated files
+```
+
 ## Job folder
 
 One folder per job. The job folder is the state. No JSON.
@@ -282,6 +292,9 @@ and tell the user in one line.
 5. Wait for the wave. Read `build/<task>.md`.
 6. Merge each task branch into `pagani/<job-id>`. Run the deterministic checks.
 7. Load `summary`, post the wave summary, and wait for `approve`.
+
+Join rule: `ALL` by default. Every task in a parallel wave must pass before the
+wave is merged. Do not merge partial results.
 
 If a builder is `BLOCKED`, stop and ask. Do not paper over it. A builder is
 bounded by the task's `Allowed files`; a builder that needs another file is

@@ -210,6 +210,26 @@ Non-blocking observations. Optional.
   makes worse.
 - If any section has a blocking finding, the whole verdict is `CHANGES`.
 
+## Finding examples
+
+A good finding is specific and blocking:
+
+- `src/auth/session.ts:42` — the refresh token is written to `localStorage` — an
+  XSS can read it — store it in an `HttpOnly` cookie — the write is on line 42,
+  and the security checklist forbids JS-readable token storage.
+
+An opinion belongs under Notes:
+
+- `src/auth/session.ts:18` — I would rename `tok` to `token`. This is a style
+  preference, not a defect.
+
+An unjustified test edit is blocking:
+
+- `src/auth/session.test.ts:27` — the assertion changed from
+  `expect(status).toBe(401)` to `toBe(200)` with no spec change and no
+  `## Test changes` entry — it weakens the test to match the code — restore the
+  assertion or fix the code.
+
 ## Report
 
 ```

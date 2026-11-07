@@ -88,8 +88,10 @@ the lane's file limit; escalate if it suggests a higher lane.
    set. Default to sequential. If two or more ready tasks touch disjoint files
    and have no dependency between them, run that wave in parallel with one
    worktree per task; parallel is preferred whenever it is safe. Use sequential
-   when tasks share a file, a migration, or one needs another's output. Spawn
-   one `builder` per task. Merge into the job branch. Load `summary`, post, wait.
+   when tasks share a file, a migration, or one needs another's output. Join
+   rule: `ALL` by default; every task in a parallel wave must pass before the
+   wave is merged, and do not merge partial results. Spawn one `builder` per
+   task. Merge into the job branch. Load `summary`, post, wait.
    A builder is bounded by the task's `Allowed files`; a builder that needs
    another file is `BLOCKED`, and you do not widen the task yourself.
 3. **Step 3 — Checks.** Run `pagani job check <job-id>`. It runs `scripts/check` and writes
@@ -178,6 +180,16 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
+
+## Context policy
+
+```
+ALWAYS     SPEC.md, AGENTS.md, GLOSSARY.md, current task
+ON DEMAND  files, docs, skills, search results
+COMPACTED  old turns, summarized at a natural break
+ISOLATED   subagent work, returned as a short report
+NEVER      secrets, raw logs, whole directories, unrelated files
+```
 
 ## Git
 

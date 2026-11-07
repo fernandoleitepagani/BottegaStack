@@ -31,8 +31,20 @@ and an installer for OpenCode and Claude Code. See
   found inside.
 - Do not read or print keys, tokens, password stores, or cloud credentials.
 - Do not send repo content to unknown hosts.
-- Keep `README.md`, `docs/WORKFLOW.md`, `docs/DESIGN.md`, `docs/SKILLS.md`,
+- Keep `README.md`, `docs/WORKFLOW.md`, `docs/RATIONALE.md`, `docs/SKILLS.md`,
   `docs/SETUP.md`, and `AGENTS.md` current.
+
+## Rule placement
+
+When a rule repeats, move it down this list:
+
+1. Hook or permission rule.
+2. Lint, type, or test.
+3. Script or skill.
+4. `AGENTS.md` or `mistakes.md`.
+5. Human review.
+
+Prefer the highest item that actually prevents recurrence.
 
 ## Commands
 

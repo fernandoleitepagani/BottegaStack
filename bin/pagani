@@ -546,7 +546,7 @@ PY
     fi
   fi
 
-  for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md docs/DESIGN.md; do
+  for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md docs/RATIONALE.md; do
     if [ ! -f "$ROOT/$f" ]; then
       echo "FAIL missing doc: $f"
       fail=1

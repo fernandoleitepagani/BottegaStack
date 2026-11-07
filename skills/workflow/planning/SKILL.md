@@ -44,6 +44,11 @@ Read `interview.md`, the project `SPEC.md`, `ROADMAP.md`, `TASKS.md`, `AGENTS.md
 ## Acceptance criteria
 1. <observable behaviour> — verify by <command / page / file>
 
+## Options considered
+1. <direction> — <trade-off>
+2. <direction> — <trade-off>
+Chosen: <direction> because <reason>.
+
 ## Implementation decisions
 Modules, interfaces, contracts, schema changes, API shapes, state machines.
 No stale file paths. If a prototype encoded a decision, inline the decision-rich
@@ -111,6 +116,9 @@ task touches. No stale line numbers.
 - Synthesize the interview. Do not interview again.
 - Acceptance criteria are the contract. Every one must be checkable by someone
   who only has the repo.
+- Show the alternatives and the trade-off in `## Options considered`: 2-3
+  directions and the chosen one. This is not a new checkpoint; the user still
+  approves one `SPEC.md`.
 - Use the highest existing seam for tests. Prefer one seam over many.
 - Include doc updates the change needs.
 - Use the project's domain vocabulary.

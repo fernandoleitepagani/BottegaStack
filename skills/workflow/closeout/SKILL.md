@@ -67,6 +67,21 @@ gh pr create --base <base> --head pagani/<job-id> --title "<title>" --body "<bod
 Use the project's actual remote and base. If `gh` is not available, say so and
 give the human the command.
 
+## Idempotent resume
+
+A resume may re-enter closeout after a partial run. Before you create a branch,
+worktree, or PR, check whether it already exists. Do not duplicate a side effect
+on resume.
+
+```bash
+git branch --list 'pagani/<job-id>'
+git worktree list
+gh pr view pagani/<job-id>
+```
+
+If the branch, worktree, or PR exists, reuse it and say so. Create only what is
+missing.
+
 ## PR body
 
 Use the smallest view that makes the change clear:
@@ -118,6 +133,8 @@ claim.
 
 - Running push, merge, or PR without showing the exact command first.
 - Inferring consent from "looks good".
+- Creating a duplicate PR after a resume because you did not run `gh pr view`.
+- Recreating a branch or worktree that already exists after a resume.
 - Force-pushing, resetting --hard, or cleaning.
 - Forgetting to record the decision in `decision.md`.
 - Deleting the branch or worktree before the human confirms.
