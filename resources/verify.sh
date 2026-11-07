@@ -47,7 +47,11 @@ case "${1:-doctor}" in
       exit 0
     fi
     echo "starting: $START_CMD"
-    (cd "$ROOT" && bash -lc "$START_CMD") >"$LOGFILE" 2>&1 &
+    if command -v setsid >/dev/null 2>&1; then
+      (cd "$ROOT" && setsid bash -lc "$START_CMD") >"$LOGFILE" 2>&1 &
+    else
+      (cd "$ROOT" && bash -lc "$START_CMD") >"$LOGFILE" 2>&1 &
+    fi
     echo $! >"$PIDFILE"
     for _ in $(seq 1 "$TIMEOUT"); do
       if is_up; then
@@ -63,7 +67,7 @@ case "${1:-doctor}" in
   stop)
     if [ -f "$PIDFILE" ]; then
       pid="$(cat "$PIDFILE")"
-      kill "$pid" 2>/dev/null || true
+      kill -TERM -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
       rm -f "$PIDFILE"
       echo "stopped (pid $pid)"
