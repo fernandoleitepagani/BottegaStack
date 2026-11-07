@@ -62,11 +62,11 @@ Add `pagani/jobs/` to `.gitignore`.
 
 **Lane handling.** Read `Lane:` from `job.md` at every step.
 
-- `trivial`: skip Step 1. Use `builder-lite`, `pagani job check`,
+- `trivial`: skip the full SPEC. Use `builder-lite`, `pagani job check`,
   `review-code-lite`. Post summaries in chat and write `summary.md` at close.
-- `bugfix`: skip Step 1. Load `diagnosis`, write a failing test first, use one
-  `builder`, `pagani job check`, `review-code-lite`. Post summaries in chat and
-  write `summary.md` at close.
+- `bugfix`: skip the full SPEC. Load `diagnosis`, write a failing test first,
+  use one `builder`, `pagani job check`, `review-code-lite`. Post summaries in
+  chat and write `summary.md` at close.
 - `small`: short interview (≤3 questions) and a short `SPEC.md` from the
   planner. Use one task, `builder`, `pagani job check`, `review-code-lite`.
 - `standard`: full flow.
@@ -80,25 +80,33 @@ the lane's file limit; escalate if it suggests a higher lane.
 1. **Step 1 — SPEC.** Load `interview`. Ask with `AskUserQuestion` until every category is
    covered. Write `interview.md`. Spawn `planner` with the job folder. It writes
    `SPEC.md`. Check the task graph: no cycles,
-   each task is a vertical slice, the first wave is ready. Load `summary`, post
-   the SPEC and first wave, wait.
+   each task is a vertical slice, the first wave is ready. Check that every task
+   has `Allowed files`, `Test first`, and `Done when`, and that `SPEC.md` has
+   `## Sensors`; if any are missing or empty, ask the planner to revise before
+   approval. Load `summary`, post the SPEC and first wave, wait.
 2. **Step 2 — Build.** Read the task graph from `SPEC.md` and inspect the ready
    set. Default to sequential. If two or more ready tasks touch disjoint files
    and have no dependency between them, run that wave in parallel with one
    worktree per task; parallel is preferred whenever it is safe. Use sequential
    when tasks share a file, a migration, or one needs another's output. Spawn
    one `builder` per task. Merge into the job branch. Load `summary`, post, wait.
+   A builder is bounded by the task's `Allowed files`; a builder that needs
+   another file is `BLOCKED`, and you do not widen the task yourself.
 3. **Step 3 — Checks.** Run `pagani job check <job-id>`. It runs `scripts/check` and writes
    `checks.md` with `RESULT`, `HEAD`, duration, exit code, and output. If it
    fails, load `diagnosis`, pass the failing findings to a fresh builder. No
    reviewers on a failing build.
 4. **Step 4 — Review.** Spawn one `review-code` reviewer; it covers code, UI, UX, and
    security. Tell it to load `verification` when the change has UI or
-   end-to-end behaviour. Wait for it. Load `summary` and post the short version.
+   end-to-end behaviour. Tell it to check the diff against `Allowed files`, the
+   test-first evidence, the changed test files, and the sensor blind spots. Wait
+   for it. Load `summary` and post the short version.
    For `standard` and `high-risk`, write `summary.md` at this checkpoint.
 5. **Step 5 — Fix.** If the verdict is `CHANGES`, load `diagnosis`, pass
    `round-N/review-code.md` and every finding to a fresh builder, re-run checks,
-   re-review with `review-code`. Max two rounds.
+   re-review with `review-code`. Max two rounds. Track the number of failing
+   checks and blocking findings each round; if neither decreased in two
+   consecutive rounds, stop and escalate. Do not run a third identical round.
 6. **Step 6 — Approval.** Load `approval`. Read `SPEC.md`, every `build/<task>.md`,
    `checks.md`, and every `round-*/review-code.md`. Write `decision.md` yourself
    with `APPROVE` or `ESCALATE`, the acceptance-criteria mapping, risks, and an

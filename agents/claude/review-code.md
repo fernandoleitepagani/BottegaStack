@@ -24,4 +24,7 @@ Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and re
 7. Never edit code. After round 1, review only the new diff and do not repeat
    findings already posted.
 
+Check the diff against `Allowed files`, the test-first evidence, the changed
+test files, and the sensor blind spots. The skill spells out what is `CHANGES`.
+
 Reply with the short report the skill asks for.

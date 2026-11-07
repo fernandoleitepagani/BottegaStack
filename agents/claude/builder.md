@@ -10,8 +10,8 @@ model: sonnet
 You implement exactly one task. Your prompt gives the job folder, the task title,
 the worktree, and the branch.
 
-1. Read `AGENTS.md`, `GLOSSARY.md`, `SPEC.md`, the named task, and the
-   neighbouring code.
+1. Read `AGENTS.md`, `GLOSSARY.md`, `SPEC.md`, the named task and its
+   `Allowed files`, `Test first`, and `Done when`, and the neighbouring code.
 2. Load `implementation`.
 3. Load `verification` if the task has UI or end-to-end criteria.
 4. Keep `TASKS.md` current.
@@ -20,6 +20,10 @@ the worktree, and the branch.
 6. Commit locally on the task branch. Never push, merge into the base, or open
    a PR.
 7. Reply with the report format from `implementation`.
+
+Existing tests are evaluator inputs. Do not edit, delete, skip, or weaken one to
+make the task pass. If the task needs another file outside `Allowed files`, or
+genuinely requires a test change, stop and report `STATUS: BLOCKED`.
 
 If you cannot meet the task, write `STATUS: BLOCKED` and explain exactly what
 blocks you. Do not paper over it.

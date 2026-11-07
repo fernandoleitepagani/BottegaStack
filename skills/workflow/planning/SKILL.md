@@ -53,6 +53,11 @@ part and say it came from a prototype.
 What makes a good test (external behaviour, not implementation details), which
 modules are tested, the seams, and prior art in the repo.
 
+## Sensors
+- `scripts/check` covers: <tests, lint, types, build>
+- `scripts/verify` / agent-browser covers: <flows, screenshots>
+- Neither covers: <SSO, browser modals, background jobs, data freshness>
+
 ## Tasks
 ### Task 1 — <title>
 **What to build:** the end-to-end behaviour this task makes work, from the
@@ -62,6 +67,12 @@ user's perspective.
 
 **Files and interfaces:** the modules, components, types, or contracts this
 task touches. No stale line numbers.
+
+**Allowed files:** exact paths this task may create or modify. No other files.
+
+**Test first:** the failing test or check that proves the task before the fix.
+
+**Done when:** the observable result and the command that proves it.
 
 **Acceptance criteria:**
 - [ ] <criterion>
@@ -86,6 +97,8 @@ task touches. No stale line numbers.
 - A task is a **tracer bullet**: a narrow but complete vertical slice through
   every layer (data, logic, UI, tests). It is demoable or verifiable on its own.
 - It fits one fresh context window.
+- Fill `Allowed files`, `Test first`, and `Done when` for every task. A task
+  with an empty `Allowed files` or `Done when` is not ready.
 - Prefactoring comes first.
 - A task with no blockers can start immediately.
 - Wide refactors are the exception: use expand–contract, with the expand first,
@@ -125,5 +138,6 @@ NEXT: <what the master should do>
   master.
 - Acceptance criteria that cannot be checked by someone with only the repo.
 - Adding options or fallbacks the request did not ask for.
+- A task without a test-first check or an allowed-files list.
 - Stale file paths or line numbers.
 - A task graph with a cycle, or a first wave that is missing a ready task.

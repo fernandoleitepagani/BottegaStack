@@ -37,8 +37,8 @@ If you cannot build a loop, stop and say what you tried. Ask for access, a
 redacted artifact, or permission to add temporary instrumentation. Do not
 hypothesise without a loop.
 
-This skill also owns the PaganiStack fix-brief contract and the max-two-rounds
-rule.
+This skill also owns the PaganiStack fix-brief contract, the max-two-rounds
+rule, and the stall exit.
 
 ## Reproduce
 
@@ -97,6 +97,18 @@ Rules:
 - Max two fix rounds. After the second, escalate to the human with the
   outstanding findings.
 
+## Test protection
+
+Do not fix a failing test by changing the test. Fix the code, or escalate with
+the evidence. An existing test is an evaluator input; editing, deleting,
+skipping, or weakening it hides the failure instead of fixing it.
+
+## Stall exit
+
+Track the number of failing checks and blocking findings. If neither decreased
+in two consecutive rounds, stop and escalate. Do not run a third identical
+round.
+
 ## Report
 
 ```
@@ -111,4 +123,7 @@ NEXT: <what the master should do>
 - A fix without a red-capable feedback loop.
 - Fixing a different failure than the one the user reported.
 - No regression test at the correct seam.
+- Running a third identical round when the failing checks and blocking findings
+  did not decrease.
+- Weakening a test to make it pass instead of fixing the code.
 - Leaving debug instrumentation in the code.

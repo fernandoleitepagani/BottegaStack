@@ -55,7 +55,8 @@ Use the smell baseline below as labelled judgement calls, not hard violations:
 ## Read
 
 1. `AGENTS.md`, `GLOSSARY.md`, and any docs they list.
-2. The job `SPEC.md`.
+2. The job `SPEC.md`, including `Allowed files`, `Test first`, `Done when`, and
+   `## Sensors`.
 3. Every `build/<task>.md`.
 4. `checks.md`.
 5. The diff: `git diff <base>...HEAD` or the command in your prompt. Read the
@@ -77,8 +78,15 @@ always `CHANGES`.
   options, fallbacks, hidden defaults, or swallowed errors.
 - **Reuse:** existing helpers, components, and patterns instead of duplicates.
 - **Conventions:** the repo's style, naming, formatting, comment density.
-- **Tests:** they test external behaviour, not implementation details. No
-  weakened, skipped, or special-cased tests.
+- **Allowed files:** the diff stays inside each task's `Allowed files`. An
+  out-of-bounds edit is `CHANGES`.
+- **Test first:** each task shows red-before-green evidence. No evidence is
+  `CHANGES` unless the task is docs/config-only.
+- **Tests:** they test external behaviour, not implementation details. Check
+  changed test files: an unjustified test edit, skip, or weakened assertion is
+  `CHANGES`.
+- **Sensors:** use `## Sensors` to judge blind spots. If an acceptance criterion
+  depends on an area neither check nor verify covers, put it under **Risks**.
 - **Docs:** `AGENTS.md` and any docs the change requires are updated.
 - **Commits:** short one-line messages, nothing stray committed.
 
@@ -223,3 +231,8 @@ WORST: <one line, or "none">
 - Blocking on a pre-existing security issue the change did not make worse.
 - Assuming a framework protects an endpoint without checking the route.
 - Ignoring a new dependency or a changed lockfile.
+- Approving an out-of-bounds edit without checking the diff against
+  `Allowed files`.
+- Accepting a task with no red-before-green evidence.
+- Missing an unjustified test edit, skip, or weakened assertion.
+- Ignoring a blind spot listed under `## Sensors`.

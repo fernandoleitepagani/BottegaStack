@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added a hard task contract: every task names `Allowed files`, `Test first`, and
+  `Done when`, and every `SPEC.md` names `## Sensors`. Builders treat existing
+  tests as evaluator inputs, reviewers block out-of-bounds edits and unjustified
+  test changes, and the fix loop stops after two rounds without a decrease.
 - Verified the trim end to end: `bash -n`, `./scripts/validate.sh`, the help and
   install/uninstall dry-runs, a temp-project `init` and `job` smoke test, and
   the skill (8/8) and reviewer (100% recall, 0% noise) evals all pass.

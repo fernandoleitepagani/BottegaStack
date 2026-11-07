@@ -231,11 +231,11 @@ a job-level copy.
 
 Read `Lane:` from `job.md` at every step and skip what the lane does not need.
 
-- `trivial`: skip Step 1. Use `builder-lite` and `review-code-lite`. Post
+- `trivial`: skip the full SPEC. Use `builder-lite` and `review-code-lite`. Post
   summaries in chat and write `summary.md` at close.
-- `bugfix`: skip Step 1. Load `diagnosis`, write a failing test first, use one
-  `builder`, `pagani job check`, and `review-code-lite`. Post summaries in chat
-  and write `summary.md` at close.
+- `bugfix`: skip the full SPEC. Load `diagnosis`, write a failing test first, use
+  one `builder`, `pagani job check`, and `review-code-lite`. Post summaries in
+  chat and write `summary.md` at close.
 - `small`: run a short interview (≤3 questions) and have the planner write a
   short `SPEC.md`. Use one task, `builder`, `pagani job check`, and
   `review-code-lite`.
@@ -257,8 +257,11 @@ and tell the user in one line.
 2. Explore first. Ask in small batches. Write the answers to `interview.md`.
 3. Spawn `planner` with the job folder path. It writes `SPEC.md`.
 4. Read `SPEC.md`. Check the task graph: no cycles, each task is a vertical
-   slice, the first wave is every task with no blockers. If it has open
-   questions, ask the user, update `interview.md`, and re-run the planner.
+   slice, the first wave is every task with no blockers. Check that every task
+   has `Allowed files`, `Test first`, and `Done when`, and that `SPEC.md` has
+   `## Sensors`. If any are missing or empty, ask the planner to revise before
+   approval. If it has open questions, ask the user, update `interview.md`, and
+   re-run the planner.
 5. Load `summary`, post the SPEC summary and the first wave, and wait for
    `approve`.
 
@@ -280,7 +283,9 @@ and tell the user in one line.
 6. Merge each task branch into `pagani/<job-id>`. Run the deterministic checks.
 7. Load `summary`, post the wave summary, and wait for `approve`.
 
-If a builder is `BLOCKED`, stop and ask. Do not paper over it.
+If a builder is `BLOCKED`, stop and ask. Do not paper over it. A builder is
+bounded by the task's `Allowed files`; a builder that needs another file is
+`BLOCKED`, and you do not widen the task yourself.
 
 ## Step 3 — Deterministic checks
 
@@ -309,8 +314,10 @@ independent one. You run them again before approval.
 2. For high-risk changes, also run `adversarial-review` and `simplify`.
 3. Give the reviewer a fresh context: the job folder, `SPEC.md`, `build/` paths,
    `checks.md`, and the diff command. Tell it to load `verification` when the
-   change has UI or end-to-end behaviour. After round 1, give it only the new
-   diff and tell it not to repeat findings already posted.
+   change has UI or end-to-end behaviour. Tell it to check the diff against
+   `Allowed files`, the test-first evidence, the changed test files, and the
+   sensor blind spots. After round 1, give it only the new diff and tell it not
+   to repeat findings already posted.
 4. Wait for the review. Never start a fix mid-round.
 5. Read `round-N/review-code.md`. If a blocking finding is ambiguous, ask the
    user before sending it to the builder.
@@ -330,7 +337,10 @@ independent one. You run them again before approval.
 4. Re-run the deterministic checks. Re-run `review-code` on the new diff.
 5. Max two fix rounds. After the second, write `decision.md` as `ESCALATE`
    yourself, then ask the user.
-6. Load `summary`, post the fix summary, and wait for `approve`.
+6. Track the number of failing checks and blocking findings each round. If
+   neither decreased in two consecutive rounds, stop and escalate. Do not run a
+   third identical round.
+7. Load `summary`, post the fix summary, and wait for `approve`.
 
 ## Step 6 — Approval
 

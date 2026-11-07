@@ -29,11 +29,17 @@ one report file, `pagani/jobs/<id>/build/<task>.md`.
 - **No horizontal slicing.** Do not write all tests first and all code second;
   work in vertical slices.
 - **Refactoring is not part of the loop.** It belongs to review.
+- **Test protection.** Existing tests are evaluator inputs. Do not edit,
+  delete, skip, or weaken an existing test to make the task pass. If the task
+  genuinely requires a test change, stop and report `STATUS: BLOCKED` with the
+  reason, or get explicit approval from the master. Record any approved change
+  under `## Test changes`.
 
 ## Read first
 
 1. Project `AGENTS.md` and `GLOSSARY.md`.
-2. The job `SPEC.md` and the named task.
+2. The job `SPEC.md` and the named task, including its `Allowed files`,
+   `Test first`, and `Done when`.
 3. On fix rounds, `round-N/review-code.md` for the findings you must address.
 4. The neighbouring code.
 5. `verification` skill if the task has UI or browser criteria.
@@ -46,6 +52,9 @@ one report file, `pagani/jobs/<id>/build/<task>.md`.
    it does not, stop and report `STATUS: BLOCKED`.
 3. If the task is already satisfied by the code, report that with evidence
    instead of inventing work.
+4. `Allowed files` is a hard boundary. If the task needs another file, stop and
+   report `STATUS: BLOCKED` with the path and the reason. Do not widen the task
+   yourself.
 
 ## Build
 
@@ -98,6 +107,10 @@ The commands you ran and their results, the pages you checked, the screenshots.
 ## Tests
 What you ran, what passed, what you added.
 
+## Test changes
+Existing tests you changed, skipped, or removed, and the approval that allowed
+it. Write `None.` when the task did not touch an existing test.
+
 ## Risks
 What could still be wrong.
 
@@ -126,6 +139,8 @@ QUESTIONS: <or "none">
 
 - Committing on the wrong branch. Check `git branch --show-current` first.
 - Touching files outside the task. Stop and report if the task needs them.
+- Editing a test to make it pass. Fix the code or report `STATUS: BLOCKED`.
+- Touching a file outside `Allowed files`. Stop and report `STATUS: BLOCKED`.
 - `git add -A` picking up unrelated files. Stage explicit paths.
 - Reporting READY before the project checks pass.
 - Reusing a stale dev server from an earlier round.

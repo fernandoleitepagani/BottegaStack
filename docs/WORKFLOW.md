@@ -34,11 +34,16 @@ The master loads `interview`, explores first, and asks a small batch of
 questions. It writes `interview.md` and asks the planner for one `SPEC.md`: the
 behavior, the data shape, the failure cases, the acceptance criteria, and the
 tracer-bullet task graph. Each task is a vertical slice that fits one fresh
-context. If the spec has open questions, the master asks you and revises. You
+context. Every task carries `Allowed files`, `Test first`, and `Done when`, and
+`SPEC.md` carries `## Sensors`: what `scripts/check` covers, what `scripts/verify`
+or `agent-browser` covers, and what neither covers. If a contract field is empty
+or `## Sensors` is missing, the master asks the planner to revise before
+approval. If the spec has open questions, the master asks you and revises. You
 approve the spec and the first wave.
 
-`trivial` and `bugfix` jobs skip this step. `small` jobs get a short interview
-and a short spec. `standard` and `high-risk` jobs get the full pass.
+`trivial` and `bugfix` jobs skip the full spec, but a `bugfix` still writes a
+failing test first. `small` jobs get a short interview and a short spec.
+`standard` and `high-risk` jobs get the full pass.
 
 ### Step 2: Build
 
@@ -49,6 +54,12 @@ one worktree per task; parallel is preferred whenever it is safe. Sequential is
 used when tasks share a file, a migration, or one needs another's output. Each
 builder writes `build/<task>.md`. The master merges task branches into the job
 branch and posts a wave summary.
+
+A builder is bounded by the task's `Allowed files`. If it needs another file, it
+reports `BLOCKED`; the master does not widen the task itself. Existing tests are
+evaluator inputs: the builder does not edit, delete, skip, or weaken one to make
+the task pass. A genuine test change needs approval and is recorded under
+`## Test changes` in the build report.
 
 ### Step 3: Checks
 
@@ -73,7 +84,12 @@ UI, UX, and security in one pass and returns one verdict:
 
 The reviewer loads `verification` and uses `agent-browser` when the change has
 UI, and loads `unslop` for copy. It writes `round-N/review-code.md` with one
-`VERDICT` for the whole change. The master posts the summary in chat; for
+`VERDICT` for the whole change. It checks the diff against each task's
+`Allowed files`, the test-first evidence, the changed test files, and the blind
+spots listed under `## Sensors`. An out-of-bounds edit, a task with no
+red-before-green evidence (unless docs/config-only), or an unjustified test edit,
+skip, or weakened assertion is `CHANGES`; an acceptance criterion that depends on
+an uncovered area goes under Risks. The master posts the summary in chat; for
 `standard` and `high-risk` it writes `summary.md` at this checkpoint.
 
 ### Step 5: Fix
@@ -81,7 +97,9 @@ UI, and loads `unslop` for copy. It writes `round-N/review-code.md` with one
 If a review returns `CHANGES`, the master passes `round-N/review-code.md` and the
 findings — the file and line, why it matters, how to fix it, and how to verify
 it — to a fresh builder. It re-runs checks and re-runs the reviewer on the
-affected area. Max two fix rounds.
+affected area. Max two fix rounds. The master tracks the number of failing checks
+and blocking findings each round; if neither decreased in two consecutive rounds,
+it stops and escalates instead of running a third identical round.
 
 ### Step 6: Approval
 
