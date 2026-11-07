@@ -44,7 +44,9 @@
           {
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": ["format"]
+            "args": [
+              "format"
+            ]
           }
         ]
       },
@@ -54,7 +56,9 @@
           {
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": ["skill-log"]
+            "args": [
+              "skill-log"
+            ]
           }
         ]
       }
@@ -65,7 +69,23 @@
           {
             "type": "command",
             "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": ["precompact"]
+            "args": [
+              "precompact"
+            ]
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
+            "args": [
+              "webfetch-guard"
+            ]
           }
         ]
       }

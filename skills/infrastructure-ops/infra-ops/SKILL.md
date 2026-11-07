@@ -50,3 +50,14 @@ FINDINGS: <count>
 RISK: <low|medium|high>
 APPROVAL: <needed|not needed>
 ```
+
+## Gotchas
+
+- Adding a dependency for something the stack already does, such as a JSON
+  parser when `python3` is already required.
+- Assuming `gh`, `agent-browser`, or `gitleaks` is installed. `pagani doctor`
+  exists because it often is not.
+- Deleting orphaned resources without the dry run and soak period.
+- Treating the opt-in Claude `WebFetch` allowlist as if it covered shell or
+  `agent-browser` egress.
+- Writing a token into `pagani/` or a log instead of a secret store.

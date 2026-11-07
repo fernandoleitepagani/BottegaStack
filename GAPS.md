@@ -6,7 +6,7 @@ observability, and a compounding correction loop. Right now it is a good
 workflow that lives in one checkout. A personal stack is a workflow you can
 install, update, and trust on any machine.
 
-## Implemented in 0.2.0–0.4.0
+## Implemented in 0.2.0–0.5.0
 
 - Installer and `pagani` CLI for OpenCode and Claude Code.
 - `resources/` project templates, including `FEATURE-MAP.md`, `mistakes.md`,
@@ -55,15 +55,39 @@ install, update, and trust on any machine.
 - Optional weekly timer:
   `pagani timer install|uninstall|status [path] [--at "Mon 09:00"]`; opt-in,
   spends tokens, and runs headless `pagani weekly`.
+- `pagani frontier <job>`: prints the ready and blocked ticket set from
+  `tickets/index.md`, with a `**Blocked by:**` fallback.
+- Request-text `pagani classify`: risk, docs, bug, and feature word heuristics;
+  lanes only escalate.
+- Dirty-tree `pagani gate`: fails on modified, staged, or out-of-scope untracked
+  files; `--allow-dirty` bypasses it.
+- `pagani worktree prune` failure handling: reports `failed:` and continues;
+  `--force` passes through to git.
+- `pagani upgrade [path]`: merges hooks into an existing `.claude/settings.json`
+  without dropping `permissions`, backs it up, and installs the other managed
+  files.
+- Opt-in network allowlist for Claude `WebFetch`:
+  `pagani network init|check <url>` plus the `webfetch-guard` hook. Covers Claude
+  `WebFetch` only; shell, `curl`, and `agent-browser` egress are not covered.
+- Exact per-job cost from the local OpenCode `session` table, including worktree
+  sessions, written to `usage.md` and `metrics.tsv`; `pagani usage report`.
+- `pagani budget set|check <job>`: per-job USD budget check; exits 1 when over.
+- `pagani dashboard`: local, read-only `pagani/dashboard.html`; inline CSS, no
+  JS, no server, no login, no control plane.
+- Local `pagani backup`/`pagani restore`: tar.gz under `pagani/backups/`, with
+  overwrite refusal without `--force`; no sync or remote copy.
+- Skill evals: `evals/skills/run.sh` trigger tests, opt-in and token-spending.
+- GitHub Actions `pagani-check` workflow: lint and `scripts/check` on pull
+  requests and pushes to `main`; GitHub runners, read-only `contents`, no
+  secrets, no login, no LLM calls.
+- `untrusted-content` skill and a headless weekly rule; thin-skill Gotchas.
 - No cloud sessions.
 
-Still intentionally not implemented: full sandbox, network allowlist, per-job
-spending cap, backups of `pagani/jobs/`, and prompt-injection defenses. Those are
-partial/optional; see the table below.
-
-Optional items, still not implemented: a standalone ready-frontier script (the
-master computes the frontier inline), GitHub Actions PR automation, a dashboard
-or agent control plane, automatic cost attribution, and skill evals.
+Deliberate non-goals: a full OS sandbox and a control plane that starts or stops
+agents. The network allowlist is opt-in and limited to Claude `WebFetch`; it does
+not cover shell or `agent-browser` egress. `pagani budget check` is a check, not
+a hard cap. `untrusted-content` is a convention, not a sandbox. Backups are
+local only.
 
 ---
 
@@ -237,9 +261,10 @@ From [Building effective agents](https://www.anthropic.com/research/building-eff
 ## 4. Gap list for a personal stack
 
 This is the pre-0.2.0 gap list, kept as a reference. The implemented items are
-listed at the top of this file. The remaining partial/optional items are the
-full sandbox, network allowlist, per-job spending caps, automatic cost
-attribution, and a full eval harness.
+listed at the top of this file. Full OS sandboxing and a control plane remain
+deliberate non-goals. The network allowlist is opt-in and covers Claude
+`WebFetch` only, not shell or `agent-browser` egress. The budget is a check, not
+a hard cap, and `untrusted-content` is a convention, not a sandbox.
 
 ### P0 — installable and portable
 

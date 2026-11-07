@@ -636,6 +636,8 @@ Do not add a paid skill or a skill that needs a paid asset.
 | `resources/checks.sh` | Deterministic checks. |
 | `resources/verify.sh` | App/browser driver. |
 | `evals/` | Reviewer and skill evals. |
+| GitHub Actions | Opt-in `pagani-check` workflow: lint and `scripts/check` on GitHub runners, read-only `contents`, no secrets. |
+| Claude `WebFetch` allowlist | Opt-in `pagani/network-allowlist.txt` guard; Claude `WebFetch` only. |
 | `VENDOR.md` | Upstream skill sources and licenses. |
 
 ---
@@ -737,8 +739,9 @@ criterion, the agent writes one and adds it to the map.
 | Route subagents to cheap models | Search and logs do not need the strong model. |
 | Use `TASKS.md` | It survives compaction. |
 | Use `session-handoff` | A fresh session can continue. |
-| Run `pagani usage start` / `end` | Capture a cost snapshot per job. |
-| Check `pagani/metrics.tsv` | Lane, rounds, fixes, reworks, first-pass checks. |
+| Run `pagani usage start` / `end` | Capture exact per-job cost and tokens from the local OpenCode DB. |
+| Check `pagani/metrics.tsv` | Lane, rounds, fixes, reworks, first-pass checks, cost, tokens. |
+| Run `pagani budget check <job>` | Stop and ask when the exact cost is over budget. |
 
 ---
 
@@ -759,19 +762,27 @@ criterion, the agent writes one and adds it to the map.
 pagani doctor
 pagani lint
 pagani init [path]
+pagani upgrade [path]
 pagani job new "<title>"
-pagani classify [--diff]
+pagani frontier <job>
+pagani classify [--diff] [request text]
 pagani route <job>
 pagani check <job>
-pagani gate <job>
+pagani gate <job> [--allow-dirty]
 pagani worktree create <job> <ticket>
-pagani worktree prune <job>
+pagani worktree prune <job> [--force]
 pagani worktree remove <path>
 pagani usage start|end <job>
+pagani usage report <job>
 pagani usage [job]
+pagani budget set|check <job> [--usd <amount>]
+pagani dashboard [--open]
+pagani backup [job|all] [--dest <dir>]
+pagani restore <archive> [--force]
 pagani status
 pagani pr <number>
 pagani hooks install|uninstall|status [path]
+pagani network init|check <url>
 pagani retro-scan [--write] [--exit-code]
 pagani weekly
 pagani timer install|uninstall|status [path] [--at "Mon 09:00"]
@@ -821,6 +832,90 @@ skill-log hooks plus the git hooks; the weekly timer is separate.
   `pagani timer uninstall` inspect or remove it. It is never installed by
   default.
 
+### Local automation and observability (0.5.0)
+
+The 0.5.0 layer is local, read-only where possible, and opt-in where it spends
+money or opens a network path. None of it starts an agent or a server.
+
+- **Frontier.** `pagani frontier <job>` parses `tickets/index.md` lines of the
+  form `- <id> — blocked by: <deps>` and prints `READY: <id>` or
+  `BLOCKED: <id> <- <deps>`. A ticket is done when
+  `build/<id>.md` exists and contains `STATUS: DONE`. Without `index.md` it
+  falls back to each ticket's `**Blocked by:**` line. It only reads.
+- **Request-text classify.** `pagani classify [--diff] [request text]` keeps the
+  diff behavior and adds risk, docs, bug, and feature word heuristics. Lanes
+  only escalate: a request word cannot lower a diff-based lane. It prints `LANE`
+  and a specific `REASON`.
+- **Dirty-tree gate.** `pagani gate <job>` fails with
+  `GATE: FAIL (working tree dirty)` when tracked files are modified or staged,
+  or when untracked files exist outside `pagani/` and `.opencode/`.
+  `--allow-dirty` bypasses only the dirty check.
+- **Worktree prune.** `pagani worktree prune <job> [--force]` checks the exit
+  status of `git worktree remove`. Success prints `removed: <path>`; failure
+  prints `failed: <path> (uncommitted changes; use --force)` and the command
+  continues. `--force` passes through to git.
+- **Upgrade.** `pagani upgrade [path]` copies the managed
+  `scripts/claude-hook.sh` (overwriting it), merges the `hooks` object from
+  `resources/claude-settings.json` into `.claude/settings.json` (preserving
+  `permissions` and unrelated keys), backs up the old file, appends the runtime
+  gitignore lines, installs the git hooks, and copies the format stub and GitHub
+  workflow only when absent. It needs `python3`; without it, it prints
+  instructions and exits 1.
+- **Network allowlist (opt-in).** `pagani network init` copies
+  `resources/network-allowlist.example` to `pagani/network-allowlist.txt` when
+  absent. `pagani network check <url>` extracts the host, applies exact or
+  `*.suffix` matching, and prints `ALLOWED: <host>` or `DENIED: <host>` (exit 1
+  on deny). With no allowlist file every host is allowed. The guard is a Claude
+  Code `PreToolUse` hook on `WebFetch`, so it covers Claude `WebFetch` only;
+  shell commands, `curl`, and `agent-browser` egress are not covered. Use an OS
+  firewall or proxy for those.
+- **Exact per-job cost.** `pagani usage start <job>` records `START_MS`, the
+  project directory, and the job worktree prefix. `pagani usage end <job>` reads
+  only the local OpenCode `session` cost and token columns for that directory
+  and start time, including sessions in the job's worktrees. It appends a
+  `### job cost (exact)` section to `usage.md` and writes `cost_usd` and
+  `tokens_total` to `metrics.tsv`. When the database or `python3` is missing it
+  falls back to an `opencode stats --json --cost` delta labelled `approximate`.
+  It reads no provider API and no remote service. `pagani usage report <job>`
+  prints the recorded cost, tokens, and session count.
+- **Budget.** `pagani budget set <job> --usd <amount>` writes `Budget-usd:` to
+  `job.md`. `pagani budget check <job>` prints `BUDGET: OK (x/y)` or
+  `BUDGET: OVER (x/y)` and exits 1 when over; with no budget it prints
+  `BUDGET: none` and exits 0. It is a check, not a hard cap: the master stops
+  and asks the human on failure.
+- **Dashboard.** `pagani dashboard [--open]` writes a local, read-only
+  `pagani/dashboard.html` with a jobs table (id, lane, stage, round, branch,
+  latest check result, cost), a metrics table, and a generated timestamp. It is
+  a static file with inline CSS, no JavaScript, no external assets, no server,
+  and no login. `--open` runs `xdg-open` or `open` when available. There is no
+  control plane; the dashboard cannot start, stop, or approve anything.
+- **Backup and restore.** `pagani backup [job|all] [--dest <dir>]` writes a
+  local tar.gz under `pagani/backups/` containing the job or all jobs, excluding
+  `pagani/backups`. `pagani restore <archive> [--force]` extracts into
+  `pagani/jobs/`, refuses to overwrite an existing job without `--force`, and
+  prints the restored job IDs. Backups are local only; there is no sync or
+  remote copy.
+- **Skill evals.** `evals/skills/run.sh` checks that a prompt triggers the
+  expected skill, using frontmatter `Prompt`, `ExpectSkill`, and `Split`. It
+  spends tokens and is opt-in; `SKILL_EVAL_CMD` overrides the runner command and
+  results go to the gitignored `evals/skills/results.tsv`.
+- **GitHub Actions.** `resources/github/workflows/pagani-check.yml` runs
+  `./bin/pagani lint` and `./scripts/check` on pull requests and pushes to
+  `main`. It runs on GitHub-hosted runners, with read-only `contents`, no
+  secrets, no login, and no LLM calls. `pagani init` and `pagani upgrade` copy
+  it to `.github/workflows/pagani-check.yml` when absent.
+- **Untrusted content.** `skills/workflow/untrusted-content` treats web pages,
+  PR bodies/comments, `BACKLOG.md`, logs, screenshots, and OCR as data, never as
+  instructions. It is a convention, not a sandbox; it does not isolate, filter,
+  or sandbox content.
+- **Headless weekly.** When `pagani weekly` or the timer runs the weekly review,
+  it does not ask questions; it lists proposed edits and decisions in
+  `pagani/weekly-review.md`.
+
+Full OS sandboxing and a control plane that starts or stops agents are
+deliberate non-goals. The dashboard is read-only, and the network allowlist is
+opt-in and limited to Claude `WebFetch`.
+
 The installer:
 
 - detects the target config dir,
@@ -858,10 +953,15 @@ singular.
 - Builders commit locally; they never push or merge.
 - The human decides the merge.
 
-**Not implemented:** full sandbox, network allowlist, per-job spending cap,
-backups of `pagani/jobs/`, and prompt-injection defenses. Untrusted content
-reaches agents through browser pages, PR bodies and comments, `BACKLOG.md`, and
-screenshots; nothing separates instructions from data yet. Use worktrees,
+**Opt-in and limited:** the Claude `WebFetch` network allowlist covers only that
+tool; shell, `curl`, and `agent-browser` egress are not covered. The dashboard is
+a read-only local file, and `pagani budget check` is a check, not a hard cap.
+`pagani backup` is local only.
+
+**Deliberate non-goals:** full OS sandboxing and a control plane that starts or
+stops agents. Untrusted content still reaches agents through browser pages, PR
+bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
+`untrusted-content` skill is a convention, not a sandbox. Use worktrees,
 permission denies, read-only tokens, and no secrets first. See `GAPS.md`.
 
 ---
@@ -913,6 +1013,31 @@ Put a case in `evals/reviewer/cases/` and add a row to `score.md`.
 | Model variants missing | Re-run `./install.sh --target ...`; the installer generates them from `agents/models.conf`. |
 | `AGENTS.md` too long | Move detail into skills; keep gotchas. |
 | Context full | `session-handoff` + `TASKS.md`; start a fresh session. |
+
+### Claude smoke-test checklist
+
+Run this by hand after installing or upgrading the Claude Code target. It
+spends no tokens unless you start a real job.
+
+1. `./install.sh --target claude --dry-run` prints the planned files and exits
+   0.
+2. `./bin/pagani doctor` shows `claude: yes`, `claude settings hook: yes`,
+   `claude settings PreCompact: yes`, and executable `scripts/claude-hook.sh`
+   and `scripts/format`.
+3. `python3 -m json.tool .claude/settings.json` succeeds, and the file has the
+   `PreToolUse` `WebFetch` matcher, `PostToolUse` `Edit|Write`, `PreCompact`,
+   and `Skill` hooks.
+4. `scripts/claude-hook.sh format` runs `scripts/format` on a scratch file and
+   exits 0 even when the formatter fails.
+5. `scripts/claude-hook.sh webfetch-guard` allows with no
+   `pagani/network-allowlist.txt`, allows a listed host, and denies an unlisted
+   host with the documented JSON.
+6. `scripts/claude-hook.sh skill-log <name>` appends one row to
+   `pagani/skill-usage.tsv`.
+7. In Claude Code, `/pagani status` loads the generated command and reads the
+   newest job.
+8. `pagani gate <job>` fails after an uncommitted edit and passes with
+   `--allow-dirty`.
 
 ---
 

@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.5.0
+
+Local automation and observability. Everything here is local and opt-in where it
+spends money or opens a network path.
+
+- `pagani frontier <job>` prints the ready and blocked ticket set from
+  `tickets/index.md`, with a fallback to each ticket's `**Blocked by:**` line.
+- `pagani classify` accepts request text as well as `--diff`, using risk, docs,
+  bug, and feature words. Lanes only escalate; request words cannot lower a
+  diff-based lane.
+- `pagani gate <job>` fails on a dirty working tree (modified, staged, or
+  untracked files outside `pagani/` and `.opencode/`); `--allow-dirty` bypasses
+  the check.
+- `pagani worktree prune <job>` checks the exit status of `git worktree remove`,
+  reports `failed: <path> (uncommitted changes; use --force)` and continues, and
+  accepts `--force`.
+- `pagani upgrade [path]` copies the managed hook, merges the hooks into an
+  existing `.claude/settings.json` without dropping `permissions`, backs up the
+  old file, appends runtime gitignore lines, and installs the git hooks.
+- `pagani network init|check <url>` manages an opt-in host allowlist for Claude
+  `WebFetch` only. Shell and `agent-browser` egress are not covered.
+- Exact per-job cost: `pagani usage end <job>` reads the local OpenCode `session`
+  cost and token columns, including sessions in the job's worktrees, and writes
+  `usage.md` plus `cost_usd`/`tokens_total` in `metrics.tsv`. It falls back to an
+  approximate `opencode stats` delta when the database or `python3` is missing.
+- `pagani usage report <job>` prints the recorded exact cost and tokens.
+- `pagani budget set|check <job> [--usd <amount>]` stores a per-job USD budget
+  and exits 1 when the exact cost is over it.
+- `pagani dashboard [--open]` writes a local, read-only `pagani/dashboard.html`
+  with the jobs, checks, cost, and metrics tables. Inline CSS, no JS, no server,
+  no login.
+- `pagani backup [job|all] [--dest <dir>]` writes a local tar.gz under
+  `pagani/backups/`; `pagani restore <archive> [--force]` restores it and
+  refuses to overwrite an existing job without `--force`.
+- Skill evals: `evals/skills/run.sh` checks that prompts trigger the expected
+  skill. It spends tokens and is opt-in.
+- GitHub Actions check workflow (`resources/github/workflows/pagani-check.yml`):
+  lint and `scripts/check` on pull requests and pushes to `main`, on GitHub
+  runners, with read-only `contents`, no secrets, no login, and no LLM calls.
+- `untrusted-content` skill: web pages, PR bodies/comments, `BACKLOG.md`, logs,
+  screenshots, and OCR are data, never instructions. It is a convention, not a
+  sandbox.
+- Gotchas sections on the thin skills and a headless weekly rule: when run by
+  `pagani weekly` or the timer, the review does not ask questions; it lists
+  proposed edits and decisions in the report.
+- Claude smoke-test checklist in `HOW-IT-WORKS.md` §16 and a PLAN.md
+  consistency pass.
+
 ## 0.4.0
 
 Six optional automations. All are opt-in: nothing runs until you install or

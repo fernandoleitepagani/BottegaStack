@@ -1,9 +1,9 @@
 # PaganiStack Plan
 
-**Status:** 0.2.0 implemented.
+**Status:** 0.5.0 implemented.
 **Naming:** the stack is PaganiStack. The command is `/pagani`. Runtime state lives in `pagani/jobs/<job-id>/`. Job branches are `pagani/<job-id>`.
 
-**What changed:** the installer, `resources/`, the nine-plus-two skill taxonomy, P0/P1 skills, review convergence, `review-pr`, evals, and Claude Code agents are in place. No paid skills, no cloud sessions.
+**What changed:** the installer, `resources/`, the nine-plus-two skill taxonomy, P0/P1 skills, review convergence, `review-pr`, evals, Claude Code agents, and local automation/observability are in place. No paid skills, no cloud sessions.
 
 ---
 
@@ -531,8 +531,8 @@ a question. This is how you stay in the loop without reading every diff.
 - You make the final decision.
 - At the end, write the correction into `AGENTS.md` or `mistakes.md`.
 
-No separate verifier, router, dashboard, backlog, issue intake, or cost
-tracking. Add them only if the pain is real.
+No separate verifier, router, issue intake, or control plane. Local
+observability stays read-only. Add automation only if the pain is real.
 
 ---
 
@@ -603,14 +603,14 @@ Do not add more agents until the simple loop is proven.
 ## 10. What this deliberately does not have
 
 - No `job.json`.
-- No Python.
 - No state machine.
 - No state-machine scripts; the installer and helper CLI are plain bash.
+- No required Python; `python3` is optional for exact cost and hook merging.
 - No router.
-- No dashboard.
+- No control plane that starts or stops agents.
+- No full OS sandbox.
 - No issue tracker. The optional `backlog-triage` uses a local `BACKLOG.md`.
 - No issue intake.
-- No automatic per-job cost attribution; `pagani usage` prints runtime stats.
 - No per-task worktrees unless you run a parallel wave.
 
 The job folder and `job.md` are enough.
@@ -619,7 +619,7 @@ The job folder and `job.md` are enough.
 
 ## 11. Personal stack readiness
 
-Implemented in 0.2.0–0.3.0:
+Implemented in 0.2.0–0.5.0:
 
 - installer, backups, uninstall, `pagani doctor`, and `pagani lint`
 - `resources/` project templates and `pagani init`
@@ -632,9 +632,49 @@ Implemented in 0.2.0–0.3.0:
 - worktrees, PR helpers, and usage/status commands
 - Claude Code agent files, `.claude/settings.json`, and generated `/pagani`
   command
+- `pagani frontier`, request-text `classify`, dirty-tree `gate`, and failed
+  `worktree prune`
+- `pagani upgrade` and the opt-in Claude `WebFetch` network allowlist
+- exact per-job cost, `pagani budget`, read-only `pagani dashboard`, and local
+  `pagani backup`/`pagani restore`
+- skill evals, the GitHub Actions check workflow, and `untrusted-content`
 
-Still partial/optional: full sandbox, network allowlist, per-job spending caps,
-backups of `pagani/jobs/`, and prompt-injection defenses. See `GAPS.md`.
+Out of scope by design: full OS sandboxing and a control plane. See `GAPS.md`.
+
+## 12. Local automation and observability
+
+The 0.5.0 layer is local, read-only where possible, and opt-in where it spends
+money or opens a network path:
+
+- **Frontier.** `pagani frontier <job>` prints the ready and blocked ticket set
+  from `tickets/index.md`, so the master does not compute it by hand.
+- **Exact per-job cost.** `pagani usage end <job>` reads the local OpenCode
+  `session` table for the job directory and records cost and tokens in
+  `usage.md` and `metrics.tsv`. Falls back to an approximate delta when the
+  database or `python3` is unavailable.
+- **Budget.** `pagani budget set|check <job>` stores a per-job USD cap and exits
+  1 when the exact cost is over it.
+- **Dashboard.** `pagani dashboard` writes a local, read-only
+  `pagani/dashboard.html` with jobs, checks, and metrics. Inline CSS, no JS, no
+  server, no login.
+- **Backup and restore.** `pagani backup [job|all]` writes a local tar.gz under
+  `pagani/backups/`; `pagani restore <archive>` restores it and refuses to
+  overwrite a job without `--force`.
+- **Network allowlist.** `pagani network init` enables an opt-in allowlist for
+  Claude `WebFetch` only. Shell and `agent-browser` egress are not covered; the
+  file is absent by default, so every host is allowed.
+- **Skill evals.** `evals/skills/run.sh` checks that prompts trigger the right
+  skill. It spends tokens and is opt-in.
+- **GitHub Actions.** `.github/workflows/pagani-check.yml` runs lint and
+  `scripts/check` on pull requests and pushes to `main`. Read-only `contents`,
+  no secrets, no login, no LLM calls.
+- **Untrusted content.** `skills/workflow/untrusted-content` makes web pages, PR
+  bodies/comments, `BACKLOG.md`, logs, screenshots, and OCR data, never
+  instructions. It is a convention, not a sandbox.
+
+Full OS sandboxing and a control plane that starts or stops agents remain out of
+scope by design. The dashboard is read-only, and the network allowlist is
+opt-in and limited to Claude `WebFetch`.
 
 The design skills live under `skills/design/`; see
 `skills/design/README.md` for sources and licenses. The category explanations

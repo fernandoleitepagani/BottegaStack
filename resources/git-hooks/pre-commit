@@ -1,15 +1,29 @@
 #!/usr/bin/env bash
 # pagani-managed
 set -euo pipefail
-if ! command -v gitleaks >/dev/null 2>&1; then
+
+status=0
+
+# 1. Secret scan (when gitleaks is available).
+if command -v gitleaks >/dev/null 2>&1; then
+  if gitleaks protect --staged --redact --no-banner 2>/dev/null; then
+    :
+  elif gitleaks git --staged --redact --no-banner 2>/dev/null; then
+    :
+  else
+    echo "pagani: gitleaks found a secret in staged changes" >&2
+    status=1
+  fi
+else
   echo "pagani: gitleaks not installed; skipping secret scan" >&2
-  exit 0
 fi
-if gitleaks protect --staged --redact --no-banner 2>/dev/null; then
-  exit 0
+
+# 2. Repo lint (when the project has a pagani CLI).
+if [ -x ./bin/pagani ]; then
+  if ! ./bin/pagani lint; then
+    echo "pagani: lint failed" >&2
+    status=1
+  fi
 fi
-if gitleaks git --staged --redact --no-banner 2>/dev/null; then
-  exit 0
-fi
-echo "pagani: gitleaks found a secret in staged changes" >&2
-exit 1
+
+exit "$status"

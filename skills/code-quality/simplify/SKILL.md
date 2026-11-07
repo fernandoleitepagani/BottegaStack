@@ -50,3 +50,14 @@ Keep the behavior; remove the extras.
 REMOVED: <count>
 CHECKS: <pass/fail>
 ```
+
+## Gotchas
+
+- Deleting the `set -e` or error handling the spec required and calling it
+  cleanup.
+- Removing a real fallback, such as the `sed` path used when `python3` is
+  absent.
+- Collapsing a backticked skill reference into prose, which breaks the
+  `pagani lint` reference check.
+- "Simplifying" the master by dropping the Step 0 lane gate.
+- Deleting code that looks unused only because no test covers it.

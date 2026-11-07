@@ -1,28 +1,23 @@
 #!/usr/bin/env bash
-# Claude Code hook helper: format, skill-usage logging, and PreCompact handoff.
+# Claude Code hook helper: format, skill-usage logging, PreCompact handoff, and
+# the opt-in WebFetch network allowlist guard.
 # Every subcommand is best-effort and exits 0 so it never breaks a tool call.
 set -euo pipefail
 
-project_dir="${CLAUDE_PROJECT_DIR:-$PWD}"
+# Read the hook payload once. Hooks always pipe JSON on stdin; a TTY means a
+# human is running the script by hand, so do not block waiting for EOF.
+if [ -t 0 ]; then
+  input=""
+else
+  input="$(cat || true)"
+fi
 
-usage() {
-  cat >&2 <<'EOF'
-usage: claude-hook.sh <command>
-
-commands:
-  format                  format the file in .tool_input.file_path
-  skill-log               log the skill name from stdin JSON
-  precompact              snapshot the newest job into handoff.md
-  skill-log-name <name>   log a skill name without stdin
-EOF
-}
-
-# Extract a dotted field from JSON on stdin. Uses python3 when available and
+# Extract a dotted field from a JSON string. Uses python3 when available and
 # falls back to a sed scan of the last path component.
 json_field() {
-  local path="$1"
+  local json="$1" path="$2"
   if command -v python3 >/dev/null 2>&1; then
-    python3 -c '
+    printf '%s' "$json" | python3 -c '
 import json, sys
 path = sys.argv[1].split(".")
 try:
@@ -41,8 +36,33 @@ print(data if isinstance(data, str) else str(data))
 ' "$path" || true
   else
     local key="${path##*.}"
-    sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true
+    printf '%s' "$json" | sed -n 's/.*"'"$key"'"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1 || true
   fi
+}
+
+# Resolve the project directory. The hook payload's `cwd` follows Claude into a
+# worktree while CLAUDE_PROJECT_DIR stays at the original checkout, so `cwd`
+# wins. Fall back to CLAUDE_PROJECT_DIR, then the shell's PWD.
+json_cwd="$(json_field "$input" cwd || true)"
+if [ -n "$json_cwd" ]; then
+  project_dir="$json_cwd"
+elif [ -n "${CLAUDE_PROJECT_DIR:-}" ]; then
+  project_dir="$CLAUDE_PROJECT_DIR"
+else
+  project_dir="$PWD"
+fi
+
+usage() {
+  cat >&2 <<'EOF'
+usage: claude-hook.sh <command>
+
+commands:
+  format                  format the file in .tool_input.file_path
+  skill-log               log the skill name from stdin JSON
+  precompact              snapshot the newest job into handoff.md
+  skill-log-name <name>   log a skill name without stdin
+  webfetch-guard          deny WebFetch hosts missing from the allowlist
+EOF
 }
 
 iso_date() {
@@ -58,9 +78,8 @@ record_skill() {
 }
 
 cmd_format() {
-  local input file formatter
-  input="$(cat || true)"
-  file="$(printf '%s' "$input" | json_field tool_input.file_path || true)"
+  local file formatter
+  file="$(json_field "$input" tool_input.file_path || true)"
   [ -n "$file" ] || return 0
   formatter="$project_dir/scripts/format"
   if [ -x "$formatter" ]; then
@@ -72,11 +91,10 @@ cmd_format() {
 }
 
 cmd_skill_log() {
-  local input skill key
-  input="$(cat || true)"
+  local skill key
   skill=""
   for key in tool_input.skill tool_input.name tool_input.command tool_name; do
-    skill="$(printf '%s' "$input" | json_field "$key" || true)"
+    skill="$(json_field "$input" "$key" || true)"
     [ -n "$skill" ] && break
   done
   [ -n "$skill" ] || skill="unknown"
@@ -88,6 +106,73 @@ cmd_skill_log_name() {
   local skill="${1:-unknown}"
   [ -n "$skill" ] || skill="unknown"
   record_skill "$skill"
+  return 0
+}
+
+# Print the host from a URL. python3 handles credentials, ports, and IPv6;
+# sed is the fallback.
+url_host() {
+  local url="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$url" | python3 -c '
+import sys
+from urllib.parse import urlparse
+try:
+    print(urlparse(sys.stdin.read().strip()).hostname or "")
+except Exception:
+    print("")
+' || true
+  else
+    printf '%s' "$url" | sed -E \
+      -e 's|^[a-zA-Z][a-zA-Z0-9+.-]*://||' \
+      -e 's|[/?#].*||' \
+      -e 's|^[^@]*@||' \
+      -e 's|:[0-9]+$||' || true
+  fi
+}
+
+# Opt-in WebFetch guard. No allowlist means allow. Otherwise allow exact host
+# matches and `*.suffix` wildcard matches; deny everything else with the hook
+# JSON payload.
+cmd_webfetch_guard() {
+  local allowlist="$project_dir/pagani/network-allowlist.txt"
+  [ -f "$allowlist" ] || return 0
+
+  local url host
+  url="$(json_field "$input" tool_input.url || true)"
+  [ -n "$url" ] || return 0
+
+  host="$(url_host "$url")"
+  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
+  [ -n "$host" ] || return 0
+
+  local line suffix matched=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%%#*}"
+    line="$(printf '%s' "$line" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
+    [ -n "$line" ] || continue
+    if [ "$line" = "$host" ]; then
+      matched=1
+      break
+    fi
+    case "$line" in
+      \*.*)
+        suffix="${line#\*}"
+        case "$host" in
+          *"$suffix")
+            matched=1
+            break
+            ;;
+        esac
+        ;;
+    esac
+  done <"$allowlist"
+
+  if [ "$matched" -eq 1 ]; then
+    return 0
+  fi
+
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"pagani: host %s not in pagani/network-allowlist.txt"}}\n' "$host"
   return 0
 }
 
@@ -154,6 +239,9 @@ case "$sub" in
   skill-log-name)
     shift || true
     cmd_skill_log_name "${1:-}"
+    ;;
+  webfetch-guard)
+    cmd_webfetch_guard
     ;;
   *)
     usage

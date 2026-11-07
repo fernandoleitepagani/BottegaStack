@@ -48,3 +48,15 @@ SCAFFOLD: <thing>
 FILES: <count>
 TESTS: <pass/fail>
 ```
+
+## Gotchas
+
+- Adding a skill category outside the nine plus `workflow/` and `design/`.
+- Copying a skill and forgetting that `name:` must equal its directory;
+  `pagani lint` fails.
+- Adding a `pagani-` prefix to a skill name.
+- Scaffolding an agent variant by hand instead of editing `agents/models.conf`.
+- Adding a file to `resources/` but not to the `pagani lint` existence loop, so
+  a broken install still passes.
+- Creating `commands/<target>/pagani.md` with a `Step N` the matching master
+  does not have.
