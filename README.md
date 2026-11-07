@@ -14,11 +14,9 @@ The job folder is the state: `pagani/jobs/<id>/`.
 
 - OpenCode, Claude Code, or both.
 - `gh` for PR helpers.
-- Optional: `python3` for exact cost and `pagani upgrade`.
+- Optional: `python3` for `pagani upgrade`.
 - Optional: `gitleaks` for the secret pre-commit hook.
-- Optional: `systemd` for the weekly timer.
 - Optional: `agent-browser` for browser checks.
-- Optional: `ccusage` for Claude usage snapshots.
 
 ## Install
 
@@ -35,7 +33,7 @@ cd ~/Projects/my-project
 ~/Projects/PaganiStack/bin/pagani init
 ```
 
-For an existing project, run `pagani upgrade` to merge the current hooks and
+For an existing project, run `pagani upgrade` to update the current hooks and
 managed files without dropping your settings.
 
 ## Quick start
@@ -113,13 +111,16 @@ load.
 - A control plane that starts or stops agents.
 - A network allowlist for shell, `curl`, or `agent-browser` egress. The opt-in
   allowlist covers Claude `WebFetch` only.
-- Remote or synced backups. `pagani backup` writes a local tar.gz.
+- Backups. There is no backup or restore command; use git and your own remote.
 - Prompt-injection enforcement. The `untrusted-content` skill is a convention,
   not a sandbox.
-- A hard spending cap. `pagani budget check` asks the master to stop; it does
-  not block a process.
-- Exact per-job cost for Claude Code. Exact cost reads the local OpenCode
-  `session` table; Claude usage is a raw `ccusage` snapshot when installed.
+- Cost tracking or a spending cap. `pagani usage` writes raw tool snapshots and
+  metrics; it does not calculate exact per-job cost or enforce a budget.
+- Skill usage logging. There is no `skill-usage.tsv` or `skill-log` command.
+- A weekly timer. `pagani weekly` and the systemd timer are not part of the
+  stack.
+- GitHub Actions. The target repository owns its CI; PaganiStack does not ship
+  a workflow.
 
 ## License
 

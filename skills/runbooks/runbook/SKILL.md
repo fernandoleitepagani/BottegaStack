@@ -24,7 +24,7 @@ A runbook turns a symptom into a timeline and a decision.
 - Do not run destructive commands without explicit approval.
 - Do not change production state to test a theory.
 - If the evidence is missing, say what is missing and ask.
-- For a code bug, load `diagnosing-bugs` and build a red-capable loop.
+- For a code bug, load `diagnosis` and build a red-capable loop.
 
 ## Output
 

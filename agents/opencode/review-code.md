@@ -51,11 +51,9 @@ Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report
 
 1. Read the project `AGENTS.md` and `GLOSSARY.md`.
 2. Load the `review-code` skill and follow it.
-3. Load `code-review` for the two-axis method and the smell baseline.
-4. Load `codebase-design` when the finding is about a shallow module, a seam, or
+3. Load `codebase-design` when the finding is about a shallow module, a seam, or
    testability.
-5. Load the `verification` skill if the change has UI or end-to-end
-   behaviour.
+4. Load the `verification` skill if the change has UI or end-to-end behaviour.
 6. Write exactly one file, `pagani/jobs/<id>/round-<N>/review-code.md`.
 7. Never edit code. After round 1, review only the new diff and do not repeat
    findings already posted.

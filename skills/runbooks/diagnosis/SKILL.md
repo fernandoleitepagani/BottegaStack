@@ -9,11 +9,36 @@ A failed review or check is not a request to "try again". It is a diagnosis
 problem. Find the cause, explain it precisely, then hand a fresh builder a brief
 it can act on without guessing.
 
-## Base skill
+## Diagnosis loop
 
-Load `diagnosing-bugs` for the full loop: build a red-capable feedback loop,
-reproduce, minimise, rank hypotheses, instrument, fix, regression test, cleanup.
-This skill adds the PaganiStack fix-brief contract and the max-two-rounds rule.
+Redact secrets before showing commands or artifacts. Then:
+
+1. **Build a red-capable loop.** The loop must drive the real bug path and assert
+   the user's symptom. Prefer a failing test, then a curl/HTTP script, CLI
+   invocation, headless browser, captured trace replay, minimal harness, fuzz
+   loop, bisection, or differential run. A human-in-the-loop script is the last
+   resort.
+2. **Tighten it.** Make it faster, sharper, and deterministic. A 2-second
+   deterministic loop is the goal; a 30-second flaky loop is barely better than
+   none.
+3. **Reproduce and minimise.** Confirm the user's failure, not a nearby one.
+   Remove inputs, callers, config, and steps until every remaining element is
+   load-bearing.
+4. **Hypothesise.** Write 3–5 ranked, falsifiable hypotheses. State the
+   prediction each one makes. Show the ranking to the user when possible.
+5. **Instrument.** Change one variable at a time. Use a debugger or targeted logs
+   with a unique prefix; never log everything.
+6. **Fix and regression-test.** Add the failing test at the correct seam before
+   the fix. If no correct seam exists, say so; that is an architecture finding.
+7. **Clean up.** Remove debug instrumentation, delete throwaway prototypes, and
+   re-run the original loop.
+
+If you cannot build a loop, stop and say what you tried. Ask for access, a
+redacted artifact, or permission to add temporary instrumentation. Do not
+hypothesise without a loop.
+
+This skill also owns the PaganiStack fix-brief contract and the max-two-rounds
+rule.
 
 ## Reproduce
 

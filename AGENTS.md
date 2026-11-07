@@ -38,11 +38,8 @@ full explanation.
 ./bin/pagani doctor
 ./bin/pagani init /tmp/example
 ./bin/pagani frontier <job>
-./bin/pagani budget check <job>
 ./bin/pagani dashboard
-./bin/pagani backup <job>
-./bin/pagani restore <archive>
+./bin/pagani usage start|end <job>
 ./bin/pagani upgrade [path]
 ./bin/pagani network init|check <url>
-./bin/pagani usage report <job>
 ```

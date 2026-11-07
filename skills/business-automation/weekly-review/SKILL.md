@@ -52,8 +52,8 @@ Rules:
 Propose at most three environment changes: a lint rule, a test, an `AGENTS.md`
 line, or a skill edit. Ask before editing.
 
-When run by `pagani weekly` or the timer, do not ask questions; list proposed
-edits and decisions in the report.
+When run in a headless session, do not ask questions; list proposed edits and
+decisions in the report.
 
 ## Report
 
@@ -65,8 +65,8 @@ NEXT: <top item>
 
 ## Gotchas
 
-- Asking a question in a headless run. `pagani weekly` and the timer have no
-  one to answer; list the decision in the report instead.
+- Asking a question in a headless run. There is no one to answer; list the
+  decision in the report instead.
 - Listing activity ("12 commits") instead of outcomes.
 - A lesson with no place it was recorded.
 - Proposing ten environment changes instead of the three that matter.

@@ -41,11 +41,10 @@ path, the worktree, and the branch.
 1. Read `AGENTS.md`, `GLOSSARY.md`, the ticket, `spec.md`, `plan.md`, and the
    neighbouring code.
 2. Load the `implementation` skill and follow it.
-3. Load `tdd` for the red-green loop.
-4. Load the `verification` skill if the ticket has UI or end-to-end criteria.
-5. Keep `pagani/jobs/<id>/TASKS.md` current. Batch tool calls when they are
+3. Load the `verification` skill if the ticket has UI or end-to-end criteria.
+4. Keep `pagani/jobs/<id>/TASKS.md` current. Batch tool calls when they are
    independent.
-6. Write code on the named branch and exactly one report file,
+5. Write code on the named branch and exactly one report file,
    `pagani/jobs/<id>/build/<ticket>.md`.
 7. Commit locally on the ticket branch. Never push, merge into the base branch,
    or open a PR.

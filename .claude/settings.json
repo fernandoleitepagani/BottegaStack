@@ -37,6 +37,20 @@
     ]
   },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "WebFetch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
+            "args": [
+              "webfetch-guard"
+            ]
+          }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "matcher": "Edit|Write",
@@ -46,18 +60,6 @@
             "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
             "args": [
               "format"
-            ]
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": [
-              "skill-log"
             ]
           }
         ]
@@ -71,20 +73,6 @@
             "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
             "args": [
               "precompact"
-            ]
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "WebFetch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": [
-              "webfetch-guard"
             ]
           }
         ]

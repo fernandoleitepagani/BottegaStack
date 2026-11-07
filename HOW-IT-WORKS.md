@@ -19,7 +19,7 @@ cd ~/Projects/my-project
 ~/Projects/PaganiStack/bin/pagani init
 ```
 
-For an existing project, run `pagani upgrade` to merge the current hooks and
+For an existing project, run `pagani upgrade` to update the current hooks and
 managed files without dropping your settings.
 
 Then, in OpenCode or Claude Code:
@@ -41,7 +41,7 @@ Then, in OpenCode or Claude Code:
 7. FIX        fix.md -> fresh builder -> checks -> affected reviews
 8. APPROVE    approver -> decision.md + quiz
 9. HUMAN      approve, rework, or reject
-10. CLOSE     usage end, backup, dashboard, retro, merge/commit/push/PR on request
+10. CLOSE     usage end, dashboard, retro, merge/commit/push/PR on request
 ```
 
 ### Step 0: Set up and classify
@@ -120,7 +120,7 @@ rework, or reject. The master shows the exact git command before running it.
 ### Step 10: Close
 
 The master updates `job.md`, records the decision in `human.md`, runs
-`pagani usage end <job>`, `pagani backup <job>`, and `pagani dashboard`, runs
+`pagani usage end <job>` and `pagani dashboard`, runs
 `pagani retro-scan --exit-code`, and loads `session-retro` to propose one
 environment change. On repeated findings it proposes Gotchas patches. It loads
 `session-handoff` if the job continues elsewhere.
@@ -203,15 +203,10 @@ adapted, it is renamed and the change is noted in its `SKILL.md`.
 
 | Skill | Source | License |
 |---|---|---|
-| `grilling` | mattpocock/skills | see upstream |
 | `wizard` | mattpocock/skills | see upstream |
 | `writing-for-agents` | mattpocock/skills | see upstream |
-| `diagnosing-bugs` | mattpocock/skills | see upstream |
-| `tdd` | mattpocock/skills | see upstream |
 | `codebase-design` | mattpocock/skills | see upstream |
 | `domain-modeling` | mattpocock/skills | see upstream |
-| `code-review` | mattpocock/skills | see upstream |
-| `pr` | mattpocock/skills | see upstream |
 | `skill-creator` | anthropics/skills | see `LICENSE.txt` in the skill |
 | `agent-browser` | vercel-labs/agent-browser | see upstream |
 | `vercel-react-best-practices` | vercel-labs/agent-skills | see upstream |
@@ -223,8 +218,10 @@ adapted, it is renamed and the change is noted in its `SKILL.md`.
 | `emil-design-eng` | emilkowalski/skills | see LICENSE in the skill |
 
 `handoff` and `retro` are adapted as `session-handoff` and `session-retro`.
-PaganiStack-authored skills are original or adapted and are not vendored under
-an upstream name.
+Some PaganiStack skills absorb upstream content: `interview` (from `grilling`),
+`review-code` (from `code-review`), `diagnosis` (from `diagnosing-bugs`),
+`implementation` (from `tdd`), and `closeout` (from `pr`). PaganiStack-authored
+skills are original or adapted and are not vendored under an upstream name.
 
 ### Add a skill
 
@@ -263,17 +260,10 @@ Automation:
 
 ```bash
 pagani usage start|end <job>
-pagani usage report <job>
-pagani budget set|check <job> [--usd <amount>]
 pagani dashboard [--open]
-pagani backup [job|all] [--dest <dir>]
-pagani restore <archive> [--force]
 pagani hooks install|uninstall|status [path]
 pagani network init|check <url>
 pagani retro-scan [--write] [--exit-code]
-pagani weekly
-pagani timer install|uninstall|status [path] [--at "Mon 09:00"]
-pagani skill-log <name>
 ```
 
 ## Checks, review, and verification
@@ -302,7 +292,7 @@ when working solo.
 
 ```
 pagani/jobs/<id>/
-  job.md              stage, round, lane, branch, base, budget
+  job.md              stage, round, lane, branch, base
   interview.md
   plan.md
   spec.md
@@ -315,7 +305,6 @@ pagani/jobs/<id>/
   decision.md
   human.md
   usage.md
-  usage.start
   TASKS.md
   handoff.md
 ```
@@ -333,28 +322,16 @@ Everything here is optional and local. Nothing starts an agent or a server.
   them when `.git` exists. A missing gitleaks is a clean skip.
 - **PreCompact handoff.** A Claude Code `PreCompact` hook writes a snapshot to
   the newest job's `handoff.md`, or `pagani/handoff.md`.
-- **Skill usage.** The Claude `Skill` hook and the OpenCode plugin append to
-  `pagani/skill-usage.tsv`. `pagani skill-log <name>` logs by hand.
 - **Network allowlist.** `pagani network init` enables an opt-in Claude
   `WebFetch` allowlist. Shell and `agent-browser` egress are not covered.
-- **Exact cost.** `pagani usage end <job>` reads the local OpenCode `session`
-  cost and token columns, including worktree sessions, and writes `usage.md`
-  plus `cost_usd`/`tokens_total` in `metrics.tsv`. It falls back to an
-  approximate `opencode stats` delta when the database or `python3` is missing.
-- **Budget.** `pagani budget check <job>` exits 1 when the exact cost is over
-  the per-job USD budget. The master stops and asks; it is not a hard cap.
 - **Dashboard.** `pagani dashboard` writes a local, read-only
-  `pagani/dashboard.html` with jobs, checks, cost, and metrics.
-- **Backup and restore.** `pagani backup [job|all]` writes a local tar.gz under
-  `pagani/backups/`; `pagani restore <archive> [--force]` restores it.
+  `pagani/dashboard.html` with jobs, checks, and metrics.
+- **Usage snapshots.** `pagani usage start|end <job>` appends raw
+  `opencode`/`ccusage` snapshots to `usage.md` and records lane, rounds, fixes,
+  reworks, and first-pass checks in `metrics.tsv`. It does not calculate exact
+  per-job cost.
 - **Skill evals.** `evals/skills/run.sh` checks skill triggers. It spends tokens
   and is opt-in.
-- **GitHub Actions.** `.github/workflows/pagani-check.yml` runs lint and
-  `scripts/check` on pull requests and `main` pushes. Read-only `contents`, no
-  secrets, no login, no LLM calls.
-- **Weekly timer.** `pagani timer install [path]` writes a systemd user timer
-  that runs headless `pagani weekly`. It spends tokens and is never installed by
-  default.
 
 ## Safety and limits
 
@@ -372,8 +349,8 @@ Everything here is optional and local. Nothing starts an agent or a server.
 
 **Opt-in and limited:** the Claude `WebFetch` allowlist covers only that tool.
 Shell, `curl`, and `agent-browser` egress are not covered. The dashboard is a
-read-only local file. `pagani budget check` is a check, not a hard cap. Backups
-are local only.
+read-only local file. There is no exact cost tracking, budget enforcement, or
+backup command.
 
 **Deliberate non-goals:** full OS sandboxing and a control plane that starts or
 stops agents. Untrusted content still reaches agents through browser pages, PR
@@ -396,12 +373,8 @@ bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
 | Git hooks missing | Run `pagani hooks install [path]`. |
 | `pagani upgrade` fails | Install `python3`. |
-| `pagani timer` not running | Run `pagani timer status`; check `opencode` on the service PATH. |
 | Network check denies a host | Add it to `pagani/network-allowlist.txt`, or remove the file. |
-| Exact cost says unknown | Ensure `python3` and the local OpenCode DB exist; the fallback is approximate. |
 | Dashboard is stale | Re-run `pagani dashboard`; it is a static file. |
-| Backup or restore fails | Check the archive and `tar`; `restore` needs `--force` to overwrite. |
-| GitHub Actions does not run | Check `.github/workflows/pagani-check.yml` and `scripts/check`. |
 | Context full | `session-handoff` + `TASKS.md`; start a fresh session. |
 
 ## Claude smoke test
@@ -412,16 +385,13 @@ Run this by hand after installing or upgrading the Claude Code target.
 2. `./bin/pagani doctor` shows `claude: yes`, the settings hooks, and executable
    `scripts/claude-hook.sh`.
 3. `python3 -m json.tool .claude/settings.json` succeeds and the file has the
-   `PreToolUse` `WebFetch`, `PostToolUse` `Edit|Write`, `PreCompact`, and
-   `Skill` hooks.
+   `PreToolUse` `WebFetch`, `PostToolUse` `Edit|Write`, and `PreCompact` hooks.
 4. `scripts/claude-hook.sh format` runs `scripts/format` on a scratch file and
    exits 0 even when the formatter fails.
 5. `scripts/claude-hook.sh webfetch-guard` allows with no allowlist, allows a
    listed host, and denies an unlisted host.
-6. `scripts/claude-hook.sh skill-log <name>` appends a row to
-   `pagani/skill-usage.tsv`.
-7. `/pagani status` loads the generated command and reads the newest job.
-8. `pagani gate <job>` fails after an uncommitted edit and passes with
+6. `/pagani status` loads the generated command and reads the newest job.
+7. `pagani gate <job>` fails after an uncommitted edit and passes with
    `--allow-dirty`.
 
 ## Sources

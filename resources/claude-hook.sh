@@ -58,9 +58,7 @@ usage: claude-hook.sh <command>
 
 commands:
   format                  format the file in .tool_input.file_path
-  skill-log               log the skill name from stdin JSON
   precompact              snapshot the newest job into handoff.md
-  skill-log-name <name>   log a skill name without stdin
   webfetch-guard          deny WebFetch hosts missing from the allowlist
 EOF
 }
@@ -69,13 +67,6 @@ iso_date() {
   date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo "unknown"
 }
 
-record_skill() {
-  local skill="$1"
-  local dir="$project_dir/pagani"
-  mkdir -p "$dir" 2>/dev/null || true
-  printf '%s\t%s\t%s\n' "$(iso_date)" "$(basename "$project_dir")" "$skill" \
-    >>"$dir/skill-usage.tsv" 2>/dev/null || true
-}
 
 cmd_format() {
   local file formatter
@@ -90,24 +81,7 @@ cmd_format() {
   return 0
 }
 
-cmd_skill_log() {
-  local skill key
-  skill=""
-  for key in tool_input.skill tool_input.name tool_input.command tool_name; do
-    skill="$(json_field "$input" "$key" || true)"
-    [ -n "$skill" ] && break
-  done
-  [ -n "$skill" ] || skill="unknown"
-  record_skill "$skill"
-  return 0
-}
 
-cmd_skill_log_name() {
-  local skill="${1:-unknown}"
-  [ -n "$skill" ] || skill="unknown"
-  record_skill "$skill"
-  return 0
-}
 
 # Print the host from a URL. python3 handles credentials, ports, and IPv6;
 # sed is the fallback.
@@ -230,15 +204,8 @@ case "$sub" in
   format)
     cmd_format
     ;;
-  skill-log)
-    cmd_skill_log
-    ;;
   precompact)
     cmd_precompact
-    ;;
-  skill-log-name)
-    shift || true
-    cmd_skill_log_name "${1:-}"
     ;;
   webfetch-guard)
     cmd_webfetch_guard

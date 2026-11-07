@@ -91,9 +91,9 @@ suggests a higher lane.
    with `APPROVE` or `ESCALATE`, an explainer, and a quiz.
 9. **Human decision.** Load `closeout`. Use `AskUserQuestion` for merge, commit,
    push, PR, rework, or reject. Show the exact git command and confirm.
-10. **Close.** Update `job.md`, run `pagani usage end <job-id>`,
-    `pagani backup <job-id>`, and `pagani dashboard`, record the decision in
-    `human.md`, and run `pagani retro-scan --exit-code`. Load `session-retro`.
+10. **Close.** Update `job.md`, run `pagani usage end <job-id>` and
+    `pagani dashboard`, record the decision in `human.md`, and run
+    `pagani retro-scan --exit-code`. Load `session-retro`.
     If the scan exits 1, findings repeat across jobs: propose Gotchas patches
     for the affected skills. Otherwise propose one lesson for `AGENTS.md` or
     `mistakes.md`. Load `session-handoff` if the job continues elsewhere, then
@@ -102,14 +102,12 @@ suggests a higher lane.
 ## Optional automation
 
 `pagani init` installs the format hook (`PostToolUse` on `Edit|Write`), the
-PreCompact handoff hook, the skill-usage `Skill` hook, and the gitleaks
-`pre-commit`/`pre-push` hooks. The weekly timer is opt-in:
-`pagani timer install [path] [--at "Mon 09:00"]` spends tokens and is never
-installed by default. Do not install or enable it without the user asking.
+PreCompact handoff hook, and the gitleaks `pre-commit`/`pre-push` hooks.
 
 For an existing project whose `.claude/settings.json` predates the current
-hooks, run `pagani upgrade [path]`. It copies `scripts/claude-hook.sh`, merges
-the hook handlers, backs up the old settings, and leaves `permissions` alone.
+hooks, run `pagani upgrade [path]`. It copies `scripts/claude-hook.sh`, replaces
+the hooks block with the current one, backs up the old settings, and leaves
+`permissions` alone.
 The Claude `WebFetch` allowlist is opt-in: `pagani network init` copies
 `pagani/network-allowlist.txt`. Without that file every host is allowed; the
 allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
@@ -123,8 +121,6 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
 - Model routing: planner/spec/approval strong; builder default or strong by
   risk; code/UI/UX review cheap; security strong.
 - No reviewer sees another review.
-- Before spawning any subagent, run `pagani budget check <job-id>`. If it exits
-  1, stop and ask the human.
 - No cloud sessions.
 - Keep `TASKS.md` current for long runs.
 - Use `session-handoff` when context is near full.
@@ -160,10 +156,9 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Cost snapshots: `pagani usage start <job>` at Step 0 and
-  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`. Exact
-  per-job cost comes from the local OpenCode database. `pagani budget check`
-  enforces a per-job cap; `pagani dashboard` renders a read-only local summary.
+- Usage snapshots: `pagani usage start <job>` at Step 0 and
+  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
+  `pagani dashboard` renders a read-only local summary.
 
 ## Git
 

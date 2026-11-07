@@ -58,9 +58,9 @@ Show a one-line summary per item. Let the user pick.
 1. Read the item, its notes, and the code. Use the project's glossary and ADRs.
 2. Check redundancy: search by domain concept for an existing implementation. If
    it exists, set `wontfix` and point to where it lives.
-3. Verify the claim. For a bug, reproduce it with the `diagnosing-bugs` loop. For
-   an enhancement, confirm the current behaviour and the gap.
-4. If the item is vague, load `grilling` and `domain-modeling` and ask in rounds.
+3. Verify the claim. For a bug, reproduce it with the `diagnosis` loop. For an
+   enhancement, confirm the current behaviour and the gap.
+4. If the item is vague, load `interview` and `domain-modeling` and ask in rounds.
    Update the notes as decisions land.
 5. Apply the outcome:
    - `ready-for-agent`: write a brief under `### Brief` with what to build,

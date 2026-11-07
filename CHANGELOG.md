@@ -10,8 +10,16 @@
   `resources/claude-hook.sh`; `scripts/format` was removed.
 - Removed empty `plugins/` and `pagani/` dirs, generated eval result files, and
   `.opencode/` plan artifacts; `.opencode/` is ignored.
-- Added `pagani lint` checks for local doc links, `.claude/settings.json` hook
-  parity, and GitHub workflow parity.
+- Added `pagani lint` checks for local doc links and `.claude/settings.json`
+  hook parity.
+- Removed the weekly timer, backup/restore, exact per-job cost, budget check,
+  skill usage logging, and the GitHub Actions workflow. CI belongs to the target
+  repository.
+- The dashboard now shows jobs, checks, and metrics without a cost column.
+- Merged duplicate skills into the custom ones: `grilling` into `interview`,
+  `code-review` into `review-code`, `diagnosing-bugs` into `diagnosis`, `tdd`
+  into `implementation`, and `pr` into `closeout`.
+- Added skill eval cases for `interview`, `diagnosis`, and `implementation`.
 
 ## 0.5.0
 

@@ -10,13 +10,42 @@ planner does not.
 
 ## Base skills
 
-- Load `grilling` for the design-tree rounds. Ask the frontier, give a
-  recommended answer for each question, and recompute the frontier after each
-  round.
 - Load `domain-modeling` when a term needs sharpening, or when a decision belongs
   in `GLOSSARY.md` or an ADR.
 - If the user says "wait, what?", re-pitch in simplified English using the
   project's glossary. The `wait-what` skill is available for the user to invoke.
+
+## Design-tree rounds
+
+Map the interview as a design tree: every decision branches into the decisions
+that hang off it. Work it in rounds. The **frontier** is every decision whose
+prerequisites are already settled: the questions you can ask now without
+guessing at answers you have not heard yet.
+
+Ask the whole frontier in one round. Number each question and give your
+recommended answer. Then wait for the answers before the next round.
+
+```
+❓ **Q1** — **<question title>**: <question body, options if useful>
+
+➡️ <your recommended answer>
+
+---
+
+❓ **Q2** — **<question title>**: <question body>
+
+➡️ <your recommended answer>
+```
+
+Word each question so "yes" accepts your recommendation. Finding facts is your
+job, not the user's: if a question needs a fact from the repo or a tool, look it
+up. The decisions are the user's: put each to them and wait.
+
+Each answer reshapes the tree: settled decisions push the frontier outward and
+unblock questions that depended on them. A question whose answer depends on
+another open question belongs to a later round. Stop when the frontier is empty:
+every branch visited, nothing silently assumed. Do not write `plan.md` until the
+user confirms the shared understanding.
 
 ## Rules
 

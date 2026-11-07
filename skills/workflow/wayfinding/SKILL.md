@@ -14,7 +14,7 @@ features, skip this and use `planning`.
 
 ## Base skills
 
-- Load `grilling` for the question rounds. Work the design tree breadth-first.
+- Load `interview` for the question rounds. Work the design tree breadth-first.
 - Load `domain-modeling` when a term needs sharpening or a GLOSSARY/ADR update.
 
 ## Plan, don't do
@@ -51,7 +51,7 @@ Each ticket is a file under `pagani/jobs/<id>/map/`:
 ```markdown
 # <NN>: <question title>
 
-Type: research | prototype | grilling | task
+Type: research | prototype | interview | task
 Status: open | claimed | closed
 Blocked by: <ticket numbers/titles> or "none"
 
@@ -68,7 +68,7 @@ Filled when closed: the answer, the evidence, and what it unblocks.
   Use the `research` skill if it is available.
 - **prototype** (HITL): make a cheap artifact to react to. Use the `prototype`
   skill if it is available.
-- **grilling** (HITL): conversation. Load `grilling` and `domain-modeling`.
+- **interview** (HITL): conversation. Load `interview` and `domain-modeling`.
 - **task** (HITL or AFK): manual work that must happen before a decision can be
   made, such as provisioning access or moving data. The agent does it if it can;
   otherwise it hands the human a precise checklist. Use `wizard` if the human
@@ -90,7 +90,7 @@ graduates unless the destination is redrawn.
 
 ## Chart the map
 
-1. Name the destination. Load `grilling` and `domain-modeling`; settle what the
+1. Name the destination. Load `interview` and `domain-modeling`; settle what the
    effort is finding its way to.
 2. Map the frontier breadth-first. Surface the open decisions and the first steps
    that are takeable now. If there is no fog, the job is small enough for

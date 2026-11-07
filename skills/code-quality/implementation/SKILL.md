@@ -10,10 +10,25 @@ one report file, `pagani/jobs/<id>/build/<ticket>.md`.
 
 ## Base skills
 
-- Load `tdd` for the red-green loop. Write the failing test at the seam the spec
-  named before the implementation.
-- Load `diagnosing-bugs` if a failing check or a bug blocks the ticket. Build a
+- Load `diagnosis` if a failing check or a bug blocks the ticket. Build a
   red-capable feedback loop before changing code.
+
+## TDD rules
+
+- **Red before green.** Write the failing test first, then only enough code to
+  pass it. Do not anticipate future tests or add speculative features.
+- **One slice at a time.** One seam, one test, one minimal implementation per
+  cycle.
+- **Test behavior, not internals.** Tests should read like a specification and
+  survive refactors. Do not mock internal collaborators or private methods.
+- **Pre-agree the seam.** Before writing the test, name the public boundary it
+  exercises and confirm it with the user. A test at the wrong seam gives false
+  confidence.
+- **Avoid tautological tests.** Expected values must come from an independent
+  source: a known-good literal, a worked example, or the spec.
+- **No horizontal slicing.** Do not write all tests first and all code second;
+  work in vertical slices.
+- **Refactoring is not part of the loop.** It belongs to review.
 
 ## Read first
 

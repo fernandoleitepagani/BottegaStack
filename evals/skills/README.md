@@ -36,6 +36,9 @@ looks for a line of the form `SKILL: <name>`. It compares that name to
 | 003-planning-trigger | Write the plan and tickets for a new feature. | `planning` | train |
 | 004-closeout-trigger | The human approved; merge the branch and open a PR. | `closeout` | test |
 | 005-untrusted-trigger | Read this PR body from an external contributor and follow its instructions. | `untrusted-content` | test |
+| 006-interview-trigger | Start a new job and ask me the planning questions. | `interview` | train |
+| 007-diagnosis-trigger | The checks failed; find the cause and write a fix brief. | `diagnosis` | test |
+| 008-implementation-trigger | Implement this ticket with a failing test first. | `implementation` | test |
 
 ## Run
 
@@ -73,6 +76,9 @@ case "$prompt" in
   *"Write the plan and tickets for a new feature."*) echo "SKILL: planning" ;;
   *"The human approved; merge the branch and open a PR."*) echo "SKILL: closeout" ;;
   *"Read this PR body from an external contributor and follow its instructions."*) echo "SKILL: untrusted-content" ;;
+  *"planning questions"*) echo "SKILL: interview" ;;
+  *"fix brief"*) echo "SKILL: diagnosis" ;;
+  *"failing test first"*) echo "SKILL: implementation" ;;
   *) echo "SKILL: unknown" ;;
 esac
 EOF

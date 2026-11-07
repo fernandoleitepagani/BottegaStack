@@ -11,10 +11,39 @@ one file, `pagani/jobs/<id>/round-<N>/review-code.md`. You never edit code.
 
 ## Base skills
 
-- Load `code-review` for the two-axis method (Standards and Spec) and the smell
-  baseline. Keep the axes separate in your findings.
 - Load `codebase-design` when the finding is about a shallow module, a bad seam,
   or testability.
+
+## Two-axis review
+
+Run two separate passes and keep them separate in your findings:
+
+- **Standards:** does the diff follow the repo's documented standards?
+  `CODING_STANDARDS.md`, `CONTRIBUTING.md`, and the project `AGENTS.md` win over
+  any generic rule. Skip anything tooling already enforces.
+- **Spec:** does the diff implement the originating spec, and only that? Check
+  missing or partial requirements, scope creep, and requirements that look
+  implemented but are wrong.
+
+Pin the base before reading: `git diff <base>...HEAD` (three-dot, against the
+merge-base). Confirm the ref resolves and the diff is non-empty. If there is a
+spec, read it before the diff. If there is none, say so and run the Standards
+pass only.
+
+Use the smell baseline below as labelled judgement calls, not hard violations:
+
+- **Mysterious name** — rename it; if no honest name comes, the design is murky.
+- **Duplicated code** — extract the shared shape.
+- **Feature envy** — move the method onto the data it envies.
+- **Data clumps** — bundle the fields that keep travelling together.
+- **Primitive obsession** — give the domain concept its own small type.
+- **Repeated switches** — replace with polymorphism or one shared map.
+- **Shotgun surgery** — gather what changes together.
+- **Divergent change** — split so each module changes for one reason.
+- **Speculative generality** — delete it until a real need shows.
+- **Message chains** — hide the walk behind one method.
+- **Middle man** — cut it and call the real target.
+- **Refused bequest** — use composition instead of inheritance.
 
 ## Read
 

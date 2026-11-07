@@ -4,12 +4,8 @@
 # PaganiStack runtime state
 pagani/jobs/
 pagani/metrics.tsv
-pagani/skill-usage.tsv
 pagani/retro-scan.md
-pagani/weekly-review.md
-pagani/weekly-review.err
 pagani/handoff.md
-pagani/backups/
 pagani/dashboard.html
 .claude/settings.json.pagani-backup-*
 

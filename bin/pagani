@@ -30,20 +30,13 @@ Usage:
   pagani worktree prune <job> [--force]
   pagani worktree remove <path>
   pagani usage start|end <job>
-  pagani usage report <job>
   pagani usage [job]
-  pagani budget set|check <job> [--usd <amount>]
   pagani dashboard [--open]
-  pagani backup [job|all] [--dest <dir>]
-  pagani restore <archive> [--force]
   pagani status
   pagani pr <number>
   pagani hooks install|uninstall|status [path]
   pagani network init|check <url>
   pagani retro-scan [--write] [--exit-code]
-  pagani weekly
-  pagani timer install|uninstall|status [path] [--at "Mon 09:00"]
-  pagani skill-log <name>
 
 Network allowlist:
   The opt-in allowlist only covers Claude Code's WebFetch tool through the
@@ -169,14 +162,6 @@ install_commands() {
   done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
 }
 
-install_plugins() {
-  local config="$1"
-  local src_dir="$ROOT/resources/opencode-plugin"
-  [ -d "$src_dir" ] || return 0
-  while IFS= read -r plugin; do
-    install_one "$plugin" "$config/plugins/$(basename "$plugin")" "$config"
-  done < <(find "$src_dir" -maxdepth 1 -name '*.ts' | sort)
-}
 
 model_for() {
   local target="$1" role="$2" tier="$3"
@@ -253,9 +238,6 @@ cmd_install() {
     install_agents "$config" "$t"
     install_agent_variants "$config" "$t"
     install_commands "$config" "$t"
-    if [ "$t" = "opencode" ]; then
-      install_plugins "$config"
-    fi
     echo "installed: $t"
   done
 }
@@ -740,9 +722,7 @@ cmd_lint() {
 
   for f in AGENTS.md PLAN.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
            format.sh claude-hook.sh git-hooks/pre-commit git-hooks/pre-push \
-           systemd/pagani-weekly.service systemd/pagani-weekly.timer \
-           opencode-plugin/pagani-skill-log.ts \
-           github/workflows/pagani-check.yml network-allowlist.example; do
+           network-allowlist.example; do
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"
       fail=1
@@ -842,13 +822,6 @@ PY
         echo "FAIL .claude/settings.json does not reference PreCompact"
         fail=1
       fi
-    fi
-  fi
-
-  if [ -f "$ROOT/.github/workflows/pagani-check.yml" ] && [ -f "$ROOT/resources/github/workflows/pagani-check.yml" ]; then
-    if ! cmp -s "$ROOT/.github/workflows/pagani-check.yml" "$ROOT/resources/github/workflows/pagani-check.yml"; then
-      echo "FAIL .github/workflows/pagani-check.yml differs from resources/github/workflows/pagani-check.yml"
-      fail=1
     fi
   fi
 
@@ -966,14 +939,6 @@ cmd_doctor() {
     echo "git hooks: not a git repository"
   fi
 
-  local opencode_config
-  opencode_config="$(config_dir opencode)"
-  if [ -f "$opencode_config/plugins/pagani-skill-log.ts" ]; then
-    echo "skill-log plugin: yes ($opencode_config/plugins/pagani-skill-log.ts)"
-  else
-    echo "skill-log plugin: no ($opencode_config/plugins/pagani-skill-log.ts)"
-  fi
-
   for t in opencode claude; do
     local config
     config="$(config_dir "$t")"
@@ -991,10 +956,8 @@ append_runtime_gitignore() {
   if [ -s "$gitignore" ] && [ -n "$(tail -c 1 "$gitignore")" ]; then
     printf '\n' >> "$gitignore"
   fi
-  for entry in pagani/jobs/ pagani/metrics.tsv pagani/skill-usage.tsv \
-               pagani/retro-scan.md pagani/weekly-review.md pagani/weekly-review.err \
-               pagani/handoff.md pagani/backups/ pagani/dashboard.html \
-               evals/skills/results.tsv; do
+  for entry in pagani/jobs/ pagani/metrics.tsv pagani/retro-scan.md \
+               pagani/handoff.md pagani/dashboard.html evals/skills/results.tsv; do
     if ! grep -qxF "$entry" "$gitignore"; then
       printf '%s\n' "$entry" >> "$gitignore"
       echo "gitignore: $entry"
@@ -1020,8 +983,6 @@ cmd_init() {
   [ -f "$dest/mistakes.md" ] || cp "$ROOT/resources/mistakes.md" "$dest/mistakes.md"
   [ -f "$dest/CLAUDE.md" ] || printf '@AGENTS.md\n' > "$dest/CLAUDE.md"
   [ -f "$dest/.github/pull_request_template.md" ] || cp "$ROOT/resources/PR-TEMPLATE.md" "$dest/.github/pull_request_template.md"
-  mkdir -p "$dest/.github/workflows"
-  [ -f "$dest/.github/workflows/pagani-check.yml" ] || cp "$ROOT/resources/github/workflows/pagani-check.yml" "$dest/.github/workflows/pagani-check.yml"
   [ -f "$dest/docs/FEATURE-MAP.md" ] || cp "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md"
   [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
   [ -f "$dest/pagani/network-allowlist.example" ] || cp "$ROOT/resources/network-allowlist.example" "$dest/pagani/network-allowlist.example"
@@ -1052,13 +1013,16 @@ cmd_upgrade() {
   local src_hook="$ROOT/resources/claude-hook.sh"
   local src_settings="$ROOT/resources/claude-settings.json"
   local src_format="$ROOT/resources/format.sh"
-  local src_workflow="$ROOT/resources/github/workflows/pagani-check.yml"
   local src_plan="$ROOT/resources/PLAN.md"
 
-  mkdir -p "$dest/scripts" "$dest/.claude" "$dest/.github/workflows" "$dest/pagani"
-  cp "$src_hook" "$dest/scripts/claude-hook.sh"
-  chmod +x "$dest/scripts/claude-hook.sh"
-  echo "updated: $dest/scripts/claude-hook.sh"
+  mkdir -p "$dest/scripts" "$dest/.claude" "$dest/pagani"
+  if [ -L "$dest/scripts/claude-hook.sh" ]; then
+    echo "kept: $dest/scripts/claude-hook.sh (symlink)"
+  else
+    cp "$src_hook" "$dest/scripts/claude-hook.sh"
+    chmod +x "$dest/scripts/claude-hook.sh"
+    echo "updated: $dest/scripts/claude-hook.sh"
+  fi
 
   local target="$dest/.claude/settings.json" tmp
   tmp="$(mktemp)"
@@ -1077,37 +1041,7 @@ if not isinstance(target, dict):
 for k, v in src.items():
     if k != "hooks" and k not in target:
         target[k] = v
-hooks = target.get("hooks")
-if not isinstance(hooks, dict):
-    hooks = {}
-    target["hooks"] = hooks
-for event, entries in src.get("hooks", {}).items():
-    dest_entries = hooks.get(event)
-    if not isinstance(dest_entries, list):
-        dest_entries = []
-        hooks[event] = dest_entries
-    for entry in entries:
-        matcher = entry.get("matcher", "")
-        found = None
-        for existing in dest_entries:
-            if existing.get("matcher", "") == matcher:
-                found = existing
-                break
-        if found is None:
-            found = {}
-            if "matcher" in entry:
-                found["matcher"] = matcher
-            found["hooks"] = []
-            dest_entries.append(found)
-        seen = set()
-        for handler in found.get("hooks", []):
-            seen.add((handler.get("command"), json.dumps(handler.get("args", []), sort_keys=True)))
-        for handler in entry.get("hooks", []):
-            key = (handler.get("command"), json.dumps(handler.get("args", []), sort_keys=True))
-            if key in seen:
-                continue
-            found.setdefault("hooks", []).append(handler)
-            seen.add(key)
+target["hooks"] = src.get("hooks", {})
 with open(out_path, "w") as f:
     json.dump(target, f, indent=2)
     f.write("\n")
@@ -1136,13 +1070,6 @@ PY
     cp "$src_format" "$dest/scripts/format"
     chmod +x "$dest/scripts/format"
     echo "created: $dest/scripts/format"
-  fi
-
-  if [ -f "$dest/.github/workflows/pagani-check.yml" ]; then
-    echo "kept: $dest/.github/workflows/pagani-check.yml"
-  else
-    cp "$src_workflow" "$dest/.github/workflows/pagani-check.yml"
-    echo "created: $dest/.github/workflows/pagani-check.yml"
   fi
 
   if [ -f "$dest/PLAN.md" ]; then
@@ -1279,128 +1206,6 @@ cmd_worktree() {
   esac
 }
 
-opencode_db_path() {
-  printf '%s\n' "${PAGANI_OPENCODE_DB:-${XDG_DATA_HOME:-$HOME/.local/share}/opencode/opencode.db}"
-}
-
-# Query the local OpenCode session table. Prints:
-# cost<TAB>input<TAB>output<TAB>reasoning<TAB>cache_read<TAB>cache_write<TAB>count
-query_usage_db() {
-  local db="$1" dir="$2" start_ms="$3" wt_prefix="${4:-}"
-  command -v python3 >/dev/null 2>&1 || return 1
-  [ -f "$db" ] || return 1
-  python3 - "$db" "$dir" "$start_ms" "$wt_prefix" <<'PY'
-import sqlite3, sys
-db = sys.argv[1]
-directory = sys.argv[2]
-start_ms = int(sys.argv[3])
-wt_prefix = sys.argv[4]
-select = (
-    "SELECT COALESCE(SUM(cost),0),"
-    " COALESCE(SUM(tokens_input),0),"
-    " COALESCE(SUM(tokens_output),0),"
-    " COALESCE(SUM(tokens_reasoning),0),"
-    " COALESCE(SUM(tokens_cache_read),0),"
-    " COALESCE(SUM(tokens_cache_write),0),"
-    " COUNT(*)"
-    " FROM session"
-)
-if wt_prefix:
-    sql = select + " WHERE (directory = ? OR directory LIKE ?) AND time_created >= ?;"
-    params = (directory, wt_prefix + "%", start_ms)
-else:
-    sql = select + " WHERE directory = ? AND time_created >= ?;"
-    params = (directory, start_ms)
-try:
-    con = sqlite3.connect(db)
-    row = con.execute(sql, params).fetchone()
-    con.close()
-except Exception:
-    sys.exit(1)
-cost = row[0] if row[0] is not None else 0
-cost_s = f"{float(cost):.6f}".rstrip("0").rstrip(".")
-print("\t".join([cost_s] + [str(int(x or 0)) for x in row[1:]]))
-PY
-}
-
-# Print START_MS<TAB>DIR<TAB>WT_PREFIX for a job, falling back to the first
-# "## start <ISO date>" line in usage.md when usage.start is absent.
-read_usage_start() {
-  local job="$1" dir="pagani/jobs/$job" start_ms="" start_dir="" wt_prefix="" has_wt=0
-  if [ -f "$dir/usage.start" ]; then
-    start_ms="$(sed -n 's/^START_MS=//p' "$dir/usage.start" | head -1)"
-    start_dir="$(sed -n 's/^DIR=//p' "$dir/usage.start" | head -1)"
-    if grep -q '^WT_PREFIX=' "$dir/usage.start"; then
-      has_wt=1
-      wt_prefix="$(sed -n 's/^WT_PREFIX=//p' "$dir/usage.start" | head -1)"
-    fi
-  fi
-  if [ -z "$start_ms" ] && [ -f "$dir/usage.md" ]; then
-    local iso secs
-    iso="$(grep -m1 '^## start ' "$dir/usage.md" 2>/dev/null | sed 's/^## start //' || true)"
-    if [ -n "$iso" ]; then
-      start_ms="$(date -d "$iso" +%s%3N 2>/dev/null || true)"
-      if [ -z "$start_ms" ]; then
-        secs="$(date -d "$iso" +%s 2>/dev/null || true)"
-        if [ -n "$secs" ]; then start_ms="${secs}000"; fi
-      fi
-    fi
-  fi
-  [ -n "$start_dir" ] || start_dir="$(pwd)"
-  if [ "$has_wt" = "0" ]; then
-    wt_prefix="$(dirname "$start_dir")/$(basename "$start_dir")-pagani/$job/"
-  fi
-  printf '%s\t%s\t%s\n' "$start_ms" "$start_dir" "$wt_prefix"
-  return 0
-}
-
-stats_json_now() {
-  command -v opencode >/dev/null 2>&1 || return 1
-  opencode stats --json --cost 2>/dev/null
-}
-
-# Approximate usage delta from two `opencode stats --json --cost` snapshots.
-approx_usage() {
-  local start_json="$1" end_json="$2"
-  [ -n "$end_json" ] || return 1
-  if command -v python3 >/dev/null 2>&1; then
-    printf '%s\n---PAGANI---\n%s\n' "$start_json" "$end_json" | python3 -c '
-import json, sys
-raw = sys.stdin.read()
-parts = raw.split("\n---PAGANI---\n")
-def load(s):
-    try:
-        return json.loads(s)
-    except Exception:
-        return {}
-def num(d, *keys):
-    cur = d
-    for k in keys:
-        if not isinstance(cur, dict):
-            return 0.0
-        cur = cur.get(k, 0)
-    try:
-        return float(cur)
-    except Exception:
-        return 0.0
-a = load(parts[0]) if len(parts) > 1 else {}
-b = load(parts[-1])
-cost = num(b, "cost") - num(a, "cost")
-tokens = (num(b, "tokens", "input") + num(b, "tokens", "output") + num(b, "tokens", "reasoning")) \
-       - (num(a, "tokens", "input") + num(a, "tokens", "output") + num(a, "tokens", "reasoning"))
-if cost < 0:
-    cost = 0.0
-if tokens < 0:
-    tokens = 0.0
-print(f"{cost:.6f}".rstrip("0").rstrip("."), int(tokens))
-'
-  else
-    local cost
-    cost="$(printf '%s' "$end_json" | grep -o '"cost"[[:space:]]*:[[:space:]]*[0-9.]*' | head -1 | grep -o '[0-9.]*$' || true)"
-    [ -n "$cost" ] || return 1
-    printf '%s 0\n' "$cost"
-  fi
-}
 
 usage_snapshot() {
   local job="$1" action="$2" file="$3" found=0
@@ -1428,15 +1233,15 @@ usage_snapshot() {
 ensure_metrics_header() {
   local f="pagani/metrics.tsv"
   if [ ! -f "$f" ]; then
-    printf 'date\tjob\tlane\treview_rounds\tfix_rounds\thuman_reworks\tchecks_first_pass\tcost_usd\ttokens_total\n' > "$f"
+    printf 'date\tjob\tlane\treview_rounds\tfix_rounds\thuman_reworks\tchecks_first_pass\n' > "$f"
     return 0
   fi
-  if ! head -1 "$f" | grep -q 'cost_usd'; then
+  if head -1 "$f" | grep -q 'cost_usd'; then
     local tmp
     tmp="$(mktemp)"
     {
-      head -1 "$f" | sed 's/$/\tcost_usd\ttokens_total/'
-      tail -n +2 "$f"
+      head -1 "$f" | cut -f1-7
+      tail -n +2 "$f" | cut -f1-7
     } > "$tmp"
     mv "$tmp" "$f"
   fi
@@ -1452,17 +1257,6 @@ cmd_usage() {
       dir="pagani/jobs/$job"
       file="$dir/usage.md"
       mkdir -p "$dir"
-      local repo_root wt_prefix
-      repo_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-      wt_prefix=""
-      if [ -n "$repo_root" ]; then
-        wt_prefix="$(dirname "$repo_root")/$(basename "$repo_root")-pagani/$job/"
-      fi
-      printf 'START_MS=%s\nDIR=%s\nWT_PREFIX=%s\nDATE=%s\n' \
-        "$(date +%s%3N)" "$(pwd)" "$wt_prefix" "$(date -Iseconds)" > "$dir/usage.start"
-      if command -v opencode >/dev/null 2>&1; then
-        opencode stats --json --cost > "$dir/usage.start.json" 2>/dev/null || true
-      fi
       usage_snapshot "$job" start "$file"
       echo "usage: start $job -> $file"
       return 0
@@ -1474,55 +1268,6 @@ cmd_usage() {
       file="$dir/usage.md"
       mkdir -p "$dir"
       usage_snapshot "$job" end "$file"
-
-      local meta start_ms start_dir wt_prefix
-      meta="$(read_usage_start "$job")"
-      start_ms="$(printf '%s' "$meta" | cut -f1)"
-      start_dir="$(printf '%s' "$meta" | cut -f2)"
-      wt_prefix="$(printf '%s' "$meta" | cut -f3)"
-
-      local cost="" tokens_total="" sessions="" exact=0 have_cost=0 row ti to tr tcr tcw
-      if [ -n "$start_ms" ]; then
-        if row="$(query_usage_db "$(opencode_db_path)" "$start_dir" "$start_ms" "$wt_prefix" 2>/dev/null)" && [ -n "$row" ]; then
-          IFS=$'\t' read -r cost ti to tr tcr tcw sessions <<< "$row"
-          tokens_total=$((ti + to + tr))
-          exact=1
-          have_cost=1
-        fi
-      fi
-      if [ "$exact" = "0" ] && [ -n "$start_ms" ]; then
-        local end_json start_json approx
-        end_json="$(stats_json_now 2>/dev/null || true)"
-        start_json="$(cat "$dir/usage.start.json" 2>/dev/null || true)"
-        if approx="$(approx_usage "$start_json" "$end_json" 2>/dev/null)" && [ -n "$approx" ]; then
-          cost="${approx%% *}"
-          tokens_total="${approx##* }"
-          sessions="?"
-          have_cost=1
-        fi
-      fi
-      if [ "$have_cost" = "0" ]; then
-        if [ -z "$start_ms" ]; then
-          echo "cost: unknown (no usage.start)"
-        else
-          echo "cost: unknown (no OpenCode DB or python3)"
-        fi
-        cost="?"
-        tokens_total="0"
-        sessions="0"
-      else
-        {
-          echo
-          if [ "$exact" = "1" ]; then
-            echo "### job cost (exact)"
-          else
-            echo "### job cost (approximate)"
-          fi
-          echo "cost_usd: $cost"
-          echo "tokens_total: $tokens_total"
-          echo "sessions: $sessions"
-        } >> "$file"
-      fi
 
       local lane rounds fixes reworks first first_result
       lane="$(grep -m1 '^Lane:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Lane:[[:space:]]*//' || true)"
@@ -1541,30 +1286,9 @@ cmd_usage() {
         esac
       fi
       ensure_metrics_header
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-        "$(date +%F)" "$job" "${lane:-?}" "${rounds:-0}" "$fixes" "${reworks:-0}" \
-        "${first:-?}" "${cost:-0}" "${tokens_total:-0}" >> pagani/metrics.tsv
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$(date +%F)" "$job" "${lane:-?}" "${rounds:-0}" "$fixes" "${reworks:-0}" "${first:-?}" >> pagani/metrics.tsv
       echo "metrics: pagani/metrics.tsv"
-      return 0
-      ;;
-    report)
-      [ -n "$job" ] || { echo "job id required" >&2; exit 1; }
-      local file="pagani/jobs/$job/usage.md" cost tokens sessions
-      if [ ! -f "$file" ]; then
-        echo "cost: unknown (no usage.start)"
-        return 0
-      fi
-      cost="$(grep -E '^cost_usd:' "$file" 2>/dev/null | tail -1 | sed 's/^cost_usd:[[:space:]]*//' || true)"
-      tokens="$(grep -E '^tokens_total:' "$file" 2>/dev/null | tail -1 | sed 's/^tokens_total:[[:space:]]*//' || true)"
-      sessions="$(grep -E '^sessions:' "$file" 2>/dev/null | tail -1 | sed 's/^sessions:[[:space:]]*//' || true)"
-      if [ -z "$cost" ]; then
-        echo "cost: unknown (no usage.start)"
-        return 0
-      fi
-      echo "job: $job"
-      echo "cost_usd: $cost"
-      echo "tokens_total: ${tokens:-0}"
-      echo "sessions: ${sessions:-?}"
       return 0
       ;;
   esac
@@ -1580,80 +1304,7 @@ cmd_usage() {
   fi
 }
 
-is_number() {
-  awk -v v="$1" 'BEGIN { exit !(v ~ /^[0-9]+([.][0-9]+)?$/ || v ~ /^[.][0-9]+$/) }'
-}
 
-cmd_budget() {
-  local action="${1:-}"
-  [ -n "$action" ] || { echo "usage: pagani budget set|check <job> [--usd <amount>]" >&2; exit 1; }
-  shift || true
-  local job="" usd=""
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --usd)
-        [ "$#" -ge 2 ] || { echo "pagani budget: --usd requires a value" >&2; exit 1; }
-        usd="$2"
-        shift 2
-        ;;
-      --usd=*) usd="${1#--usd=}"; shift ;;
-      -*) echo "unknown flag: $1" >&2; exit 1 ;;
-      *) job="$1"; shift ;;
-    esac
-  done
-  [ -n "$job" ] || { echo "usage: pagani budget set|check <job> [--usd <amount>]" >&2; exit 1; }
-  local jobfile="pagani/jobs/$job/job.md"
-  case "$action" in
-    set)
-      [ -n "$usd" ] || { echo "pagani budget set: --usd <amount> required" >&2; exit 1; }
-      is_number "$usd" || { echo "pagani budget set: invalid amount: $usd" >&2; exit 1; }
-      [ -f "$jobfile" ] || { echo "job not found: $job" >&2; exit 1; }
-      local tmp
-      tmp="$(mktemp)"
-      awk -v amt="$usd" '
-        BEGIN { done = 0 }
-        /^Budget-usd:/ { print "Budget-usd: " amt; done = 1; next }
-        { print }
-        END { if (!done) print "Budget-usd: " amt }
-      ' "$jobfile" > "$tmp"
-      mv "$tmp" "$jobfile"
-      echo "budget: $usd usd -> $jobfile"
-      ;;
-    check)
-      local budget
-      budget="$(grep -m1 '^Budget-usd:' "$jobfile" 2>/dev/null | sed 's/^Budget-usd:[[:space:]]*//' || true)"
-      if [ -z "$budget" ] || ! is_number "$budget"; then
-        echo "BUDGET: none"
-        return 0
-      fi
-      local cost=""
-      if [ -f "pagani/jobs/$job/usage.md" ]; then
-        cost="$(grep -E '^cost_usd:' "pagani/jobs/$job/usage.md" 2>/dev/null | tail -1 | sed 's/^cost_usd:[[:space:]]*//' || true)"
-      fi
-      if [ -z "$cost" ] || ! is_number "$cost"; then
-        local meta start_ms start_dir wt_prefix row
-        meta="$(read_usage_start "$job")"
-        start_ms="$(printf '%s' "$meta" | cut -f1)"
-        start_dir="$(printf '%s' "$meta" | cut -f2)"
-        wt_prefix="$(printf '%s' "$meta" | cut -f3)"
-        if [ -n "$start_ms" ] && row="$(query_usage_db "$(opencode_db_path)" "$start_dir" "$start_ms" "$wt_prefix" 2>/dev/null)" && [ -n "$row" ]; then
-          cost="$(printf '%s' "$row" | cut -f1)"
-        fi
-      fi
-      [ -n "$cost" ] || cost=0
-      is_number "$cost" || cost=0
-      if awk -v c="$cost" -v b="$budget" 'BEGIN { exit !(c > b) }'; then
-        echo "BUDGET: OVER ($cost/$budget)"
-        return 1
-      fi
-      echo "BUDGET: OK ($cost/$budget)"
-      ;;
-    *)
-      echo "usage: pagani budget set|check <job> [--usd <amount>]" >&2
-      exit 1
-      ;;
-  esac
-}
 
 html_escape() {
   printf '%s' "$1" | sed \
@@ -1698,9 +1349,9 @@ CSS
     printf '<p class="muted">Generated: %s</p>\n' "$(html_escape "$(date -Iseconds)")"
     echo '<h2>Jobs</h2>'
     echo '<table>'
-    echo '<thead><tr><th>ID</th><th>Lane</th><th>Stage</th><th>Round</th><th>Branch</th><th>Checks</th><th>Cost (USD)</th></tr></thead>'
+    echo '<thead><tr><th>ID</th><th>Lane</th><th>Stage</th><th>Round</th><th>Branch</th><th>Checks</th></tr></thead>'
     echo '<tbody>'
-    local jobfile id lane stage round branch result cost
+    local jobfile id lane stage round branch result
     for jobfile in pagani/jobs/*/job.md; do
       [ -f "$jobfile" ] || continue
       id="$(basename "$(dirname "$jobfile")")"
@@ -1713,15 +1364,10 @@ CSS
         result="$(grep -m1 '^RESULT:' "pagani/jobs/$id/checks.md" | sed 's/^RESULT:[[:space:]]*//' || true)"
         [ -n "$result" ] || result="-"
       fi
-      cost="-"
-      if [ -f "pagani/jobs/$id/usage.md" ]; then
-        cost="$(grep -E '^cost_usd:' "pagani/jobs/$id/usage.md" | tail -1 | sed 's/^cost_usd:[[:space:]]*//' || true)"
-        [ -n "$cost" ] || cost="-"
-      fi
-      printf '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' \
+      printf '<tr><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>\n' \
         "$(html_escape "$id")" "$(html_escape "${lane:-?}")" "$(html_escape "${stage:-?}")" \
         "$(html_escape "${round:-0}")" "$(html_escape "${branch:-?}")" \
-        "$(html_escape "$result")" "$(html_escape "$cost")"
+        "$(html_escape "$result")"
     done
     echo '</tbody>'
     echo '</table>'
@@ -1760,97 +1406,7 @@ CSS
   fi
 }
 
-cmd_backup() {
-  local job="all" dest="pagani/backups"
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --dest)
-        [ "$#" -ge 2 ] || { echo "pagani backup: --dest requires a directory" >&2; exit 1; }
-        dest="$2"
-        shift 2
-        ;;
-      --dest=*) dest="${1#--dest=}"; shift ;;
-      -*) echo "unknown flag: $1" >&2; exit 1 ;;
-      *) job="$1"; shift ;;
-    esac
-  done
-  [ -d pagani/jobs ] || { echo "pagani backup: no pagani/jobs directory" >&2; exit 1; }
-  if [ "$job" != "all" ] && [ ! -d "pagani/jobs/$job" ]; then
-    echo "pagani backup: job not found: $job" >&2
-    exit 1
-  fi
-  mkdir -p "$dest"
-  local stamp archive
-  stamp="$(date +%Y%m%d-%H%M%S)"
-  archive="$dest/$stamp-$job.tar.gz"
-  if [ "$job" = "all" ]; then
-    tar -czf "$archive" --exclude='pagani/backups' pagani/jobs
-  else
-    tar -czf "$archive" --exclude='pagani/backups' "pagani/jobs/$job"
-  fi
-  echo "$archive"
-}
 
-cmd_restore() {
-  local archive="" force=0
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --force) force=1; shift ;;
-      -*) echo "unknown flag: $1" >&2; exit 1 ;;
-      *) archive="$1"; shift ;;
-    esac
-  done
-  [ -n "$archive" ] || { echo "usage: pagani restore <archive> [--force]" >&2; exit 1; }
-  [ -f "$archive" ] || { echo "pagani restore: no such archive: $archive" >&2; exit 1; }
-  command -v tar >/dev/null 2>&1 || { echo "pagani restore: tar is required" >&2; exit 1; }
-
-  local listing ids
-  if ! listing="$(tar -tzf "$archive" 2>/dev/null)"; then
-    echo "pagani restore: cannot read archive: $archive" >&2
-    exit 1
-  fi
-  ids="$(printf '%s\n' "$listing" | awk '
-    {
-      p = $0
-      sub(/^\.\//, "", p)
-      if (p ~ /^pagani\/jobs\//) sub(/^pagani\/jobs\//, "", p)
-      else if (p ~ /^pagani\//) next
-      if (p == "") next
-      n = split(p, a, "/")
-      if (n >= 1 && a[1] != "") print a[1]
-    }
-  ' | sort -u)"
-  [ -n "$ids" ] || { echo "pagani restore: no jobs found in $archive" >&2; exit 1; }
-
-  local strip=0 id
-  if printf '%s\n' "$listing" | sed 's#^\./##' | grep -q '^pagani/jobs/'; then
-    strip=2
-  fi
-
-  while IFS= read -r id; do
-    [ -n "$id" ] || continue
-    if [ -d "pagani/jobs/$id" ]; then
-      if [ "$force" = "1" ]; then
-        rm -rf "pagani/jobs/$id"
-      else
-        echo "pagani restore: refusing: job exists: $id (use --force)" >&2
-        exit 1
-      fi
-    fi
-  done <<< "$ids"
-
-  mkdir -p pagani/jobs
-  if [ "$strip" = "2" ]; then
-    tar -xzf "$archive" -C pagani/jobs --strip-components=2
-  else
-    tar -xzf "$archive" -C pagani/jobs
-  fi
-
-  while IFS= read -r id; do
-    [ -n "$id" ] || continue
-    echo "restored: $id"
-  done <<< "$ids"
-}
 
 cmd_status() {
   local found=0
@@ -2052,123 +1608,8 @@ cmd_retro_scan() {
   return 0
 }
 
-cmd_weekly() {
-  command -v opencode >/dev/null 2>&1 || {
-    echo "pagani weekly: opencode is not installed" >&2
-    exit 1
-  }
-  mkdir -p pagani
-  local prompt out
-  out="pagani/weekly-review.md"
-  prompt='Load the weekly-review skill. Read BACKLOG.md, the newest job under pagani/jobs, and pagani/metrics.tsv. Propose at most 5 backlog items and one environment change. Do not ask questions; list any needed decisions in the report. Do not push, merge, deploy, or open a PR. Write the result to pagani/weekly-review.md.'
-  opencode run --agent master --auto "$prompt" | tee "$out"
-  echo "wrote: $out"
-}
 
-cmd_timer() {
-  local action="${1:-}"
-  [ -n "$action" ] || {
-    echo 'usage: pagani timer install|uninstall|status [path] [--at "Mon 09:00"]' >&2
-    exit 1
-  }
-  shift || true
-  local project="$PWD" oncalendar="Mon 09:00"
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --at)
-        [ "$#" -ge 2 ] || { echo 'pagani timer: --at requires a value, e.g. --at "Mon 09:00"' >&2; exit 1; }
-        oncalendar="$2"
-        shift 2
-        ;;
-      -*) echo "unknown flag: $1" >&2; exit 1 ;;
-      *) project="$1"; shift ;;
-    esac
-  done
-  [ -d "$project" ] || { echo "pagani timer: no such directory: $project" >&2; exit 1; }
-  project="$(cd "$project" && pwd)"
 
-  local unit_dir hash unit service_path timer_path
-  unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
-  hash="$(printf '%s' "$project" | cksum | awk '{print $1}')"
-  unit="pagani-weekly-$hash"
-  service_path="$unit_dir/$unit.service"
-  timer_path="$unit_dir/$unit.timer"
-
-  local service timer
-  service="$(cat "$ROOT/resources/systemd/pagani-weekly.service")"
-  service="${service//@PROJECT@/$project}"
-  service="${service//@PAGANI@/$ROOT/bin/pagani}"
-  service="${service//@PATH@/$PATH}"
-  timer="$(cat "$ROOT/resources/systemd/pagani-weekly.timer")"
-  timer="${timer//@PROJECT@/$project}"
-  timer="${timer//@ONCALENDAR@/$oncalendar}"
-
-  case "$action" in
-    install)
-      command -v opencode >/dev/null 2>&1 || {
-        echo "pagani timer: opencode is not installed; install it or run 'pagani weekly' manually" >&2
-        exit 1
-      }
-      mkdir -p "$unit_dir"
-      printf '%s\n' "$service" > "$service_path"
-      printf '%s\n' "$timer" > "$timer_path"
-      local enabled=0
-      if command -v systemctl >/dev/null 2>&1; then
-        systemctl --user daemon-reload >/dev/null 2>&1 || true
-        if systemctl --user enable --now "$unit.timer" >/dev/null 2>&1; then
-          enabled=1
-        fi
-      fi
-      echo "service: $service_path"
-      echo "timer: $timer_path"
-      echo "note: this timer runs 'pagani weekly' and spends tokens"
-      if [ "$enabled" = "1" ]; then
-        echo "enabled: $unit.timer"
-      else
-        echo "not enabled automatically; enable with: systemctl --user daemon-reload && systemctl --user enable --now $unit.timer"
-      fi
-      ;;
-    uninstall)
-      if command -v systemctl >/dev/null 2>&1; then
-        systemctl --user disable --now "$unit.timer" >/dev/null 2>&1 || true
-      fi
-      rm -f "$service_path" "$timer_path"
-      if command -v systemctl >/dev/null 2>&1; then
-        systemctl --user daemon-reload >/dev/null 2>&1 || true
-      fi
-      echo "removed: $service_path"
-      echo "removed: $timer_path"
-      ;;
-    status)
-      if command -v systemctl >/dev/null 2>&1; then
-        systemctl --user list-timers 'pagani-weekly-*' --all 2>/dev/null || true
-      fi
-      if [ -f "$service_path" ]; then
-        echo "service: installed ($service_path)"
-      else
-        echo "service: missing ($service_path)"
-      fi
-      if [ -f "$timer_path" ]; then
-        echo "timer: installed ($timer_path)"
-      else
-        echo "timer: missing ($timer_path)"
-      fi
-      ;;
-    *)
-      echo 'usage: pagani timer install|uninstall|status [path] [--at "Mon 09:00"]' >&2
-      exit 1
-      ;;
-  esac
-}
-
-cmd_skill_log() {
-  local name="${1:-}"
-  [ -n "$name" ] || { echo "usage: pagani skill-log <name>" >&2; exit 1; }
-  mkdir -p pagani
-  printf '%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(basename "$PWD")" "$name" \
-    >> pagani/skill-usage.tsv
-  echo "logged: $name"
-}
 
 # Parse top-level command and flags.
 cmd="${1:-}"
@@ -2204,17 +1645,11 @@ case "$cmd" in
   network) cmd_network "$@" ;;
   worktree) cmd_worktree "$@" ;;
   usage) cmd_usage "$@" ;;
-  budget) cmd_budget "$@" ;;
   dashboard) cmd_dashboard "$@" ;;
-  backup) cmd_backup "$@" ;;
-  restore) cmd_restore "$@" ;;
   status) cmd_status ;;
   pr) cmd_pr "$@" ;;
   hooks) cmd_hooks "$@" ;;
   retro-scan) cmd_retro_scan "$@" ;;
-  weekly) cmd_weekly ;;
-  timer) cmd_timer "$@" ;;
-  skill-log) cmd_skill_log "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

@@ -67,6 +67,30 @@ gh pr create --base <base> --head pagani/<job-id> --title "<title>" --body "<bod
 Use the project's actual remote and base. If `gh` is not available, say so and
 give the human the command.
 
+## PR body
+
+Use the smallest view that makes the change clear:
+
+```markdown
+## Summary
+
+<diagram, diff sketch, call tree, or short file tree>
+
+## Evidence
+
+- **Before:** <screenshot/output/failing test>
+  **After:** <screenshot/output/passing test>
+
+## Merge Danger
+
+**Door:** one-way or two-way
+
+**Blast Radius:** <one word or short phrase>
+```
+
+Keep the prose short. Use the project's domain language. Show evidence, not a
+claim.
+
 ## Rework
 
 1. Write the human's feedback verbatim to `pagani/jobs/<id>/human.md`.

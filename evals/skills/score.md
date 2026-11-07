@@ -11,6 +11,9 @@ starts an agent session.
 | 003-planning-trigger | `planning` | train |
 | 004-closeout-trigger | `closeout` | test |
 | 005-untrusted-trigger | `untrusted-content` | test |
+| 006-interview-trigger | `interview` | train |
+| 007-diagnosis-trigger | `diagnosis` | test |
+| 008-implementation-trigger | `implementation` | test |
 
 ## Scoring
 

@@ -111,7 +111,7 @@ One folder per job. The folder is the state:
 
 ```
 pagani/jobs/<id>/
-  job.md              stage, round, lane, branch, base, budget
+  job.md              stage, round, lane, branch, base
   interview.md
   plan.md
   spec.md
@@ -159,8 +159,8 @@ Deliberate non-goals:
 - A control plane that starts or stops agents.
 - A network allowlist for shell or `agent-browser` egress. The opt-in allowlist
   covers Claude `WebFetch` only.
-- A hard spending cap. `pagani budget check` asks the master to stop.
-- Remote backups. `pagani backup` is local.
+- Cost tracking, a spending cap, backups, a weekly timer, skill usage logging,
+  or a GitHub Actions workflow. Those belong to the project, not the stack.
 - Prompt-injection enforcement. `untrusted-content` is a convention, not a
   sandbox.
 

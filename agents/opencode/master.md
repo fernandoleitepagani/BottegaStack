@@ -146,8 +146,8 @@ actions only when the user explicitly asks.
 
 ## Base skills
 
-- `interview` uses `grilling` and `domain-modeling`. Load those when the
-  interview needs the design-tree rounds or glossary sharpening.
+- `interview` uses `domain-modeling`. Load it when the interview needs glossary
+  sharpening or a decision belongs in an ADR.
 - `wizard` when a job needs a human-only step.
 - `writing-for-agents` when you edit `AGENTS.md` or a skill file.
 - `improve-architecture` for `/pagani improve`.
@@ -174,8 +174,6 @@ actions only when the user explicitly asks.
 - Parallel only on disjoint files; one worktree per ticket; one port per worker.
 - No reviewer sees another review.
 - Concurrency: max 3 builders, all routed reviewers at once, one job at a time.
-- Before spawning any subagent, run `pagani budget check <job-id>`. If it exits
-  1, stop and ask the human.
 - Stopping: max 2 fix rounds, max 3 builder attempts, max 1 plan revision.
 - No cloud sessions.
 
@@ -192,10 +190,9 @@ actions only when the user explicitly asks.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Cost snapshots: `pagani usage start <job>` at Step 0 and
-  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`. Exact
-  per-job cost comes from the local OpenCode database. `pagani budget check`
-  enforces a per-job cap; `pagani dashboard` renders a read-only local summary.
+- Usage snapshots: `pagani usage start <job>` at Step 0 and
+  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
+  `pagani dashboard` renders a read-only local summary.
 
 ## Job folder
 
@@ -416,7 +413,7 @@ independent one. The approver runs them again before approving.
 
 1. Update `job.md` to the final stage.
 2. Run `pagani usage end <job-id>`.
-3. Run `pagani backup <job-id>` and `pagani dashboard`.
+3. Run `pagani dashboard`.
 4. Run only the action the user chose.
 5. Run `pagani retro-scan --exit-code`. If it exits 1, findings repeat across
    jobs: load `session-retro` and propose Gotchas patches for the affected
@@ -431,16 +428,13 @@ independent one. The approver runs them again before approving.
 
 `pagani init` copies a `scripts/format` stub and installs the gitleaks
 `pre-commit`/`pre-push` git hooks when `.git` exists; the format and
-`PreCompact`/`Skill` hooks it writes are Claude Code hooks and do not run in
-OpenCode sessions. For OpenCode, skill-use logging is provided by the
-`pagani-skill-log` plugin, installed by `./install.sh --target opencode`. The
-weekly timer is opt-in: `pagani timer install [path] [--at "Mon 09:00"]` spends
-tokens and is never installed by default. Do not install or enable it without
-the user asking.
+`PreCompact` hooks it writes are Claude Code hooks and do not run in OpenCode
+sessions.
 
 For an existing project whose `.claude/settings.json` predates the current
-hooks, run `pagani upgrade [path]`. It copies `scripts/claude-hook.sh`, merges
-the hook handlers, backs up the old settings, and leaves `permissions` alone.
+hooks, run `pagani upgrade [path]`. It copies `scripts/claude-hook.sh`, replaces
+the hooks block with the current one, backs up the old settings, and leaves
+`permissions` alone.
 The Claude `WebFetch` allowlist is opt-in: `pagani network init` copies
 `pagani/network-allowlist.txt`. Without that file every host is allowed; the
 allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.

@@ -1,9 +1,0 @@
-[Unit]
-Description=PaganiStack weekly review for @PROJECT@
-
-[Service]
-Type=oneshot
-WorkingDirectory=@PROJECT@
-Environment=PATH=@PATH@
-TimeoutStartSec=0
-ExecStart=@PAGANI@ weekly
