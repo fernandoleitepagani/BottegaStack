@@ -14,3 +14,6 @@ pagani/metrics.tsv
 
 # Dependencies
 node_modules/
+
+# Reviewer eval output
+evals/reviewer/results.tsv

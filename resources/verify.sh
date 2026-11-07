@@ -27,6 +27,39 @@ require_up() {
   fi
 }
 
+# Stop a started process and, when known, its whole process group.
+# Never signals our own process group.
+stop_group() {
+  local pid="$1" pgid="${2:-}" mypgid="" state=""
+  [ -n "$pid" ] || return 0
+  if [ -z "$pgid" ]; then
+    pgid="$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
+  fi
+  mypgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ' || true)"
+  if [ -n "$mypgid" ] && [ "$pgid" = "$mypgid" ]; then
+    pgid=""
+  fi
+  if [ -n "$pgid" ]; then
+    kill -TERM -- "-$pgid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+  else
+    kill -TERM "$pid" 2>/dev/null || true
+  fi
+  for _ in $(seq 1 20); do
+    kill -0 "$pid" 2>/dev/null || break
+    state="$(ps -o stat= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
+    case "$state" in
+      "" | Z*) break ;;
+    esac
+    sleep 0.1
+  done
+  if [ -n "$pgid" ]; then
+    kill -KILL -- "-$pgid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
+  else
+    kill -KILL "$pid" 2>/dev/null || true
+  fi
+  wait "$pid" 2>/dev/null || true
+}
+
 case "${1:-doctor}" in
   doctor)
     echo "root: $ROOT"
@@ -47,12 +80,27 @@ case "${1:-doctor}" in
       exit 0
     fi
     echo "starting: $START_CMD"
+    use_setsid=0
     if command -v setsid >/dev/null 2>&1; then
+      use_setsid=1
       (cd "$ROOT" && setsid bash -lc "$START_CMD") >"$LOGFILE" 2>&1 &
     else
       (cd "$ROOT" && bash -lc "$START_CMD") >"$LOGFILE" 2>&1 &
     fi
-    echo $! >"$PIDFILE"
+    start_pid=$!
+    start_pgid=""
+    if [ "$use_setsid" = 1 ]; then
+      start_pgid="$start_pid"
+      found_pgid="$(ps -o pgid= -p "$start_pid" 2>/dev/null | tr -d ' ' || true)"
+      if [ -n "$found_pgid" ]; then
+        start_pgid="$found_pgid"
+      fi
+      my_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ' || true)"
+      if [ -n "$my_pgid" ] && [ "$start_pgid" = "$my_pgid" ]; then
+        start_pgid=""
+      fi
+    fi
+    echo "$start_pid" >"$PIDFILE"
     for _ in $(seq 1 "$TIMEOUT"); do
       if is_up; then
         echo "up: $BASE_URL (pid $(cat "$PIDFILE"), log $LOGFILE)"
@@ -60,6 +108,9 @@ case "${1:-doctor}" in
       fi
       sleep 1
     done
+    # Timed out: tear down the process group, reap it, drop the pid file.
+    stop_group "$start_pid" "$start_pgid"
+    rm -f "$PIDFILE"
     echo "failed to start within ${TIMEOUT}s; log: $LOGFILE" >&2
     tail -40 "$LOGFILE" >&2 || true
     exit 1
@@ -67,10 +118,9 @@ case "${1:-doctor}" in
   stop)
     if [ -f "$PIDFILE" ]; then
       pid="$(cat "$PIDFILE")"
-      kill -TERM -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
+      stop_group "$pid"
       rm -f "$PIDFILE"
-      echo "stopped (pid $pid)"
+      echo "stopped (pid ${pid:-unknown})"
     else
       echo "no pid file at $PIDFILE"
     fi

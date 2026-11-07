@@ -185,15 +185,22 @@ runs `pagani usage start <job>`.
 
 | Lane | Use when | Steps |
 |---|---|---|
+| `unknown` | no changed files yet | classify again after the first change |
 | `trivial` | docs/copy/config only, ≤3 files, no risk path | setup → `builder-lite` → `pagani check` → `review-code-lite` → human |
 | `bugfix` | reproducible symptom | setup → `diagnosis` → failing test → `builder` → check → `review-code-lite` (+ security on a risk path) → human |
 | `small` | one feature, one area, ≲10 files | setup → short interview → `plan.md` with acceptance criteria → one ticket → `builder` → check → `review-code-lite` + routed lens → human |
-| `standard` | normal product change | full flow |
-| `high-risk` | auth, payments, data/schema, deploy/CI, installers, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver; quiz mandatory |
+| `standard` | normal product change, or a large non-risk diff (>300 changed lines or >10 files) | full flow |
+| `high-risk` | auth, payments, data/schema, deploy/CI, installers, dependencies, secrets, or any risk path | full flow + adversarial review + simplify + strong security + strong approver; quiz mandatory |
 
 After the first builder commit, run `pagani classify --diff`. If it suggests a
 higher lane, escalate, update `job.md`, and tell the user in one line. Lanes
-never downgrade.
+never downgrade. `pagani classify` and `pagani route` read risk paths from the
+`## Risk paths` section of the project's `REVIEW.md`, falling back to
+`resources/REVIEW.md` when the project has none. `pagani classify` reports
+`unknown` for an empty diff, `high-risk` on any risk-path match, `trivial` for
+docs/config only, `standard` for a large non-risk diff, and `small` otherwise.
+`pagani route` uses the same risk paths to decide whether the security lens
+runs; a large non-risk diff stays `standard`, not `high-risk`.
 
 ### Step 1: Plan
 
@@ -239,8 +246,10 @@ branches into the job branch and posts a wave summary.
 
 Deterministic checks are commands that return pass or fail without an LLM:
 lint, typecheck, test, build, browser smoke. The master runs the commands in
-`AGENTS.md`, writes `checks.md`, and fails the wave on a non-zero exit. No
-reviewer runs on a failing build.
+`AGENTS.md`, writes `checks.md`, and fails the wave on a non-zero exit. Each run
+also appends one line to `pagani/jobs/<job>/checks.log`
+(`date`, `HEAD`, `PASS|FAIL`, exit code, duration). No reviewer runs on a
+failing build.
 
 ### Step 6: Review
 
@@ -288,9 +297,11 @@ or PR.
 
 ### Step 10: Close
 
-The master updates `job.md`, records the decision in `human.md`, loads
-`session-retro` to propose one environment change, and loads `session-handoff`
-if the job will continue in another session.
+The master updates `job.md`, records the decision in `human.md`, runs
+`pagani usage end <job>` to append the lane, rounds, fix rounds, human reworks,
+and `checks_first_pass` to `pagani/metrics.tsv`, loads `session-retro` to
+propose one environment change, and loads `session-handoff` if the job will
+continue in another session.
 
 ### Split runner
 
@@ -455,7 +466,7 @@ verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `session-handoff` when context is near full.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Run `pagani usage` at the end.
+- Run `pagani usage start <job>` at setup and `pagani usage end <job>` at close.
 
 ---
 
@@ -656,8 +667,12 @@ and simplify.
 ### Evals
 
 `evals/reviewer/` has known bugs and clean cases, plus a score sheet. Run the
-reviewer against them after a prompt, skill, or model change. Measure recall
-(real bugs caught) and noise (false positives). Keep a train/test split.
+reviewer against them after a prompt, skill, or model change. A clean case is a
+false positive for any verdict other than `PASS`, including a missing verdict.
+A bug case is caught only when the verdict is `CHANGES` and the output contains
+the case keyword. The runner prints recall (bugs caught) and noise (clean-case
+false positives) for the `train` split, the `test` split, and an `all` line.
+`REVIEWER_CMD` overrides the reviewer command.
 
 `evals/skills/` is for trigger and output tests for skills.
 
@@ -672,6 +687,10 @@ again before approval.
 pagani check <job>     # runs scripts/check, writes checks.md with RESULT + HEAD
 pagani gate <job>      # fails if checks are failing or stale
 ```
+
+`pagani check` also appends one line per run to `pagani/jobs/<job>/checks.log`.
+`pagani usage end <job>` reads the first line and records `checks_first_pass` as
+`y` when that first check passed, `n` otherwise, or `?` when there is no log.
 
 `pagani init` copies `resources/checks.sh` to `scripts/check`. Fill it with the
 project's install, lint, typecheck, test, and build commands. It must exit 0
@@ -689,6 +708,13 @@ scripts/verify screenshot /tmp/result.png
 scripts/verify flow <name>
 scripts/verify stop
 ```
+
+`PORT` must come before `READY_URL` in `verify.conf` so `READY_URL` expands to
+the configured port; `scripts/verify doctor` shows the resolved port. If the app
+does not come up within `READY_TIMEOUT` seconds, `start` kills the process group
+it started, reaps it, removes the pid file, prints the log tail, and exits
+non-zero. No process from `START_CMD` is left behind. `stop` also removes the pid
+file when the process is already gone.
 
 `docs/FEATURE-MAP.md` tells the agent how to reach each feature, what seed data
 or login it needs, and which flow proves it. If no flow covers an acceptance
@@ -754,8 +780,14 @@ The installer:
 - generates model variants from `agents/models.conf`,
 - generates the Claude `/pagani` command from the master body,
 - writes a manifest,
+- skips unchanged files, so a second run does not rewrite them or create new
+  `.pagani-backup-*` directories,
 - uninstalls only its own manifest entries,
 - never deletes user files without a prompt.
+
+`pagani lint` checks skill names and descriptions, the required `resources/`
+templates, unresolved skill references, and every project file that agents or
+skills read but has no template in `resources/` (for example `CONTEXT.md`).
 
 `--command-dir command` is available if your OpenCode build reads `command/`
 singular.

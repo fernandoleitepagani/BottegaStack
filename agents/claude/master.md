@@ -136,7 +136,8 @@ suggests a higher lane.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Run `pagani usage` at the end.
+- Cost snapshots: `pagani usage start <job>` at Step 0 and
+  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
 
 ## Git
 

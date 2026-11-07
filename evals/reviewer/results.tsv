@@ -1,9 +1,0 @@
-case	expect	verdict	keyword	found	split
-001-off-by-one	CHANGES	CHANGES ---	bounds	yes	train
-002-missing-auth-check	CHANGES	CHANGES ---	ownership	yes	train
-003-swallowed-error	CHANGES	CHANGES ---	catch	yes	train
-004-clean-small-refactor	PASS	CHANGES ---	none	yes	train
-005-clean-docs	PASS	CHANGES ---	none	yes	train
-006-clean-test-only	PASS	CHANGES ---	none	yes	test
-007-sql-injection	CHANGES	CHANGES ---	injection	yes	test
-008-clean-config	PASS	CHANGES ---	none	yes	test

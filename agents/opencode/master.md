@@ -185,8 +185,8 @@ actions only when the user explicitly asks.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Run `pagani usage` at the end and record the result in `usage.md` if the user
-  wants cost tracking.
+- Cost snapshots: `pagani usage start <job>` at Step 0 and
+  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
 
 ## Job folder
 

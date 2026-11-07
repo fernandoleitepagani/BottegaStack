@@ -70,6 +70,13 @@ install_one() {
     printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
     return
   fi
+  if [ "$MODE" = "copy" ] && [ -e "$dest" ]; then
+    if { [ -f "$src" ] && [ -f "$dest" ] && cmp -s "$src" "$dest"; } \
+      || { [ -d "$src" ] && [ -d "$dest" ] && diff -rq "$src" "$dest" >/dev/null 2>&1; }; then
+      printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+      return
+    fi
+  fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     backup_path "$dest" "$config"
   fi
@@ -119,6 +126,11 @@ install_claude_command() {
   awk 'NR==1{print; next} {print; if ($0=="---") exit}' "$src" > "$tmp"
   awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$master" >> "$tmp"
   awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$src" >> "$tmp"
+  if [ -e "$dest" ] && cmp -s "$tmp" "$dest"; then
+    rm -f "$tmp"
+    printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+    return 0
+  fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     backup_path "$dest" "$config"
   fi
@@ -164,14 +176,22 @@ install_variant() {
     return 0
   fi
   mkdir -p "$config/agents"
+  local tmp
+  tmp="$(mktemp)"
+  if [ "$target" = "claude" ]; then
+    sed -e "s|^name: .*|name: $variant|" -e "s|^model: .*|model: $model|" "$src" > "$tmp"
+  else
+    sed -e "s|^model: .*|model: $model|" "$src" > "$tmp"
+  fi
+  if [ -e "$dest" ] && cmp -s "$tmp" "$dest"; then
+    rm -f "$tmp"
+    printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+    return 0
+  fi
   if [ -e "$dest" ] || [ -L "$dest" ]; then
     backup_path "$dest" "$config"
   fi
-  if [ "$target" = "claude" ]; then
-    sed -e "s|^name: .*|name: $variant|" -e "s|^model: .*|model: $model|" "$src" > "$dest"
-  else
-    sed -e "s|^model: .*|model: $model|" "$src" > "$dest"
-  fi
+  mv "$tmp" "$dest"
   printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
 }
 
@@ -239,6 +259,47 @@ cmd_uninstall() {
     done < "$manifest"
     rm -f "$manifest"
   done
+}
+
+risk_awk() {
+  awk '
+    /^## Risk paths/ { flag=1; next }
+    flag && /^## / { exit }
+    flag && /^- `/ {
+      line=$0
+      sub(/^- `/, "", line)
+      sub(/`.*$/, "", line)
+      print line
+    }
+  ' "$1"
+}
+
+risk_patterns() {
+  local file="REVIEW.md" out=""
+  [ -f "$file" ] || file="$ROOT/resources/REVIEW.md"
+  if [ -f "$file" ]; then
+    out="$(risk_awk "$file")"
+  fi
+  if [ -z "$out" ] && [ "$file" != "$ROOT/resources/REVIEW.md" ] && [ -f "$ROOT/resources/REVIEW.md" ]; then
+    out="$(risk_awk "$ROOT/resources/REVIEW.md")"
+  fi
+  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
+  return 0
+}
+
+risk_match() {
+  local f="$1" p q
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    # shellcheck disable=SC2053
+    if [[ "$f" == $p ]]; then return 0; fi
+    if [[ "$p" == \*\*/* ]]; then
+      q="${p#\*\*/}"
+      # shellcheck disable=SC2053
+      if [[ "$f" == $q ]]; then return 0; fi
+    fi
+  done < <(risk_patterns)
+  return 1
 }
 
 cmd_job_new() {
@@ -309,17 +370,17 @@ cmd_classify() {
     files="$(git status --porcelain | awk '{print $2}' | sed '/^$/d')"
   fi
   if [ -z "$files" ]; then
-    echo "LANE: trivial"
+    echo "LANE: unknown"
     echo "REASON: no changed files"
     return 0
   fi
-  local risk=0 docs_only=1 count lines f
+  local risk=0 risk_file="" docs_only=1 count lines f
   count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
   for f in $files; do
-    case "$f" in
-      *auth*|*api*|*migrations*|*.sql|package.json|*lock*|.github/workflows/*|Dockerfile*|install*|*secrets*|*.pem|*.key)
-        risk=1 ;;
-    esac
+    if risk_match "$f"; then
+      risk=1
+      [ -n "$risk_file" ] || risk_file="$f"
+    fi
     case "$f" in
       *.md|*.txt|*.rst|*.json|*.yml|*.yaml) ;;
       *) docs_only=0 ;;
@@ -327,12 +388,15 @@ cmd_classify() {
   done
   lines="$(git diff --numstat "$base"...HEAD 2>/dev/null | awk '{a+=$1;d+=$2} END{print a+d+0}')"
   [ -n "$lines" ] || lines=0
-  if [ "$risk" = "1" ] || [ "$lines" -gt 300 ]; then
+  if [ "$risk" = "1" ]; then
     echo "LANE: high-risk"
-    echo "REASON: risk path or >300 changed lines"
+    echo "REASON: risk path: $risk_file"
   elif [ "$docs_only" = "1" ] && [ "$count" -le 3 ]; then
     echo "LANE: trivial"
     echo "REASON: docs/config only, ${count} files"
+  elif [ "$lines" -gt 300 ] || [ "$count" -gt 10 ]; then
+    echo "LANE: standard"
+    echo "REASON: ${count} files, ${lines} changed lines, no risk path"
   else
     echo "LANE: small"
     echo "REASON: ${count} files, ${lines} changed lines, no risk path"
@@ -351,10 +415,9 @@ cmd_route() {
       *component*|*style*|*.css|*.scss|*.vue|*.svelte|*.tsx|*.jsx|*page*|*template*)
         lenses="$lenses ui ux" ;;
     esac
-    case "$f" in
-      *auth*|*api*|*payment*|*migration*|*.sql|*db*|*database*|*secret*|*.pem|*.key|package.json|*lock*|.github/workflows/*)
-        lenses="$lenses security" ;;
-    esac
+    if risk_match "$f"; then
+      lenses="$lenses security"
+    fi
   done
   lenses="$(printf '%s\n' $lenses | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ $//')"
   echo "REVIEWERS: $lenses"
@@ -388,6 +451,7 @@ cmd_check() {
     echo "$output"
     echo '```'
   } > "$dir/checks.md"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "${duration}s" >> "$dir/checks.log"
   echo "check: $result (${duration}s, exit $code)"
   [ "$code" -eq 0 ]
 }
@@ -433,6 +497,16 @@ cmd_lint() {
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"
       fail=1
+    fi
+  done
+
+  for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md \
+           CODING_STANDARDS.md BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
+    if grep -rq -- "$f" "$ROOT/agents" "$ROOT/skills" 2>/dev/null; then
+      if [ ! -f "$ROOT/resources/$f" ]; then
+        echo "FAIL referenced project file has no template: $f"
+        fail=1
+      fi
     fi
   done
 
@@ -600,25 +674,44 @@ cmd_usage() {
     [ -n "$job" ] || { echo "job id required" >&2; exit 1; }
     local file="pagani/jobs/$job/usage.md"
     mkdir -p "pagani/jobs/$job"
+    local found=0
     {
       echo "## $action $(date -Iseconds)"
       if command -v opencode >/dev/null 2>&1; then
+        found=1
         echo "### opencode stats"
         opencode stats 2>/dev/null || true
       fi
       if command -v ccusage >/dev/null 2>&1; then
+        found=1
         echo "### ccusage"
         ccusage 2>/dev/null || true
       fi
+      if [ "$found" = "0" ]; then
+        echo "(no usage tool found: install opencode or ccusage)"
+      fi
     } >> "$file"
+    if [ "$found" = "0" ]; then
+      echo "warning: no usage tool found: install opencode or ccusage" >&2
+    fi
     echo "usage: $action $job -> $file"
     if [ "$action" = "end" ]; then
-      local lane rounds fixes reworks first
+      local lane rounds fixes reworks first first_result
       lane="$(grep -m1 '^Lane:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Lane:[[:space:]]*//' || true)"
       rounds="$(grep -m1 '^Round:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Round:[[:space:]]*//' || true)"
       fixes="$(find "pagani/jobs/$job" -maxdepth 1 -name 'fix-*.md' 2>/dev/null | wc -l | tr -d ' ')"
       reworks="$(grep -ci 'rework' "pagani/jobs/$job/human.md" 2>/dev/null || true)"
-      first="$(grep -m1 '^RESULT:' "pagani/jobs/$job/checks.md" 2>/dev/null | sed 's/^RESULT:[[:space:]]*//' || true)"
+      if [ -f "pagani/jobs/$job/checks.log" ]; then
+        first_result="$(head -1 "pagani/jobs/$job/checks.log" | cut -f3)"
+        if [ "$first_result" = "PASS" ]; then first="y"; else first="n"; fi
+      else
+        first_result="$(grep -m1 '^RESULT:' "pagani/jobs/$job/checks.md" 2>/dev/null | sed 's/^RESULT:[[:space:]]*//' || true)"
+        case "$first_result" in
+          PASS) first="y" ;;
+          FAIL) first="n" ;;
+          *) first="?" ;;
+        esac
+      fi
       [ -f pagani/metrics.tsv ] || printf 'date\tjob\tlane\treview_rounds\tfix_rounds\thuman_reworks\tchecks_first_pass\n' > pagani/metrics.tsv
       printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%F)" "$job" "${lane:-?}" "${rounds:-0}" "$fixes" "${reworks:-0}" "${first:-?}" >> pagani/metrics.tsv
       echo "metrics: pagani/metrics.tsv"
@@ -627,6 +720,9 @@ cmd_usage() {
   fi
   if command -v opencode >/dev/null 2>&1; then
     opencode stats 2>/dev/null || true
+  fi
+  if ! command -v opencode >/dev/null 2>&1 && ! command -v ccusage >/dev/null 2>&1; then
+    echo "warning: no usage tool found: install opencode or ccusage" >&2
   fi
   if [ -n "$action" ] && [ -f "pagani/jobs/$action/usage.md" ]; then
     echo "== usage: $action =="

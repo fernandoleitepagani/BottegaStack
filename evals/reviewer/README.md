@@ -18,16 +18,30 @@ Add a case whenever an incident or revert happens. Keep the input small and the
 expected result explicit. The `Expect`, `Keyword`, and `Split` fields live in
 frontmatter and are stripped before the reviewer sees the case.
 
+## Scoring
+
+A clean case (`Expect: PASS`) is a false positive for **any** verdict other
+than `PASS`, including when the reviewer prints no verdict (`missing`).
+`Keyword: none` is ignored for clean cases.
+
+A bug case (`Expect: CHANGES`) is caught only when the verdict is `CHANGES`
+**and** the output contains the case's `Keyword` (case-insensitive).
+`Keyword: none` means the case has no keyword requirement.
+
+The runner prints recall (bug cases caught) and noise (clean-case false
+positives) for the `train` split, the `test` split, and an `all` line.
+
 ## Run
 
 ```bash
 ./evals/reviewer/run.sh
 REVIEWER_CMD="opencode run --agent review-code" ./evals/reviewer/run.sh
+REVIEWER_CMD=/path/to/reviewer-stub ./evals/reviewer/run.sh
 ```
 
-It writes `results.tsv` and prints recall and noise for all cases and the train
-split. A case is caught when the verdict matches `Expect` and the output contains
-`Keyword`.
+It writes `results.tsv` (ignored by git) and prints the scores. `REVIEWER_CMD`
+overrides the reviewer command; the first word must exist on `PATH` (or be an
+executable path). Any executable works, not only `opencode`.
 
 ## Split
 

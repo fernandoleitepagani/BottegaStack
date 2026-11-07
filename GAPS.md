@@ -6,7 +6,7 @@ observability, and a compounding correction loop. Right now it is a good
 workflow that lives in one checkout. A personal stack is a workflow you can
 install, update, and trust on any machine.
 
-## Implemented in 0.2.0–0.3.0
+## Implemented in 0.2.0–0.3.1
 
 - Installer and `pagani` CLI for OpenCode and Claude Code.
 - `resources/` project templates, including `FEATURE-MAP.md`, `mistakes.md`,
@@ -27,11 +27,27 @@ install, update, and trust on any machine.
 - Claude Code agent files, `.claude/settings.json`, and a generated `/pagani`
   command from the master body.
 - Paid `design-mobile-apps` removed.
+- `pagani classify` and `pagani route` read risk paths from `REVIEW.md`, with a
+  fallback to `resources/REVIEW.md`.
+- `unknown` lane for an empty diff and `standard` lane for large non-risk diffs.
+- `checks.log` per job and the `checks_first_pass` metric from the first check.
+- Usage warnings when neither `opencode` nor `ccusage` is installed.
+- `pagani lint` template checks for project files referenced by agents or skills.
+- Idempotent installer for unchanged generated files.
+- `verify.sh` start-timeout process-group cleanup and `PORT`/`READY_URL`
+  ordering in `verify.conf`.
+- Eval scoring that treats any non-`PASS` verdict on a clean case as a false
+  positive and counts a bug only on `CHANGES` plus the case keyword, with
+  train/test/all summaries.
 - No cloud sessions.
 
 Still intentionally not implemented: full sandbox, network allowlist, per-job
 spending cap, backups of `pagani/jobs/`, and prompt-injection defenses. Those are
 partial/optional; see the table below.
+
+Optional items, still not implemented: a format hook, a gitleaks pre-commit
+hook, a PreCompact handoff hook, a retro-scan, skill-usage logging, and an
+opt-in weekly timer.
 
 ---
 

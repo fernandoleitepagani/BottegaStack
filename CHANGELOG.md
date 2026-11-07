@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.1
+
+- Fixed eval scoring: clean cases fail on any verdict other than `PASS`; bug
+  cases count only when the verdict is `CHANGES` and the output contains the
+  case keyword. The runner now prints recall and noise for `train`, `test`, and
+  `all`.
+- `pagani classify` and `pagani route` read risk paths from the `## Risk paths`
+  section of `REVIEW.md` instead of a hardcoded list, with a fallback to
+  `resources/REVIEW.md`.
+- Added the `unknown` lane for an empty diff and the `standard` lane for large
+  non-risk diffs (more than 300 changed lines or more than 10 files).
+- `pagani check` now appends `checks.log`; `pagani usage end` records the
+  first-pass `y`/`n` from the first check in `checks_first_pass`.
+- `pagani usage start|end` warns when neither `opencode` nor `ccusage` is
+  installed, without failing.
+- `pagani lint` now fails when an agent or skill references a project file that
+  has no template in `resources/`.
+- The installer is idempotent: unchanged generated files are not backed up or
+  rewritten on a second run.
+- `verify.sh` kills the started process group, reaps it, and removes the pid
+  file when startup times out. `verify.conf` puts `PORT` before `READY_URL` so
+  the URL expands to the configured port.
+- Removed the stale "run `pagani usage` at the end" wording from both masters.
+
 ## 0.3.0
 
 - Added lanes: `trivial`, `bugfix`, `small`, `standard`, `high-risk`; Step 0
