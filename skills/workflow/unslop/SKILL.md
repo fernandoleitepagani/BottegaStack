@@ -1,9 +1,9 @@
 ---
-name: plain-writing
+name: unslop
 description: Cut AI tells from PaganiStack summaries, review copy, and docs. Use before posting a human summary, reviewing UX copy, or writing documentation.
 ---
 
-# Pagani Unslop
+# Unslop
 
 Adapted from pstack's `unslop`. Edit text to remove AI patterns. Scan for the
 patterns below, then rewrite. Preserve meaning and match the intended tone.

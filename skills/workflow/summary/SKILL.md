@@ -10,7 +10,7 @@ that lets the human decide without reading the whole diff.
 
 ## Base skill
 
-Run `plain-writing` on the summary before posting it.
+Run `unslop` on the summary before posting it.
 
 ## After every step
 

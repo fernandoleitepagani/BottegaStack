@@ -11,7 +11,7 @@ spec, the build reports, `checks.md`, and the diff. You write exactly one file,
 
 ## Base skill
 
-Load `plain-writing` when reviewing copy and error messages.
+Load `unslop` when reviewing copy and error messages.
 
 ## Read
 

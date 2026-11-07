@@ -15,7 +15,7 @@ merge or push.
 - Explainer and quiz rules: use retrieval practice (ask the human to recall),
   one tangible win per question, no formatting hints, and answers that are
   answerable from the artifacts.
-- Run `plain-writing` on the explainer before writing it.
+- Run `unslop` on the explainer before writing it.
 
 ## Read
 

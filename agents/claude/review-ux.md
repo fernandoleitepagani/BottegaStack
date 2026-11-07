@@ -13,7 +13,7 @@ Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and re
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, and `docs/ui-guidelines.md` if it exists.
 2. Load `review-ux`.
-3. Load `plain-writing` for copy and error-message review.
+3. Load `unslop` for copy and error-message review.
 4. Load `verification` to start the app and walk the flows.
 5. Write exactly one file, `pagani/jobs/<id>/round-<N>/review-ux.md`.
 6. Never edit code.

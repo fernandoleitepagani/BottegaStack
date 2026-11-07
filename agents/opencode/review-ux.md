@@ -52,7 +52,7 @@ Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and re
 1. Read `AGENTS.md`, `GLOSSARY.md`, and `docs/ui-guidelines.md` if it exists.
 2. Load the `review-ux` skill and follow it.
 3. Load `web-design-guidelines` for the compliance pass.
-4. Load `plain-writing` for copy and error-message review.
+4. Load `unslop` for copy and error-message review.
 5. Load the `verification` skill to start the app and walk the flows.
 6. Write exactly one file, `pagani/jobs/<id>/round-<N>/review-ux.md`.
 7. Never edit code. After round 1, review only the new diff and do not repeat

@@ -20,6 +20,7 @@
   `code-review` into `review-code`, `diagnosing-bugs` into `diagnosis`, `tdd`
   into `implementation`, and `pr` into `closeout`.
 - Added skill eval cases for `interview`, `diagnosis`, and `implementation`.
+- Replaced `plain-writing` with `unslop` and updated every call site.
 - Removed the unused `ci-cd` skill and the `weekly-review` skill.
 - Removed all five design skills (`design-taste-frontend`, `frontend-design`,
   `mobile-app-ui-design`, `openui`, `emil-design-eng`), the `design/` category,
