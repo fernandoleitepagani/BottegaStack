@@ -1,40 +1,16 @@
 # How PaganiStack Works
 
-PaganiStack is a personal development workflow. It gives an agent a job folder,
-a SPEC with a task graph, deterministic checks, one reviewer, and a human
-decision. The job folder is the state; there is no database or state machine.
-
-## Quick start
-
-```bash
-git clone <this-repo> ~/Projects/PaganiStack
-~/Projects/PaganiStack/install.sh --target both
-~/Projects/PaganiStack/bin/pagani doctor
-```
-
-In a project:
-
-```bash
-cd ~/Projects/my-project
-~/Projects/PaganiStack/bin/pagani init
-```
-
-For an existing project, run `pagani upgrade` to update the current hooks and
-managed files without dropping your settings.
-
-Then, in OpenCode or Claude Code:
-
-```
-/pagani Add an estimated reading time to blog posts
-```
+PaganiStack gives an agent a job folder, a `SPEC.md` with a task graph,
+deterministic checks, one reviewer, and a human decision. The job folder is the
+state; there is no database or state machine.
 
 ## The workflow
 
 ```
 0. SETUP     lane, job folder, branch, usage start
 1. SPEC      interview -> SPEC.md                    [approve]
-2. BUILD     one builder per ready task             [approve per wave]
-3. CHECKS    pagani job check -> checks.md          (fail -> builder)
+2. BUILD     one builder per ready task              [approve per wave]
+3. CHECKS    pagani job check -> checks.md           (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
 5. FIX       fix.md -> fresh builder -> checks -> re-review
 6. APPROVAL  master -> decision.md + quiz
@@ -61,6 +37,9 @@ tracer-bullet task graph. Each task is a vertical slice that fits one fresh
 context. If the spec has open questions, the master asks you and revises. You
 approve the spec and the first wave.
 
+`trivial` and `bugfix` jobs skip this step. `small` jobs get a short interview
+and a short spec. `standard` and `high-risk` jobs get the full pass.
+
 ### Step 2: Build
 
 The master reads the task graph from `SPEC.md` and spawns one builder per ready
@@ -77,9 +56,9 @@ no reviewer runs on a failing build.
 
 ### Step 4: Review
 
-The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate stops
-the review. It then spawns one `review-code` reviewer, which covers code, UI, UX,
-and security in one pass and returns one verdict:
+The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate
+stops the review. It then spawns one `review-code` reviewer, which covers code,
+UI, UX, and security in one pass and returns one verdict:
 
 - **Code** — correctness, simplicity, conventions, tests, and spec fidelity.
 - **UI** — visual consistency, design-system fit, spacing, responsive layout,
@@ -98,8 +77,8 @@ the summary.
 
 If a review returns `CHANGES`, the master writes `fix.md` with the finding, the
 file and line, why it matters, how to fix it, and how to verify it. It spawns a
-fresh builder, re-runs checks, and re-runs only the affected reviewers. Max two
-fix rounds.
+fresh builder, re-runs checks, and re-runs the reviewer on the affected area.
+Max two fix rounds.
 
 ### Step 6: Approval
 
@@ -166,62 +145,31 @@ is no separate security or approval variant.
 
 ## Skills
 
-Skills use the Claude Code categories plus `workflow/`:
-
-| Category | What belongs there |
-|---|---|
-| `library-api-reference` | How to use a library, CLI, SDK, or internal API correctly. |
-| `product-verification` | How to test or verify the product: builds, browsers, screenshots, flows. |
-| `data-analysis` | How to answer a question from real data: SQL, logs, metrics, cohorts. |
-| `business-automation` | Recurring workflow: backlog triage and release notes. |
-| `scaffolding` | Create a new component, service, route, migration, or fixture. |
-| `code-quality` | Review lenses, implementation, design, simplification, tests. |
-| `runbooks` | Investigate a symptom: incident, alert, “why is this broken”. |
-| `infrastructure-ops` | Dependencies, cost, access, orphaned resources, least privilege. |
-| `workflow` | Lanes, interview, planning, summary, closeout, handoff, retro, untrusted content. |
-
+PaganiStack ships 34 skills in the Claude Code categories plus `workflow/`.
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
 `verification`, `review-code`, `approval`, `summary`, `closeout`,
 `session-handoff`, `session-retro`, `diagnosis`, and `untrusted-content`. The
-`review-code` reviewer covers code, UI, UX, and security. The rest are
-situational.
+rest are situational.
 
-PaganiStack ships 34 skills. The full list is the
-`skills/<category>/<skill>/SKILL.md` tree. The installer flattens it to
-`<target>/skills/<skill>/SKILL.md` because both runtimes discover skills at that
-depth.
+The full inventory, the vendored-skills table, and the rules for adding a skill
+are in [SKILLS.md](SKILLS.md). The installer flattens
+`skills/<category>/<skill>` to `<target>/skills/<skill>` because both runtimes
+discover skills at that depth.
 
-### Vendored skills
+Other skills are invoked directly by name, not through `/pagani`:
 
-These are copied from upstream and keep their own licenses. If a skill is
-adapted, it is renamed and the change is noted in its `SKILL.md`.
-
-| Skill | Source | License |
-|---|---|---|
-| `wizard` | mattpocock/skills | see upstream |
-| `writing-for-agents` | mattpocock/skills | see upstream |
-| `codebase-design` | mattpocock/skills | see upstream |
-| `domain-modeling` | mattpocock/skills | see upstream |
-| `skill-creator` | anthropics/skills | see `LICENSE.txt` in the skill |
-| `agent-browser` | vercel-labs/agent-browser | see upstream |
-| `vercel-react-best-practices` | vercel-labs/agent-skills | see upstream |
-| `web-design-guidelines` | vercel-labs/agent-skills | see upstream |
-
-`handoff` and `retro` are adapted as `session-handoff` and `session-retro`.
-Some PaganiStack skills absorb upstream content: `interview` (from `grilling`),
-`review-code` (from `code-review`), `diagnosis` (from `diagnosing-bugs`),
-`implementation` (from `tdd`), and `closeout` (from `pr`). PaganiStack-authored
-skills are original or adapted and are not vendored under an upstream name.
-
-### Add a skill
-
-Create `skills/<category>/<name>/SKILL.md`, add a trigger-rich description, and
-run `./bin/pagani doctor`. Keep the body focused on when to use the skill, the
-procedure, and real gotchas.
+```
+/wizard
+/backlog-triage
+/wayfinding
+/improve-architecture
+/review-pr
+```
 
 ## Commands
 
-Setup and install:
+PaganiStack has eight top-level commands: `install` (with `--uninstall`),
+`doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, and `network`.
 
 ```bash
 ./install.sh --target both
@@ -229,31 +177,20 @@ Setup and install:
 ./bin/pagani doctor
 ./bin/pagani init [path]
 ./bin/pagani upgrade [path]
-```
 
-Jobs and review:
-
-```bash
 pagani job new "<title>"
-pagani job report
 pagani job check <job>
 pagani job gate <job> [--allow-dirty]
+pagani job usage start|end <job>
+pagani job report [--dashboard] [--retro] [--write] [--exit-code] [--open]
+
 pagani worktree create <job> <task>
 pagani worktree prune <job> [--force]
-```
-
-Other skills are invoked directly by name, not through `/pagani`: `/wizard`,
-`/backlog-triage`, `/wayfinding`, `/improve-architecture`, `/review-pr`.
-
-Automation:
-
-```bash
-pagani job usage start|end <job>
-pagani job report --dashboard [--open]
 pagani hooks install|uninstall [path]
 pagani network init|check <url>
-pagani job report --retro [--write] [--exit-code]
 ```
+
+Setup, uninstall, and troubleshooting are in [SETUP.md](SETUP.md).
 
 ## Checks, review, and verification
 
@@ -271,7 +208,7 @@ removes the pid file, and prints the log tail.
 or login it needs, and which flow proves it. If no flow covers an acceptance
 criterion, the agent writes one and adds it to the map.
 
-Review is capped at three rounds. After round 1, reviewers read only the new
+Review is capped at three rounds. After round 1, the reviewer reads only the new
 diff. Findings are not repeated. A finding needs a file, line, and evidence.
 Risk tiers decide how many humans approve: low is automated checks plus AI
 review; medium is one person; high is two people, or the human reading the diff
@@ -284,10 +221,11 @@ pagani/jobs/<id>/
   job.md              stage, round, lane, branch, base
   interview.md
   SPEC.md
-  build/
+  build/<task>.md
   checks.md
   checks.log
-  round-N/
+  round-N/review-code.md
+  round-N/summary.md
   fix-*.md
   decision.md
   human.md
@@ -296,7 +234,8 @@ pagani/jobs/<id>/
   handoff.md
 ```
 
-The job folder is the source of truth. No JSON state machine.
+The job folder is the source of truth. No JSON state machine, no `plan.md`, no
+`tickets/`.
 
 ## Project docs
 
@@ -350,47 +289,12 @@ backup command.
 **Deliberate non-goals:** full OS sandboxing and a control plane that starts or
 stops agents. Untrusted content still reaches agents through browser pages, PR
 bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
-`untrusted-content` skill is a convention, not a sandbox.
-
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| `/pagani` not found | Run `./install.sh --target ...`; check `pagani doctor`. |
-| Skills not loading | The installer flattens categories. Check `<target>/skills/<name>/SKILL.md`. |
-| Checks always fail | Fill `scripts/check`; it exits 1 until configured. |
-| `pagani job gate` says stale | Run `pagani job check <job>` after the latest commit. |
-| `pagani job gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
-| `pagani doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
-| Claude settings missing | Run `pagani init`. |
-| Claude settings has no hooks | Run `pagani upgrade`. |
-| Model variants missing | Re-run `./install.sh --target ...`. |
-| `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
-| Git hooks missing | Run `pagani hooks install [path]`. |
-| `pagani upgrade` fails | Install `python3`. |
-| Network check denies a host | Add it to `pagani/network-allowlist.txt`, or remove the file. |
-| Dashboard is stale | Re-run `pagani job report --dashboard`; it is a static file. |
-| Context full | `session-handoff` + `TASKS.md`; start a fresh session. |
-
-## Claude smoke test
-
-Run this by hand after installing or upgrading the Claude Code target.
-
-1. `./install.sh --target claude --dry-run` exits 0.
-2. `./bin/pagani doctor` shows `claude: yes`, the settings hooks, and executable
-   `scripts/claude-hook.sh`.
-3. `python3 -m json.tool .claude/settings.json` succeeds and the file has the
-   `PreToolUse` `WebFetch`, `PostToolUse` `Edit|Write`, and `PreCompact` hooks.
-4. `scripts/claude-hook.sh format` runs `scripts/format` on a scratch file and
-   exits 0 even when the formatter fails.
-5. `scripts/claude-hook.sh webfetch-guard` allows with no allowlist, allows a
-   listed host, and denies an unlisted host.
-6. `/pagani status` loads the generated command and reads the newest job.
-7. `pagani job gate <job>` fails after an uncommitted edit and passes with
-   `--allow-dirty`.
+`untrusted-content` skill is a convention, not a sandbox. See
+[DESIGN.md](DESIGN.md) for the trade-offs.
 
 ## Sources
 
 The workflow and skills draw on `claude.dev`, Boris Cherny's public Claude Code
 workflow, Anthropic's *Building effective agents*, Matt Pocock's skills, and the
-vendored skills listed above. See the license files inside each skill folder.
+vendored skills listed in [SKILLS.md](SKILLS.md). See the license files inside
+each skill folder.

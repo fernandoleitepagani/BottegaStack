@@ -42,6 +42,11 @@
   writes `decision.md`, and presents the explainer and quiz itself. Removed the
   `review-ui`, `review-ux`, `review-security`, and `approver` agents and skills;
   skills are now 34.
+- Moved `HOW-IT-WORKS.md` to `docs/WORKFLOW.md` and `PLAN.md` to
+  `docs/DESIGN.md`, added `docs/SKILLS.md` and `docs/SETUP.md`, shortened
+  `README.md`, and added `scripts/validate.sh` as the release gate.
+  `pagani doctor` now checks local links in `docs/*.md` and requires the four
+  docs.
 
 ## 0.5.0
 

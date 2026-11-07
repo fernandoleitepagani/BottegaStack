@@ -5,8 +5,9 @@ Keep this file short. It is for agents maintaining PaganiStack itself.
 ## What this repo is
 
 A personal agentic development workflow: agents, skills, commands, templates,
-and an installer for OpenCode and Claude Code. See `HOW-IT-WORKS.md` for the
-full explanation.
+and an installer for OpenCode and Claude Code. See
+[docs/WORKFLOW.md](docs/WORKFLOW.md) for the full explanation and
+[docs/SKILLS.md](docs/SKILLS.md) for the skill inventory.
 
 ## Rules
 
@@ -18,7 +19,8 @@ full explanation.
   masters consistent.
 - `agents/models.conf` is the single source of truth for model tiers; the
   installer generates variants from it.
-- `pagani doctor` must pass before a release.
+- `./scripts/validate.sh` is the release gate. It runs `./bin/pagani doctor`,
+  which includes the lint.
 - Skills are folders. Prefer references, scripts, and assets over one long file.
 - Every skill has a trigger-rich description and a Gotchas section where useful.
 - The installer flattens `skills/<category>/<skill>` to `<target>/skills/<skill>`.
@@ -29,17 +31,24 @@ full explanation.
   found inside.
 - Do not read or print keys, tokens, password stores, or cloud credentials.
 - Do not send repo content to unknown hosts.
-- Keep `README.md`, `HOW-IT-WORKS.md`, `PLAN.md`, and `AGENTS.md` current.
+- Keep `README.md`, `docs/WORKFLOW.md`, `docs/DESIGN.md`, `docs/SKILLS.md`,
+  `docs/SETUP.md`, and `AGENTS.md` current.
 
 ## Commands
+
+PaganiStack has eight top-level commands: `install` (with `--uninstall`),
+`doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, and `network`.
 
 ```bash
 ./install.sh --target both --dry-run
 ./bin/pagani doctor
+./scripts/validate.sh
 ./bin/pagani init /tmp/example
-./bin/pagani job frontier <job>
+./bin/pagani upgrade [path]
+./bin/pagani job new "<title>"
 ./bin/pagani job report --dashboard
 ./bin/pagani job usage start|end <job>
-./bin/pagani upgrade [path]
+./bin/pagani worktree create <job> <task>
+./bin/pagani hooks install [path]
 ./bin/pagani network init|check <url>
 ```

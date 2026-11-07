@@ -557,17 +557,25 @@ PY
     fi
   fi
 
-  local md link target
-  for md in "$ROOT"/*.md; do
+  for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md docs/DESIGN.md; do
+    if [ ! -f "$ROOT/$f" ]; then
+      echo "FAIL missing doc: $f"
+      fail=1
+    fi
+  done
+
+  local md dir link target
+  for md in "$ROOT"/*.md "$ROOT"/docs/*.md; do
     [ -f "$md" ] || continue
+    dir="$(dirname "$md")"
     while IFS= read -r link; do
       case "$link" in
         http://*|https://*|mailto:*|'#'*) continue ;;
       esac
       target="${link%%#*}"
       [ -n "$target" ] || continue
-      if [ ! -e "$ROOT/$target" ]; then
-        echo "FAIL broken link: $(basename "$md") -> $link"
+      if [ ! -e "$dir/$target" ]; then
+        echo "FAIL broken link: ${md#"$ROOT"/} -> $link"
         fail=1
       fi
     done < <(grep -oE '\]\([^)]+\)' "$md" | sed -E 's/^\]\(//; s/\)$//')
