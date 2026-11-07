@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Collapsed the model variants to `builder-lite`, `review-code-lite`, and
+  `review-code-strong`; the master now runs `deepseek-v4.1-flash` high in
+  OpenCode and Opus 5.5 medium in Claude Code.
 - Removed the dashboard, usage snapshots, and metrics. `pagani job report` now
   accepts only `--retro`, `--write`, and `--exit-code`; the retro scan is kept.
 - Trimmed the job artifacts: `job.md` is state only, and `human.md`, `fix.md`,

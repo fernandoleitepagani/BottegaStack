@@ -1,7 +1,8 @@
 ---
 description: PaganiStack master. Runs the workflow: one SPEC planning pass, parallel builders, deterministic checks, one review, fix loop, master approval, human decision.
 mode: primary
-model: opencode-go/deepseek-v4-pro
+model: opencode-go/deepseek-v4.1-flash
+variant: high
 steps: 120
 permissions:
   - action: subagent
@@ -17,16 +18,7 @@ permissions:
     resource: "explorer"
     effect: allow
   - action: subagent
-    resource: "planner-std"
-    effect: allow
-  - action: subagent
-    resource: "planner-strong"
-    effect: allow
-  - action: subagent
     resource: "builder-lite"
-    effect: allow
-  - action: subagent
-    resource: "builder-strong"
     effect: allow
   - action: subagent
     resource: "review-code-lite"
@@ -382,10 +374,10 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
 ## Spawning agents
 
 - `explorer` — cheap search and log reading.
-- `planner` — base; use `planner-std` for `small`, `planner-strong` for
-  `standard` and `high-risk`. It loads `planning`.
+- `planner` — strong model; use it for `small`, `standard`, and `high-risk`. It
+  loads `planning`.
 - `builder` — one task per builder. Use `builder-lite` for `trivial`, `builder`
-  for `bugfix`/`small`/`standard`, `builder-strong` for `high-risk`.
+  for `bugfix`/`small`/`standard`/`high-risk`.
 - `review-code` — the only reviewer; covers code, UI, UX, and security. Use
   `review-code-lite` for `trivial`/`bugfix`/`small`, `review-code` for
   `standard`, `review-code-strong` for `high-risk`.

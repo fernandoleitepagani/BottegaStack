@@ -24,6 +24,11 @@ The installer flattens `skills/<category>/<skill>` to
 `<target>/skills/<skill>` because both runtimes discover skills at that depth.
 Agents and commands are per-target; skills are shared.
 
+The installer generates the `builder-lite`, `review-code-lite`, and
+`review-code-strong` variants from `agents/models.conf`. The master runs
+`deepseek-v4.1-flash` at high effort in OpenCode and Opus 5.5 at medium effort
+in Claude Code.
+
 ## Uninstall
 
 ```bash

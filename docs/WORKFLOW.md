@@ -141,10 +141,12 @@ grows or touches a risk path. Lanes never downgrade.
 | `builder` | Implements exactly one task and writes `build/<task>.md`. |
 | `review-code` | One reviewer for code, UI, UX, and security; one file, one verdict. |
 
-The installer generates `lite`, `std`, and `strong` variants from
-`agents/models.conf`. The master picks the variant by role and lane. Planning
-uses the strong tier; the builder and reviewer scale with risk and lane. There
-is no separate security or approval variant.
+The installer generates the `builder-lite`, `review-code-lite`, and
+`review-code-strong` variants from `agents/models.conf`. The master picks the
+variant by role and lane. Planning uses the strong model; the builder and
+reviewer scale with risk and lane. The master runs `deepseek-v4.1-flash` at high
+effort in OpenCode and Opus 5.5 at medium effort in Claude Code. There is no
+separate security or approval variant.
 
 ## Skills
 

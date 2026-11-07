@@ -200,10 +200,7 @@ install_variant() {
 
 install_agent_variants() {
   local config="$1" target="$2"
-  install_variant "$target" planner planner-std std "$config"
-  install_variant "$target" planner planner-strong strong "$config"
   install_variant "$target" builder builder-lite lite "$config"
-  install_variant "$target" builder builder-strong strong "$config"
   install_variant "$target" review-code review-code-lite lite "$config"
   install_variant "$target" review-code review-code-strong strong "$config"
 }

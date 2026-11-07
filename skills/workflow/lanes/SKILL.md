@@ -56,8 +56,8 @@ downgrade.
 | Role | trivial | bugfix | small | standard | high-risk |
 |---|---|---|---|---|---|
 | explorer | lite | lite | lite | lite | lite |
-| planner | — | — | `planner-std` | `planner-strong` | `planner-strong` |
-| builder | `builder-lite` | `builder` | `builder` | `builder` | `builder-strong` |
+| planner | — | — | `planner` | `planner` | `planner` |
+| builder | `builder-lite` | `builder` | `builder` | `builder` | `builder` |
 | review-code | `review-code-lite` | `review-code-lite` | `review-code-lite` | `review-code` | `review-code-strong` |
 
 One reviewer covers code, UI, UX, and security for every lane. The master writes
@@ -66,8 +66,7 @@ One reviewer covers code, UI, UX, and security for every lane. The master writes
 The base agents are `master`, `explorer`, `planner`, `builder`, and `review-code`.
 The installer generates the tier variants from `agents/models.conf`:
 
-- `planner-std`, `planner-strong`
-- `builder-lite`, `builder-strong`
+- `builder-lite`
 - `review-code-lite`, `review-code-strong`
 
 ## Gotchas

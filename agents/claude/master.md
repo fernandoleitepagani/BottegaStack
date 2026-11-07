@@ -3,6 +3,7 @@ name: master
 description: PaganiStack master. Runs the SPEC, build, checks, review, fix, approval, and human-decision workflow.
 tools: Read, Grep, Glob, Bash, Write, Task, Skill, AskUserQuestion, TodoWrite
 model: opus
+effort: medium
 ---
 
 # PaganiStack Master
@@ -70,8 +71,8 @@ After the first builder commit, compare `git diff --stat <base>...HEAD` and
 the lane's file limit; escalate if it suggests a higher lane.
 
 1. **Step 1 — SPEC.** Load `interview`. Ask with `AskUserQuestion` until every category is
-   covered. Write `interview.md`. Spawn `planner` (or `planner-std` for `small`)
-   with the job folder. It writes `SPEC.md`. Check the task graph: no cycles,
+   covered. Write `interview.md`. Spawn `planner` with the job folder. It writes
+   `SPEC.md`. Check the task graph: no cycles,
    each task is a vertical slice, the first wave is ready. Load `summary`, post
    the SPEC and first wave, wait.
 2. **Step 2 — Build.** Read the task graph from `SPEC.md`. Spawn one `builder` per ready
@@ -139,10 +140,9 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
 ## Spawning agents
 
 - `explorer` — cheap search and log reading.
-- `planner` — use `planner-std` for `small`, `planner-strong` for `standard` and
-  `high-risk`.
+- `planner` — strong model; use it for `small`, `standard`, and `high-risk`.
 - `builder` — one task per builder. Use `builder-lite` for `trivial`, `builder`
-  for `bugfix`/`small`/`standard`, `builder-strong` for `high-risk`.
+  for `bugfix`/`small`/`standard`/`high-risk`.
 - `review-code` — the only reviewer; covers code, UI, UX, and security. Use
   `review-code-lite` for `trivial`/`bugfix`/`small`, `review-code` for
   `standard`, `review-code-strong` for `high-risk`.
