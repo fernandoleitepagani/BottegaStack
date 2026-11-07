@@ -738,7 +738,7 @@ cmd_lint() {
     fi
   done
 
-  for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
+  for f in AGENTS.md PLAN.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
            format.sh claude-hook.sh git-hooks/pre-commit git-hooks/pre-push \
            systemd/pagani-weekly.service systemd/pagani-weekly.timer \
            opencode-plugin/pagani-skill-log.ts \
@@ -951,6 +951,7 @@ cmd_init() {
   local dest="${1:-$PWD}"
   mkdir -p "$dest/scripts" "$dest/docs/adr" "$dest/.github" "$dest/.claude" "$dest/pagani/jobs"
   [ -f "$dest/AGENTS.md" ] || cp "$ROOT/resources/AGENTS.md" "$dest/AGENTS.md"
+  [ -f "$dest/PLAN.md" ] || cp "$ROOT/resources/PLAN.md" "$dest/PLAN.md"
   [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
   [ -f "$dest/scripts/verify" ] || cp "$ROOT/resources/verify.sh" "$dest/scripts/verify"
   [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
@@ -997,6 +998,7 @@ cmd_upgrade() {
   local src_settings="$ROOT/resources/claude-settings.json"
   local src_format="$ROOT/resources/format.sh"
   local src_workflow="$ROOT/resources/github/workflows/pagani-check.yml"
+  local src_plan="$ROOT/resources/PLAN.md"
 
   mkdir -p "$dest/scripts" "$dest/.claude" "$dest/.github/workflows" "$dest/pagani"
   cp "$src_hook" "$dest/scripts/claude-hook.sh"
@@ -1086,6 +1088,13 @@ PY
   else
     cp "$src_workflow" "$dest/.github/workflows/pagani-check.yml"
     echo "created: $dest/.github/workflows/pagani-check.yml"
+  fi
+
+  if [ -f "$dest/PLAN.md" ]; then
+    echo "kept: $dest/PLAN.md"
+  else
+    cp "$src_plan" "$dest/PLAN.md"
+    echo "created: $dest/PLAN.md"
   fi
 }
 

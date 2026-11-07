@@ -26,3 +26,7 @@ adapted, it is renamed and the change is noted in its `SKILL.md`.
 
 `handoff` and `retro` are adapted as `session-handoff` and `session-retro`; they
 are not vendored under their upstream names.
+
+PaganiStack-authored skills (`lanes`, `untrusted-content`, the review and
+planning skills, and the workflow skills not listed above) are original or
+adapted and are not vendored under an upstream name.

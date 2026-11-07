@@ -1,16 +1,19 @@
 # PaganiStack: what is missing for a personal stack
 
-**Verdict:** the workflow is strong. The missing layer is the part that makes it
-a *personal stack*: an installer, project resources, verification, evals,
-observability, and a compounding correction loop. Right now it is a good
-workflow that lives in one checkout. A personal stack is a workflow you can
-install, update, and trust on any machine.
+**Verdict (0.5.0):** the minimum personal-stack layer is implemented. The
+installer, project resources, verification, review convergence, evals,
+observability, backups, and the compounding retro loop exist in the repo. The
+remaining gaps are deliberate non-goals (full OS sandbox, control plane,
+shell/`agent-browser` network egress) plus a few portability and runtime items.
+The historical pre-0.2.0 gap analysis is kept below for reference.
 
 ## Implemented in 0.2.0–0.5.0
 
 - Installer and `pagani` CLI for OpenCode and Claude Code.
-- `resources/` project templates, including `FEATURE-MAP.md`, `mistakes.md`,
-  `claude-settings.json`, and `CLAUDE.md` (`@AGENTS.md`).
+- `resources/` project templates, including `PLAN.md`, `FEATURE-MAP.md`,
+  `mistakes.md`, `claude-settings.json`, and `CLAUDE.md` (`@AGENTS.md`).
+- README compatibility matrix for OpenCode, Claude Code, Node, `gh`, Python,
+  gitleaks, systemd, agent-browser, and SQLite.
 - Nine-plus-two skill taxonomy.
 - P0 skills: library-reference, data-analysis, weekly-review, scaffold, ci-cd,
   runbook, infra-ops.
@@ -23,13 +26,15 @@ install, update, and trust on any machine.
 - Review convergence, finding verification, risk tiers, and a PR review flow.
 - Reviewer evals with diffs, `run.sh`, recall/noise, and train/test.
 - `TASKS.md`, handoff, retro, worktrees, usage, status, and PR helpers.
-- Gotchas sections on 12 PaganiStack-authored skills.
+- Gotchas sections on 23 PaganiStack-authored skills; vendored skills are
+  untouched.
 - Claude Code agent files, `.claude/settings.json`, and a generated `/pagani`
   command from the master body.
 - Paid `design-mobile-apps` removed.
 - `pagani classify` and `pagani route` read risk paths from `REVIEW.md`, with a
   fallback to `resources/REVIEW.md`.
-- `unknown` lane for an empty diff and `standard` lane for large non-risk diffs.
+- `unknown` classify outcome for an empty diff and `standard` lane for large
+  non-risk diffs.
 - `checks.log` per job and the `checks_first_pass` metric from the first check.
 - Usage warnings when neither `opencode` nor `ccusage` is installed.
 - `pagani lint` template checks for project files referenced by agents or skills.
@@ -88,6 +93,30 @@ agents. The network allowlist is opt-in and limited to Claude `WebFetch`; it doe
 not cover shell or `agent-browser` egress. `pagani budget check` is a check, not
 a hard cap. `untrusted-content` is a convention, not a sandbox. Backups are
 local only.
+
+## PLAN.md minimum coverage
+
+`PLAN.md` is the design baseline. The 0.5.0 tree covers its minimum:
+
+| PLAN.md promise | Status | Evidence |
+|---|---|---|
+| 11 steps, including Step 0 setup and lane confirmation | Done | `agents/*/master.md`, `commands/*/pagani.md`, `HOW-IT-WORKS.md` §4 |
+| Nine-plus-two skill taxonomy | Done | `skills/*`, `CATEGORIES.md`, `pagani lint` |
+| Agent roles plus lite/std/strong variants | Done | `agents/*`, `agents/models.conf`, installer |
+| Job folder is the state; no JSON state machine | Done | `pagani job new`, `pagani/jobs/<id>/job.md` |
+| Plan, spec, tickets, build, checks, review, fix, approve, human, close | Done | masters, skills, `pagani check/gate/frontier` |
+| Summary contract and review convergence | Done | `summary`, `REVIEW.md`, reviewer skills, `pagani route` |
+| Verification: hands, eyes, map | Done | `scripts/verify`, `docs/FEATURE-MAP.md`, `verification` |
+| Reviewer evals and skill evals | Done | `evals/reviewer`, `evals/skills` |
+| Installer, uninstall, doctor, lint, upgrade | Done | `install.sh`, `bin/pagani`, `resources/` |
+| Worktrees, ports, and parallel builders | Done | `pagani worktree create/prune`, `skills/workflow/lanes` |
+| PR review and CI gate | Done | `pagani pr`, `review-pr`, GitHub Actions workflow |
+| Cost, metrics, budget, dashboard | Done | `pagani usage`, exact cost, `metrics.tsv`, `budget`, `dashboard` |
+| Backups | Done (local) | `pagani backup/restore`; no remote sync |
+| Prompt-injection defense | Partial | `untrusted-content` convention; not a sandbox |
+| Network allowlist | Partial | Claude `WebFetch` only; shell/`agent-browser` not covered |
+| Full OS sandbox | Not done (deliberate) | see `PLAN.md` §10 |
+| Control plane | Not done (deliberate) | dashboard is read-only |
 
 ---
 
@@ -258,73 +287,71 @@ From [Building effective agents](https://www.anthropic.com/research/building-eff
 
 ---
 
-## 4. Gap list for a personal stack
+## 4. Gap list — status at 0.5.0
 
-This is the pre-0.2.0 gap list, kept as a reference. The implemented items are
-listed at the top of this file. Full OS sandboxing and a control plane remain
-deliberate non-goals. The network allowlist is opt-in and covers Claude
-`WebFetch` only, not shell or `agent-browser` egress. The budget is a check, not
-a hard cap, and `untrusted-content` is a convention, not a sandbox.
+This was the pre-0.2.0 gap list. The status below reflects the 0.5.0 tree; the
+implemented items are also listed at the top of this file. Full OS sandboxing
+and a control plane remain deliberate non-goals. The network allowlist is
+opt-in and covers Claude `WebFetch` only, not shell or `agent-browser` egress.
+The budget is a check, not a hard cap, and `untrusted-content` is a convention,
+not a sandbox.
 
 ### P0 — installable and portable
 
-- [ ] `install.sh` with `--dry-run`, `--copy`, `--uninstall`, backups, flat skill
-      links, and an upstream-skill check.
-- [ ] `resources/` templates: `AGENTS.md`, `checks.sh`, `verify.sh`,
-      `BACKLOG.md`, `GLOSSARY.md`, `docs/adr/`, `PLAN.md`.
-- [ ] `README.md`, `CHANGELOG.md`, `LICENSE`, and git tags.
-- [ ] `pagani doctor`: check the OpenCode version, installed agents/skills,
-      missing upstream skills, model availability, and config conflicts.
-- [ ] `pagani init`: scaffold a project with `AGENTS.md`, `studio/checks.sh`,
-      `studio/verify.sh`, and `.gitignore`.
-- [ ] Upstream skills: vendor them at pinned commits or check them at install.
-- [ ] A compatibility matrix: OpenCode version, Node, Chrome, `gh`, Python.
-- [ ] Uninstall and update paths.
-- [ ] A plain-text install manifest so uninstall removes only what it installed.
+| Item | Status | Notes |
+|---|---|---|
+| `install.sh` with `--dry-run`, `--copy`, `--uninstall`, backups, flat skill links, upstream check | Done | `install.sh`, `bin/pagani install/uninstall`, manifest, `pagani doctor` |
+| `resources/` templates: `AGENTS.md`, `checks.sh`, `verify.sh`, `BACKLOG.md`, `GLOSSARY.md`, `docs/adr/` | Done | `resources/`; `pagani init` |
+| A project `PLAN.md` template | Done | `resources/PLAN.md`; `pagani init` copies it when absent |
+| `README.md`, `CHANGELOG.md`, `LICENSE`, git tags | Done | All files exist; `v0.5.0` tag |
+| `pagani doctor`: versions, agents/skills, upstream skills, config | Done | `pagani doctor`; model availability is reported by OpenCode |
+| `pagani init`: project scaffold and `.gitignore` | Done | `pagani init`; `scripts/check`, `scripts/verify`, `scripts/format`, hooks |
+| Upstream skills pinned or checked at install | Partial | `VENDOR.md` records sources; `doctor` checks presence, not commit pins |
+| Compatibility matrix: OpenCode, Node, Chrome, `gh`, Python | Done | README “Compatibility” table; `doctor` reports the local tools |
+| Uninstall and update paths | Done | `pagani uninstall`, `pagani upgrade` |
+| Plain-text install manifest | Done | `.pagani-manifest-<target>.txt` |
 
 ### P1 — verification, review, evals
 
-- [ ] Install `agent-browser` or Playwright, plus a `verify.sh` template and a
-      feature map.
-- [ ] A `checks.sh` template and a CI/PR gate.
-- [ ] A `REVIEW.md` per repo: what failure looks like, paths to skip, evidence
-      format, and a cap on nits.
-- [ ] Review convergence: round cap, diff-only re-review, flag the bug class, no
-      repeat findings.
-- [ ] Multi-agent finding verification or voting before a finding is posted.
-- [ ] `evals/` for skills and reviewers. Start with incidents, reverts, and known
-      clean PRs.
-- [ ] `handoff` or session-pickup skill, plus a `TASKS.md` convention.
-- [ ] `retro` or gardener skill that turns repeated findings into rules, lint,
-      tests, or skill edits.
-- [ ] `research` and `prototype` as first-class planning steps.
-- [ ] `simplify`, `bug-hunt`, and `security-review` skills.
-- [ ] Wire `web-design-guidelines` into `review-ui` and `review-ux`, and add a
-      visual-regression check.
+| Item | Status | Notes |
+|---|---|---|
+| `agent-browser`/Playwright, `verify.sh`, feature map | Done | `scripts/verify`, `docs/FEATURE-MAP.md`; `agent-browser` optional |
+| `checks.sh` template and a CI/PR gate | Done | `resources/checks.sh`, GitHub Actions `pagani-check` |
+| `REVIEW.md` per repo | Done | `resources/REVIEW.md`; `pagani init` copies it |
+| Review convergence: round cap, diff-only re-review, bug class, no repeats | Done | `REVIEW.md`, reviewer skills, `pagani route` |
+| Multi-agent finding verification or voting | Partial | Finding verification is in the review skills; no voting layer |
+| `evals/` for reviewers and skills | Done | `evals/reviewer`, `evals/skills` |
+| Handoff/session pickup and `TASKS.md` | Done | `session-handoff`, `TASKS.md` |
+| Retro/gardener loop | Done | `session-retro`, `pagani retro-scan` |
+| `research` and `prototype` as first-class planning steps | Partial | Available in the runtime; not wired into the PaganiStack planner |
+| `simplify`, bug-hunt, security-review skills | Done | `simplify`, `diagnosing-bugs`, `review-security` |
+| `web-design-guidelines` in UI/UX review and visual regression | Partial | Wired into review; no visual-regression runner |
 
 ### P2 — scale, cost, safety
 
-- [ ] Worktree helper and a parallel-job manager with port allocation and cleanup.
-- [ ] PR automation: `gh pr create`, CI status, merge queue, flags, rollback.
-- [ ] Token and cost tracking per job, with a `/usage` equivalent.
-- [ ] Metrics: first-pass gate rate, review rounds, human approvals, escaped
-      defects, time per stage, cost per job.
-- [ ] An agent view or control plane grouped by needs-input, working, completed.
-- [ ] Sandbox, secret vault, network allowlist, and a per-job spending cap.
-- [ ] Prompt-injection defenses for web pages, issues, Slack, and screenshots.
-- [ ] An audit log of tool calls and file writes.
-- [ ] Review-capacity planning: the human is the bottleneck.
+| Item | Status | Notes |
+|---|---|---|
+| Worktree helper, port allocation, cleanup | Done | `pagani worktree create/prune`; port written to the ticket |
+| PR automation: `gh pr create`, CI status, merge queue, flags, rollback | Partial | `pagani pr`, `closeout`, GitHub Actions checks; no merge queue/flags/rollback automation |
+| Token and cost tracking per job | Done | Exact OpenCode `session` cost, including worktrees; `usage report` |
+| Metrics: first-pass gate rate, rounds, approvals, defects, time, cost | Done | `pagani/metrics.tsv`; `checks_first_pass`, rounds, fixes, reworks, cost |
+| Agent view or control plane | Partial | Read-only `pagani dashboard`; no control plane |
+| Sandbox, secret vault, network allowlist, spending cap | Partial | Claude `WebFetch` allowlist and `budget check`; no sandbox, vault, or hard cap |
+| Prompt-injection defenses | Partial | `untrusted-content` convention; no sandbox |
+| Audit log of tool calls and file writes | Not done | `pagani/skill-usage.tsv` logs skill use only |
+| Review-capacity planning | Not done | Human process, not code |
 
 ### P3 — skill quality
 
-- [ ] A Gotchas section in every skill.
-- [ ] Progressive disclosure: split long skills into references, assets, and
-      scripts.
-- [ ] Trigger-rich descriptions written for the model.
-- [ ] Skill usage logging and skill evals.
-- [ ] Avoid railroading: goal and constraints, not every command.
-- [ ] Apply `writing-for-agents` to every skill and `AGENTS.md`.
-- [ ] Attribution and licenses for every upstream skill.
+| Item | Status | Notes |
+|---|---|---|
+| A Gotchas section in every skill | Partial | PaganiStack-authored skills used on most jobs have Gotchas; vendored skills are untouched |
+| Progressive disclosure: references, assets, scripts | Partial | Used in several skills; not systematic |
+| Trigger-rich descriptions | Done | `pagani lint` requires a description; descriptions are trigger-oriented |
+| Skill usage logging and skill evals | Done | Claude/OpenCode hooks + `pagani/skill-usage.tsv`; `evals/skills` |
+| Avoid railroading: goal and constraints, not every command | Done | Design principle in `AGENTS.md` and the skills |
+| Apply `writing-for-agents` to every skill and `AGENTS.md` | Partial | Not systematically verified |
+| Attribution and licenses for every upstream skill | Done | `VENDOR.md` and per-skill licenses |
 
 ---
 
@@ -339,6 +366,10 @@ a hard cap, and `untrusted-content` is a convention, not a sandbox.
 7. Sandbox, secrets, network allowlist, and spending caps.
 8. Design integration: wire `web-design-guidelines` into UI/UX review and add
    visual regression.
+
+At 0.5.0, items 1–6 are implemented; item 7 is partial (Claude `WebFetch`
+allowlist and budget check, but no sandbox, secret vault, or hard cap); item 8
+is implemented for UI/UX review, with visual regression still open.
 
 The design skills are already in `skills/design/`. See
 `skills/design/README.md` for sources and licenses.

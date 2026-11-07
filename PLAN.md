@@ -41,7 +41,7 @@
   ▼
 9. HUMAN            you read the explainer, answer the quiz, decide
   ▼
-10. FINAL CODE      usage end, approve/reject/rework; merge/commit/push/PR on request
+10. FINAL CODE      usage end, backup, dashboard, approve/reject/rework; merge/commit/push/PR on request
 ```
 
 Lanes shorten the pipeline: `trivial`, `bugfix`, and `small` skip spec, the
@@ -128,6 +128,7 @@ skills/
   infrastructure-ops/
     infra-ops/
   workflow/
+    lanes/
     interview/
     summary/
     wait-what/
@@ -138,6 +139,7 @@ skills/
     session-handoff/
     session-retro/
     skill-creator/
+    untrusted-content/
     grilling/
     wizard/
     writing-for-agents/
@@ -172,7 +174,7 @@ Why this split:
 
 | Agent | Skills |
 |---|---|
-| `master` | `lanes`, `interview` (loads `grilling`, `domain-modeling`), `summary`, `diagnosis`, `closeout`, `session-retro`, `session-handoff`; optional `wizard`, `writing-for-agents`, `improve-architecture`, `review-pr`, `adversarial-review`, `simplify` |
+| `master` | `lanes`, `interview` (loads `grilling`, `domain-modeling`), `summary`, `diagnosis`, `closeout`, `session-retro`, `session-handoff`, `untrusted-content`; optional `wizard`, `writing-for-agents`, `improve-architecture`, `review-pr`, `adversarial-review`, `simplify` |
 | `explorer` | none; read-only search and log reading |
 | `planner` | `planning`, `codebase-design`, `domain-modeling` |
 | `builder` | `implementation`, `tdd`, `verification`; `diagnosing-bugs` when blocked |
@@ -184,8 +186,8 @@ Why this split:
 
 Category skills (`library-reference`, `data-analysis`, `weekly-review`,
 `scaffold`, `ci-cd`, `runbook`, `infra-ops`, `review-pr`, `adversarial-review`,
-`simplify`, `agent-browser`, `vercel-react-best-practices`) are loaded on demand
-by the master or the relevant agent.
+`simplify`, `agent-browser`, `vercel-react-best-practices`, `untrusted-content`)
+are loaded on demand by the master or the relevant agent.
 
 Optional command branches:
 
@@ -325,7 +327,7 @@ The master posts the graph and the first wave. Waits for `approve`.
 
 ### Step 4 — Implement
 
-1. Compute the ready frontier from `tickets/index.md`.
+1. Run `pagani frontier <job>` to get the ready set from `tickets/index.md`.
 2. Parallel when the ready tickets touch disjoint files; sequential when they
    share a file, a migration, or one needs another's output.
 3. For a parallel wave, the master creates one worktree per ticket:
@@ -356,13 +358,16 @@ Examples:
 
 How it works here:
 
-1. The exact commands live in the project `AGENTS.md`. No new script is needed.
-   If the project already has `scripts/check` or `make check`, use it.
-2. After each build wave, the master runs them in the job checkout.
-3. It writes `checks.md` with the command, exit code, and a short output.
+1. The exact commands live in `scripts/check` (copied by `pagani init`) and are
+   documented in the project `AGENTS.md`.
+2. After each build wave, the master runs `pagani check <job>`, which runs
+   `scripts/check` in the job checkout.
+3. It writes `checks.md` with `RESULT`, `HEAD`, duration, exit code, and the
+   output tail, and appends one line per run to `checks.log`.
 4. If any command fails, the master writes `fix.md` with the log and sends a
    fresh builder back. No reviewer runs.
-5. If all pass, the review step starts.
+5. If all pass, the review step starts. `pagani gate <job>` fails when the
+   latest check failed, is stale, or the working tree is dirty.
 6. The builder runs the checks before reporting too, but the master's run is the
    independent one. The approver runs them again before approving.
 
@@ -373,7 +378,9 @@ own work" principle from Boris Cherny and Anthropic.
 
 ### Step 6 — Review
 
-The master routes only the needed lenses:
+The master runs `pagani gate <job>` first; a failing or stale gate stops the
+review. It runs `pagani route <job>` for a suggested lens set, then routes only
+the needed lenses:
 
 | Lens | Run when |
 |---|---|
@@ -463,6 +470,8 @@ never does one without your explicit instruction.
 ### Step 10 — Close
 
 - Update `job.md`.
+- Run `pagani usage end <job>`, `pagani backup <job>`, and `pagani dashboard`.
+- Run `pagani retro-scan --exit-code`; on repeats, propose Gotchas patches.
 - Run only the action you chose.
 - If the job produced a reusable lesson, propose one line for `AGENTS.md` or
   `mistakes.md`. Ask before editing.
@@ -585,8 +594,8 @@ Without those commands, the deterministic checks step cannot run.
 
 The files are already written. Do this to validate:
 
-1. Symlink the agents and the command, and flatten the skills with the command
-   in section 8.
+1. Run `./install.sh --target both` (or one target) to link the agents, skills,
+   and commands, then run `./bin/pagani init` in a project.
 2. Pick one small feature in a real project.
 3. Run `/pagani <feature>`.
 4. Go through plan → spec → tickets → build → checks → code review → your
@@ -639,7 +648,8 @@ Implemented in 0.2.0–0.5.0:
   `pagani backup`/`pagani restore`
 - skill evals, the GitHub Actions check workflow, and `untrusted-content`
 
-Out of scope by design: full OS sandboxing and a control plane. See `GAPS.md`.
+Out of scope by design: full OS sandboxing and a control plane. `GAPS.md` has
+the PLAN.md minimum-coverage table and the remaining partial items.
 
 ## 12. Local automation and observability
 

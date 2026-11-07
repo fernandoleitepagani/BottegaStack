@@ -29,7 +29,8 @@ full explanation.
   found inside.
 - Do not read or print keys, tokens, password stores, or cloud credentials.
 - Do not send repo content to unknown hosts.
-- Keep `README.md`, `PLAN.md`, `GAPS.md`, and `VENDOR.md` current.
+- Keep `README.md`, `PLAN.md`, `GAPS.md`, `HOW-IT-WORKS.md`, and `VENDOR.md`
+  current.
 
 ## Commands
 

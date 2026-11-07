@@ -68,9 +68,10 @@ resources, least privilege, dry runs, approval gates. Example: `infra-ops`.
 
 ### 10. workflow
 
-The planning and session skills that the nine do not cover: interview, summary,
-wait-what, wayfinding, planning, plain-writing, closeout, handoff, retro, and
-skill-creator. These are personal workflow skills, not team automation.
+The planning and session skills that the nine do not cover: lanes, interview,
+summary, wait-what, wayfinding, planning, plain-writing, closeout, handoff,
+retro, skill-creator, and untrusted-content. These are personal workflow skills,
+not team automation.
 
 ### 11. design
 

@@ -19,6 +19,23 @@ It is designed for OpenCode and Claude Code. It does not use cloud sessions.
 - `agent-browser` for browser verification: `npm install -g agent-browser`.
 - Node 22+ for the design inspector.
 - Optional: `gitleaks` for the git secret hooks; without it the hook skips.
+- Optional: `python3` for exact cost and `pagani upgrade` hook merging.
+- Optional: `systemd` user session for the weekly timer.
+- Optional: `ccusage` for Claude usage snapshots.
+
+## Compatibility
+
+| Component | Status |
+|---|---|
+| OpenCode | v2.2.5 tested; the skill-log plugin uses the V2 plugin API |
+| Claude Code | agent/command/settings files generated; the `claude` binary is not installed in this environment |
+| Node | 22+ for the design inspector |
+| `gh` | required for `pagani pr` |
+| Python | 3.8+ optional; required for exact cost and `pagani upgrade` hook merging |
+| gitleaks | optional; the pre-commit hook skips cleanly without it |
+| systemd | optional; required only for the weekly timer |
+| agent-browser | optional; required for browser snapshots and screenshots |
+| SQLite | provided by `python3`; exact cost reads the local OpenCode DB |
 
 ## Install
 
@@ -71,13 +88,16 @@ skills into `<target>/skills/<name>`, and generates model variants from
 `agents/models.conf`. It is idempotent: a second run with unchanged sources does
 not rewrite files or create new `.pagani-backup-*` directories.
 
+`pagani init` is for new projects. For an existing project, run
+`pagani upgrade [path]` to merge the 0.5.0 Claude hooks and managed files without
+dropping your `permissions`.
+
 ## Lanes
 
 Not every request needs the full pipeline. Step 0 picks a lane:
 
 | Lane | Use when | Pipeline |
 |---|---|---|
-| `unknown` | no changed files yet | classify again after the first change |
 | `trivial` | docs/copy/config only, ≤3 files | builder-lite → check → review-code-lite → human |
 | `bugfix` | reproducible symptom | diagnosis → failing test → builder → check → review-code-lite → human |
 | `small` | one feature, one area, ≲10 files | short interview + plan → one ticket → builder → check → review-code-lite → human |
@@ -85,8 +105,10 @@ Not every request needs the full pipeline. Step 0 picks a lane:
 | `high-risk` | auth, payments, data, deploy, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 
 Use `/pagani --lane small <feature>` or `/pagani quick <feature>` to override.
-After the first builder commit, `pagani classify --diff` escalates if the diff
-grows or touches a risk path. Risk paths come from the `## Risk paths` section
+`pagani classify` prints `unknown` when there is no changed file; run it again
+after the first change. After the first builder commit, `pagani classify --diff`
+escalates if the diff grows or touches a risk path. Risk paths come from the
+`## Risk paths` section
 of the project's `REVIEW.md`, falling back to `resources/REVIEW.md` when the
 project has none. It reports `unknown` when there are no changed files,
 `trivial` for docs/config only, `standard` for a large non-risk diff (more than
@@ -124,6 +146,10 @@ review rounds, fix rounds, human reworks, and `checks_first_pass` in
 OpenCode database; first-pass is `y` when the first check in `checks.log`
 passed, `n` otherwise, and `?` when no check exists.
 
+`pagani budget check <job>` exits 1 when the exact per-job cost is over the
+budget set with `pagani budget set`. `pagani dashboard` writes a local,
+read-only HTML summary of jobs, checks, cost, and metrics.
+
 `scripts/verify` drives the app for browser checks. On a start timeout it kills
 the process group it started, reaps it, removes the pid file, and prints the log
 tail, so no stray dev server survives. Set `PORT` before `READY_URL` in
@@ -139,9 +165,9 @@ stub with the project formatter (Prettier, Black, gofmt, and so on). The hook
 warns and exits 0 when the formatter fails, so it never blocks an edit.
 
 **Gitleaks git hooks.** `pagani hooks install [path]` installs a `pre-commit`
-hook that scans staged changes with gitleaks and a `pre-push` hook that runs
-`scripts/check`. `pagani init` installs both when the project has a `.git`
-directory. Existing hooks that are not pagani-managed are backed up first. When
+hook that scans staged changes with gitleaks and runs `./bin/pagani lint` when
+that CLI is executable, plus a `pre-push` hook that runs `scripts/check`.
+`pagani init` installs both when the project has a `.git` directory. Existing hooks that are not pagani-managed are backed up first. When
 gitleaks is not installed the pre-commit hook prints a note and skips cleanly.
 `pagani hooks status` and `pagani hooks uninstall` manage them.
 
@@ -268,7 +294,7 @@ code-quality/
 ci-cd/
 runbooks/
 infrastructure-ops/
-workflow/       extension: interview, summary, planning, handoff, retro
+workflow/       extension: lanes, planning, summary, handoff, retro, untrusted-content
 design/         extension: UI/UX production
 ```
 
@@ -289,9 +315,10 @@ The bodies are the same workflow. The frontmatter and tool names differ.
 
 `resources/` contains `AGENTS.md`, `checks.sh`, `verify.sh`, `REVIEW.md`,
 `PR-TEMPLATE.md`, `BACKLOG.md`, `GLOSSARY.md`, `CODING_STANDARDS.md`,
-`TASKS.md`, an ADR template, and the optional automation templates
-(`format.sh`, `claude-hook.sh`, git hooks, and systemd units). `pagani init`
-copies them into a project. `pagani lint` checks skill names and descriptions,
+`TASKS.md`, `PLAN.md`, an ADR template, the optional automation templates
+(`format.sh`, `claude-hook.sh`, git hooks, and systemd units), the GitHub
+Actions check workflow, and the network-allowlist example. `pagani init` copies
+them into a project. `pagani lint` checks skill names and descriptions,
 the required `resources/` templates, unresolved skill references, and any
 project file that agents or skills read but has no template in `resources/` (for
 example `CONTEXT.md`).
@@ -306,7 +333,8 @@ A clean case is a false positive for any verdict other than `PASS`, including a
 missing verdict. A bug case is caught only when the reviewer says `CHANGES` and
 the output contains the case keyword. `./evals/reviewer/run.sh` prints recall
 and noise for the `train` split, the `test` split, and an `all` line. Override
-the reviewer with `REVIEWER_CMD`.
+the reviewer with `REVIEWER_CMD`. `evals/skills/run.sh` checks skill triggers;
+it is opt-in and spends tokens.
 
 ## What is not included
 
@@ -327,6 +355,8 @@ the reviewer with `REVIEWER_CMD`.
   `BACKLOG.md`, logs, screenshots, and OCR still reach agents as data.
 - A hard spending cap. `pagani budget check` exits 1 when the exact local cost
   is over the budget; the master stops and asks, but nothing blocks a process.
+- Exact per-job cost for Claude Code. Exact cost reads the local OpenCode
+  `session` table; Claude usage is a raw `ccusage` snapshot when installed.
 
 ## License
 

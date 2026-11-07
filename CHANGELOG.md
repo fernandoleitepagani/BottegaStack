@@ -47,6 +47,11 @@ spends money or opens a network path.
   proposed edits and decisions in the report.
 - Claude smoke-test checklist in `HOW-IT-WORKS.md` §16 and a PLAN.md
   consistency pass.
+- `GAPS.md` now includes a PLAN.md minimum-coverage table and 0.5.0 status for
+  the P0–P3 gap list; README, HOW-IT-WORKS, PLAN, CATEGORIES, and VENDOR are
+  synchronized.
+- Added `resources/PLAN.md` (copied by `pagani init`) and a README
+  compatibility matrix.
 
 ## 0.4.0
 
