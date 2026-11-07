@@ -42,7 +42,7 @@ the worktree, and the branch.
    neighbouring code.
 2. Load the `implementation` skill and follow it.
 3. Load the `verification` skill if the task has UI or end-to-end criteria.
-4. Keep `pagani/jobs/<id>/TASKS.md` current. Batch tool calls when they are
+4. The project `TASKS.md` is the only task file. Batch tool calls when they are
    independent.
 5. Write code on the named branch and exactly one report file,
    `pagani/jobs/<id>/build/<task>.md`.

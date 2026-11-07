@@ -1,6 +1,6 @@
 ---
 name: summary
-description: Write the PaganiStack human summary after every step. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
+description: Post a short PaganiStack summary in chat after every step and write the final summary once. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
 ---
 
 # PaganiStack Summary
@@ -10,16 +10,27 @@ that lets the human decide without reading the whole diff.
 
 ## Base skill
 
-Run `unslop` on the summary before posting it.
+Run `unslop` only on text that ships: the final `summary.md`, the approval
+explainer, and user-facing docs. Do not run it on two-line status updates or the
+chat summary.
 
 ## After every step
 
-Write the full summary to the stage artifact and post a short version in chat.
+Post the short version in chat. Do not write a file at each checkpoint.
 
-- SPEC, build, review, fix, approve: write `summary.md` in the relevant job
-  folder.
 - Keep the chat version under 12 lines.
 - Stop. Do not advance until the human says `approve`.
+- After every subagent run, post a short summary of what it returned before
+  moving on.
+
+## Write `summary.md` once
+
+Write `summary.md` once at close. For `standard` and `high-risk`, write it at
+the review checkpoint instead.
+
+- `trivial`, `bugfix`, `small`: write it at close.
+- `standard`, `high-risk`: write it at review.
+- The final summary lives at the job root, not in a round folder.
 
 ## The six sections
 
@@ -75,3 +86,4 @@ The human can also ask a question; answer it and do not change state.
 - Hiding a risk or a failed check to make the summary look clean.
 - Summarising from an agent report instead of the artifact and the diff.
 - Advancing without an explicit `approve`.
+- Writing `summary.md` at every checkpoint instead of once at close.

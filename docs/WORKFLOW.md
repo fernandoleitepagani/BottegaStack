@@ -12,7 +12,7 @@ state; there is no database or state machine.
 2. BUILD     one builder per ready task              [approve per wave]
 3. CHECKS    pagani job check -> checks.md           (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
-5. FIX       fix.md -> fresh builder -> checks -> re-review
+5. FIX       review-code.md -> fresh builder -> checks -> re-review
 6. APPROVAL  master -> decision.md + quiz
 7. HUMAN     approve, rework, or reject
 8. CLOSE     retro, merge/commit/push/PR on request
@@ -70,33 +70,37 @@ UI, UX, and security in one pass and returns one verdict:
 
 The reviewer loads `verification` and uses `agent-browser` when the change has
 UI, and loads `unslop` for copy. It writes `round-N/review-code.md` with one
-`VERDICT` for the whole change. The master writes `round-N/summary.md` and posts
-the summary.
+`VERDICT` for the whole change. The master posts the summary in chat; for
+`standard` and `high-risk` it writes `summary.md` at this checkpoint.
 
 ### Step 5: Fix
 
-If a review returns `CHANGES`, the master writes `fix.md` with the finding, the
-file and line, why it matters, how to fix it, and how to verify it. It spawns a
-fresh builder, re-runs checks, and re-runs the reviewer on the affected area.
-Max two fix rounds.
+If a review returns `CHANGES`, the master passes `round-N/review-code.md` and the
+findings — the file and line, why it matters, how to fix it, and how to verify
+it — to a fresh builder. It re-runs checks and re-runs the reviewer on the
+affected area. Max two fix rounds.
 
 ### Step 6: Approval
 
 The master loads `approval` and reads `SPEC.md`, the build reports, checks, and
 reviews. It writes `decision.md` itself with `APPROVE` or `ESCALATE`, the
-acceptance-criteria mapping, risks, an explainer, and a short quiz. It then
-presents the decision, explainer, and quiz to you and asks for the decision. The
+acceptance-criteria mapping, risks, and an explainer. For `standard` and
+`high-risk` it adds a short quiz; `trivial`, `bugfix`, and `small` get the
+explainer only. It then presents the decision and asks for the decision. The
 quiz uses retrieval practice: no formatting hints, answers answerable from the
 artifacts.
 
 ### Step 7: Human decision
 
-You read the explainer, answer the quiz, and choose merge, commit, push, PR,
-rework, or reject. The master shows the exact git command before running it.
+You read the explainer, answer the quiz on `standard` and `high-risk` jobs, and
+choose merge, commit, push, PR, rework, or reject. The master shows the exact
+git command before running it and appends the decision to `## Human decision` in
+`decision.md`.
 
 ### Step 8: Close
 
-The master updates `job.md`, records the decision in `human.md`, runs
+The master updates `job.md`, writes the final `summary.md` if it does not exist
+yet, records the decision in `decision.md`, runs
 `pagani job report --retro --exit-code`, and loads `session-retro` to propose one
 environment change. On repeated findings it proposes Gotchas patches. It loads
 `session-handoff` if the job continues elsewhere.
@@ -216,23 +220,23 @@ when working solo.
 
 ```
 pagani/jobs/<id>/
-  job.md              stage, round, lane, branch, base
+  job.md              stage, round, lane, branch, base (state only)
   interview.md
   SPEC.md
   build/<task>.md
   checks.md
   checks.log
   round-N/review-code.md
-  round-N/summary.md
-  fix-*.md
-  decision.md
-  human.md
-  TASKS.md
+  summary.md
+  decision.md         verdict, explainer, and ## Human decision
   handoff.md
 ```
 
 The job folder is the source of truth. No JSON state machine, no `plan.md`, no
-`tickets/`.
+`tickets/`. `job.md` is state, not a checklist; the task list lives in `SPEC.md`.
+`TASKS.md` is project-level only; there is no job-level copy. The final
+`summary.md` is written once at close, or at review for `standard` and
+`high-risk`. Every step still posts a short summary in chat.
 
 ## Project docs
 

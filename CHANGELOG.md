@@ -4,6 +4,10 @@
 
 - Removed the dashboard, usage snapshots, and metrics. `pagani job report` now
   accepts only `--retro`, `--write`, and `--exit-code`; the retro scan is kept.
+- Trimmed the job artifacts: `job.md` is state only, and `human.md`, `fix.md`,
+  job-level `TASKS.md`, and `round-N/summary.md` are gone. The approval quiz is
+  mandatory only for `standard`/`high-risk`; the master posts summaries in chat
+  and writes `summary.md` once at close.
 - Deleted `GAPS.md`, `CATEGORIES.md`, and `VENDOR.md`; merged the useful
   category and vendor notes into the workflow doc.
 - Simplified `README.md` and the docs around workflow, skills, usage, and

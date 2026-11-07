@@ -22,8 +22,8 @@ human can trust:
   reviewer sees the code.
 - **One focused review.** A single reviewer reads the diff with fresh context
   and checks code, UI, UX, and security.
-- **A human decision.** The master explains the change and quizzes the human.
-  The human merges, reworks, or rejects.
+- **A human decision.** The master explains the change and, on `standard` and
+  `high-risk` jobs, quizzes the human. The human merges, reworks, or rejects.
 - **A correction loop.** A retro turns repeated findings into a lint rule, test,
   skill edit, or `AGENTS.md` line.
 
@@ -79,6 +79,18 @@ Why: the master already holds the job context. A separate approver added a
 handoff and a second model call without adding independence — it read the same
 files.
 
+### State-only `job.md` and lane-aware approval
+
+`job.md` holds only `Stage`, `Round`, `Lane`, `Lane-reason`, `Branch`, and
+`Base`. The checklist moved nowhere: `SPEC.md` carries the task graph and the
+project-level `TASKS.md` carries long-run work. Duplicate job artifacts are gone:
+the decision is appended to `decision.md`, the findings stay in the review file,
+and the final `summary.md` is written once.
+
+The quiz scales with the lane. `standard` and `high-risk` get 3-5 questions;
+`trivial`, `bugfix`, and `small` get a short explainer and no quiz. The goal is
+to spend the human's attention where the risk is, not on ceremony.
+
 ### Fewer commands
 
 The CLI is eight top-level commands: `install` (with `--uninstall`), `doctor`,
@@ -98,6 +110,7 @@ removed; the master does those checks directly.
 | `job frontier`, `job classify`, `job route` | The master reads `SPEC.md` and checks the diff directly. |
 | Separate `uninstall` command | `pagani install --uninstall` keeps install and removal together. |
 | Dashboard, usage snapshots, and metrics | `job.md`, `checks.md`, and the retro scan are the state; `pagani job report` reads them directly. |
+| Duplicate artifacts | The decision lives in `decision.md`, findings in the review file, tasks in `SPEC.md` and the project `TASKS.md`, and the summary once at the job root. |
 | `review-ui`, `review-ux`, `review-security` agents and skills | Folded into the `review-code` checklists. |
 | `approver` agent and skill | The master writes `decision.md` and presents it. |
 | Security and approval model variants | One reviewer, one approver; variants scale by lane instead. |

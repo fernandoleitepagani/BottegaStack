@@ -332,14 +332,6 @@ Lane: pending
 Lane-reason: pending
 Branch: pagani/$id
 Base: $(git branch --show-current)
-
-## Steps
-- [ ] spec
-- [ ] build
-- [ ] checks
-- [ ] review
-- [ ] approve
-- [ ] human
 EOF
   git switch -c "pagani/$id" >/dev/null 2>&1 || git checkout -b "pagani/$id" >/dev/null 2>&1 || true
   echo "job: $id"
@@ -1087,7 +1079,7 @@ cmd_retro_scan() {
   local -A job_count=() files_for=() seen=()
   local file rel job raw title key
   shopt -s nullglob
-  local files=(pagani/jobs/*/round-*/review-*.md pagani/jobs/*/fix-*.md)
+  local files=(pagani/jobs/*/round-*/review-code.md)
   shopt -u nullglob
   for file in "${files[@]}"; do
     [ -f "$file" ] || continue

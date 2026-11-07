@@ -34,8 +34,9 @@ one report file, `pagani/jobs/<id>/build/<task>.md`.
 
 1. Project `AGENTS.md` and `GLOSSARY.md`.
 2. The job `SPEC.md` and the named task.
-3. The neighbouring code.
-4. `verification` skill if the task has UI or browser criteria.
+3. On fix rounds, `round-N/review-code.md` for the findings you must address.
+4. The neighbouring code.
+5. `verification` skill if the task has UI or browser criteria.
 
 ## Before you start
 

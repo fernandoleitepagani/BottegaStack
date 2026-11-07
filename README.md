@@ -3,8 +3,9 @@
 PaganiStack is a personal agentic development workflow for OpenCode and Claude
 Code. It turns a request into a verified change and keeps a human in the loop.
 
-The job folder is the state: `pagani/jobs/<id>/`. There is no database, no
-cloud service, and no state machine.
+The job folder is the state: `pagani/jobs/<id>/`. `job.md` holds only stage,
+round, lane, branch, and base. There is no database, no cloud service, and no
+state machine.
 
 ## Install
 
@@ -46,8 +47,9 @@ setup + lane -> SPEC -> build -> checks -> review -> fix -> approval -> human de
 
 `SPEC.md` carries the requirements and a tracer-bullet task graph. Checks run
 before review. One `review-code` reviewer covers code, UI, UX, and security. The
-master writes `decision.md`, presents the explainer and quiz, and you make the
-call.
+master posts a short summary after every step, writes the final `summary.md`
+once at close, writes `decision.md`, and presents the explainer (and the quiz on
+`standard`/`high-risk` jobs). You make the call.
 
 ## Docs
 

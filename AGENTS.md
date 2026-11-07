@@ -46,8 +46,7 @@ PaganiStack has eight top-level commands: `install` (with `--uninstall`),
 ./bin/pagani init /tmp/example
 ./bin/pagani upgrade [path]
 ./bin/pagani job new "<title>"
-./bin/pagani job report --dashboard
-./bin/pagani job usage start|end <job>
+./bin/pagani job report [--retro] [--write] [--exit-code]
 ./bin/pagani worktree create <job> <task>
 ./bin/pagani hooks install [path]
 ./bin/pagani network init|check <url>

@@ -1,6 +1,6 @@
 ---
 name: approval
-description: Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and quiz, and presents it to the human.
+description: Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and, for standard/high-risk, a quiz, and presents it to the human.
 ---
 
 # PaganiStack Approval
@@ -75,12 +75,8 @@ What could still be wrong.
 The files, commands, or pages the human should look at.
 
 ## Quiz
-1. <question about the change>?
-   Answer: <answer>.
-2. <question>?
-   Answer: <answer>.
-3. <question>?
-   Answer: <answer>.
+Required for `standard` and `high-risk`: 3-5 questions with answers.
+For `trivial`, `bugfix`, and `small`: `Not applicable`.
 
 ## For the human
 Only when escalating: the exact decision or check you need, and the files to
@@ -92,8 +88,11 @@ Rules:
 - The first line must be exactly `APPROVE` or `ESCALATE`.
 - The explainer is for a human who has not read the diff. Explain the mechanism,
   not the line numbers.
-- The quiz has 3-5 questions. They must be answerable from the artifacts and the
-  code, not from hidden context. Include the answers.
+- The quiz is mandatory only for `standard` and `high-risk`. It has 3-5
+  questions, answerable from the artifacts and the code, not from hidden
+  context. Include the answers.
+- For `trivial`, `bugfix`, and `small`, write a short explainer and no quiz; mark
+  `## Quiz` as `Not applicable`.
 - Do not invent acceptance criteria. Use `SPEC.md`.
 - Do not approve a change you would not merge yourself.
 
@@ -103,8 +102,8 @@ After writing `decision.md`, present it to the human in the conversation:
 
 1. State the decision and the one-line why.
 2. Show the explainer.
-3. Show the quiz without the answers first, then the answers after the human
-   attempts it, or together if they prefer.
+3. For `standard` and `high-risk`, show the quiz without the answers first, then
+   the answers after the human attempts it, or together if they prefer.
 4. Ask for the decision with the native question tool. Offer approve and merge,
    approve and commit, approve and push, approve and open PR, rework, and reject.
 
@@ -115,13 +114,15 @@ The human decides. Do not merge or push before they answer.
 ```
 DECISION: APPROVE | ESCALATE
 WHY: <one line>
-QUIZ: <count> questions
+QUIZ: <count> questions | not applicable
 ```
 
 ## Gotchas
 
 - Approving with stale `checks.md`. Run `pagani job gate <job>` first.
 - Mapping an acceptance criterion to a build claim instead of evidence.
+- A quiz on a `trivial`, `bugfix`, or `small` lane, or a missing quiz on
+  `standard`/`high-risk`.
 - A quiz with formatting hints or answers that are not in the artifacts.
 - Approving a change you cannot explain in two sentences.
 - Missing the risk tier: auth, payments, data, deploy, schema, dependencies.

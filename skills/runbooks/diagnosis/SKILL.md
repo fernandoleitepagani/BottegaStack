@@ -59,9 +59,10 @@ rule.
 Write down the cause in one sentence. If you have two plausible causes, test the
 cheaper one first. Do not change code until the cause is stated.
 
-## Write `fix.md`
+## Write the fix brief
 
-For every `CHANGES` finding or failed check:
+For every `CHANGES` finding or failed check, write the brief into the builder
+prompt or append it to `round-N/review-code.md`:
 
 ```markdown
 # Fix round <N>
@@ -88,7 +89,8 @@ Rules:
 
 - Spawn a **fresh** builder for the affected ticket. Do not resume the failed
   builder.
-- Give it `fix.md`, the ticket, and the branch.
+- Give it `round-N/review-code.md` or the brief in its prompt, the task, and the
+  branch.
 - After the fix, re-run the deterministic checks.
 - Re-run only the reviewers whose verdict was `CHANGES` and any reviewer whose
   area the fix touched.

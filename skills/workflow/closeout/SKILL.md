@@ -15,7 +15,7 @@ Show:
 - the master's decision and why,
 - the acceptance-criteria mapping,
 - the explainer,
-- the quiz and its answers,
+- for `standard` and `high-risk` only, the quiz and its answers,
 - the exact git command you would run for each option.
 
 Ask with the native `question` tool:
@@ -93,7 +93,8 @@ claim.
 
 ## Rework
 
-1. Write the human's feedback verbatim to `pagani/jobs/<id>/human.md`.
+1. Append the human's feedback verbatim under `## Human decision` in
+   `pagani/jobs/<id>/decision.md`.
 2. Spawn a fresh builder with the feedback, the affected task, and the branch.
 3. Re-run the deterministic checks.
 4. Re-run the reviewers whose area the feedback touches.
@@ -101,14 +102,14 @@ claim.
 
 ## Reject
 
-1. Write the reason to `human.md`.
+1. Append the reason under `## Human decision` in `decision.md`.
 2. Keep the branch, worktrees, and job folder.
 3. Do not delete anything unless the human explicitly asks.
 
 ## Close
 
 1. Update `job.md`.
-2. Record the decision in `human.md`.
+2. Append the decision under `## Human decision` in `decision.md`.
 3. If the job produced a reusable lesson, propose one line for `AGENTS.md` or
    `mistakes.md`. Ask before editing.
 4. Tell the human what merged, what remains, and where the artifacts are.
@@ -118,5 +119,5 @@ claim.
 - Running push, merge, or PR without showing the exact command first.
 - Inferring consent from "looks good".
 - Force-pushing, resetting --hard, or cleaning.
-- Forgetting to record the decision in `human.md`.
+- Forgetting to record the decision in `decision.md`.
 - Deleting the branch or worktree before the human confirms.

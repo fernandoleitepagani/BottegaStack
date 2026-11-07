@@ -3,10 +3,8 @@
 
 # PaganiStack runtime state
 pagani/jobs/
-pagani/metrics.tsv
 pagani/retro-scan.md
 pagani/handoff.md
-pagani/dashboard.html
 .claude/settings.json.pagani-backup-*
 
 # Secrets
