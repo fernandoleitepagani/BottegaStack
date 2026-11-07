@@ -44,6 +44,7 @@ Useful flags:
 ./bin/pagani init /path/to/project
 ./bin/pagani job new "Add rate limiting"
 ./bin/pagani classify --diff
+./bin/pagani route <job>
 ./bin/pagani check <job>
 ./bin/pagani gate <job>
 ./bin/pagani usage start|end <job>

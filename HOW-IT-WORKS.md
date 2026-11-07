@@ -733,9 +733,11 @@ pagani lint
 pagani init [path]
 pagani job new "<title>"
 pagani classify [--diff]
+pagani route <job>
 pagani check <job>
 pagani gate <job>
 pagani worktree create <job> <ticket>
+pagani worktree prune <job>
 pagani worktree remove <path>
 pagani usage start|end <job>
 pagani usage [job]

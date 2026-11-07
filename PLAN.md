@@ -329,7 +329,7 @@ The master posts the graph and the first wave. Waits for `approve`.
 2. Parallel when the ready tickets touch disjoint files; sequential when they
    share a file, a migration, or one needs another's output.
 3. For a parallel wave, the master creates one worktree per ticket:
-   `git worktree add -b pagani/<job-id>/<ticket> ../<repo>-pagani/<job-id>/<ticket> pagani/<job-id>`.
+   `git worktree add -b pagani/<job-id>-<ticket> ../<repo>-pagani/<job-id>/<ticket> pagani/<job-id>`.
    For sequential tickets, the job checkout is enough.
 4. Spawn one `builder` per ticket. One ticket per builder. Each gets the job
    folder, ticket path, worktree, and branch.

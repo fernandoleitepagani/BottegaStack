@@ -21,9 +21,11 @@ Usage:
   pagani init [path]
   pagani job new "<title>"
   pagani classify [--diff]
+  pagani route <job>
   pagani check <job>
   pagani gate <job>
   pagani worktree create <job> <ticket>
+  pagani worktree prune <job>
   pagani worktree remove <path>
   pagani usage start|end <job>
   pagani usage [job]
@@ -337,6 +339,28 @@ cmd_classify() {
   fi
 }
 
+cmd_route() {
+  local job="${1:?job id required}"
+  local base="main"
+  [ -f "pagani/jobs/$job/job.md" ] && base="$(grep -m1 '^Base:' "pagani/jobs/$job/job.md" | sed 's/^Base:[[:space:]]*//')"
+  [ -n "$base" ] || base="main"
+  local files lenses="code" f
+  files="$(git diff --name-only "$base"...HEAD 2>/dev/null || true)"
+  for f in $files; do
+    case "$f" in
+      *component*|*style*|*.css|*.scss|*.vue|*.svelte|*.tsx|*.jsx|*page*|*template*)
+        lenses="$lenses ui ux" ;;
+    esac
+    case "$f" in
+      *auth*|*api*|*payment*|*migration*|*.sql|*db*|*database*|*secret*|*.pem|*.key|package.json|*lock*|.github/workflows/*)
+        lenses="$lenses security" ;;
+    esac
+  done
+  lenses="$(printf '%s\n' $lenses | awk '!seen[$0]++' | tr '\n' ' ' | sed 's/ $//')"
+  echo "REVIEWERS: $lenses"
+  echo "FILES: $(printf '%s\n' "$files" | wc -l | tr -d ' ')"
+}
+
 cmd_check() {
   local job="${1:?job id required}"
   local dir="pagani/jobs/$job"
@@ -531,9 +555,32 @@ cmd_worktree() {
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
       base="$(git branch --show-current)"
-      git worktree add -b "pagani/$job/$ticket" "../$name-pagani/$job/$ticket" "pagani/$job" 2>/dev/null \
-        || git worktree add -b "pagani/$job/$ticket" "../$name-pagani/$job/$ticket" "$base"
-      echo "worktree: ../$name-pagani/$job/$ticket"
+      git worktree add -b "pagani/$job-$ticket" "../$name-pagani/$job/$ticket" "pagani/$job" 2>/dev/null \
+        || git worktree add -b "pagani/$job-$ticket" "../$name-pagani/$job/$ticket" "$base"
+      local path="../$name-pagani/$job/$ticket"
+      local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
+      echo "worktree: $path"
+      echo "port: $port"
+      local ticket_file="pagani/jobs/$job/tickets/$ticket.md"
+      if [ -f "$ticket_file" ] && ! grep -q '^Port:' "$ticket_file"; then
+        printf '\nPort: %s\n' "$port" >> "$ticket_file"
+      fi
+      ;;
+    prune)
+      local job="${2:?job id required}"
+      local repo name root
+      repo="$(git rev-parse --show-toplevel)"
+      name="$(basename "$repo")"
+      root="../$name-pagani/$job"
+      if [ -d "$root" ]; then
+        for wt in "$root"/*; do
+          [ -d "$wt" ] || continue
+          git worktree remove "$wt" 2>/dev/null || true
+          echo "removed: $wt"
+        done
+      else
+        echo "no worktrees for $job"
+      fi
       ;;
     remove)
       local path="${2:?path required}"
@@ -640,6 +687,7 @@ case "$cmd" in
     cmd_job_new "$@"
     ;;
   classify) cmd_classify "$@" ;;
+  route) cmd_route "$@" ;;
   check) cmd_check "$@" ;;
   gate) cmd_gate "$@" ;;
   init) cmd_init "${1:-$PWD}" ;;
