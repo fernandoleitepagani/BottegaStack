@@ -1,0 +1,16 @@
+# PaganiStack runtime state
+pagani/jobs/
+pagani/metrics.tsv
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Dependencies
+node_modules/

@@ -1,0 +1,652 @@
+#!/usr/bin/env bash
+# PaganiStack installer and helper CLI.
+# No state machine. It installs files, checks them, and scaffolds a project.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TARGET="opencode"
+MODE="link"
+DRY_RUN=0
+ASSUME_YES=0
+COMMAND_DIR="commands"
+STAMP="$(date +%Y%m%d-%H%M%S)"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  pagani install [--target opencode|claude|both] [--link|--copy] [--dry-run]
+  pagani uninstall [--target opencode|claude|both] [--yes]
+  pagani doctor
+  pagani lint
+  pagani init [path]
+  pagani job new "<title>"
+  pagani classify [--diff]
+  pagani check <job>
+  pagani gate <job>
+  pagani worktree create <job> <ticket>
+  pagani worktree remove <path>
+  pagani usage start|end <job>
+  pagani usage [job]
+  pagani status
+  pagani pr <number>
+
+Targets:
+  opencode  ~/.config/opencode
+  claude    ~/.claude
+
+The skills source is organized by category. The installer flattens it to
+<target>/skills/<name> because both runtimes discover skills at that depth.
+EOF
+}
+
+config_dir() {
+  case "$1" in
+    opencode) printf '%s/opencode\n' "${XDG_CONFIG_HOME:-$HOME/.config}" ;;
+    claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
+    *) echo "unknown target: $1" >&2; exit 1 ;;
+  esac
+}
+
+backup_path() {
+  local path="$1" config="$2"
+  if [ -e "$path" ] || [ -L "$path" ]; then
+    local dir="$config/.pagani-backup-$STAMP"
+    mkdir -p "$dir"
+    mv "$path" "$dir/$(basename "$path")"
+    echo "backup: $path -> $dir/$(basename "$path")"
+  fi
+}
+
+install_one() {
+  local src="$1" dest="$2" config="$3"
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "would install: $src -> $dest"
+    return
+  fi
+  mkdir -p "$(dirname "$dest")"
+  if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
+    printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+    return
+  fi
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    backup_path "$dest" "$config"
+  fi
+  if [ "$MODE" = "copy" ]; then
+    cp -R "$src" "$dest"
+  else
+    ln -sfn "$src" "$dest"
+  fi
+  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+}
+
+install_skills() {
+  local config="$1" target="$2"
+  local dest_root="$config/skills"
+  mkdir -p "$dest_root"
+  while IFS= read -r skill; do
+    local src name dest
+    src="$(dirname "$skill")"
+    name="$(basename "$src")"
+    dest="$dest_root/$name"
+    install_one "$src" "$dest" "$config"
+  done < <(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | sort)
+}
+
+install_agents() {
+  local config="$1" target="$2"
+  local src_dir="$ROOT/agents/$target"
+  [ -d "$src_dir" ] || return 0
+  while IFS= read -r agent; do
+    install_one "$agent" "$config/agents/$(basename "$agent")" "$config"
+  done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
+}
+
+install_claude_command() {
+  local config="$1"
+  local src="$ROOT/commands/claude/pagani.md"
+  local master="$ROOT/agents/claude/master.md"
+  local dest="$config/$COMMAND_DIR/pagani.md"
+  [ -f "$src" ] && [ -f "$master" ] || return 0
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "would generate: $dest (command header + master body)"
+    return 0
+  fi
+  mkdir -p "$(dirname "$dest")"
+  local tmp
+  tmp="$(mktemp)"
+  awk 'NR==1{print; next} {print; if ($0=="---") exit}' "$src" > "$tmp"
+  awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$master" >> "$tmp"
+  awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$src" >> "$tmp"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    backup_path "$dest" "$config"
+  fi
+  mv "$tmp" "$dest"
+  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+}
+
+install_commands() {
+  local config="$1" target="$2"
+  if [ "$target" = "claude" ]; then
+    install_claude_command "$config"
+    return 0
+  fi
+  local src_dir="$ROOT/commands/$target"
+  [ -d "$src_dir" ] || return 0
+  while IFS= read -r cmd; do
+    install_one "$cmd" "$config/$COMMAND_DIR/$(basename "$cmd")" "$config"
+  done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
+}
+
+model_for() {
+  local target="$1" role="$2" tier="$3"
+  awk -v t="$target" -v r="$role" -v tier="$tier" '
+    $1==t && $2==r && $3==tier { exact=$4 }
+    $1==t && $2=="*" && $3==tier { fallback=$4 }
+    END { print (exact ? exact : fallback) }
+  ' "$ROOT/agents/models.conf"
+}
+
+install_variant() {
+  local target="$1" base="$2" variant="$3" tier="$4" config="$5"
+  local src="$ROOT/agents/$target/$base.md"
+  [ -f "$src" ] || return 0
+  local model
+  model="$(model_for "$target" "$base" "$tier")"
+  if [ -z "$model" ]; then
+    echo "no model for $target/$base/$tier" >&2
+    return 1
+  fi
+  local dest="$config/agents/$variant.md"
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "would generate: $variant -> $dest ($model)"
+    return 0
+  fi
+  mkdir -p "$config/agents"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    backup_path "$dest" "$config"
+  fi
+  if [ "$target" = "claude" ]; then
+    sed -e "s|^name: .*|name: $variant|" -e "s|^model: .*|model: $model|" "$src" > "$dest"
+  else
+    sed -e "s|^model: .*|model: $model|" "$src" > "$dest"
+  fi
+  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
+}
+
+install_agent_variants() {
+  local config="$1" target="$2"
+  install_variant "$target" planner planner-std std "$config"
+  install_variant "$target" planner planner-strong strong "$config"
+  install_variant "$target" builder builder-lite lite "$config"
+  install_variant "$target" builder builder-strong strong "$config"
+  install_variant "$target" review-code review-code-lite lite "$config"
+  install_variant "$target" review-code review-code-strong strong "$config"
+  install_variant "$target" review-security review-security-strong strong "$config"
+  install_variant "$target" approver approver-strong strong "$config"
+}
+
+cmd_install() {
+  local targets=()
+  case "$TARGET" in
+    both) targets=(opencode claude) ;;
+    opencode|claude) targets=("$TARGET") ;;
+    *) echo "unknown target: $TARGET" >&2; exit 1 ;;
+  esac
+  for t in "${targets[@]}"; do
+    local config
+    config="$(config_dir "$t")"
+    echo "== $t -> $config =="
+    if [ "$DRY_RUN" = "0" ]; then
+      mkdir -p "$config"
+      : > "$config/.pagani-manifest-$(basename "$config").txt"
+    fi
+    install_skills "$config" "$t"
+    install_agents "$config" "$t"
+    install_agent_variants "$config" "$t"
+    install_commands "$config" "$t"
+    echo "installed: $t"
+  done
+}
+
+cmd_uninstall() {
+  local targets=()
+  case "$TARGET" in
+    both) targets=(opencode claude) ;;
+    opencode|claude) targets=("$TARGET") ;;
+    *) echo "unknown target: $TARGET" >&2; exit 1 ;;
+  esac
+  for t in "${targets[@]}"; do
+    local config manifest
+    config="$(config_dir "$t")"
+    manifest="$config/.pagani-manifest-$(basename "$config").txt"
+    [ -f "$manifest" ] || { echo "no manifest for $t"; continue; }
+    if [ "$ASSUME_YES" != "1" ]; then
+      echo "Remove the paths in $manifest? [y/N]"
+      read -r answer
+      [ "$answer" = "y" ] || [ "$answer" = "Y" ] || continue
+    fi
+    while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      if [ -L "$path" ] || [ -f "$path" ]; then
+        rm -f "$path"
+        echo "removed: $path"
+      elif [ -d "$path" ]; then
+        rm -rf "$path"
+        echo "removed: $path"
+      fi
+    done < "$manifest"
+    rm -f "$manifest"
+  done
+}
+
+cmd_job_new() {
+  local title="${1:?title required}"
+  local repo
+  repo="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  cd "$repo"
+  if [ -n "$(git status --porcelain)" ]; then
+    echo "working tree is dirty; commit or stash first" >&2
+    exit 1
+  fi
+  mkdir -p pagani/jobs
+  local next=001
+  local d
+  for d in pagani/jobs/*; do
+    [ -d "$d" ] || continue
+    local n
+    n="$(basename "$d" | cut -d- -f1)"
+    if [[ "$n" =~ ^[0-9]+$ ]] && [ "$((10#$n))" -ge "$((10#$next))" ]; then
+      next="$(printf '%03d' "$((10#$n + 1))")"
+    fi
+  done
+  local slug id
+  slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-//; s/-$//' | cut -c1-40)"
+  id="$next-$slug"
+  mkdir "pagani/jobs/$id"
+  cat > "pagani/jobs/$id/job.md" <<EOF
+# Job $id — $title
+
+Stage: setup
+Round: 0
+Lane: pending
+Lane-reason: pending
+Branch: pagani/$id
+Base: $(git branch --show-current)
+
+## Steps
+- [ ] setup
+- [ ] plan
+- [ ] spec
+- [ ] tickets
+- [ ] build
+- [ ] checks
+- [ ] review
+- [ ] approve
+- [ ] human
+EOF
+  git switch -c "pagani/$id" >/dev/null 2>&1 || git checkout -b "pagani/$id" >/dev/null 2>&1 || true
+  echo "job: $id"
+  echo "folder: pagani/jobs/$id"
+  echo "branch: pagani/$id"
+}
+
+cmd_classify() {
+  local diff=0
+  [ "${1:-}" = "--diff" ] && diff=1
+  local base="main"
+  local jobfile
+  jobfile="$(ls -1t pagani/jobs/*/job.md 2>/dev/null | head -1 || true)"
+  if [ -n "$jobfile" ]; then
+    base="$(grep -m1 '^Base:' "$jobfile" | sed 's/^Base:[[:space:]]*//')"
+    [ -n "$base" ] || base="main"
+  fi
+  local files
+  if [ "$diff" = "1" ]; then
+    files="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" 2>/dev/null || true)"
+  else
+    files="$(git status --porcelain | awk '{print $2}' | sed '/^$/d')"
+  fi
+  if [ -z "$files" ]; then
+    echo "LANE: trivial"
+    echo "REASON: no changed files"
+    return 0
+  fi
+  local risk=0 docs_only=1 count lines f
+  count="$(printf '%s\n' "$files" | wc -l | tr -d ' ')"
+  for f in $files; do
+    case "$f" in
+      *auth*|*api*|*migrations*|*.sql|package.json|*lock*|.github/workflows/*|Dockerfile*|install*|*secrets*|*.pem|*.key)
+        risk=1 ;;
+    esac
+    case "$f" in
+      *.md|*.txt|*.rst|*.json|*.yml|*.yaml) ;;
+      *) docs_only=0 ;;
+    esac
+  done
+  lines="$(git diff --numstat "$base"...HEAD 2>/dev/null | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+  [ -n "$lines" ] || lines=0
+  if [ "$risk" = "1" ] || [ "$lines" -gt 300 ]; then
+    echo "LANE: high-risk"
+    echo "REASON: risk path or >300 changed lines"
+  elif [ "$docs_only" = "1" ] && [ "$count" -le 3 ]; then
+    echo "LANE: trivial"
+    echo "REASON: docs/config only, ${count} files"
+  else
+    echo "LANE: small"
+    echo "REASON: ${count} files, ${lines} changed lines, no risk path"
+  fi
+}
+
+cmd_check() {
+  local job="${1:?job id required}"
+  local dir="pagani/jobs/$job"
+  [ -d "$dir" ] || { echo "job not found: $job" >&2; exit 1; }
+  [ -x scripts/check ] || { echo "scripts/check not found or not executable" >&2; exit 1; }
+  local start end duration sha result code output
+  start="$(date +%s)"
+  set +e
+  output="$(./scripts/check 2>&1)"
+  code=$?
+  set -e
+  end="$(date +%s)"
+  duration=$((end - start))
+  sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  if [ "$code" -eq 0 ]; then result="PASS"; else result="FAIL"; fi
+  {
+    echo "RESULT: $result"
+    echo "HEAD: $sha"
+    echo "DATE: $(date -Iseconds)"
+    echo "DURATION: ${duration}s"
+    echo "EXIT: $code"
+    echo
+    echo "## Output"
+    echo '```'
+    echo "$output"
+    echo '```'
+  } > "$dir/checks.md"
+  echo "check: $result (${duration}s, exit $code)"
+  [ "$code" -eq 0 ]
+}
+
+cmd_gate() {
+  local job="${1:?job id required}"
+  local file="pagani/jobs/$job/checks.md"
+  [ -f "$file" ] || { echo "GATE: FAIL (no checks.md)"; return 1; }
+  local result sha head
+  result="$(grep -m1 '^RESULT:' "$file" | sed 's/^RESULT:[[:space:]]*//')"
+  sha="$(grep -m1 '^HEAD:' "$file" | sed 's/^HEAD:[[:space:]]*//')"
+  head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  if [ "$result" != "PASS" ]; then
+    echo "GATE: FAIL (checks result: ${result:-missing})"
+    return 1
+  fi
+  if [ "$sha" != "$head" ]; then
+    echo "GATE: FAIL (checks stale: $sha != $head)"
+    return 1
+  fi
+  echo "GATE: PASS"
+}
+
+cmd_lint() {
+  local fail=0
+  echo "PaganiStack lint"
+  for f in "$ROOT"/skills/*/*/SKILL.md; do
+    [ -f "$f" ] || continue
+    local d n
+    d="$(basename "$(dirname "$f")")"
+    n="$(sed -n 's/^name: //p' "$f" | head -1)"
+    if [ "$d" != "$n" ]; then
+      echo "FAIL name mismatch: $f (dir=$d name=$n)"
+      fail=1
+    fi
+    if ! grep -q '^description:' "$f"; then
+      echo "FAIL missing description: $f"
+      fail=1
+    fi
+  done
+
+  for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json; do
+    if [ ! -f "$ROOT/resources/$f" ]; then
+      echo "FAIL missing resource: resources/$f"
+      fail=1
+    fi
+  done
+
+  if [ ! -f "$ROOT/agents/models.conf" ]; then
+    echo "FAIL missing models: agents/models.conf"
+    fail=1
+  fi
+
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$name" | grep -q .; then
+      echo "FAIL unresolved skill reference: $name"
+      fail=1
+    fi
+  done < <(grep -rhoE '([Ll]oad|loads)( the)? `[a-z0-9][a-z0-9-]*`' "$ROOT/agents" "$ROOT/skills" 2>/dev/null | grep -oE '`[a-z0-9][a-z0-9-]*`' | tr -d '`' | sort -u)
+
+  for f in "$ROOT/agents/opencode/master.md" "$ROOT/agents/claude/master.md"; do
+    if ! grep -q 'Step 0' "$f"; then
+      echo "FAIL missing Step 0: $f"
+      fail=1
+    fi
+  done
+
+  if [ "$fail" = "0" ]; then
+    echo "lint: PASS"
+  else
+    echo "lint: FAIL"
+    return 1
+  fi
+}
+
+cmd_doctor() {
+  echo "PaganiStack doctor"
+  echo "root: $ROOT"
+  command -v opencode >/dev/null 2>&1 && echo "opencode: yes ($(opencode --version 2>/dev/null | head -1))" || echo "opencode: no"
+  command -v claude >/dev/null 2>&1 && echo "claude: yes" || echo "claude: no"
+  command -v gh >/dev/null 2>&1 && echo "gh: yes" || echo "gh: no"
+  command -v agent-browser >/dev/null 2>&1 && echo "agent-browser: yes" || echo "agent-browser: no (install: npm install -g agent-browser)"
+  command -v node >/dev/null 2>&1 && echo "node: yes ($(node --version))" || echo "node: no"
+
+  local skills
+  skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
+  echo "skills: $skills"
+
+  local missing=()
+  for s in grilling wizard writing-for-agents diagnosing-bugs tdd codebase-design domain-modeling code-review pr skill-creator agent-browser vercel-react-best-practices session-handoff session-retro; do
+    if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$s" | grep -q .; then
+      missing+=("$s")
+    fi
+  done
+  if [ "${#missing[@]}" -gt 0 ]; then
+    echo "missing upstream skills: ${missing[*]}"
+    echo "install with: npx skills add <owner/repo@skill>"
+  else
+    echo "upstream skills: present"
+  fi
+
+  if [ -f AGENTS.md ]; then
+    local lines
+    lines="$(wc -l < AGENTS.md | tr -d ' ')"
+    echo "AGENTS.md lines: $lines"
+    [ "$lines" -gt 200 ] && echo "warning: AGENTS.md is over 200 lines; move detail into skills"
+  else
+    echo "AGENTS.md: missing (run pagani init)"
+  fi
+
+  if [ -d .git ] && git ls-files --error-unmatch .env >/dev/null 2>&1; then
+    echo "warning: .env is tracked by git"
+  fi
+
+  if [ -f .claude/settings.json ]; then
+    echo "project claude settings: yes"
+  else
+    echo "project claude settings: missing (run pagani init)"
+  fi
+
+  for t in opencode claude; do
+    local config
+    config="$(config_dir "$t")"
+    echo "$t config: $config"
+    [ -d "$config" ] && echo "  exists" || echo "  missing"
+  done
+
+  cmd_lint || true
+}
+
+cmd_init() {
+  local dest="${1:-$PWD}"
+  mkdir -p "$dest/scripts" "$dest/docs/adr" "$dest/.github" "$dest/.claude" "$dest/pagani/jobs"
+  [ -f "$dest/AGENTS.md" ] || cp "$ROOT/resources/AGENTS.md" "$dest/AGENTS.md"
+  [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
+  [ -f "$dest/scripts/verify" ] || cp "$ROOT/resources/verify.sh" "$dest/scripts/verify"
+  [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
+  [ -f "$dest/REVIEW.md" ] || cp "$ROOT/resources/REVIEW.md" "$dest/REVIEW.md"
+  [ -f "$dest/CODING_STANDARDS.md" ] || cp "$ROOT/resources/CODING_STANDARDS.md" "$dest/CODING_STANDARDS.md"
+  [ -f "$dest/GLOSSARY.md" ] || cp "$ROOT/resources/GLOSSARY.md" "$dest/GLOSSARY.md"
+  [ -f "$dest/BACKLOG.md" ] || cp "$ROOT/resources/BACKLOG.md" "$dest/BACKLOG.md"
+  [ -f "$dest/TASKS.md" ] || cp "$ROOT/resources/TASKS.md" "$dest/TASKS.md"
+  [ -f "$dest/mistakes.md" ] || cp "$ROOT/resources/mistakes.md" "$dest/mistakes.md"
+  [ -f "$dest/CLAUDE.md" ] || printf '@AGENTS.md\n' > "$dest/CLAUDE.md"
+  [ -f "$dest/.github/pull_request_template.md" ] || cp "$ROOT/resources/PR-TEMPLATE.md" "$dest/.github/pull_request_template.md"
+  [ -f "$dest/docs/FEATURE-MAP.md" ] || cp "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md"
+  [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
+  [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
+  chmod +x "$dest/scripts/check" "$dest/scripts/verify"
+  if [ -f "$dest/.gitignore" ]; then
+    grep -q '^pagani/jobs/' "$dest/.gitignore" || printf '\npagani/jobs/\n' >> "$dest/.gitignore"
+  else
+    cp "$ROOT/resources/.gitignore" "$dest/.gitignore"
+  fi
+  echo "initialized: $dest"
+}
+
+cmd_worktree() {
+  local action="${1:-}"
+  case "$action" in
+    create)
+      local job="${2:?job id required}" ticket="${3:?ticket required}"
+      local repo name base
+      repo="$(git rev-parse --show-toplevel)"
+      name="$(basename "$repo")"
+      base="$(git branch --show-current)"
+      git worktree add -b "pagani/$job/$ticket" "../$name-pagani/$job/$ticket" "pagani/$job" 2>/dev/null \
+        || git worktree add -b "pagani/$job/$ticket" "../$name-pagani/$job/$ticket" "$base"
+      echo "worktree: ../$name-pagani/$job/$ticket"
+      ;;
+    remove)
+      local path="${2:?path required}"
+      git worktree remove "$path"
+      echo "removed: $path"
+      ;;
+    *)
+      echo "usage: pagani worktree create <job> <ticket> | remove <path>" >&2
+      exit 1
+      ;;
+  esac
+}
+
+cmd_usage() {
+  local action="${1:-}" job="${2:-}"
+  if [ "$action" = "start" ] || [ "$action" = "end" ]; then
+    [ -n "$job" ] || { echo "job id required" >&2; exit 1; }
+    local file="pagani/jobs/$job/usage.md"
+    mkdir -p "pagani/jobs/$job"
+    {
+      echo "## $action $(date -Iseconds)"
+      if command -v opencode >/dev/null 2>&1; then
+        echo "### opencode stats"
+        opencode stats 2>/dev/null || true
+      fi
+      if command -v ccusage >/dev/null 2>&1; then
+        echo "### ccusage"
+        ccusage 2>/dev/null || true
+      fi
+    } >> "$file"
+    echo "usage: $action $job -> $file"
+    if [ "$action" = "end" ]; then
+      local lane rounds fixes reworks first
+      lane="$(grep -m1 '^Lane:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Lane:[[:space:]]*//' || true)"
+      rounds="$(grep -m1 '^Round:' "pagani/jobs/$job/job.md" 2>/dev/null | sed 's/^Round:[[:space:]]*//' || true)"
+      fixes="$(find "pagani/jobs/$job" -maxdepth 1 -name 'fix-*.md' 2>/dev/null | wc -l | tr -d ' ')"
+      reworks="$(grep -ci 'rework' "pagani/jobs/$job/human.md" 2>/dev/null || true)"
+      first="$(grep -m1 '^RESULT:' "pagani/jobs/$job/checks.md" 2>/dev/null | sed 's/^RESULT:[[:space:]]*//' || true)"
+      [ -f pagani/metrics.tsv ] || printf 'date\tjob\tlane\treview_rounds\tfix_rounds\thuman_reworks\tchecks_first_pass\n' > pagani/metrics.tsv
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%F)" "$job" "${lane:-?}" "${rounds:-0}" "$fixes" "${reworks:-0}" "${first:-?}" >> pagani/metrics.tsv
+      echo "metrics: pagani/metrics.tsv"
+    fi
+    return
+  fi
+  if command -v opencode >/dev/null 2>&1; then
+    opencode stats 2>/dev/null || true
+  fi
+  if [ -n "$action" ] && [ -f "pagani/jobs/$action/usage.md" ]; then
+    echo "== usage: $action =="
+    cat "pagani/jobs/$action/usage.md"
+  fi
+}
+
+cmd_status() {
+  local found=0
+  for job in pagani/jobs/*/job.md; do
+    [ -f "$job" ] || continue
+    found=1
+    local id stage round lane
+    id="$(basename "$(dirname "$job")")"
+    stage="$(grep -m1 '^Stage:' "$job" | sed 's/^Stage:[[:space:]]*//')"
+    round="$(grep -m1 '^Round:' "$job" | sed 's/^Round:[[:space:]]*//')"
+    lane="$(grep -m1 '^Lane:' "$job" | sed 's/^Lane:[[:space:]]*//')"
+    printf '%-32s lane=%-10s stage=%-12s round=%s\n' "$id" "${lane:-?}" "${stage:-?}" "${round:-0}"
+  done
+  [ "$found" = "1" ] || echo "no jobs"
+}
+
+cmd_pr() {
+  local n="${1:?PR number required}"
+  command -v gh >/dev/null 2>&1 || { echo "gh is required" >&2; exit 1; }
+  echo "== PR $n =="
+  gh pr view "$n" --json number,title,state,isDraft,mergeable,reviewDecision,statusCheckRollup 2>/dev/null || gh pr view "$n"
+  echo "== checks =="
+  gh pr checks "$n" 2>/dev/null || true
+  echo "== files =="
+  gh pr diff "$n" --name-only 2>/dev/null || true
+  echo
+  echo "Load the review-pr skill and write review-pr.md. Do not merge."
+}
+
+# Parse top-level command and flags.
+cmd="${1:-}"
+shift || true
+case "$cmd" in
+  install|uninstall)
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --target) TARGET="$2"; shift 2 ;;
+        --link) MODE="link"; shift ;;
+        --copy) MODE="copy"; shift ;;
+        --dry-run) DRY_RUN=1; shift ;;
+        --yes) ASSUME_YES=1; shift ;;
+        --command-dir) COMMAND_DIR="$2"; shift 2 ;;
+        *) echo "unknown flag: $1" >&2; exit 1 ;;
+      esac
+    done
+    if [ "$cmd" = "install" ]; then cmd_install; else cmd_uninstall; fi
+    ;;
+  doctor) cmd_doctor ;;
+  lint) cmd_lint ;;
+  job)
+    if [ "${1:-}" = "new" ]; then shift; fi
+    cmd_job_new "$@"
+    ;;
+  classify) cmd_classify "$@" ;;
+  check) cmd_check "$@" ;;
+  gate) cmd_gate "$@" ;;
+  init) cmd_init "${1:-$PWD}" ;;
+  worktree) cmd_worktree "$@" ;;
+  usage) cmd_usage "$@" ;;
+  status) cmd_status ;;
+  pr) cmd_pr "$@" ;;
+  help|--help|-h|"") usage ;;
+  *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
+esac
