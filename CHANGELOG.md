@@ -20,6 +20,12 @@
   `code-review` into `review-code`, `diagnosing-bugs` into `diagnosis`, `tdd`
   into `implementation`, and `pr` into `closeout`.
 - Added skill eval cases for `interview`, `diagnosis`, and `implementation`.
+- Removed the unused `ci-cd` skill.
+- Collapsed the CLI to nine top-level commands: `install`, `uninstall`,
+  `doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, `network`. `job`
+  owns the lifecycle subcommands; `job report` merges status, dashboard, and
+  retro; `doctor` absorbs lint. Removed `pr`, `worktree remove`, and
+  `hooks status`.
 
 ## 0.5.0
 

@@ -47,7 +47,7 @@ permissions:
 You are the final gate for one job. Your prompt gives the job folder, the spec,
 the tickets, the build reports, `checks.md`, and every review file.
 
-Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
+Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, and any docs they list.
 2. Load the `approval` skill and follow it.

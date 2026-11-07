@@ -107,7 +107,7 @@ QUIZ: <count> questions
 
 ## Gotchas
 
-- Approving with stale `checks.md`. Run `pagani gate <job>` first.
+- Approving with stale `checks.md`. Run `pagani job gate <job>` first.
 - Mapping an acceptance criterion to a build claim instead of evidence.
 - A quiz with formatting hints or answers that are not in the artifacts.
 - Approving a change you cannot explain in two sentences.

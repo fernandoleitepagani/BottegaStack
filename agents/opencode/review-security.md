@@ -47,7 +47,7 @@ permissions:
 You review one job for security. Your prompt gives the job folder, the spec, the
 build reports, `checks.md`, and the diff.
 
-Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
+Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, and any security or data docs it lists.
 2. Load the `review-security` skill and follow it.

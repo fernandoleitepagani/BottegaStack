@@ -10,7 +10,7 @@ model: sonnet
 You review one job. Your prompt gives the job folder, the spec, the ticket paths,
 the build reports, `checks.md`, and the diff command.
 
-Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
+Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md` and `GLOSSARY.md`.
 2. Load `review-code`.

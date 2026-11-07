@@ -9,7 +9,7 @@ model: opus
 
 You review one job for security.
 
-Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
+Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, and any security or data docs it lists.
 2. Load `review-security`.

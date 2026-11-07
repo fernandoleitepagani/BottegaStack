@@ -49,23 +49,23 @@ Add `pagani/jobs/` to `.gitignore`.
    `## Risk paths` section of `REVIEW.md`. Inspect the code. Load `lanes`,
    propose a lane, confirm it. Run `pagani job new "<short title>"` to create the
    folder and branch, then write `Lane`/`Lane-reason` to `job.md`. Run
-   `pagani usage start <job-id>`.
+   `pagani job usage start <job-id>`.
 
 **Lane handling.** Read `Lane:` from `job.md` at every step.
 
-- `trivial`: skip steps 1-3 and 8. Use `builder-lite`, `pagani check`,
+- `trivial`: skip steps 1-3 and 8. Use `builder-lite`, `pagani job check`,
   `review-code-lite`.
 - `bugfix`: skip 1-3 and 8. Load `diagnosis`, write a failing test first, use one
-  `builder`, `pagani check`, `review-code-lite` (plus `review-security` on a
+  `builder`, `pagani job check`, `review-code-lite` (plus `review-security` on a
   risk path).
 - `small`: short interview, `plan.md` with acceptance criteria, one ticket, no
-  separate spec/tickets index/approver. Use `builder`, `pagani check`,
+  separate spec/tickets index/approver. Use `builder`, `pagani job check`,
   `review-code-lite`, routed lens.
 - `standard`: full flow.
 - `high-risk`: full flow plus `adversarial-review`, `simplify`,
   `review-security-strong`, `approver-strong`; quiz mandatory.
 
-After the first builder commit, run `pagani classify --diff`; escalate if it
+After the first builder commit, run `pagani job classify --diff`; escalate if it
 suggests a higher lane.
 
 1. **Plan.** Load `interview`. Ask with `AskUserQuestion` until every category is
@@ -73,11 +73,11 @@ suggests a higher lane.
    with `MODE: PLAN`. Load `summary`, post, wait.
 2. **Spec.** Spawn `planner` with `MODE: SPEC`. Load `summary`, post, wait.
 3. **Tickets.** Spawn `planner` with `MODE: TICKETS`. Load `summary`, post, wait.
-4. **Build.** Run `pagani frontier <job-id>` and use the printed ready set.
+4. **Build.** Run `pagani job frontier <job-id>` and use the printed ready set.
    Spawn one `builder` per ticket, parallel only on disjoint files. One worktree
    per ticket when parallel. Merge into the job branch. Load `summary`, post,
    wait.
-5. **Checks.** Run `pagani check <job-id>`. It runs `scripts/check` and writes
+5. **Checks.** Run `pagani job check <job-id>`. It runs `scripts/check` and writes
    `checks.md` with `RESULT`, `HEAD`, duration, exit code, and output. If it
    fails, load `diagnosis`, write `fix.md`, and spawn a fresh builder. No
    reviewers on a failing build.
@@ -91,9 +91,9 @@ suggests a higher lane.
    with `APPROVE` or `ESCALATE`, an explainer, and a quiz.
 9. **Human decision.** Load `closeout`. Use `AskUserQuestion` for merge, commit,
    push, PR, rework, or reject. Show the exact git command and confirm.
-10. **Close.** Update `job.md`, run `pagani usage end <job-id>` and
-    `pagani dashboard`, record the decision in `human.md`, and run
-    `pagani retro-scan --exit-code`. Load `session-retro`.
+10. **Close.** Update `job.md`, run `pagani job usage end <job-id>` and
+    `pagani job report --dashboard`, record the decision in `human.md`, and run
+    `pagani job report --retro --exit-code`. Load `session-retro`.
     If the scan exits 1, findings repeat across jobs: propose Gotchas patches
     for the affected skills. Otherwise propose one lesson for `AGENTS.md` or
     `mistakes.md`. Load `session-handoff` if the job continues elsewhere, then
@@ -156,9 +156,9 @@ allowlist covers Claude `WebFetch` only, not shell or `agent-browser` egress.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Usage snapshots: `pagani usage start <job>` at Step 0 and
-  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
-  `pagani dashboard` renders a read-only local summary.
+- Usage snapshots: `pagani job usage start <job>` at Step 0 and
+  `pagani job usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
+  `pagani job report --dashboard` renders a read-only local summary.
 
 ## Git
 

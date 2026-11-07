@@ -158,7 +158,7 @@ actions only when the user explicitly asks.
 - `agent-browser` for browser verification.
 - `untrusted-content` before reading web pages, PR bodies/comments,
   `BACKLOG.md`, logs, screenshots, or OCR.
-- `ci-cd`, `runbook`, `infra-ops`, `library-reference`, `data-analysis`,
+- `runbook`, `infra-ops`, `library-reference`, `data-analysis`,
   `weekly-review`, and `scaffold` for their categories.
 
 ## Subagent rules
@@ -190,9 +190,9 @@ actions only when the user explicitly asks.
   verification/security/bugfixes, max only for autonomous hard tasks.
 - Use `/clear` between unrelated tasks, `/compact` at a natural break, and
   `/rewind` instead of correcting a wrong path.
-- Usage snapshots: `pagani usage start <job>` at Step 0 and
-  `pagani usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
-  `pagani dashboard` renders a read-only local summary.
+- Usage snapshots: `pagani job usage start <job>` at Step 0 and
+  `pagani job usage end <job>` at Close; metrics go to `pagani/metrics.tsv`.
+  `pagani job report --dashboard` renders a read-only local summary.
 
 ## Job folder
 
@@ -270,7 +270,7 @@ Base: <branch>
    is dirty, stop and ask whether to proceed, stash, or use a worktree.
 5. Run `pagani job new "<short title>"` to create the folder and branch.
 6. Write `Lane` and `Lane-reason` to `job.md`.
-7. Run `pagani usage start <job-id>`.
+7. Run `pagani job usage start <job-id>`.
 8. Tell the user the job ID, lane, branch, and the first step.
 
 ## Lane handling
@@ -280,18 +280,18 @@ Read `Lane:` from `job.md` at every step and skip what the lane does not need.
 - `trivial`: skip Steps 1-3 and 8. Use `builder-lite` and
   `review-code-lite`. One summary at the end.
 - `bugfix`: skip Steps 1-3 and 8. Load `diagnosis`, write a failing test first,
-  use one `builder`, `pagani check`, and `review-code-lite` (plus
+  use one `builder`, `pagani job check`, and `review-code-lite` (plus
   `review-security` on a risk path). One summary at the end.
 - `small`: run a short interview (≤3 questions) and write `plan.md` with
   acceptance criteria; skip the separate spec, tickets index, and approver. Use
-  one ticket, `builder`, `pagani check`, `review-code-lite`, and the routed lens.
+  one ticket, `builder`, `pagani job check`, `review-code-lite`, and the routed lens.
 - `standard`: full flow. Collapse build and check summaries into the review
   summary.
 - `high-risk`: full flow plus `adversarial-review`, `simplify`,
   `review-security-strong`, and `approver-strong`. The quiz is mandatory; the
   human must read the diff before merge.
 
-After the first builder commit, run `pagani classify --diff`; if it suggests a
+After the first builder commit, run `pagani job classify --diff`; if it suggests a
 higher lane, escalate, update `job.md`, and tell the user in one line.
 
 ## Step 1 — Full plan (interactive)
@@ -319,7 +319,7 @@ higher lane, escalate, update `job.md`, and tell the user in one line.
 
 ## Step 4 — Implement
 
-1. Run `pagani frontier <job-id>` and use the printed ready set.
+1. Run `pagani job frontier <job-id>` and use the printed ready set.
 2. Parallel when the ready tickets touch disjoint files; sequential when they
    share a file, a migration, or one needs another's output.
 3. For a parallel wave, create one worktree per ticket:
@@ -343,7 +343,7 @@ broken build.
    typecheck, test, build, and a browser smoke test if the project has one.
 2. Run them in the job checkout. No watch mode, no prompts, no commands that
    rewrite files.
-3. Run `pagani check <job-id>`. It runs `scripts/check`, writes `checks.md` with
+3. Run `pagani job check <job-id>`. It runs `scripts/check`, writes `checks.md` with
    `RESULT`, `HEAD`, duration, exit code, and the output tail, and exits non-zero
    on failure.
 4. If any command fails: load `diagnosis`, write `fix.md`, spawn a fresh builder
@@ -412,10 +412,10 @@ independent one. The approver runs them again before approving.
 ## Step 10 — Close
 
 1. Update `job.md` to the final stage.
-2. Run `pagani usage end <job-id>`.
-3. Run `pagani dashboard`.
+2. Run `pagani job usage end <job-id>`.
+3. Run `pagani job report --dashboard`.
 4. Run only the action the user chose.
-5. Run `pagani retro-scan --exit-code`. If it exits 1, findings repeat across
+5. Run `pagani job report --retro --exit-code`. If it exits 1, findings repeat across
    jobs: load `session-retro` and propose Gotchas patches for the affected
    skills. If it exits 0, load `session-retro` and propose one environment
    change: a lint rule, a test, an `AGENTS.md` line, or a skill edit. Ask before

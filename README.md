@@ -57,7 +57,7 @@ and stops for approval. You drive the rest with `approve`, `rework <note>`,
 | `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 
 Use `/pagani --lane small <feature>` or `/pagani quick <feature>` to override.
-`pagani classify` prints `unknown` when there is no changed file; run it again
+`pagani job classify` prints `unknown` when there is no changed file; run it again
 after the first change. Lanes only escalate.
 
 ## Use
@@ -78,13 +78,13 @@ after the first change. Lanes only escalate.
 
 ## Skills
 
-Skills use the nine Claude Code categories plus `workflow/` and `design/`:
+Skills use the Claude Code categories plus `workflow/` and `design/`:
 
 ```
 library-api-reference/  product-verification/  data-analysis/
 business-automation/    scaffolding/           code-quality/
-ci-cd/                  runbooks/              infrastructure-ops/
-workflow/               design/
+runbooks/               infrastructure-ops/    workflow/
+design/
 ```
 
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
@@ -114,7 +114,7 @@ load.
 - Backups. There is no backup or restore command; use git and your own remote.
 - Prompt-injection enforcement. The `untrusted-content` skill is a convention,
   not a sandbox.
-- Cost tracking or a spending cap. `pagani usage` writes raw tool snapshots and
+- Cost tracking or a spending cap. `pagani job usage` writes raw tool snapshots and
   metrics; it does not calculate exact per-job cost or enforce a budget.
 - Skill usage logging. There is no `skill-usage.tsv` or `skill-log` command.
 - A weekly timer. `pagani weekly` and the systemd timer are not part of the

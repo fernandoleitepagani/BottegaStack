@@ -36,7 +36,7 @@ Then, in OpenCode or Claude Code:
 2. SPEC       spec.md                               [approve]
 3. TICKETS    tickets/                              [approve]
 4. BUILD      one builder per ready ticket          [approve per wave]
-5. CHECKS     pagani check -> checks.md             (fail -> builder)
+5. CHECKS     pagani job check -> checks.md             (fail -> builder)
 6. REVIEW     only the needed lenses                [summary]
 7. FIX        fix.md -> fresh builder -> checks -> affected reviews
 8. APPROVE    approver -> decision.md + quiz
@@ -72,22 +72,22 @@ vertical slice that fits one fresh context. You approve the graph.
 
 ### Step 4: Build
 
-The master runs `pagani frontier <job>` and spawns one builder per ready ticket.
+The master runs `pagani job frontier <job>` and spawns one builder per ready ticket.
 Parallel only when files are disjoint; one worktree per ticket when parallel.
 Each builder writes `build/<ticket>.md`. The master merges ticket branches into
 the job branch and posts a wave summary.
 
 ### Step 5: Checks
 
-The master runs `pagani check <job>`, which runs `scripts/check`, writes
+The master runs `pagani job check <job>`, which runs `scripts/check`, writes
 `checks.md` with `RESULT`, `HEAD`, duration, exit code, and the output tail, and
 appends one line per run to `checks.log`. A failure goes back to a fresh builder;
 no reviewer runs on a failing build.
 
 ### Step 6: Review
 
-The master runs `pagani gate <job>` first. A failing, stale, or dirty gate stops
-the review. It runs `pagani route <job>` for a suggested lens set, then uses only
+The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate stops
+the review. It runs `pagani job route <job>` for a suggested lens set, then uses only
 the needed lenses:
 
 - `review-code` — always.
@@ -120,8 +120,8 @@ rework, or reject. The master shows the exact git command before running it.
 ### Step 10: Close
 
 The master updates `job.md`, records the decision in `human.md`, runs
-`pagani usage end <job>` and `pagani dashboard`, runs
-`pagani retro-scan --exit-code`, and loads `session-retro` to propose one
+`pagani job usage end <job>` and `pagani job report --dashboard`, runs
+`pagani job report --retro --exit-code`, and loads `session-retro` to propose one
 environment change. On repeated findings it proposes Gotchas patches. It loads
 `session-handoff` if the job continues elsewhere.
 
@@ -146,9 +146,9 @@ Both masters read `Stage:` from `job.md` and never re-plan completed steps.
 | `standard` | normal product change | full flow |
 | `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 
-The master picks the lane at Step 0. `pagani classify` prints `unknown` when
+The master picks the lane at Step 0. `pagani job classify` prints `unknown` when
 there is no changed file; run it again after the first change. After the first
-builder commit, `pagani classify --diff` escalates if the diff grows or touches
+builder commit, `pagani job classify --diff` escalates if the diff grows or touches
 a risk path. Lanes never downgrade.
 
 ## Agents and models
@@ -171,7 +171,7 @@ security, and approval use the strong tier; search uses the cheap tier.
 
 ## Skills
 
-Skills use the nine Claude Code categories plus two extensions:
+Skills use the Claude Code categories plus two extensions:
 
 | Category | What belongs there |
 |---|---|
@@ -181,7 +181,6 @@ Skills use the nine Claude Code categories plus two extensions:
 | `business-automation` | Recurring workflow: backlog triage, weekly review, release notes. |
 | `scaffolding` | Create a new component, service, route, migration, or fixture. |
 | `code-quality` | Review lenses, implementation, design, simplification, tests. |
-| `ci-cd` | Checks, PR automation, merge queues, deploy, flags, rollback. |
 | `runbooks` | Investigate a symptom: incident, alert, “why is this broken”. |
 | `infrastructure-ops` | Dependencies, cost, access, orphaned resources, least privilege. |
 | `workflow` | Lanes, interview, planning, summary, closeout, handoff, retro, untrusted content. |
@@ -236,7 +235,6 @@ Setup and install:
 ```bash
 ./install.sh --target both
 ./bin/pagani doctor
-./bin/pagani lint
 ./bin/pagani init [path]
 ./bin/pagani upgrade [path]
 ```
@@ -245,31 +243,31 @@ Jobs and review:
 
 ```bash
 pagani job new "<title>"
-pagani frontier <job>
-pagani classify [--diff] [request text]
-pagani route <job>
-pagani status
-pagani check <job>
-pagani gate <job> [--allow-dirty]
+pagani job frontier <job>
+pagani job classify [--diff] [request text]
+pagani job route <job>
+pagani job report
+pagani job check <job>
+pagani job gate <job> [--allow-dirty]
 pagani worktree create <job> <ticket>
 pagani worktree prune <job> [--force]
-pagani pr <number>
+/pagani pr <number>
 ```
 
 Automation:
 
 ```bash
-pagani usage start|end <job>
-pagani dashboard [--open]
-pagani hooks install|uninstall|status [path]
+pagani job usage start|end <job>
+pagani job report --dashboard [--open]
+pagani hooks install|uninstall [path]
 pagani network init|check <url>
-pagani retro-scan [--write] [--exit-code]
+pagani job report --retro [--write] [--exit-code]
 ```
 
 ## Checks, review, and verification
 
-`scripts/check` is the project check script. `pagani check <job>` runs it and
-writes `checks.md` plus `checks.log`. `pagani gate <job>` fails when the latest
+`scripts/check` is the project check script. `pagani job check <job>` runs it and
+writes `checks.md` plus `checks.log`. `pagani job gate <job>` fails when the latest
 check failed, is stale, or the working tree is dirty.
 
 `scripts/verify` is the app/browser driver. It reads `scripts/verify.conf`
@@ -324,9 +322,9 @@ Everything here is optional and local. Nothing starts an agent or a server.
   the newest job's `handoff.md`, or `pagani/handoff.md`.
 - **Network allowlist.** `pagani network init` enables an opt-in Claude
   `WebFetch` allowlist. Shell and `agent-browser` egress are not covered.
-- **Dashboard.** `pagani dashboard` writes a local, read-only
+- **Dashboard.** `pagani job report --dashboard` writes a local, read-only
   `pagani/dashboard.html` with jobs, checks, and metrics.
-- **Usage snapshots.** `pagani usage start|end <job>` appends raw
+- **Usage snapshots.** `pagani job usage start|end <job>` appends raw
   `opencode`/`ccusage` snapshots to `usage.md` and records lane, rounds, fixes,
   reworks, and first-pass checks in `metrics.tsv`. It does not calculate exact
   per-job cost.
@@ -364,9 +362,9 @@ bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
 | `/pagani` not found | Run `./install.sh --target ...`; check `pagani doctor`. |
 | Skills not loading | The installer flattens categories. Check `<target>/skills/<name>/SKILL.md`. |
 | Checks always fail | Fill `scripts/check`; it exits 1 until configured. |
-| `pagani gate` says stale | Run `pagani check <job>` after the latest commit. |
-| `pagani gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
-| `pagani lint` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
+| `pagani job gate` says stale | Run `pagani job check <job>` after the latest commit. |
+| `pagani job gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
+| `pagani doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `pagani init`. |
 | Claude settings has no hooks | Run `pagani upgrade`. |
 | Model variants missing | Re-run `./install.sh --target ...`. |
@@ -374,7 +372,7 @@ bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
 | Git hooks missing | Run `pagani hooks install [path]`. |
 | `pagani upgrade` fails | Install `python3`. |
 | Network check denies a host | Add it to `pagani/network-allowlist.txt`, or remove the file. |
-| Dashboard is stale | Re-run `pagani dashboard`; it is a static file. |
+| Dashboard is stale | Re-run `pagani job report --dashboard`; it is a static file. |
 | Context full | `session-handoff` + `TASKS.md`; start a fresh session. |
 
 ## Claude smoke test
@@ -391,7 +389,7 @@ Run this by hand after installing or upgrading the Claude Code target.
 5. `scripts/claude-hook.sh webfetch-guard` allows with no allowlist, allows a
    listed host, and denies an unlisted host.
 6. `/pagani status` loads the generated command and reads the newest job.
-7. `pagani gate <job>` fails after an uncommitted edit and passes with
+7. `pagani job gate <job>` fails after an uncommitted edit and passes with
    `--allow-dirty`.
 
 ## Sources

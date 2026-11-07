@@ -17,26 +17,20 @@ Usage:
   pagani install [--target opencode|claude|both] [--link|--copy] [--dry-run]
   pagani uninstall [--target opencode|claude|both] [--yes]
   pagani doctor
-  pagani lint
   pagani init [path]
   pagani upgrade [path]
   pagani job new "<title>"
-  pagani frontier <job>
-  pagani classify [--diff] [request text]
-  pagani route <job>
-  pagani check <job>
-  pagani gate <job> [--allow-dirty]
+  pagani job frontier <job>
+  pagani job classify [--diff] [request text]
+  pagani job route <job>
+  pagani job check <job>
+  pagani job gate <job> [--allow-dirty]
+  pagani job usage start|end <job>
+  pagani job report [--dashboard] [--retro] [--write] [--exit-code] [--open]
   pagani worktree create <job> <ticket>
   pagani worktree prune <job> [--force]
-  pagani worktree remove <path>
-  pagani usage start|end <job>
-  pagani usage [job]
-  pagani dashboard [--open]
-  pagani status
-  pagani pr <number>
-  pagani hooks install|uninstall|status [path]
+  pagani hooks install|uninstall [path]
   pagani network init|check <url>
-  pagani retro-scan [--write] [--exit-code]
 
 Network allowlist:
   The opt-in allowlist only covers Claude Code's WebFetch tool through the
@@ -408,7 +402,7 @@ ticket_done() {
 
 cmd_frontier() {
   local job="${1:-}"
-  [ -n "$job" ] || { echo "usage: pagani frontier <job>" >&2; exit 1; }
+  [ -n "$job" ] || { echo "usage: pagani job frontier <job>" >&2; exit 1; }
   local dir="pagani/jobs/$job"
   [ -d "$dir" ] || { echo "job not found: $job" >&2; exit 1; }
 
@@ -660,7 +654,7 @@ cmd_gate() {
       *) job="$1"; shift ;;
     esac
   done
-  [ -n "$job" ] || { echo "usage: pagani gate <job> [--allow-dirty]" >&2; exit 1; }
+  [ -n "$job" ] || { echo "usage: pagani job gate <job> [--allow-dirty]" >&2; exit 1; }
 
   if [ "$allow_dirty" = "0" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     local line status path dirty=0
@@ -1194,13 +1188,8 @@ cmd_worktree() {
         echo "no worktrees for $job"
       fi
       ;;
-    remove)
-      local path="${2:?path required}"
-      git worktree remove "$path"
-      echo "removed: $path"
-      ;;
     *)
-      echo "usage: pagani worktree create <job> <ticket> | remove <path>" >&2
+      echo "usage: pagani worktree create <job> <ticket> | prune <job> [--force]" >&2
       exit 1
       ;;
   esac
@@ -1408,6 +1397,49 @@ CSS
 
 
 
+cmd_report() {
+  local dashboard=0 retro=0 open=0
+  local -a retro_args=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --dashboard) dashboard=1; shift ;;
+      --retro) retro=1; shift ;;
+      --open) open=1; shift ;;
+      --write) retro_args+=(--write); shift ;;
+      --exit-code) retro_args+=(--exit-code); shift ;;
+      -*) echo "unknown flag: $1" >&2; exit 1 ;;
+      *) echo "unknown argument: $1" >&2; exit 1 ;;
+    esac
+  done
+  if [ "$dashboard" = "1" ]; then
+    if [ "$open" = "1" ]; then cmd_dashboard --open; else cmd_dashboard; fi
+  fi
+  if [ "$retro" = "1" ]; then
+    cmd_retro_scan "${retro_args[@]}"
+    return
+  fi
+  if [ "$dashboard" = "0" ]; then
+    cmd_status
+  fi
+}
+
+cmd_job() {
+  local action="${1:-}"
+  [ -n "$action" ] || { echo "usage: pagani job new|frontier|classify|route|check|gate|usage|report" >&2; exit 1; }
+  shift || true
+  case "$action" in
+    new) cmd_job_new "$@" ;;
+    frontier) cmd_frontier "$@" ;;
+    classify) cmd_classify "$@" ;;
+    route) cmd_route "$@" ;;
+    check) cmd_check "$@" ;;
+    gate) cmd_gate "$@" ;;
+    usage) cmd_usage "$@" ;;
+    report) cmd_report "$@" ;;
+    *) echo "usage: pagani job new|frontier|classify|route|check|gate|usage|report" >&2; exit 1 ;;
+  esac
+}
+
 cmd_status() {
   local found=0
   for job in pagani/jobs/*/job.md; do
@@ -1423,18 +1455,6 @@ cmd_status() {
   [ "$found" = "1" ] || echo "no jobs"
 }
 
-cmd_pr() {
-  local n="${1:?PR number required}"
-  command -v gh >/dev/null 2>&1 || { echo "gh is required" >&2; exit 1; }
-  echo "== PR $n =="
-  gh pr view "$n" --json number,title,state,isDraft,mergeable,reviewDecision,statusCheckRollup 2>/dev/null || gh pr view "$n"
-  echo "== checks =="
-  gh pr checks "$n" 2>/dev/null || true
-  echo "== files =="
-  gh pr diff "$n" --name-only 2>/dev/null || true
-  echo
-  echo "Load the review-pr skill and write review-pr.md. Do not merge."
-}
 
 git_dir_for() {
   local repo="$1" gitdir
@@ -1486,31 +1506,14 @@ uninstall_git_hooks() {
   done
 }
 
-status_git_hooks() {
-  local repo="$1" gitdir hooks
-  gitdir="$(git_dir_for "$repo")"
-  hooks="$gitdir/hooks"
-  local hook dest
-  for hook in pre-commit pre-push; do
-    dest="$hooks/$hook"
-    if [ -f "$dest" ] && grep -q 'pagani-managed' "$dest" 2>/dev/null; then
-      echo "$hook: installed"
-    elif [ -f "$dest" ]; then
-      echo "$hook: present (not pagani-managed)"
-    else
-      echo "$hook: missing"
-    fi
-  done
-}
 
 cmd_hooks() {
   local action="${1:-}" path="${2:-$PWD}"
   case "$action" in
     install) install_git_hooks "$path" ;;
     uninstall) uninstall_git_hooks "$path" ;;
-    status) status_git_hooks "$path" ;;
     *)
-      echo "usage: pagani hooks install|uninstall|status [path]" >&2
+      echo "usage: pagani hooks install|uninstall [path]" >&2
       exit 1
       ;;
   esac
@@ -1630,26 +1633,12 @@ case "$cmd" in
     if [ "$cmd" = "install" ]; then cmd_install; else cmd_uninstall; fi
     ;;
   doctor) cmd_doctor ;;
-  lint) cmd_lint ;;
-  job)
-    if [ "${1:-}" = "new" ]; then shift; fi
-    cmd_job_new "$@"
-    ;;
-  frontier) cmd_frontier "$@" ;;
-  classify) cmd_classify "$@" ;;
-  route) cmd_route "$@" ;;
-  check) cmd_check "$@" ;;
-  gate) cmd_gate "$@" ;;
   init) cmd_init "${1:-$PWD}" ;;
   upgrade) cmd_upgrade "${1:-$PWD}" ;;
-  network) cmd_network "$@" ;;
+  job) cmd_job "$@" ;;
   worktree) cmd_worktree "$@" ;;
-  usage) cmd_usage "$@" ;;
-  dashboard) cmd_dashboard "$@" ;;
-  status) cmd_status ;;
-  pr) cmd_pr "$@" ;;
   hooks) cmd_hooks "$@" ;;
-  retro-scan) cmd_retro_scan "$@" ;;
+  network) cmd_network "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

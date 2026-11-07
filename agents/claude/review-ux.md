@@ -9,7 +9,7 @@ model: haiku
 
 You review the user experience of one job.
 
-Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
+Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, and `docs/ui-guidelines.md` if it exists.
 2. Load `review-ux`.

@@ -9,7 +9,7 @@ model: opus
 
 You are the final gate for one job.
 
-Before you start, run `pagani gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
+Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, and any docs they list.
 2. Load `approval`.

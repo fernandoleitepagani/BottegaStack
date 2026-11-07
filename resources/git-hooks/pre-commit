@@ -18,10 +18,10 @@ else
   echo "pagani: gitleaks not installed; skipping secret scan" >&2
 fi
 
-# 2. Repo lint (when the project has a pagani CLI).
+# 2. Repo checks (when the project has a pagani CLI).
 if [ -x ./bin/pagani ]; then
-  if ! ./bin/pagani lint; then
-    echo "pagani: lint failed" >&2
+  if ! ./bin/pagani doctor; then
+    echo "pagani: doctor failed" >&2
     status=1
   fi
 fi

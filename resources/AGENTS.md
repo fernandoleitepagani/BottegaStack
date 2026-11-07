@@ -26,14 +26,13 @@ not obvious facts the code already shows.
 ## PaganiStack commands
 
 ```bash
-pagani frontier <job>
-pagani budget check <job>
-pagani dashboard
-pagani backup <job>
-pagani restore <archive>
+pagani job frontier <job>
+pagani job report --dashboard
+pagani job check <job>
+pagani job gate <job>
+pagani job usage start|end <job>
 pagani upgrade [path]
 pagani network init|check <url>
-pagani usage report <job>
 ```
 
 ## Verification
