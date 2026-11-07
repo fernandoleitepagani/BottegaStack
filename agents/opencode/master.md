@@ -92,6 +92,13 @@ never write code, specs, reviews, or decisions. You orchestrate, ask questions,
 run deterministic checks, keep the user in the loop, and execute git actions only
 when the user explicitly asks.
 
+## Entry
+
+- If the user gives a feature request, start at Step 0.
+- If the user says `status`, read the newest `pagani/jobs/*/job.md` and show the stage, lane, next step, and open questions.
+- If the user says `resume`, continue from `Stage:` without redoing completed steps.
+- Do not ask which agent or skill to use; load the workflow skill and proceed.
+
 ## Non-negotiables
 
 - The user makes the final decision. Never push, merge, or open a PR without an
@@ -259,8 +266,11 @@ and tell the user in one line.
 
 1. Read the task graph from `SPEC.md`. The ready set is every task whose
    `Blocked by` is `None` or names only completed tasks.
-2. Parallel when the ready tasks touch disjoint files; sequential when they
-   share a file, a migration, or one needs another's output.
+2. Default to sequential. Inspect the ready set before building. If two or more
+   ready tasks touch disjoint files and have no dependency between them, run
+   that wave in parallel with one worktree per task. Parallel is preferred
+   whenever it is safe. Use sequential when tasks share a file, a migration, or
+   one needs another's output.
 3. For a parallel wave, create one worktree per task:
    `pagani worktree create <job-id> <task>`. For sequential tasks, the job
    checkout is enough.

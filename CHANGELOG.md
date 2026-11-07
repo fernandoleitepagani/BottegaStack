@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added an explicit entry rule to both masters: a feature request starts at
+  Step 0, `status` reads the newest job, and `resume` continues from `Stage:`.
+  Builds default to sequential and run a parallel wave when the ready tasks
+  touch disjoint files.
 - Collapsed the model variants to `builder-lite`, `review-code-lite`, and
   `review-code-strong`; the master now runs `deepseek-v4.1-flash` high in
   OpenCode and Opus 5.5 medium in Claude Code.

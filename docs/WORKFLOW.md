@@ -13,7 +13,7 @@ state; there is no database or state machine.
 3. CHECKS    pagani job check -> checks.md           (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
 5. FIX       review-code.md -> fresh builder -> checks -> re-review
-6. APPROVAL  master -> decision.md + quiz
+6. APPROVAL  master -> decision.md + quiz (standard/high-risk)
 7. HUMAN     approve, rework, or reject
 8. CLOSE     retro, merge/commit/push/PR on request
 ```
@@ -42,10 +42,13 @@ and a short spec. `standard` and `high-risk` jobs get the full pass.
 
 ### Step 2: Build
 
-The master reads the task graph from `SPEC.md` and spawns one builder per ready
-task. Parallel only when files are disjoint; one worktree per task when
-parallel. Each builder writes `build/<task>.md`. The master merges task branches
-into the job branch and posts a wave summary.
+The master reads the task graph from `SPEC.md` and inspects the ready set before
+building. It defaults to sequential. If two or more ready tasks touch disjoint
+files and have no dependency between them, it runs that wave in parallel with
+one worktree per task; parallel is preferred whenever it is safe. Sequential is
+used when tasks share a file, a migration, or one needs another's output. Each
+builder writes `build/<task>.md`. The master merges task branches into the job
+branch and posts a wave summary.
 
 ### Step 3: Checks
 
@@ -111,10 +114,13 @@ Job state is files in `pagani/jobs/<id>/`, so the runtimes can share a job:
 
 1. Run Steps 0–1 in Claude Code.
 2. In the same project, run `/pagani resume` in OpenCode for build, checks,
-   review, and fix.
+   review, and fix. `resume` continues from `Stage:` in `job.md`.
 3. Optionally return to Claude Code at approval.
 
-Both masters read `Stage:` from `job.md` and never re-plan completed steps.
+Both masters share the same entry rule: a feature request starts at Step 0,
+`status` reads the newest `job.md`, and `resume` continues from `Stage:` without
+redoing completed steps. Both default to sequential builds and prefer a parallel
+wave when the ready tasks touch disjoint files.
 
 ## Lanes
 
@@ -144,9 +150,9 @@ grows or touches a risk path. Lanes never downgrade.
 The installer generates the `builder-lite`, `review-code-lite`, and
 `review-code-strong` variants from `agents/models.conf`. The master picks the
 variant by role and lane. Planning uses the strong model; the builder and
-reviewer scale with risk and lane. The master runs `deepseek-v4.1-flash` at high
-effort in OpenCode and Opus 5.5 at medium effort in Claude Code. There is no
-separate security or approval variant.
+reviewer scale with risk and lane. The master uses the `deepseek-v4.1-flash`
+`high` variant in OpenCode and Opus 5.5 at medium effort in Claude Code. There
+is no separate security or approval variant.
 
 ## Skills
 

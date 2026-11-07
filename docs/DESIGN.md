@@ -73,7 +73,8 @@ review; it just happens in the same review.
 
 The old flow had a separate `approver` agent. It re-read artifacts the master had
 already read, then handed the decision back to the master. Now the master loads
-`approval`, writes `decision.md`, and presents the explainer and quiz itself.
+`approval`, writes `decision.md`, and presents the explainer and, for `standard`
+and `high-risk`, the quiz itself.
 
 Why: the master already holds the job context. A separate approver added a
 handoff and a second model call without adding independence — it read the same
@@ -129,6 +130,12 @@ removed; the master does those checks directly.
   presentation. That is the cost of removing a handoff.
 - **The CLI is smaller but less discoverable.** `pagani help` lists the
   supported surface; the docs explain the rest.
+- **Sequential is the default, parallel is preferred when safe.** Before each
+  build wave the master inspects the ready set. It prefers a parallel wave with
+  one worktree per task when two or more ready tasks touch disjoint files and
+  have no dependency between them, and stays sequential when tasks share a file,
+  a migration, or one needs another's output. Parallel buys wall-clock time but
+  costs worktrees, ports, and merge work.
 
 ## Non-goals
 
@@ -150,6 +157,7 @@ removed; the master does those checks directly.
 4. Run one small job in a real project.
 5. Add a UI change, then a security-sensitive change, once the simple loop
    feels right.
-6. Add parallel worktrees only when you actually need them.
+6. Use a parallel wave when the ready tasks are disjoint; stay sequential
+   otherwise.
 
 Keep the loop small. Add automation only when it removes a repeated human task.

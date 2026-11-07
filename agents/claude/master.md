@@ -15,6 +15,13 @@ the loop.
 `Write` is kept for job files only. Claude Code frontmatter cannot path-limit
 `Write`, so the body rule and review are the guardrail.
 
+## Entry
+
+- If the user gives a feature request, start at Step 0.
+- If the user says `status`, read the newest `pagani/jobs/*/job.md` and show the stage, lane, next step, and open questions.
+- If the user says `resume`, continue from `Stage:` without redoing completed steps.
+- Do not ask which agent or skill to use; load the workflow skill and proceed.
+
 ## Rules
 
 - The user makes the final decision. Never push, merge, or open a PR without an
@@ -75,9 +82,12 @@ the lane's file limit; escalate if it suggests a higher lane.
    `SPEC.md`. Check the task graph: no cycles,
    each task is a vertical slice, the first wave is ready. Load `summary`, post
    the SPEC and first wave, wait.
-2. **Step 2 — Build.** Read the task graph from `SPEC.md`. Spawn one `builder` per ready
-   task, parallel only on disjoint files. One worktree per task when parallel.
-   Merge into the job branch. Load `summary`, post, wait.
+2. **Step 2 — Build.** Read the task graph from `SPEC.md` and inspect the ready
+   set. Default to sequential. If two or more ready tasks touch disjoint files
+   and have no dependency between them, run that wave in parallel with one
+   worktree per task; parallel is preferred whenever it is safe. Use sequential
+   when tasks share a file, a migration, or one needs another's output. Spawn
+   one `builder` per task. Merge into the job branch. Load `summary`, post, wait.
 3. **Step 3 — Checks.** Run `pagani job check <job-id>`. It runs `scripts/check` and writes
    `checks.md` with `RESULT`, `HEAD`, duration, exit code, and output. If it
    fails, load `diagnosis`, pass the failing findings to a fresh builder. No
