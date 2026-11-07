@@ -10,7 +10,7 @@ fails. You are not the style reviewer.
 
 ## Read
 
-- `spec.md`, the ticket, `build.md`, `checks.md`.
+- `SPEC.md`, the named task, `build/<task>.md`, `checks.md`.
 - The diff. Read the changed files in full.
 - The previous review files, if this is a later round.
 

@@ -1,16 +1,16 @@
 ---
 name: implementation
-description: Implement exactly one PaganiStack ticket with TDD, run the project checks, commit locally, and write build/<ticket>.md. Use by the builder subagent.
+description: Implement exactly one PaganiStack task with TDD, run the project checks, commit locally, and write build/<task>.md. Use by the builder subagent.
 ---
 
 # PaganiStack Implementation
 
-You implement exactly one ticket. You write code on the named branch and exactly
-one report file, `pagani/jobs/<id>/build/<ticket>.md`.
+You implement exactly one task. You write code on the named branch and exactly
+one report file, `pagani/jobs/<id>/build/<task>.md`.
 
 ## Base skills
 
-- Load `diagnosis` if a failing check or a bug blocks the ticket. Build a
+- Load `diagnosis` if a failing check or a bug blocks the task. Build a
   red-capable feedback loop before changing code.
 
 ## TDD rules
@@ -33,9 +33,9 @@ one report file, `pagani/jobs/<id>/build/<ticket>.md`.
 ## Read first
 
 1. Project `AGENTS.md` and `GLOSSARY.md`.
-2. The ticket, `spec.md`, `plan.md`.
+2. The job `SPEC.md` and the named task.
 3. The neighbouring code.
-4. `verification` skill if the ticket has UI or browser criteria.
+4. `verification` skill if the task has UI or browser criteria.
 
 ## Before you start
 
@@ -43,17 +43,17 @@ one report file, `pagani/jobs/<id>/build/<ticket>.md`.
    command with `cd <worktree> && ` or use absolute paths.
 2. Run `git branch --show-current`. It must match the branch in your prompt. If
    it does not, stop and report `STATUS: BLOCKED`.
-3. If the ticket is already satisfied by the code, report that with evidence
+3. If the task is already satisfied by the code, report that with evidence
    instead of inventing work.
 
 ## Build
 
-- Make the smallest change that fully meets the ticket.
+- Make the smallest change that fully meets the task.
 - Match the surrounding code: idioms, formatting, naming, imports, comment
   density.
 - No speculative options, fallbacks, hidden defaults, or extras the spec did not
   ask for.
-- Stay inside the ticket. Do not fix unrelated things.
+- Stay inside the task. Do not fix unrelated things.
 - Use TDD where practical:
   1. Write the failing test at the seam the spec named.
   2. Run it and watch it fail for the right reason.
@@ -63,20 +63,20 @@ one report file, `pagani/jobs/<id>/build/<ticket>.md`.
   install if needed, lint, typecheck, test, build.
 - Do not run a watch mode, a prompt, or a command that rewrites files across the
   repo.
-- Commit locally on the ticket branch with short one-line messages. Stage
+- Commit locally on the task branch with short one-line messages. Stage
   explicit paths, never `git add -A`.
 - Never push, merge into the base branch, or open a PR. The master does that
   only when the user asks.
 
-## Write `build/<ticket>.md`
+## Write `build/<task>.md`
 
-Rewrite it at the end of the round. Keep a short log if the ticket had more than
+Rewrite it at the end of the round. Keep a short log if the task had more than
 one round.
 
 ```markdown
 STATUS: READY | BLOCKED
 
-# Build: <ticket title>
+# Build: <task title>
 
 ## Summary
 What the branch does now, in a few lines.
@@ -105,14 +105,14 @@ What could still be wrong.
 What you did. On fix rounds, list each finding and what you did about it.
 ```
 
-If you cannot meet the ticket, write `STATUS: BLOCKED` on the first line and
+If you cannot meet the task, write `STATUS: BLOCKED` on the first line and
 explain exactly what blocks you under `## Blocked`. Do not paper over a failure
 to reach READY.
 
 ## Report
 
 ```
-TICKET: <id>
+TASK: <id>
 STATUS: DONE | BLOCKED | FAILED
 FILES: <comma-separated changed files>
 WHAT: <2-4 sentences>
@@ -124,7 +124,7 @@ QUESTIONS: <or "none">
 ## Gotchas
 
 - Committing on the wrong branch. Check `git branch --show-current` first.
-- Touching files outside the ticket. Stop and report if the ticket needs them.
+- Touching files outside the task. Stop and report if the task needs them.
 - `git add -A` picking up unrelated files. Stage explicit paths.
 - Reporting READY before the project checks pass.
 - Reusing a stale dev server from an earlier round.

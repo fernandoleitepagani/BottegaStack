@@ -1,11 +1,17 @@
-# Tasks: <job>
+# Tasks
 
-Keep this file current. It survives context compaction.
+Current actionable work for this project. Keep it short. Per-job task graphs
+live in `pagani/jobs/<id>/SPEC.md`.
 
-- [ ] <task>
-- [ ] <task>
-- [ ] <task>
+## Current work
+
+- [ ] <task> — status: <todo|doing|blocked>
+- [ ] <task> — status: <todo|doing|blocked>
+
+## Validated
+
+- [x] <task> — verified by <command / page / file>
 
 ## Notes
 
-- <blocker or decision>
+- <blocker, decision, or link>

@@ -1,18 +1,18 @@
 ---
 name: closeout
-description: Handle the PaganiStack human decision and final git actions. Use after the approver writes decision.md, when the human chooses merge, commit, push, PR, rework, or reject.
+description: Handle the PaganiStack human decision and final git actions. Use after the master writes decision.md, when the human chooses merge, commit, push, PR, rework, or reject.
 ---
 
 # PaganiStack Closeout
 
-The approver recommends. The human decides. You execute only what the human
+The master recommends. The human decides. You execute only what the human
 explicitly asks for.
 
 ## Present
 
 Show:
 
-- the approver's decision and why,
+- the master's decision and why,
 - the acceptance-criteria mapping,
 - the explainer,
 - the quiz and its answers,
@@ -94,7 +94,7 @@ claim.
 ## Rework
 
 1. Write the human's feedback verbatim to `pagani/jobs/<id>/human.md`.
-2. Spawn a fresh builder with the feedback, the affected ticket, and the branch.
+2. Spawn a fresh builder with the feedback, the affected task, and the branch.
 3. Re-run the deterministic checks.
 4. Re-run the reviewers whose area the feedback touches.
 5. Reset the fix budget and return to the review step.

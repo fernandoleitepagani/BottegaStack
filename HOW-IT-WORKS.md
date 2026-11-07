@@ -1,7 +1,7 @@
 # How PaganiStack Works
 
 PaganiStack is a personal development workflow. It gives an agent a job folder,
-a plan, a ticket graph, deterministic checks, focused reviewers, and a human
+a SPEC with a task graph, deterministic checks, focused reviewers, and a human
 decision. The job folder is the state; there is no database or state machine.
 
 ## Quick start
@@ -31,20 +31,18 @@ Then, in OpenCode or Claude Code:
 ## The workflow
 
 ```
-0. SETUP      lane, job folder, branch, usage start
-1. PLAN       interview -> plan.md                  [approve]
-2. SPEC       spec.md                               [approve]
-3. TICKETS    tickets/                              [approve]
-4. BUILD      one builder per ready ticket          [approve per wave]
-5. CHECKS     pagani job check -> checks.md             (fail -> builder)
-6. REVIEW     only the needed lenses                [summary]
-7. FIX        fix.md -> fresh builder -> checks -> affected reviews
-8. APPROVE    approver -> decision.md + quiz
-9. HUMAN      approve, rework, or reject
-10. CLOSE     usage end, dashboard, retro, merge/commit/push/PR on request
+0. SETUP     lane, job folder, branch, usage start
+1. SPEC      interview -> SPEC.md                    [approve]
+2. BUILD     one builder per ready task             [approve per wave]
+3. CHECKS    pagani job check -> checks.md          (fail -> builder)
+4. REVIEW    only the needed lenses                 [summary]
+5. FIX       fix.md -> fresh builder -> checks -> affected reviews
+6. APPROVAL  approver -> decision.md + quiz
+7. HUMAN     approve, rework, or reject
+8. CLOSE     usage end, dashboard, retro, merge/commit/push/PR on request
 ```
 
-### Step 0: Set up and classify
+### Step 0: Set up and choose a lane
 
 The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
 `REVIEW.md`. It loads `lanes`, proposes a lane, and asks you to confirm or
@@ -54,37 +52,30 @@ to `job.md`, and starts the cost snapshot.
 If the project predates the current hooks, run `pagani upgrade` once. Run
 `pagani network init` only if you want the opt-in Claude `WebFetch` allowlist.
 
-### Step 1: Plan
+### Step 1: SPEC
 
 The master loads `interview`, explores first, and asks a small batch of
-questions. It writes `interview.md` and asks the planner for `plan.md`. If the
-plan has open questions, it asks you and revises. You approve the plan.
+questions. It writes `interview.md` and asks the planner for one `SPEC.md`: the
+behavior, the data shape, the failure cases, the acceptance criteria, and the
+tracer-bullet task graph. Each task is a vertical slice that fits one fresh
+context. If the spec has open questions, the master asks you and revises. You
+approve the spec and the first wave.
 
-### Step 2: Spec
+### Step 2: Build
 
-The planner writes `spec.md`: the behavior, the data shape, the failure cases,
-and the acceptance criteria. You approve it.
+The master reads the task graph from `SPEC.md` and spawns one builder per ready
+task. Parallel only when files are disjoint; one worktree per task when
+parallel. Each builder writes `build/<task>.md`. The master merges task branches
+into the job branch and posts a wave summary.
 
-### Step 3: Tickets
-
-The planner writes `tickets/index.md` and one file per ticket. Each ticket is a
-vertical slice that fits one fresh context. You approve the graph.
-
-### Step 4: Build
-
-The master reads the ready tickets from the plan and spawns one builder per ready
-ticket. Parallel only when files are disjoint; one worktree per ticket when
-parallel. Each builder writes `build/<ticket>.md`. The master merges ticket
-branches into the job branch and posts a wave summary.
-
-### Step 5: Checks
+### Step 3: Checks
 
 The master runs `pagani job check <job>`, which runs `scripts/check`, writes
 `checks.md` with `RESULT`, `HEAD`, duration, exit code, and the output tail, and
 appends one line per run to `checks.log`. A failure goes back to a fresh builder;
 no reviewer runs on a failing build.
 
-### Step 6: Review
+### Step 4: Review
 
 The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate stops
 the review. It then uses only the needed lenses:
@@ -98,25 +89,26 @@ the review. It then uses only the needed lenses:
 Reviewers run in parallel with fresh context. Each writes one file. The master
 writes `round-N/summary.md` and posts the summary.
 
-### Step 7: Fix
+### Step 5: Fix
 
 If a review returns `CHANGES`, the master writes `fix.md` with the finding, the
 file and line, why it matters, how to fix it, and how to verify it. It spawns a
 fresh builder, re-runs checks, and re-runs only the affected reviewers. Max two
 fix rounds.
 
-### Step 8: Approve
+### Step 6: Approval
 
-The approver reads the spec, build, checks, and reviews. It writes `decision.md`
-with `APPROVE` or `ESCALATE`, an explainer, and a short quiz. The quiz uses
-retrieval practice: no formatting hints, answers answerable from the artifacts.
+The approver reads `SPEC.md`, the build reports, checks, and reviews. It writes
+`decision.md` with `APPROVE` or `ESCALATE`, an explainer, and a short quiz. The
+quiz uses retrieval practice: no formatting hints, answers answerable from the
+artifacts.
 
-### Step 9: Human decision
+### Step 7: Human decision
 
 You read the explainer, answer the quiz, and choose merge, commit, push, PR,
 rework, or reject. The master shows the exact git command before running it.
 
-### Step 10: Close
+### Step 8: Close
 
 The master updates `job.md`, records the decision in `human.md`, runs
 `pagani job usage end <job>` and `pagani job report --dashboard`, runs
@@ -128,10 +120,10 @@ environment change. On repeated findings it proposes Gotchas patches. It loads
 
 Job state is files in `pagani/jobs/<id>/`, so the runtimes can share a job:
 
-1. Run Steps 0–3 in Claude Code.
+1. Run Steps 0–1 in Claude Code.
 2. In the same project, run `/pagani resume` in OpenCode for build, checks,
    review, and fix.
-3. Optionally return to Claude Code at `approve` for the strong approver.
+3. Optionally return to Claude Code at approval for the strong approver.
 
 Both masters read `Stage:` from `job.md` and never re-plan completed steps.
 
@@ -141,7 +133,7 @@ Both masters read `Stage:` from `job.md` and never re-plan completed steps.
 |---|---|---|
 | `trivial` | docs, copy, config only; ≤3 files; no risk path | builder-lite → check → review-code-lite → human |
 | `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code-lite → human |
-| `small` | one feature, one area, ≲10 files | short interview → plan → one ticket → builder → check → review-code-lite → human |
+| `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code-lite → human |
 | `standard` | normal product change | full flow |
 | `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 
@@ -156,8 +148,8 @@ grows or touches a risk path. Lanes never downgrade.
 |---|---|
 | `master` | Talks to you, asks questions, runs checks, posts summaries, executes git only on request. |
 | `explorer` | Cheap read-only search and log reading. |
-| `planner` | Writes `plan.md`, `spec.md`, and `tickets/`. |
-| `builder` | Implements exactly one ticket and writes `build/<ticket>.md`. |
+| `planner` | Writes `SPEC.md` with the requirements, decisions, and tracer-bullet task graph. |
+| `builder` | Implements exactly one task and writes `build/<task>.md`. |
 | `review-code` | Correctness, simplicity, conventions, tests, spec fidelity. |
 | `review-ui` | Visual consistency, responsive layout, contrast, design-system fit. |
 | `review-ux` | Flows, states, copy, accessibility, mobile. |
@@ -240,7 +232,7 @@ pagani job new "<title>"
 pagani job report
 pagani job check <job>
 pagani job gate <job> [--allow-dirty]
-pagani worktree create <job> <ticket>
+pagani worktree create <job> <task>
 pagani worktree prune <job> [--force]
 ```
 
@@ -285,9 +277,7 @@ when working solo.
 pagani/jobs/<id>/
   job.md              stage, round, lane, branch, base
   interview.md
-  plan.md
-  spec.md
-  tickets/
+  SPEC.md
   build/
   checks.md
   checks.log
@@ -301,6 +291,14 @@ pagani/jobs/<id>/
 ```
 
 The job folder is the source of truth. No JSON state machine.
+
+## Project docs
+
+`pagani init` creates three project-level docs:
+
+- `SPEC.md` — product and technical requirements, and acceptance criteria.
+- `ROADMAP.md` — ordered outcomes, dependencies, risks, and exit criteria.
+- `TASKS.md` — current actionable work and validated status.
 
 ## Automation
 

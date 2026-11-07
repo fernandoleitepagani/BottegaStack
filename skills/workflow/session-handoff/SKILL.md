@@ -30,8 +30,8 @@ directory and tell the user the path.
 
 ## Rules
 
-- Reference artifacts by path; do not duplicate `spec.md`, `plan.md`, `build.md`,
-  or review files.
+- Reference artifacts by path; do not duplicate `SPEC.md`, `build/<task>.md`, or
+  review files.
 - Redact secrets, tokens, and personal data.
 - Name the exact next action.
 - Name the skills the next agent should load.

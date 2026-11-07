@@ -16,8 +16,8 @@ Run `unslop` on the summary before posting it.
 
 Write the full summary to the stage artifact and post a short version in chat.
 
-- Spec, plan, tickets, build, review, fix, approve: write `summary.md` in the
-  relevant job folder.
+- SPEC, build, review, fix, approve: write `summary.md` in the relevant job
+  folder.
 - Keep the chat version under 12 lines.
 - Stop. Do not advance until the human says `approve`.
 

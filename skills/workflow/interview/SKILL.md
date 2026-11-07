@@ -1,6 +1,6 @@
 ---
 name: interview
-description: Conduct the PaganiStack plan interview. Use when starting a new job, before writing plan.md, to ask targeted questions with the native question UI until every requirement, use case, edge case, constraint, and acceptance criterion is covered.
+description: Conduct the PaganiStack plan interview. Use when starting a new job, before writing SPEC.md, to ask targeted questions with the native question UI until every requirement, use case, edge case, constraint, and acceptance criterion is covered.
 ---
 
 # PaganiStack Interview
@@ -44,7 +44,7 @@ up. The decisions are the user's: put each to them and wait.
 Each answer reshapes the tree: settled decisions push the frontier outward and
 unblock questions that depended on them. A question whose answer depends on
 another open question belongs to a later round. Stop when the frontier is empty:
-every branch visited, nothing silently assumed. Do not write `plan.md` until the
+every branch visited, nothing silently assumed. Do not write `SPEC.md` until the
 user confirms the shared understanding.
 
 ## Rules
@@ -192,7 +192,7 @@ The user's request, verbatim.
 - Asking about things the code already shows.
 - Asking the user to make a decision the repo conventions already make.
 - Filling gaps with invented requirements.
-- Proceeding to `plan.md` with unresolved product decisions.
+- Proceeding to `SPEC.md` with unresolved product decisions.
 
 ## Gotchas
 
@@ -200,4 +200,4 @@ The user's request, verbatim.
 - Asking what the repository already answers.
 - Inventing a product decision the user did not make.
 - Letting a vague answer pass without a concrete acceptance criterion.
-- Proceeding to `plan.md` with an open question.
+- Proceeding to `SPEC.md` with an open question.

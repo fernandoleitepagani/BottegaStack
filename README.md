@@ -4,7 +4,7 @@ PaganiStack is a personal agentic development workflow for OpenCode and Claude
 Code. It turns a request into a verified change and keeps a human in the loop.
 
 ```
-setup + lane -> plan -> spec -> tickets -> build -> checks -> review -> fix -> approve -> human
+setup + lane -> SPEC -> build -> checks -> review -> fix -> approval -> human decision -> close
 ```
 
 It is not a cloud service and it does not use a database or a state machine.
@@ -33,6 +33,9 @@ cd ~/Projects/my-project
 ~/Projects/PaganiStack/bin/pagani init
 ```
 
+`pagani init` creates `SPEC.md`, `ROADMAP.md`, and `TASKS.md` alongside
+`AGENTS.md`.
+
 For an existing project, run `pagani upgrade` to update the current hooks and
 managed files without dropping your settings.
 
@@ -42,9 +45,9 @@ managed files without dropping your settings.
 /pagani Add an estimated reading time to blog posts
 ```
 
-The master picks a lane, creates the job, asks a few questions, writes a plan,
-and stops for approval. You drive the rest with `approve`, `rework <note>`,
-`reject`, or a question.
+The master picks a lane, creates the job, asks a few questions, writes a
+`SPEC.md`, and stops for approval. You drive the rest with `approve`,
+`rework <note>`, `reject`, or a question.
 
 ## Lanes
 
@@ -52,7 +55,7 @@ and stops for approval. You drive the rest with `approve`, `rework <note>`,
 |---|---|---|
 | `trivial` | docs, copy, config only; ≤3 files; no risk path | builder-lite → check → review-code-lite → human |
 | `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code-lite → human |
-| `small` | one feature, one area, ≲10 files | short interview → plan → one ticket → builder → check → review-code-lite → human |
+| `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code-lite → human |
 | `standard` | normal product change | full flow |
 | `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + strong security + strong approver |
 

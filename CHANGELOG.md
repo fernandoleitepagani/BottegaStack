@@ -32,6 +32,11 @@
   and `hooks status`.
 - Removed the `job frontier`, `job classify`, and `job route` subcommands, and
   merged `uninstall` into `pagani install --uninstall`, which honors `--dry-run`.
+- Replaced the `plan -> spec -> tickets` planning chain with one planner pass
+  that writes `pagani/jobs/<id>/SPEC.md`, including the tracer-bullet task graph.
+  Project templates are now `SPEC.md`, `ROADMAP.md`, and `TASKS.md`;
+  `resources/PLAN.md` is gone, and `pagani init`/`pagani upgrade` create the new
+  project docs.
 
 ## 0.5.0
 

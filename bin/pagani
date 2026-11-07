@@ -336,10 +336,7 @@ Branch: pagani/$id
 Base: $(git branch --show-current)
 
 ## Steps
-- [ ] setup
-- [ ] plan
 - [ ] spec
-- [ ] tickets
 - [ ] build
 - [ ] checks
 - [ ] review
@@ -457,7 +454,7 @@ cmd_lint() {
     fi
   done
 
-  for f in AGENTS.md PLAN.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
+  for f in AGENTS.md SPEC.md ROADMAP.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
            format.sh claude-hook.sh git-hooks/pre-commit git-hooks/pre-push \
            network-allowlist.example; do
     if [ ! -f "$ROOT/resources/$f" ]; then
@@ -479,7 +476,7 @@ cmd_lint() {
     fi
   fi
 
-  for f in AGENTS.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md \
+  for f in AGENTS.md SPEC.md ROADMAP.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md \
            CODING_STANDARDS.md BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
     if grep -rq -- "$f" "$ROOT/agents" "$ROOT/skills" 2>/dev/null; then
       if [ ! -f "$ROOT/resources/$f" ]; then
@@ -706,7 +703,8 @@ cmd_init() {
   local dest="${1:-$PWD}"
   mkdir -p "$dest/scripts" "$dest/docs/adr" "$dest/.github" "$dest/.claude" "$dest/pagani/jobs"
   [ -f "$dest/AGENTS.md" ] || cp "$ROOT/resources/AGENTS.md" "$dest/AGENTS.md"
-  [ -f "$dest/PLAN.md" ] || cp "$ROOT/resources/PLAN.md" "$dest/PLAN.md"
+  [ -f "$dest/SPEC.md" ] || cp "$ROOT/resources/SPEC.md" "$dest/SPEC.md"
+  [ -f "$dest/ROADMAP.md" ] || cp "$ROOT/resources/ROADMAP.md" "$dest/ROADMAP.md"
   [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
   [ -f "$dest/scripts/verify" ] || cp "$ROOT/resources/verify.sh" "$dest/scripts/verify"
   [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
@@ -750,7 +748,8 @@ cmd_upgrade() {
   local src_hook="$ROOT/resources/claude-hook.sh"
   local src_settings="$ROOT/resources/claude-settings.json"
   local src_format="$ROOT/resources/format.sh"
-  local src_plan="$ROOT/resources/PLAN.md"
+  local src_spec="$ROOT/resources/SPEC.md"
+  local src_roadmap="$ROOT/resources/ROADMAP.md"
 
   mkdir -p "$dest/scripts" "$dest/.claude" "$dest/pagani"
   if [ -L "$dest/scripts/claude-hook.sh" ]; then
@@ -809,11 +808,18 @@ PY
     echo "created: $dest/scripts/format"
   fi
 
-  if [ -f "$dest/PLAN.md" ]; then
-    echo "kept: $dest/PLAN.md"
+  if [ -f "$dest/SPEC.md" ]; then
+    echo "kept: $dest/SPEC.md"
   else
-    cp "$src_plan" "$dest/PLAN.md"
-    echo "created: $dest/PLAN.md"
+    cp "$src_spec" "$dest/SPEC.md"
+    echo "created: $dest/SPEC.md"
+  fi
+
+  if [ -f "$dest/ROADMAP.md" ]; then
+    echo "kept: $dest/ROADMAP.md"
+  else
+    cp "$src_roadmap" "$dest/ROADMAP.md"
+    echo "created: $dest/ROADMAP.md"
   fi
 }
 
@@ -890,10 +896,6 @@ cmd_worktree() {
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
       echo "worktree: $path"
       echo "port: $port"
-      local ticket_file="pagani/jobs/$job/tickets/$ticket.md"
-      if [ -f "$ticket_file" ] && ! grep -q '^Port:' "$ticket_file"; then
-        printf '\nPort: %s\n' "$port" >> "$ticket_file"
-      fi
       ;;
     prune)
       local job="" force=0
