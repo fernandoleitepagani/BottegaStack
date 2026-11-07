@@ -858,7 +858,7 @@ cmd_doctor() {
   echo "skills: $skills"
 
   local missing=()
-  for s in grilling wizard writing-for-agents diagnosing-bugs tdd codebase-design domain-modeling code-review pr skill-creator agent-browser vercel-react-best-practices session-handoff session-retro; do
+  for s in wizard writing-for-agents codebase-design domain-modeling skill-creator agent-browser vercel-react-best-practices session-handoff session-retro; do
     if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$s" | grep -q .; then
       missing+=("$s")
     fi
