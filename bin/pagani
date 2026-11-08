@@ -3,7 +3,7 @@
 # No state machine. It installs files, checks them, and scaffolds a project.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 TARGET="opencode"
 MODE="link"
 DRY_RUN=0
@@ -237,9 +237,32 @@ cmd_install() {
     install_global_files "$config" "$t"
     echo "installed: $t"
   done
+  install_cli
+}
+
+# Put `pagani` on PATH; agents call it by name.
+install_cli() {
+  local bindir="${PAGANI_BIN_DIR:-$HOME/.local/bin}" dest
+  dest="$bindir/pagani"
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "would link: $ROOT/bin/pagani -> $dest"
+    return 0
+  fi
+  mkdir -p "$bindir"
+  if [ -e "$dest" ] && [ ! -L "$dest" ]; then
+    echo "kept: $dest (not a symlink)"
+    return 0
+  fi
+  ln -sfn "$ROOT/bin/pagani" "$dest"
+  echo "linked: $dest"
+  case ":$PATH:" in *":$bindir:"*) ;; *) echo "note: add $bindir to PATH" ;; esac
 }
 
 cmd_uninstall() {
+  local cli="${PAGANI_BIN_DIR:-$HOME/.local/bin}/pagani"
+  if [ -L "$cli" ] && [ "$(readlink "$cli")" = "$ROOT/bin/pagani" ]; then
+    if [ "$DRY_RUN" = "1" ]; then echo "would remove: $cli"; else rm -f "$cli"; fi
+  fi
   local targets=()
   case "$TARGET" in
     both) targets=(opencode claude) ;;

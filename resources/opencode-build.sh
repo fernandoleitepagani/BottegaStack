@@ -34,7 +34,13 @@ state="$jobdir/build/$task.opencode"
 [ -d "$jobdir" ] || { echo "opencode-build: no job folder $jobdir" >&2; exit 3; }
 [ -f "$jobdir/SPEC.md" ] || { echo "opencode-build: $jobdir/SPEC.md missing" >&2; exit 3; }
 [ -d "$wt" ] || { echo "opencode-build: no worktree $wt (run: pagani worktree create $job $task)" >&2; exit 3; }
-mkdir -p "$jobdir/build"
+mkdir -p "$jobdir/build" "$wt/pagani/jobs/$job/build"
+# pagani/jobs is gitignored, so the worktree has no job folder: mirror the job
+# inputs in so the builder never reads or writes outside its worktree.
+for f in SPEC.md job.md interview.md; do
+  [ -f "$jobdir/$f" ] && cp "$jobdir/$f" "$wt/pagani/jobs/$job/$f"
+done
+[ -n "$findings" ] && [ -f "$findings" ] && cp "$findings" "$wt/pagani/jobs/$job/build/$task.findings.md"
 branch="$(git -C "$wt" branch --show-current)"
 
 if [ -n "$findings" ]; then
@@ -47,16 +53,16 @@ if [ -n "$findings" ]; then
     exit 4
   fi
   rev=$((rev + 1))
-  msg="Revision $rev for task $task. Fix every finding in $findings (read it first), nothing else. Same rules as before: stay inside Allowed files, do not edit or weaken tests, commit locally on $branch, never push or merge. Update the report $wt_report and keep its format."
+  msg="Revision $rev for task $task. Fix every finding in pagani/jobs/$job/build/$task.findings.md (read it first), nothing else. Same rules as before: stay inside Allowed files, do not edit or weaken tests, commit locally on $branch, never push or merge. Update the report $wt_report and keep its format."
   args=(--session "$sid")
 else
   rev=0
-  msg="Job folder: $jobdir
+  msg="Job folder: pagani/jobs/$job (inside the worktree)
 Task: $task
 Worktree: $wt
-Everything stays inside the worktree. Read the task from SPEC.md in the worktree root or $jobdir/SPEC.md.
+Everything stays inside the worktree. The job spec is pagani/jobs/$job/SPEC.md, not the project SPEC.md at the root.
 Branch: $branch
-Implement exactly this task from $jobdir/SPEC.md. Follow your builder instructions. Write the report to $wt_report (inside the worktree; it is gitignored, do not commit it). Commit locally on $branch. Never push or merge."
+Implement exactly this task from pagani/jobs/$job/SPEC.md. Follow your builder instructions. Write the report to $wt_report (inside the worktree; it is gitignored, do not commit it). Commit locally on $branch. Never push or merge."
   args=()
 fi
 

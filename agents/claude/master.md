@@ -94,7 +94,8 @@ the lane's file limit; escalate if it suggests a higher lane.
    task. Merge into the job branch. Load `summary`, post, wait.
    **OpenCode builder.** If `scripts/opencode-build` exists and `opencode` is
    installed, builders run through it (the Claude `builder` is only the
-   fallback when OpenCode is not installed): create the
+   fallback when OpenCode is not installed). With OpenCode, every lane uses the
+   wrapper, including `trivial`, instead of `builder-lite`: create the
    worktree with `pagani worktree create <job> <task>`, then run
    `./scripts/opencode-build <job> <task>` (parallel tasks: one background call
    each, max 2 at once). The wrapper runs the OpenCode `builder` agent (DeepSeek)

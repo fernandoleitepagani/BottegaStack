@@ -60,6 +60,9 @@ downgrade.
 | builder | `builder-lite` | `builder` | `builder` | `builder` | `builder` |
 | review-code | `review-code-lite` | `review-code-lite` | `review-code-lite` | `review-code` | `review-code-strong` |
 
+When the Claude master has `scripts/opencode-build`, every lane's builder is the
+OpenCode `builder` (DeepSeek) run through that wrapper.
+
 One reviewer covers code, UI, UX, and security for every lane. The master writes
 `decision.md` at Step 6.
 

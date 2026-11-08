@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `install` links `pagani` onto `PATH` (`~/.local/bin`), `bin/pagani` resolves its
+  root through symlinks, `opencode-build` mirrors the job folder into the
+  worktree, and every lane uses the OpenCode builder when the wrapper exists.
 - Added `scripts/opencode-build` (installed by `pagani init`/`upgrade`): the Claude
   master runs the OpenCode `builder` agent (`opencode-go/deepseek-v4.1-flash#high`)
   headless per task, gets the session id, report path, and changed files back, and

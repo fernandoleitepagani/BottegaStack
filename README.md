@@ -15,6 +15,9 @@ git clone <this-repo> ~/Projects/PaganiStack
 ~/Projects/PaganiStack/bin/pagani doctor
 ```
 
+The installer links `pagani` into `~/.local/bin` (override with `PAGANI_BIN_DIR`);
+agents call it by name, so that directory must be on `PATH`.
+
 In a project:
 
 ```bash
