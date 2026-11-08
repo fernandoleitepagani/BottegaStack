@@ -95,7 +95,7 @@ to spend the human's attention where the risk is, not on ceremony.
 ### Fewer commands
 
 The CLI is nine top-level commands: `install` (with `--uninstall`), `doctor`,
-`init`, `upgrade`, `build`, `job`, `worktree`, `hooks`, and `network`. `job` owns the
+`init`, `upgrade`, `build`, `job`, `worktree`, and `hooks`. `job` owns the
 lifecycle subcommands. `doctor` absorbs lint. `install --uninstall` replaces a
 separate `uninstall` command.
 
@@ -121,7 +121,7 @@ removed; the master does those checks directly.
 ## Trade-offs
 
 - **One reviewer can miss a specialist issue.** The checklists and the
-  `high-risk` lane (adversarial review, `simplify`, `review-code-strong`) cover
+  `high-risk` lane (adversarial review, `simplify`, `review-code` on Opus) cover
   the gap. If a change needs a dedicated specialist, run that skill by name.
 - **One planning pass can under-specify a large job.** `standard` and
   `high-risk` jobs still get the full interview, and the planner returns open
@@ -148,7 +148,7 @@ On a model upgrade:
 1. List each component.
 2. Ask what weakness it was added for.
 3. Remove it on a branch.
-4. Run the evals.
+4. Re-run a few real jobs on the lighter setup.
 5. Keep or delete it.
 
 Test one component at a time. Removing several at once hides which one still
@@ -164,8 +164,8 @@ review. See `## Rule placement` in [AGENTS.md](../AGENTS.md).
 
 - Full OS sandboxing.
 - A control plane that starts or stops agents.
-- A network allowlist for shell or `agent-browser` egress. The opt-in allowlist
-  covers Claude `WebFetch` only.
+- A network allowlist. It only ever covered Claude `WebFetch`, never shell or
+  `agent-browser` egress, so it was removed.
 - Cost tracking, a spending cap, backups, a weekly timer, or a GitHub Actions
   workflow. Those belong to the project, not the stack.
 - Prompt-injection enforcement. `untrusted-content` is a convention, not a

@@ -31,7 +31,6 @@ pagani job report [--retro] [--write] [--exit-code]
 pagani job check <job>
 pagani job gate <job>
 pagani upgrade [path]
-pagani network init|check <url>
 ```
 
 ## Verification

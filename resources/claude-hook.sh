@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code hook helper: format, skill-usage logging, PreCompact handoff, and
-# the opt-in WebFetch network allowlist guard.
+# Claude Code hook helper: format and PreCompact handoff.
 # Every subcommand is best-effort and exits 0 so it never breaks a tool call.
 set -euo pipefail
 
@@ -59,7 +58,6 @@ usage: claude-hook.sh <command>
 commands:
   format                  format the file in .tool_input.file_path
   precompact              snapshot the newest job into handoff.md
-  webfetch-guard          deny WebFetch hosts missing from the allowlist
 EOF
 }
 
@@ -82,73 +80,6 @@ cmd_format() {
 }
 
 
-
-# Print the host from a URL. python3 handles credentials, ports, and IPv6;
-# sed is the fallback.
-url_host() {
-  local url="$1"
-  if command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$url" | python3 -c '
-import sys
-from urllib.parse import urlparse
-try:
-    print(urlparse(sys.stdin.read().strip()).hostname or "")
-except Exception:
-    print("")
-' || true
-  else
-    printf '%s' "$url" | sed -E \
-      -e 's|^[a-zA-Z][a-zA-Z0-9+.-]*://||' \
-      -e 's|[/?#].*||' \
-      -e 's|^[^@]*@||' \
-      -e 's|:[0-9]+$||' || true
-  fi
-}
-
-# Opt-in WebFetch guard. No allowlist means allow. Otherwise allow exact host
-# matches and `*.suffix` wildcard matches; deny everything else with the hook
-# JSON payload.
-cmd_webfetch_guard() {
-  local allowlist="$project_dir/pagani/network-allowlist.txt"
-  [ -f "$allowlist" ] || return 0
-
-  local url host
-  url="$(json_field "$input" tool_input.url || true)"
-  [ -n "$url" ] || return 0
-
-  host="$(url_host "$url")"
-  host="$(printf '%s' "$host" | tr '[:upper:]' '[:lower:]')"
-  [ -n "$host" ] || return 0
-
-  local line suffix matched=0
-  while IFS= read -r line || [ -n "$line" ]; do
-    line="${line%%#*}"
-    line="$(printf '%s' "$line" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-    [ -n "$line" ] || continue
-    if [ "$line" = "$host" ]; then
-      matched=1
-      break
-    fi
-    case "$line" in
-      \*.*)
-        suffix="${line#\*}"
-        case "$host" in
-          *"$suffix")
-            matched=1
-            break
-            ;;
-        esac
-        ;;
-    esac
-  done <"$allowlist"
-
-  if [ "$matched" -eq 1 ]; then
-    return 0
-  fi
-
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"pagani: host %s not in pagani/network-allowlist.txt"}}\n' "$host"
-  return 0
-}
 
 job_field() {
   local file="$1" key="$2"
@@ -206,9 +137,6 @@ case "$sub" in
     ;;
   precompact)
     cmd_precompact
-    ;;
-  webfetch-guard)
-    cmd_webfetch_guard
     ;;
   *)
     usage

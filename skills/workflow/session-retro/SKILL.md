@@ -42,8 +42,8 @@ until it sticks.
 
 ## Model-upgrade decay check
 
-When the model changes, test one component at a time against the evals. Remove
-it on a branch, run the evals, then keep or delete it. A component that fixed an
+When the model changes, test one component at a time. Remove it on a branch, run a
+real job, then keep or delete it. A component that fixed an
 old model's weakness may be dead weight on the new one. Do not remove several at
 once: you will not know which one still earns its place.
 

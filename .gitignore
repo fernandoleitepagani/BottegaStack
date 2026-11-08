@@ -1,5 +1,4 @@
 # Orchestration artifacts
-.opencode/
 
 # PaganiStack runtime state
 pagani/jobs/
@@ -18,7 +17,3 @@ pagani/handoff.md
 
 # Dependencies
 node_modules/
-
-# Eval output
-evals/reviewer/results.tsv
-evals/skills/results.tsv

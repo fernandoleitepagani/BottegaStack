@@ -58,6 +58,4 @@ APPROVAL: <needed|not needed>
 - Assuming `gh`, `agent-browser`, or `gitleaks` is installed. `pagani doctor`
   exists because it often is not.
 - Deleting orphaned resources without the dry run and soak period.
-- Treating the opt-in Claude `WebFetch` allowlist as if it covered shell or
-  `agent-browser` egress.
 - Writing a token into `pagani/` or a log instead of a secret store.

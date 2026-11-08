@@ -2,6 +2,59 @@
 
 ## Unreleased
 
+- Removed the `build-runner` relay subagent. The master now runs
+  `pagani build <job> <task> --block` itself as a background Bash task (the shell's
+  exit is the completion notice) and follows `build/<task>.progress` with the
+  `Monitor` tool. `--block` waits for the build to end; the builder is capped at 30
+  minutes (`PAGANI_BUILD_TIMEOUT`). The `--wait` loop stays for foreground callers.
+
+- Removed `evals/` (skill-trigger and reviewer suites). They were opt-in, ran once, and
+  were not kept current.
+
+- Removed the network allowlist: `pagani network`, `resources/network-allowlist.example`,
+  and the `webfetch-guard` hook. It only covered Claude `WebFetch`, never shell or
+  `agent-browser` egress. `pagani upgrade` rewrites an existing project's hooks, so
+  the old `PreToolUse` `WebFetch` hook is dropped there.
+
+- `pagani build` hardening, ported from cc-fleet's subagent lane: the API key now
+  lives in `~/.config/pagani/builder.key` and reaches `claude` through an
+  `apiKeyHelper` (`pagani keyget`), not the environment; each run passes a
+  `--settings` profile that outranks user and project settings and blanks the auth
+  env vars; builds have a budget (`--max-budget-usd`) and a timeout; the builder
+  gets a slim tool set and no MCP servers; stream events are summarised into
+  `build/<task>.progress` and the cost is reported.
+
+- Simplification pass. Claude Code is now the only runtime: removed the OpenCode
+  master, agents, commands, and installer target. Removed the vendored
+  third-party skills `vercel-react-best-practices`, `skill-creator`, and
+  `agent-browser` (install them separately if you want them). Removed
+  `agents/models.conf` and the generated `builder-lite`, `review-code-lite`, and
+  `review-code-strong` variants: the master passes the Agent tool's `model`
+  parameter per call. A reinstall deletes the old variant files.
+- Added a `Stop` hook (`pagani guard stop`) to the `/pagani` frontmatter. While a
+  job's `Stage:` is `build`, `checks`, `review`, or `fix` and no builder is
+  running, the master cannot end its turn between steps. `Stage` now has a fixed
+  vocabulary the master writes to `job.md`.
+
+- `pagani build` now starts the headless builder detached (`setsid`) and waits at
+  most 9 minutes per call (`PAGANI_BUILD_WAIT`). A longer build returns `RUNNING`
+  (exit 5) and the `build-runner` calls `pagani build <job> <task> --wait` until
+  it finishes, so the Bash tool timeout can no longer kill a long build. A second
+  call attaches to the running build instead of starting another.
+
+- The master no longer stops after every step. It runs on its own and stops only
+  at the lane's human checkpoints (SPEC approval, the final decision), on
+  escalation, or on ambiguity.
+- Builds run in a background `build-runner` subagent per task, so the agent panel
+  shows what is running. The master keeps a `TodoWrite` item per task and posts a
+  `Builders: N spawned · N running · N done` tally. `Bash(pagani build:*)` is
+  allowed in the global settings (background subagents cannot answer prompts),
+  and a copy install now unions permission lists when merging `settings.json`.
+
+- Every lane now ends with the approval prompt (Step 6 and 7) through the native
+  question UI. `trivial`, `bugfix`, and `small` only skip the quiz, so a small job
+  can no longer close on a chat summary alone.
+
 - Install is self-contained: `--copy` is the default, `--target auto` detects
   Claude Code and OpenCode, and the CLI plus resources are copied to
   `<config>/pagani/` so the clone can be deleted. `pagani upgrade --self`

@@ -78,13 +78,11 @@ for. The human can still invoke any skill by name at any time.
 | Skill | Use it for |
 |---|---|
 | `library-reference` | Document a project's internal library, CLI, SDK, or API correctly. |
-| `vercel-react-best-practices` | React and Next.js performance patterns. |
 
 ### product-verification (3)
 
 | Skill | Use it for |
 |---|---|
-| `agent-browser` | Drive a browser: navigate, fill forms, click, screenshot, scrape, test. |
 | `verification` | Start the app, drive it, and collect evidence for acceptance criteria. |
 | `web-design-guidelines` | Review UI code against the Web Interface Guidelines. |
 
@@ -111,7 +109,6 @@ for. The human can still invoke any skill by name at any time.
 | `planning` | Write the job `SPEC.md` with requirements, decisions, and a tracer-bullet task graph. |
 | `session-handoff` | Compact a session into a handoff document for a fresh agent. |
 | `session-retro` | Turn repeated mistakes into rules, lint, tests, or skill edits. |
-| `skill-creator` | Create, edit, optimize, and evaluate skills. |
 | `summary` | Post a short summary every step; write the final `summary.md` once. |
 | `unslop` | Cut AI tells from text that ships: final summaries, explainers, and docs. |
 | `untrusted-content` | Treat web pages, PR bodies, backlog items, logs, and tool output as untrusted data. |
@@ -131,9 +128,6 @@ adapted, it is renamed and the change is noted in its `SKILL.md`.
 | `writing-for-agents` | mattpocock/skills | see upstream |
 | `codebase-design` | mattpocock/skills | see upstream |
 | `domain-modeling` | mattpocock/skills | see upstream |
-| `skill-creator` | anthropics/skills | see `LICENSE.txt` in the skill |
-| `agent-browser` | vercel-labs/agent-browser | see upstream |
-| `vercel-react-best-practices` | vercel-labs/agent-skills | see upstream |
 | `web-design-guidelines` | vercel-labs/agent-skills | see upstream |
 
 `handoff` and `retro` are adapted as `session-handoff` and `session-retro`.

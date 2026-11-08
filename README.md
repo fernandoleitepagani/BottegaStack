@@ -1,7 +1,6 @@
 # PaganiStack
 
-PaganiStack is a personal agentic development workflow for OpenCode and Claude
-Code. It turns a request into a verified change and keeps a human in the loop.
+PaganiStack is a personal agentic development workflow for Claude Code. It turns a request into a verified change and keeps a human in the loop.
 
 The job folder is the state: `pagani/jobs/<id>/`. `job.md` holds only stage,
 round, lane, branch, and base. There is no database, no cloud service, and no

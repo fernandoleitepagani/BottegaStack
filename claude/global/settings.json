@@ -12,5 +12,10 @@
       "effortLevel": "low"
     }
   },
-  "theme": "dark"
+  "theme": "dark",
+  "permissions": {
+    "allow": [
+      "Bash(pagani build:*)"
+    ]
+  }
 }

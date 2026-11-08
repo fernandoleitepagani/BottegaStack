@@ -8,9 +8,6 @@ pagani/handoff.md
 .env
 .env.*
 
-# Eval output
-evals/skills/results.tsv
-
 # OS/editor
 .DS_Store
 .idea/

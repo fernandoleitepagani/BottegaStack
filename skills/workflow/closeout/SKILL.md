@@ -18,7 +18,7 @@ Show:
 - for `standard` and `high-risk` only, the quiz and its answers,
 - the exact git command you would run for each option.
 
-Ask with the native `question` tool:
+Ask with `AskUserQuestion`:
 
 - **Approve and merge** — merge `pagani/<job-id>` into the base.
 - **Approve and commit** — commit remaining changes with a message.

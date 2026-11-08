@@ -12,11 +12,18 @@ Not every request needs the full nine-step pipeline. Pick a lane, write it to
 
 | Lane | Use when | Steps that run | Human checkpoints |
 |---|---|---|---|
-| `trivial` | docs, copy, comments, config-only; ≤3 files; no risk path; no behaviour change | Step 0 → `builder-lite` → `pagani job check` → `review-code-lite` → human | one summary at the end |
-| `bugfix` | a reproducible symptom exists | Step 0 → `diagnosis` → failing test first → one `builder` → `pagani job check` → `review-code-lite` → human | one summary at the end |
-| `small` | one feature, one area, ≲10 files, no risk path | Step 0 → short interview (≤3 questions) → `SPEC.md` with acceptance criteria and one task → `builder` → `pagani job check` → `review-code-lite` → human. The master writes `decision.md` | after SPEC, after review |
+| `trivial` | docs, copy, comments, config-only; ≤3 files; no risk path; no behaviour change | Step 0 → `builder` (haiku) → `pagani job check` → `review-code` (haiku) → human | one summary at the end, then the approval prompt |
+| `bugfix` | a reproducible symptom exists | Step 0 → `diagnosis` → failing test first → one `builder` → `pagani job check` → `review-code` (haiku) → human | one summary at the end, then the approval prompt |
+| `small` | one feature, one area, ≲10 files, no risk path | Step 0 → short interview (≤3 questions) → `SPEC.md` with acceptance criteria and one task → `builder` → `pagani job check` → `review-code` (haiku) → human. The master writes `decision.md` | after SPEC, after review |
 | `standard` | normal product change | full flow; build/check summaries collapse into the review summary | after SPEC, after review |
-| `high-risk` | auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling | full flow + `adversarial-review` + `simplify` + `review-code-strong`; quiz mandatory | every step; the human must read the diff before merge |
+| `high-risk` | auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling | full flow + `adversarial-review` + `simplify` + `review-code` (opus); quiz mandatory | every step; the human must read the diff before merge |
+
+The master runs on its own between checkpoints: it never waits for "proceed" or
+"approve" between steps, and background builders report back without being asked.
+
+Every lane ends with the approval prompt (Step 6 and Step 7) through the native
+question UI. Lanes only change how much runs before it and whether there is a
+quiz (`standard` and `high-risk` only).
 
 Skills `wizard`, `wayfinding`, `backlog-triage`, `improve-architecture`, and
 `review-pr` are separate and are not lanes.
@@ -53,24 +60,25 @@ downgrade.
 
 ## Model tiers
 
+There are no tier variants of an agent. The master picks the tier per call with
+the Agent tool's `model` parameter; the agent's own frontmatter is the default.
+
 | Role | trivial | bugfix | small | standard | high-risk |
 |---|---|---|---|---|---|
-| explorer | lite | lite | lite | lite | lite |
-| planner | — | — | `planner` | `planner` | `planner` |
-| builder | `builder-lite` | `builder` | `builder` | `builder` | `builder` |
-| review-code | `review-code-lite` | `review-code-lite` | `review-code-lite` | `review-code` | `review-code-strong` |
+| explorer | haiku | haiku | haiku | haiku | haiku |
+| planner | — | — | default | default | default |
+| builder | `model: haiku` | default | default | default | default |
+| review-code | `model: haiku` | `model: haiku` | `model: haiku` | default | `model: opus` |
 
 When `pagani build --check` passes, every lane's builder is the headless Claude
-Code `builder` run through `pagani build` on the model in `builder.env`.
+Code `builder` run through `pagani build` on the model in `builder.env`; the tier
+above applies only to the Claude fallback.
 
 One reviewer covers code, UI, UX, and security for every lane. The master writes
 `decision.md` at Step 6.
 
-The base agents are `master`, `explorer`, `planner`, `builder`, and `review-code`.
-The installer generates the tier variants from `agents/models.conf`:
-
-- `builder-lite`
-- `review-code-lite`, `review-code-strong`
+The base agents are `master`, `explorer`, `planner`, `builder`, and
+`review-code`.
 
 ## Gotchas
 

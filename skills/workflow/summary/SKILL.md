@@ -19,7 +19,8 @@ chat summary.
 Post the short version in chat. Do not write a file at each checkpoint.
 
 - Keep the chat version under 12 lines.
-- Stop. Do not advance until the human says `approve`.
+- Post it and keep going. Stop for the human only at the lane's checkpoints
+  (SPEC approval, the final decision), on an escalation, or on ambiguity.
 - After every subagent run, post a short summary of what it returned before
   moving on.
 
@@ -62,7 +63,7 @@ Good:
 
 ## Checkpoints
 
-Use the native `question` tool for the decision:
+Use `AskUserQuestion` for the decision:
 
 - Approve
 - Rework (with a note)

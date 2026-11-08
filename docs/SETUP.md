@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- OpenCode, Claude Code, or both.
+- Claude Code.
 - `gh` for PR helpers.
 - Optional: `python3` for `pagani upgrade`.
 - Optional: `gitleaks` for the secret pre-commit hook.
@@ -17,9 +17,7 @@ pagani doctor
 rm -rf /tmp/PaganiStack      # the install is self-contained
 ```
 
-`install.sh` forwards to `bin/pagani install`. The default target is `auto`: every
-runtime found on the machine (`~/.claude`, `~/.config/opencode`). Force one with
-`--target opencode|claude|both`. The default mode is `--copy`: real files go into
+`install.sh` forwards to `bin/pagani install`. The target is `~/.claude` (`CLAUDE_CONFIG_DIR` is honored). The default mode is `--copy`: real files go into
 each target, and the CLI with its resources goes to `<target>/pagani/`, so the
 clone is not needed afterwards. `--link` symlinks into the clone instead (for
 development). Preview with `--dry-run`, or skip prompts with `--yes`.
@@ -34,10 +32,8 @@ The installer flattens `skills/<category>/<skill>` to
 `<target>/skills/<skill>` because both runtimes discover skills at that depth.
 Agents and commands are per-target; skills are shared.
 
-The installer generates the `builder-lite`, `review-code-lite`, and
-`review-code-strong` variants from `agents/models.conf`. The master uses the
-`deepseek-v4.1-flash` `high` variant in OpenCode and Opus 5.5 at medium effort
-in Claude Code.
+There are no tier variants of an agent: the master picks the model per call with
+the Agent tool's `model` parameter. The master runs on Opus 5.5 at medium effort.
 
 ## Uninstall
 
@@ -46,7 +42,7 @@ in Claude Code.
 ```
 
 Add `--dry-run` to print `would remove:` lines without deleting anything. Add
-`--target` to limit removal to one runtime.
+
 
 ## Doctor
 
@@ -74,7 +70,7 @@ cd ~/Projects/my-project
 `pagani init` creates `SPEC.md`, `ROADMAP.md`, and `TASKS.md`, plus `AGENTS.md`,
 `REVIEW.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `BACKLOG.md`, `mistakes.md`,
 `CLAUDE.md`, the `scripts/` check and verify stubs, `.claude/settings.json`,
-`docs/FEATURE-MAP.md`, the ADR template, and the network-allowlist example. It
+`docs/FEATURE-MAP.md`, and the ADR template. It
 installs the git hooks when `.git` exists.
 
 ## Upgrade a project
@@ -94,30 +90,39 @@ The builder runs as `claude -p --agent builder` on a third-party model through
 an Anthropic-compatible endpoint. It is global: nothing is copied into projects.
 
 ```bash
-pagani build --init     # creates ~/.config/pagani/builder.env (mode 600)
-$EDITOR ~/.config/pagani/builder.env
-pagani build --check    # verifies the file without printing it
+pagani build --init     # creates builder.env, then asks for your key (hidden)
+pagani build --check    # verifies both without printing them
 ```
 
-The defaults target OpenCode Go (`deepseek-v4.1-flash`); you only add your key to `ANTHROPIC_AUTH_TOKEN`. To change the model, map
-the model aliases (see `resources/builder.env.example`). The file is sourced in a
-subshell for the builder only, so your own Claude login is untouched. Without the
-file, `/pagani` falls back to the Claude `builder` subagent.
+- `~/.config/pagani/builder.env` (mode 600) holds the endpoint and model names
+  only. The defaults target OpenCode Go and `deepseek-v4.1-flash`.
+- `~/.config/pagani/builder.key` (mode 600) holds the API key. It reaches `claude`
+  through an `apiKeyHelper` (`pagani keyget`), so it is never in the builder's
+  environment or argv. An `ANTHROPIC_AUTH_TOKEN=` line in `builder.env` still works
+  as a fallback.
+- Each run writes a settings profile (`build/<task>.settings.json`, no secrets) and
+  passes it with `--settings`, so it outranks user and project settings. The profile
+  blanks `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` in settings `env`.
+- Limits: `PAGANI_BUILD_BUDGET` (USD, default 10; Claude Code's own estimate for
+  unknown models), `PAGANI_BUILD_TIMEOUT` (seconds, default 1800), and
+  `PAGANI_BUILD_WAIT` (seconds per call, default 540).
+- The builder gets a slim tool set (Bash, Edit, Glob, Grep, Read, Skill, Write,
+  TodoWrite) and no MCP servers.
+- `build/<task>.progress` gets one line per builder tool call; `pagani build`
+  prints the last one while the build is still `RUNNING`, and the cost at the end.
 
-## Hooks, network, and worktrees
+Without the files, `/pagani` falls back to the Claude `builder` subagent.
+
+## Hooks and worktrees
 
 ```bash
 pagani hooks install|uninstall [path]
-pagani network init|check <url>
 pagani worktree create <job> <task>
 pagani worktree prune <job> [--force]
 ```
 
 - `hooks` installs or removes the gitleaks pre-commit hook and the pre-push hook
   that runs `scripts/check`.
-- `network init` creates the opt-in `pagani/network-allowlist.txt`. `network
-  check <url>` reports allowed or denied. The allowlist covers only Claude
-  `WebFetch`; shell, `curl`, and `agent-browser` egress are not covered.
 - `worktree create` creates one worktree per task for parallel builders and
   prints a port. `worktree prune` removes them; `--force` discards uncommitted
   changes.
@@ -134,11 +139,9 @@ pagani worktree prune <job> [--force]
 | `pagani doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `pagani init`. |
 | Claude settings has no hooks | Run `pagani upgrade`. |
-| Model variants missing | Re-run `./install.sh --target ...`. |
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
 | Git hooks missing | Run `pagani hooks install [path]`. |
 | `pagani upgrade` fails | Install `python3`. |
-| Network check denies a host | Add it to `pagani/network-allowlist.txt`, or remove the file. |
 | Context full | Load `session-handoff`, write `TASKS.md`, start a fresh session. |
 
 ## Claude smoke test
@@ -149,11 +152,9 @@ Run this by hand after installing or upgrading the Claude Code target.
 2. `./bin/pagani doctor` shows `claude: yes`, the settings hooks, and executable
    `scripts/claude-hook.sh`.
 3. `python3 -m json.tool .claude/settings.json` succeeds and the file has the
-   `PreToolUse` `WebFetch`, `PostToolUse` `Edit|Write`, and `PreCompact` hooks.
+   `PostToolUse` `Edit|Write` and `PreCompact` hooks.
 4. `scripts/claude-hook.sh format` runs `scripts/format` on a scratch file and
    exits 0 even when the formatter fails.
-5. `scripts/claude-hook.sh webfetch-guard` allows with no allowlist, allows a
-   listed host, and denies an unlisted host.
-6. `/pagani status` loads the generated command and reads the newest job.
-7. `pagani job gate <job>` fails after an uncommitted edit and passes with
+5. `/pagani status` loads the generated command and reads the newest job.
+6. `pagani job gate <job>` fails after an uncommitted edit and passes with
    `--allow-dirty`.

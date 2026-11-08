@@ -3,7 +3,8 @@
 # No state machine. It installs files, checks them, and scaffolds a project.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+SELF="$(readlink -f "${BASH_SOURCE[0]}")"
+ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 TARGET="auto"
 MODE="copy"
 DRY_RUN=0
@@ -15,12 +16,12 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 usage() {
   cat <<'EOF'
 Usage:
-  pagani install [--uninstall] [--target auto|opencode|claude|both] [--copy|--link] [--dry-run] [--yes]
+  pagani install [--uninstall] [--target auto|claude] [--copy|--link] [--dry-run] [--yes]
   pagani doctor
   pagani init [path]
   pagani upgrade [path]
   pagani upgrade --self [--from <git-url-or-path>]
-  pagani build <job> <task> [--revise <findings-file>]
+  pagani build <job> <task> [--revise <findings-file>] [--block|--wait]
   pagani build --init | --check
   pagani job new|check|gate|report
   pagani job new "<title>"
@@ -30,20 +31,12 @@ Usage:
   pagani worktree create <job> <task>
   pagani worktree prune <job> [--force]
   pagani hooks install|uninstall [path]
-  pagani network init|check <url>
 
-Network allowlist:
-  The opt-in allowlist only covers Claude Code's WebFetch tool through the
-  webfetch-guard hook. Shell commands, curl, and agent-browser egress are not
-  covered; use an OS firewall or proxy for those.
+Target:
+  claude    ~/.claude (CLAUDE_CONFIG_DIR is honored)
 
-Targets:
-  opencode  ~/.config/opencode
-  claude    ~/.claude
-  auto      (default) every runtime found on this machine
-
-Install copies real files (--copy, the default) into each target, including the
-CLI itself under <target>/pagani/, so the clone can be deleted afterwards. Use
+Install copies real files (--copy, the default) into ~/.claude, including the
+CLI itself under ~/.claude/pagani/, so the clone can be deleted afterwards. Use
 --link for development: it symlinks into the clone instead.
 
 Headless builder:
@@ -58,27 +51,16 @@ EOF
 
 config_dir() {
   case "$1" in
-    opencode) printf '%s/opencode\n' "${XDG_CONFIG_HOME:-$HOME/.config}" ;;
     claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
     *) echo "unknown target: $1" >&2; exit 1 ;;
   esac
 }
 
-# Fill TARGETS from --target. `auto` picks every runtime found on this machine.
+# Claude Code is the only runtime. --target is kept so old invocations still work.
 resolve_targets() {
-  TARGETS=()
   case "$TARGET" in
-    both) TARGETS=(opencode claude) ;;
-    opencode|claude) TARGETS=("$TARGET") ;;
-    auto)
-      if [ -d "$(config_dir claude)" ] || command -v claude >/dev/null 2>&1; then TARGETS+=(claude); fi
-      if [ -d "$(config_dir opencode)" ] || command -v opencode >/dev/null 2>&1; then TARGETS+=(opencode); fi
-      if [ "${#TARGETS[@]}" -eq 0 ]; then
-        echo "no Claude Code or OpenCode found; pass --target claude|opencode|both" >&2
-        exit 1
-      fi
-      ;;
-    *) echo "unknown target: $TARGET" >&2; exit 1 ;;
+    auto|claude|both) TARGETS=(claude) ;;
+    *) echo "unknown target: $TARGET (only claude is supported)" >&2; exit 1 ;;
   esac
 }
 
@@ -229,6 +211,12 @@ if not isinstance(dst, dict):
 for k, v in src.items():
     if k not in dst:
         dst[k] = v
+# Permission lists are unioned so new allow rules reach existing settings.
+sp, dp = src.get("permissions"), dst.get("permissions")
+if isinstance(sp, dict) and isinstance(dp, dict):
+    for name, rules in sp.items():
+        if isinstance(rules, list) and isinstance(dp.get(name), list):
+            dp[name] += [r for r in rules if r not in dp[name]]
 with open(sys.argv[3], "w") as f:
     json.dump(dst, f, indent=2)
     f.write("\n")
@@ -257,55 +245,19 @@ install_commands() {
 }
 
 
-model_for() {
-  local target="$1" role="$2" tier="$3"
-  awk -v t="$target" -v r="$role" -v tier="$tier" '
-    $1==t && $2==r && $3==tier { exact=$4 }
-    $1==t && $2=="*" && $3==tier { fallback=$4 }
-    END { print (exact ? exact : fallback) }
-  ' "$ROOT/agents/models.conf"
-}
-
-install_variant() {
-  local target="$1" base="$2" variant="$3" tier="$4" config="$5"
-  local src="$ROOT/agents/$target/$base.md"
-  [ -f "$src" ] || return 0
-  local model
-  model="$(model_for "$target" "$base" "$tier")"
-  if [ -z "$model" ]; then
-    echo "no model for $target/$base/$tier" >&2
-    return 1
-  fi
-  local dest="$config/agents/$variant.md"
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "would generate: $variant -> $dest ($model)"
-    return 0
-  fi
-  mkdir -p "$config/agents"
-  local tmp
-  tmp="$(mktemp)"
-  if [ "$target" = "claude" ]; then
-    sed -e "s|^name: .*|name: $variant|" -e "s|^model: .*|model: $model|" "$src" > "$tmp"
-  else
-    sed -e "s|^model: .*|model: $model|" "$src" > "$tmp"
-  fi
-  if [ -e "$dest" ] && cmp -s "$tmp" "$dest"; then
-    rm -f "$tmp"
-    printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-    return 0
-  fi
-  if [ -e "$dest" ] || [ -L "$dest" ]; then
-    backup_path "$dest" "$config"
-  fi
-  mv "$tmp" "$dest"
-  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-}
-
-install_agent_variants() {
-  local config="$1" target="$2"
-  install_variant "$target" builder builder-lite lite "$config"
-  install_variant "$target" review-code review-code-lite lite "$config"
-  install_variant "$target" review-code review-code-strong strong "$config"
+# Tier variants (builder-lite, review-code-lite, review-code-strong) and the
+# build-runner relay are gone: the master picks a tier per call with the Agent
+# tool's `model` parameter and runs `pagani build` itself. Remove the files older
+# installs generated.
+remove_obsolete() {
+  local config="$1" f
+  for f in builder-lite review-code-lite review-code-strong build-runner; do
+    if [ "$DRY_RUN" = "1" ]; then
+      [ -e "$config/agents/$f.md" ] && echo "would remove: $config/agents/$f.md"
+    else
+      rm -f "$config/agents/$f.md"
+    fi
+  done
 }
 
 require_clone() {
@@ -327,11 +279,10 @@ install_support() {
   fi
   local tmp
   tmp="$(mktemp -d)"
-  mkdir -p "$tmp/bin" "$tmp/agents"
+  mkdir -p "$tmp/bin"
   cp "$ROOT/bin/pagani" "$tmp/bin/pagani"
   chmod +x "$tmp/bin/pagani"
   cp -R "$ROOT/resources" "$tmp/resources"
-  cp "$ROOT/agents/models.conf" "$tmp/agents/models.conf"
   [ -f "$ROOT/VERSION" ] && cp "$ROOT/VERSION" "$tmp/VERSION"
   local origin="${PAGANI_SOURCE:-}"
   [ -n "$origin" ] || origin="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
@@ -365,7 +316,7 @@ cmd_install() {
     fi
     install_skills "$config" "$t"
     install_agents "$config" "$t"
-    install_agent_variants "$config" "$t"
+    remove_obsolete "$config"
     install_commands "$config" "$t"
     install_global_files "$config" "$t"
     install_support "$config"
@@ -396,9 +347,8 @@ install_cli() {
     cat > "$dest" <<'LAUNCHER'
 #!/usr/bin/env bash
 # pagani-launcher: runs the first installed PaganiStack CLI.
-for d in "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" "${XDG_CONFIG_HOME:-$HOME/.config}/opencode"; do
-  [ -x "$d/pagani/bin/pagani" ] && exec "$d/pagani/bin/pagani" "$@"
-done
+d="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+[ -x "$d/pagani/bin/pagani" ] && exec "$d/pagani/bin/pagani" "$@"
 echo "pagani: no installed copy found; reinstall from a PaganiStack clone" >&2
 exit 1
 LAUNCHER
@@ -445,9 +395,8 @@ cmd_uninstall() {
   done
   # Remove the launcher only when no installed copy is left.
   local cli="${PAGANI_BIN_DIR:-$HOME/.local/bin}/pagani" d left=0
-  for d in "$(config_dir claude)" "$(config_dir opencode)"; do
-    [ -x "$d/pagani/bin/pagani" ] && left=1
-  done
+  d="$(config_dir claude)"
+  [ -x "$d/pagani/bin/pagani" ] && left=1
   if [ "$left" = "0" ] && { [ -L "$cli" ] || grep -q 'pagani-launcher' "$cli" 2>/dev/null; }; then
     if [ "$DRY_RUN" = "1" ]; then echo "would remove: $cli"; else rm -f "$cli"; echo "removed: $cli"; fi
   fi
@@ -464,7 +413,7 @@ cmd_self_upgrade() {
   done
   if [ -z "$from" ]; then
     local d
-    for d in "$ROOT" "$(config_dir claude)/pagani" "$(config_dir opencode)/pagani"; do
+    for d in "$ROOT" "$(config_dir claude)/pagani"; do
       [ -f "$d/SOURCE" ] && { from="$(head -1 "$d/SOURCE")"; break; }
     done
   fi
@@ -480,28 +429,6 @@ cmd_self_upgrade() {
   fi
   PAGANI_SOURCE="$from" "$tmp/pagani/bin/pagani" install --yes
   rm -rf "$tmp"
-}
-
-# Print the host from a URL. Matches the webfetch-guard hook: python3 handles
-# credentials, ports, and IPv6; sed is the fallback.
-url_host() {
-  local url="$1"
-  if command -v python3 >/dev/null 2>&1; then
-    printf '%s' "$url" | python3 -c '
-import sys
-from urllib.parse import urlparse
-try:
-    print(urlparse(sys.stdin.read().strip()).hostname or "")
-except Exception:
-    print("")
-' || true
-  else
-    printf '%s' "$url" | sed -E \
-      -e 's|^[a-zA-Z][a-zA-Z0-9+.-]*://||' \
-      -e 's|[/?#].*||' \
-      -e 's|^[^@]*@||' \
-      -e 's|:[0-9]+$||' || true
-  fi
 }
 
 # Lane order. Lanes only escalate, so compare ranks and keep the higher one.
@@ -652,8 +579,7 @@ cmd_lint() {
   done
 
   for f in AGENTS.md SPEC.md ROADMAP.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
-           format.sh claude-hook.sh builder.env.example git-hooks/pre-commit git-hooks/pre-push \
-           network-allowlist.example; do
+           format.sh claude-hook.sh builder.env.example git-hooks/pre-commit git-hooks/pre-push; do
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"
       fail=1
@@ -683,11 +609,6 @@ cmd_lint() {
     fi
   done
 
-  if [ ! -f "$ROOT/agents/models.conf" ]; then
-    echo "FAIL missing models: agents/models.conf"
-    fail=1
-  fi
-
   while IFS= read -r name; do
     [ -n "$name" ] || continue
     if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$name" | grep -q .; then
@@ -696,12 +617,10 @@ cmd_lint() {
     fi
   done < <(grep -rhoE '([Ll]oad|loads)( the)? `[a-z0-9][a-z0-9-]*`' "$ROOT/agents" "$ROOT/skills" 2>/dev/null | grep -oE '`[a-z0-9][a-z0-9-]*`' | tr -d '`' | sort -u)
 
-  for f in "$ROOT/agents/opencode/master.md" "$ROOT/agents/claude/master.md"; do
-    if ! grep -q 'Step 0' "$f"; then
-      echo "FAIL missing Step 0: $f"
-      fail=1
-    fi
-  done
+  if ! grep -q 'Step 0' "$ROOT/agents/claude/master.md"; then
+    echo "FAIL missing Step 0: agents/claude/master.md"
+    fail=1
+  fi
 
   # Command files must not reference a step the matching master does not have.
   local cmd_file target master step
@@ -797,7 +716,6 @@ cmd_doctor() {
   else
     echo "headless builder: not configured (pagani build --init; Claude builder is the fallback)"
   fi
-  command -v opencode >/dev/null 2>&1 && echo "opencode: yes ($(opencode --version 2>/dev/null | head -1))" || echo "opencode: no"
   command -v claude >/dev/null 2>&1 && echo "claude: yes" || echo "claude: no"
   command -v gh >/dev/null 2>&1 && echo "gh: yes" || echo "gh: no"
   command -v agent-browser >/dev/null 2>&1 && echo "agent-browser: yes" || echo "agent-browser: no (install: npm install -g agent-browser)"
@@ -806,10 +724,7 @@ cmd_doctor() {
 
   local skills
   if [ ! -d "$ROOT/skills" ]; then
-    local t
-    for t in claude opencode; do
-      [ -d "$(config_dir $t)/skills" ] && echo "$t skills: $(find "$(config_dir $t)/skills" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
-    done
+    [ -d "$(config_dir claude)/skills" ] && echo "claude skills: $(find "$(config_dir claude)/skills" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
     echo "lint: skipped (installed copy; run from a clone for the full check)"
     return 0
   fi
@@ -817,7 +732,7 @@ cmd_doctor() {
   echo "skills: $skills"
 
   local missing=()
-  for s in wizard writing-for-agents codebase-design domain-modeling skill-creator agent-browser vercel-react-best-practices session-handoff session-retro; do
+  for s in wizard writing-for-agents codebase-design domain-modeling session-handoff session-retro; do
     if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$s" | grep -q .; then
       missing+=("$s")
     fi
@@ -892,7 +807,7 @@ cmd_doctor() {
     echo "git hooks: not a git repository"
   fi
 
-  for t in opencode claude; do
+  for t in claude; do
     local config
     config="$(config_dir "$t")"
     echo "$t config: $config"
@@ -910,7 +825,7 @@ append_runtime_gitignore() {
     printf '\n' >> "$gitignore"
   fi
   for entry in pagani/jobs/ pagani/retro-scan.md \
-               pagani/handoff.md evals/skills/results.tsv; do
+               pagani/handoff.md; do
     if ! grep -qxF "$entry" "$gitignore"; then
       printf '%s\n' "$entry" >> "$gitignore"
       echo "gitignore: $entry"
@@ -939,7 +854,6 @@ cmd_init() {
   [ -f "$dest/.github/pull_request_template.md" ] || cp "$ROOT/resources/PR-TEMPLATE.md" "$dest/.github/pull_request_template.md"
   [ -f "$dest/docs/FEATURE-MAP.md" ] || cp "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md"
   [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
-  [ -f "$dest/pagani/network-allowlist.example" ] || cp "$ROOT/resources/network-allowlist.example" "$dest/pagani/network-allowlist.example"
   [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
   chmod +x "$dest/scripts/check" "$dest/scripts/verify" \
     "$dest/scripts/format" "$dest/scripts/claude-hook.sh"
@@ -1048,86 +962,45 @@ PY
   fi
 }
 
-cmd_network() {
-  local action="${1:-}"
-  case "$action" in
-    init)
-      mkdir -p pagani
-      if [ -f pagani/network-allowlist.txt ]; then
-        echo "exists: pagani/network-allowlist.txt"
-      else
-        cp "$ROOT/resources/network-allowlist.example" pagani/network-allowlist.txt
-        echo "created: pagani/network-allowlist.txt"
-      fi
-      echo "note: this allowlist only covers Claude Code's WebFetch tool; shell and agent-browser egress are not covered."
-      ;;
-    check)
-      local url="${2:-}"
-      [ -n "$url" ] || { echo "usage: pagani network check <url>" >&2; exit 1; }
-      local host allowlist="pagani/network-allowlist.txt"
-      host="$(url_host "$url" | tr '[:upper:]' '[:lower:]')"
-      [ -n "$host" ] || { echo "DENIED: (no host in $url)"; exit 1; }
-      if [ ! -f "$allowlist" ]; then
-        echo "ALLOWED: $host (no allowlist; run pagani network init to enable)"
-        return 0
-      fi
-      local line suffix matched=0
-      while IFS= read -r line || [ -n "$line" ]; do
-        line="${line%%#*}"
-        line="$(printf '%s' "$line" | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]')"
-        [ -n "$line" ] || continue
-        if [ "$line" = "$host" ]; then
-          matched=1
-          break
-        fi
-        case "$line" in
-          \*.*)
-            suffix="${line#\*}"
-            case "$host" in
-              *"$suffix")
-                matched=1
-                break
-                ;;
-            esac
-            ;;
-        esac
-      done < "$allowlist"
-      if [ "$matched" = "1" ]; then
-        echo "ALLOWED: $host"
-      else
-        echo "DENIED: $host"
-        return 1
-      fi
-      ;;
-    *)
-      echo "usage: pagani network init|check <url>" >&2
-      exit 1
-      ;;
-  esac
-}
-
 # ---- Headless builder -------------------------------------------------------
 # `pagani build` runs the Claude Code `builder` agent headless (claude -p) on a
 # third-party model. Claude drives; the builder only implements and reports.
-# Credentials come from a per-machine env file, never from the repo.
+# Credentials come from per-machine files, never from the repo.
 
 builder_env_file() {
   printf '%s\n' "${PAGANI_BUILDER_ENV:-${XDG_CONFIG_HOME:-$HOME/.config}/pagani/builder.env}"
 }
 
+# The key lives in its own mode-600 file and reaches claude through apiKeyHelper
+# (`pagani keyget`), so it is never in the builder's environment or argv. An
+# ANTHROPIC_AUTH_TOKEN line in builder.env still works as a fallback.
+builder_key_file() {
+  printf '%s\n' "${PAGANI_BUILDER_KEY:-${XDG_CONFIG_HOME:-$HOME/.config}/pagani/builder.key}"
+}
+
+cmd_keyget() {
+  local f
+  f="$(builder_key_file)"
+  [ -s "$f" ] || exit 1
+  tr -d '\r\n ' < "$f"
+}
+
 # Succeeds when the headless builder can run. Prints why not on stderr unless
-# quiet. Never prints values from the env file.
+# quiet. Never prints values from the env or key file.
 builder_ready() {
   local quiet="${1:-}" file var missing=""
   say() { [ "$quiet" = "quiet" ] || echo "$1" >&2; }
-  has_value() { grep -Eq "^(export[[:space:]]+)?($1)=([^[:space:]\"']|[\"'][^\"']+[\"'])" "$file"; }
   file="$(builder_env_file)"
+  has_value() { grep -Eq "^(export[[:space:]]+)?($1)=([^[:space:]\"']|[\"'][^\"']+[\"'])" "$file"; }
   command -v claude >/dev/null 2>&1 || { say "builder: claude is not installed"; return 1; }
+  command -v python3 >/dev/null 2>&1 || { say "builder: python3 is required"; return 1; }
   [ -f "$file" ] || { say "builder: not configured (run: pagani build --init)"; return 1; }
   for var in ANTHROPIC_BASE_URL ANTHROPIC_MODEL; do
     has_value "$var" || missing="$missing $var"
   done
-  has_value "ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY" || missing="$missing ANTHROPIC_AUTH_TOKEN"
+  if [ ! -s "$(builder_key_file)" ] && ! has_value "ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY"; then
+    missing="$missing key($(builder_key_file))"
+  fi
   if [ -n "$missing" ]; then
     say "builder: $file is missing a value for:$missing"
     return 1
@@ -1136,22 +1009,44 @@ builder_ready() {
 }
 
 builder_init() {
-  local file example
+  local file example keyfile k=""
   file="$(builder_env_file)"
+  keyfile="$(builder_key_file)"
   example="$ROOT/resources/builder.env.example"
   [ -f "$example" ] || { echo "pagani build --init: $example not found" >&2; exit 1; }
+  mkdir -p "$(dirname "$file")"
   if [ -f "$file" ]; then
     echo "exists: $file"
   else
-    mkdir -p "$(dirname "$file")"
     (umask 077 && cp "$example" "$file")
     chmod 600 "$file"
     echo "created: $file"
   fi
-  echo "Edit it and fill in your key (the file is mode 600 and stays out of the repo)."
+  if [ -s "$keyfile" ]; then
+    echo "exists: $keyfile"
+  else
+    if [ -t 0 ]; then
+      read -rsp "OpenCode Go API key (hidden; Enter to skip): " k || true
+      echo
+    else
+      read -r k || true
+    fi
+    if [ -n "$k" ]; then
+      (umask 077 && printf '%s\n' "$k" > "$keyfile")
+      chmod 600 "$keyfile"
+      echo "created: $keyfile"
+    else
+      echo "skipped: no key entered. Add it later: write it to $keyfile (mode 600)."
+    fi
+  fi
   echo "Then check with: pagani build --check"
 }
 
+# pagani build <job> <task> [--revise <findings>] [--block | --wait]
+#   default  wait up to PAGANI_BUILD_WAIT seconds (540), then print RUNNING, exit 5
+#   --wait   attach to a running build, same bounded wait
+#   --block  wait until the build ends; for a background Bash task. The builder
+#            itself is capped by PAGANI_BUILD_TIMEOUT (default 1800 s = 30 min).
 cmd_build() {
   case "${1:-}" in
     --init) builder_init; return ;;
@@ -1161,13 +1056,15 @@ cmd_build() {
       ;;
   esac
 
-  local usage="usage: pagani build <job> <task> [--revise <findings-file>] | --init | --check"
+  local usage="usage: pagani build <job> <task> [--revise <findings-file>] [--block|--wait] | --init | --check"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
-  local job="$1" task="$2" findings=""
+  local job="$1" task="$2" findings="" block=0
   shift 2
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --revise) findings="${2:?findings file required}"; shift 2 ;;
+      --wait) shift ;;
+      --block) block=1; shift ;;
       *) echo "$usage" >&2; exit 2 ;;
     esac
   done
@@ -1183,96 +1080,203 @@ cmd_build() {
   local wt_report="$wt/pagani/jobs/$job/build/$task.md"
   local state="$jobdir/build/$task.builder"
   local log="$jobdir/build/$task.builder.log"
+  local run="$jobdir/build/$task.run" rcfile="$jobdir/build/$task.rc"
+  local progress="$jobdir/build/$task.progress" profile="$jobdir/build/$task.settings.json"
 
   [ -d "$jobdir" ] || { echo "pagani build: no job folder $jobdir" >&2; exit 3; }
   [ -f "$jobdir/SPEC.md" ] || { echo "pagani build: $jobdir/SPEC.md missing" >&2; exit 3; }
   [ -d "$wt" ] || { echo "pagani build: no worktree $wt (run: pagani worktree create $job $task)" >&2; exit 3; }
   mkdir -p "$jobdir/build" "$wt/pagani/jobs/$job/build"
-  # pagani/jobs is gitignored, so the worktree has no job folder: mirror the job
-  # inputs in so the builder never reads or writes outside its worktree.
-  local f
-  for f in SPEC.md job.md interview.md; do
-    [ -f "$jobdir/$f" ] && cp "$jobdir/$f" "$wt/pagani/jobs/$job/$f"
-  done
-  if [ -n "$findings" ]; then
-    [ -f "$findings" ] || { echo "pagani build: findings file not found: $findings" >&2; exit 3; }
-    cp "$findings" "$wt/pagani/jobs/$job/build/$task.findings.md"
-  fi
-  local branch msg rev=0 sid=""
+  local branch rev=0 sid=""
   branch="$(git -C "$wt" branch --show-current)"
-  local -a resume=()
 
-  if [ -n "$findings" ]; then
-    [ -f "$state" ] || { echo "pagani build: no session for $task; run a first build" >&2; exit 3; }
-    sid="$(sed -n 's/^session=//p' "$state")"
-    rev="$(sed -n 's/^revisions=//p' "$state")"; rev="${rev:-0}"
-    if [ "$rev" -ge "$max_rev" ]; then
-      echo "pagani build: $max_rev revisions used; escalate to the human (workflow rule: max two fix rounds)" >&2
-      exit 4
+  if [ -f "$run" ]; then
+    # A build for this task is running or finished but not collected: attach.
+    rev="$(sed -n 's/^rev=//p' "$run")"; rev="${rev:-0}"
+    sid="$(sed -n 's/^sid=//p' "$run")"
+    if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
+      echo 1 > "$rcfile"   # stale: the builder died without writing a result
     fi
-    rev=$((rev + 1))
-    msg="Revision $rev for task $task. Fix every finding in pagani/jobs/$job/build/$task.findings.md (read it first), nothing else. Same rules as before: stay inside Allowed files, do not edit or weaken tests, commit locally on $branch, never push or merge. Update the report $wt_report and keep its format."
-    resume=(--resume "$sid")
   else
-    msg="Job folder: pagani/jobs/$job (inside the worktree)
+    # pagani/jobs is gitignored, so the worktree has no job folder: mirror the
+    # job inputs in so the builder never reads or writes outside its worktree.
+    local f msg
+    for f in SPEC.md job.md interview.md; do
+      [ -f "$jobdir/$f" ] && cp "$jobdir/$f" "$wt/pagani/jobs/$job/$f"
+    done
+    if [ -n "$findings" ]; then
+      [ -f "$findings" ] || { echo "pagani build: findings file not found: $findings" >&2; exit 3; }
+      cp "$findings" "$wt/pagani/jobs/$job/build/$task.findings.md"
+      [ -f "$state" ] || { echo "pagani build: no session for $task; run a first build" >&2; exit 3; }
+      sid="$(sed -n 's/^session=//p' "$state")"
+      rev="$(sed -n 's/^revisions=//p' "$state")"; rev="${rev:-0}"
+      if [ "$rev" -ge "$max_rev" ]; then
+        echo "pagani build: $max_rev revisions used; escalate to the human (workflow rule: max two fix rounds)" >&2
+        exit 4
+      fi
+      rev=$((rev + 1))
+      msg="Revision $rev for task $task. Fix every finding in pagani/jobs/$job/build/$task.findings.md (read it first), nothing else. Same rules as before: stay inside Allowed files, do not edit or weaken tests, commit locally on $branch, never push or merge. Update the report $wt_report and keep its format."
+    else
+      msg="Job folder: pagani/jobs/$job (inside the worktree)
 Task: $task
 Worktree: $wt
 Everything stays inside the worktree. The job spec is pagani/jobs/$job/SPEC.md, not the project SPEC.md at the root.
 Branch: $branch
 Implement exactly this task from pagani/jobs/$job/SPEC.md. Follow your builder instructions. Write the report to $wt_report (inside the worktree; it is gitignored, do not commit it). Commit locally on $branch. Never push or merge."
+    fi
+    printf '%s' "$msg" > "$jobdir/build/$task.prompt"
+    rm -f "$rcfile"
+    : > "$progress"
+    printf 'rev=%s\nsid=%s\n' "$rev" "$sid" > "$run"
+    # Detached (own session): a timeout or kill of the caller cannot stop the builder.
+    setsid "$SELF" _build-exec "$wt" "$envfile" "$jobdir/build/$task.prompt" "$log" "$rcfile" "$progress" "$profile" "$sid" \
+      </dev/null >/dev/null 2>&1 &
   fi
 
-  # The env file is sourced in a subshell only: the master's own login and
-  # credentials are never touched, and nothing is echoed.
-  local rc
-  set +e
-  (
-    unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
-    set -a; . "$envfile"; set +a
-    export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-    cd "$wt" && claude -p "$msg" --agent builder --output-format json \
-      "${resume[@]}" \
-      --permission-mode acceptEdits \
-      --allowedTools "Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite" \
-      --disallowedTools "Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
-  ) > "$log" 2>&1
-  rc=$?
-  set -e
-  if [ -s "$wt_report" ]; then cp "$wt_report" "$report"; fi
+  # Bounded wait for a foreground caller; --block waits for the builder's own
+  # timeout (plus a minute) so a background task ends when the build ends.
+  local limit="${PAGANI_BUILD_WAIT:-540}" waited=0
+  [ "$block" = "1" ] && limit=$(( ${PAGANI_BUILD_TIMEOUT:-1800} + 60 ))
+  while [ ! -f "$rcfile" ] && [ "$waited" -lt "$limit" ]; do
+    sleep 2
+    waited=$((waited + 2))
+  done
+  if [ ! -f "$rcfile" ]; then
+    echo "RUNNING task: $task (still building; call again: pagani build $job $task --wait)"
+    echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
+    [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
+    echo "progress: $progress"
+    exit 5
+  fi
 
+  local rc
+  rc="$(cat "$rcfile")"
+  rm -f "$rcfile" "$run"
+  if [ -s "$wt_report" ]; then cp "$wt_report" "$report"; fi
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
   [ -n "$sid" ] && printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
 
-  local status="MISSING" commits
+  local status="MISSING" commits cost
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   commits="$(git -C "$wt" log --oneline "pagani/$job..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
+  cost="$(grep -o '"total_cost_usd":[0-9.]*' "$log" | tail -1 | cut -d: -f2 || true)"
 
   echo "task: $task"
   echo "session: ${sid:-none}"
   echo "revisions: $rev/$max_rev"
-  echo "builder exit: $rc"
+  echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
+  [ -n "$cost" ] && echo "cost (estimate): \$$cost"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "pagani/$job...HEAD" 2>/dev/null | sed 's/^/  /'
   [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
 }
 
-# PreToolUse hook used by the /pagani command (frontmatter, so it only applies
-# while /pagani runs). Denies spawning the Claude-model builder when the
-# headless builder is configured, and allows it otherwise (fallback).
+# Internal: run the headless builder and record its exit code. Started detached
+# by cmd_build. A per-run settings profile (--settings outranks user and project
+# settings) pins the endpoint and models and, when builder.key exists, an
+# apiKeyHelper, with the auth env vars blanked so no settings `env` block can
+# inject a credential. builder.env is sourced in a subshell only; nothing is
+# echoed. Stream events are logged and summarised into the progress file.
+cmd_build_exec() {
+  local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}" rc helper=""
+  local -a resume=()
+  [ -n "$sid" ] && resume=(--resume "$sid")
+  [ -s "$(builder_key_file)" ] && helper="\"$SELF\" keyget"
+  trap 'echo 143 > "$rcfile"; exit 143' TERM HUP
+  set +e
+  (
+    unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+    set -a; . "$envfile"; set +a
+    python3 - "$profile" "$helper" <<'PY'
+import json, os, sys
+path, helper = sys.argv[1:3]
+names = ("ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL",
+         "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+         "CLAUDE_CODE_SUBAGENT_MODEL")
+env = {k: os.environ[k] for k in names if os.environ.get(k)}
+env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+prof = {"env": env}
+if helper:
+    prof["apiKeyHelper"] = helper
+    env["ANTHROPIC_AUTH_TOKEN"] = ""
+    env["ANTHROPIC_API_KEY"] = ""
+with open(path, "w") as f:
+    json.dump(prof, f)
+PY
+    export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+    cd "$wt" && timeout "${PAGANI_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent builder \
+      --output-format stream-json --verbose \
+      "${resume[@]}" \
+      --settings "$profile" \
+      --permission-mode acceptEdits \
+      --max-budget-usd "${PAGANI_BUILD_BUDGET:-10}" \
+      --tools "Bash,Edit,Glob,Grep,Read,Skill,Write,TodoWrite" --strict-mcp-config \
+      --allowedTools "Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite" \
+      --disallowedTools "Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
+  ) 2>&1 | tee "$log" | python3 -c '
+import json, sys
+out = open(sys.argv[1], "a")
+for line in sys.stdin:
+    try:
+        ev = json.loads(line)
+    except Exception:
+        continue
+    if ev.get("type") != "assistant":
+        continue
+    for b in (ev.get("message") or {}).get("content") or []:
+        if isinstance(b, dict) and b.get("type") == "tool_use":
+            i = b.get("input") or {}
+            arg = i.get("file_path") or i.get("command") or i.get("pattern") or i.get("path") or ""
+            out.write("%s: %s\n" % (b.get("name"), str(arg).replace("\n", " ")[:100]))
+            out.flush()
+' "$progress" >/dev/null
+  rc=${PIPESTATUS[0]}
+  echo "$rc" > "$rcfile"
+}
+
+# Hooks used by the /pagani command (frontmatter, so they only apply while
+# /pagani runs).
+#   guard builder  PreToolUse: deny the Claude-model builder when the headless
+#                  builder is configured; allow it otherwise (fallback).
+#   guard stop     Stop: do not let the master end its turn between steps. It
+#                  blocks only while a job is mid-pipeline with nothing running.
 cmd_guard() {
-  [ "${1:-}" = "builder" ] || { echo "usage: pagani guard builder" >&2; exit 2; }
+  case "${1:-}" in
+    builder) guard_builder ;;
+    stop) guard_stop ;;
+    *) echo "usage: pagani guard builder|stop" >&2; exit 2 ;;
+  esac
+}
+
+guard_builder() {
   local input kind
   input="$(cat)"
   kind="$(printf '%s' "$input" | tr -d '\n' | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  case "$kind" in
-    builder|builder-lite) ;;
-    *) exit 0 ;;
-  esac
+  [ "$kind" = "builder" ] || exit 0
   builder_ready quiet || exit 0
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `pagani worktree create <job> <task>`, then run `pagani build <job> <task>` (see Step 2)."}}'
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `pagani worktree create <job> <task>`, then run `pagani build <job> <task> --block` as a background Bash task (see Step 2)."}}'
+}
+
+# Pipeline stages the master writes to job.md. Only these are "mid-pipeline":
+# the master must keep going. awaiting-spec, awaiting-decision, and closed are
+# human checkpoints or the end.
+guard_stop() {
+  local input job stage dir r
+  input="$(cat)"
+  printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
+  job="$(ls -t pagani/jobs/*/job.md 2>/dev/null | head -1 || true)"
+  [ -n "$job" ] || exit 0
+  stage="$(grep -m1 '^Stage:' "$job" | sed 's/^Stage:[[:space:]]*//' | tr -d '[:space:]')"
+  case "$stage" in build|checks|review|fix) ;; *) exit 0 ;; esac
+  dir="$(dirname "$job")"
+  for r in "$dir"/build/*.run; do
+    [ -f "$r" ] || continue
+    [ -f "${r%.run}.rc" ] || exit 0   # a builder is still running: idle is correct
+  done
+  printf '%s\n' "{\"decision\":\"block\",\"reason\":\"Job $(basename "$dir") is at Stage: $stage and no human checkpoint or running builder is pending. Continue to the next step now; do not stop and do not ask the user to proceed. If you are truly blocked, set Stage to awaiting-decision and ask with AskUserQuestion.\"}"
 }
 
 cmd_worktree() {
@@ -1566,10 +1570,11 @@ case "$cmd" in
     ;;
   build) cmd_build "$@" ;;
   guard) cmd_guard "$@" ;;
+  _build-exec) cmd_build_exec "$@" ;;
+  keyget) cmd_keyget ;;
   job) cmd_job "$@" ;;
   worktree) cmd_worktree "$@" ;;
   hooks) cmd_hooks "$@" ;;
-  network) cmd_network "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

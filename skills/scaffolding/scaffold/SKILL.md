@@ -55,7 +55,7 @@ TESTS: <pass/fail>
 - Copying a skill and forgetting that `name:` must equal its directory;
   `pagani doctor` fails.
 - Adding a `pagani-` prefix to a skill name.
-- Scaffolding an agent variant by hand instead of editing `agents/models.conf`.
+- Scaffolding a tier variant of an agent instead of passing `model:` on the Agent call.
 - Adding a file to `resources/` but not to the `pagani doctor` existence loop, so
   a broken install still passes.
 - Creating `commands/<target>/pagani.md` with a `Step N` the matching master

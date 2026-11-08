@@ -104,7 +104,7 @@ After writing `decision.md`, present it to the human in the conversation:
 2. Show the explainer.
 3. For `standard` and `high-risk`, show the quiz without the answers first, then
    the answers after the human attempts it, or together if they prefer.
-4. Ask for the decision with the native question tool. Offer approve and merge,
+4. Ask for the decision with `AskUserQuestion`. Offer approve and merge,
    approve and commit, approve and push, approve and open PR, rework, and reject.
 
 The human decides. Do not merge or push before they answer.

@@ -5,7 +5,7 @@ Keep this file short. It is for agents maintaining PaganiStack itself.
 ## What this repo is
 
 A personal agentic development workflow: agents, skills, commands, templates,
-and an installer for OpenCode and Claude Code. See
+and an installer for Claude Code. See
 [docs/WORKFLOW.md](docs/WORKFLOW.md) for the full explanation and
 [docs/SKILLS.md](docs/SKILLS.md) for the skill inventory.
 
@@ -17,8 +17,9 @@ and an installer for OpenCode and Claude Code. See
 - Do not add cloud-session workflows.
 - Lanes are the pipeline router; keep `skills/workflow/lanes/SKILL.md` and the
   masters consistent.
-- `agents/models.conf` is the single source of truth for model tiers; the
-  installer generates variants from it.
+- Agents have no tier variants. The master picks a tier per call with the Agent
+  tool's `model` parameter; each agent's frontmatter `model:` is the default.
+- Claude Code is the only supported runtime. Do not add OpenCode files back.
 - `./scripts/validate.sh` is the release gate. It runs `./bin/pagani doctor`,
   which includes the lint.
 - Skills are folders. Prefer references, scripts, and assets over one long file.
@@ -49,7 +50,7 @@ Prefer the highest item that actually prevents recurrence.
 ## Commands
 
 PaganiStack has nine top-level commands: `install` (with `--uninstall`),
-`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, `hooks`, and `network`.
+`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, and `hooks`.
 (`guard` is an internal hook entry point, not a user command.)
 
 ```bash
@@ -64,5 +65,4 @@ PaganiStack has nine top-level commands: `install` (with `--uninstall`),
 ./bin/pagani job report [--retro] [--write] [--exit-code]
 ./bin/pagani worktree create <job> <task>
 ./bin/pagani hooks install [path]
-./bin/pagani network init|check <url>
 ```

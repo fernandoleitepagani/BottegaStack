@@ -25,8 +25,7 @@ The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
 override. It creates the job folder and branch and writes `Lane` and
 `Lane-reason` to `job.md`.
 
-If the project predates the current hooks, run `pagani upgrade` once. Run
-`pagani network init` only if you want the opt-in Claude `WebFetch` allowlist.
+If the project predates the current hooks, run `pagani upgrade` once.
 
 ### Step 1: SPEC
 
@@ -46,6 +45,16 @@ failing test first. `small` jobs get a short interview and a short spec.
 `standard` and `high-risk` jobs get the full pass.
 
 ### Step 2: Build
+
+**Autonomy.** The master runs on its own between human checkpoints (SPEC
+approval and the final decision). A `Stop` hook enforces it: mid-pipeline, with no
+builder running, the master cannot end its turn. It never waits for "proceed" between steps.
+The master runs each build itself as a background Bash task
+(`pagani build <job> <task> --block`), so no relay model is involved. It keeps a
+`TodoWrite` item per task, follows `build/<task>.progress` with the `Monitor` tool
+for live steps, and posts `Builders: N started · N running · N done` when a build
+ends, then moves to checks as soon as the wave has joined. A build is capped at 30
+minutes (`PAGANI_BUILD_TIMEOUT`).
 
 **Headless builder (Claude drives, a third-party model implements).** When
 `pagani build --check` passes, the master creates the task worktree and runs
@@ -122,7 +131,8 @@ The master loads `approval` and reads `SPEC.md`, the build reports, checks, and
 reviews. It writes `decision.md` itself with `APPROVE` or `ESCALATE`, the
 acceptance-criteria mapping, risks, and an explainer. For `standard` and
 `high-risk` it adds a short quiz; `trivial`, `bugfix`, and `small` get the
-explainer only. It then presents the decision and asks for the decision. The
+explainer only. In every lane it then presents the decision and asks for it
+through the native question UI; a chat summary alone never closes a job. The
 quiz uses retrieval practice: no formatting hints, answers answerable from the
 artifacts.
 
@@ -145,29 +155,23 @@ yet, records the decision in `decision.md`, runs
 environment change. On repeated findings it proposes Gotchas patches. It loads
 `session-handoff` if the job continues elsewhere.
 
-### Split runner
+### Resume
 
-Job state is files in `pagani/jobs/<id>/`, so the runtimes can share a job:
-
-1. Run Steps 0–1 in Claude Code.
-2. In the same project, run `/pagani resume` in OpenCode for build, checks,
-   review, and fix. `resume` continues from `Stage:` in `job.md`.
-3. Optionally return to Claude Code at approval.
-
-Both masters share the same entry rule: a feature request starts at Step 0,
-`status` reads the newest `job.md`, and `resume` continues from `Stage:` without
-redoing completed steps. Both default to sequential builds and prefer a parallel
-wave when the ready tasks touch disjoint files.
+Job state is files in `pagani/jobs/<id>/`, so any new session can continue a job.
+The entry rule: a feature request starts at Step 0, `status` reads the newest
+`job.md`, and `resume` continues from `Stage:` without redoing completed steps.
+The master defaults to sequential builds and prefers a parallel wave when the
+ready tasks touch disjoint files.
 
 ## Lanes
 
 | Lane | Use when | Pipeline |
 |---|---|---|
-| `trivial` | docs, copy, config only; ≤3 files; no risk path | builder-lite → check → review-code-lite → human |
-| `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code-lite → human |
-| `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code-lite → human |
+| `trivial` | docs, copy, config only; ≤3 files; no risk path | builder (haiku) → check → review-code (haiku) → human |
+| `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code (haiku) → human |
+| `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code (haiku) → human |
 | `standard` | normal product change | full flow |
-| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + review-code-strong |
+| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + review-code (opus) |
 
 The master picks the lane at Step 0. After the first builder commit, compare
 `git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD` against
@@ -184,12 +188,10 @@ grows or touches a risk path. Lanes never downgrade.
 | `builder` | Implements exactly one task and writes `build/<task>.md`. |
 | `review-code` | One reviewer for code, UI, UX, and security; one file, one verdict. |
 
-The installer generates the `builder-lite`, `review-code-lite`, and
-`review-code-strong` variants from `agents/models.conf`. The master picks the
-variant by role and lane. Planning uses the strong model; the builder and
-reviewer scale with risk and lane. The master uses the `deepseek-v4.1-flash`
-`high` variant in OpenCode and Opus 5.5 at medium effort in Claude Code. There
-is no separate security or approval variant.
+There are no tier variants of an agent. The master picks the model per call with
+the Agent tool's `model` parameter (`haiku` for the lighter lanes, `opus` for
+`high-risk` review); each agent's frontmatter `model:` is the default. `planner`
+and `master` default to Opus.
 
 ## Skills
 
@@ -201,7 +203,7 @@ rest are situational.
 
 The full inventory, the vendored-skills table, and the rules for adding a skill
 are in [SKILLS.md](SKILLS.md). The installer flattens
-`skills/<category>/<skill>` to `<target>/skills/<skill>` because both runtimes
+`skills/<category>/<skill>` to `<target>/skills/<skill>` because Claude Code
 discover skills at that depth.
 
 Other skills are invoked directly by name, not through `/pagani`:
@@ -217,7 +219,7 @@ Other skills are invoked directly by name, not through `/pagani`:
 ## Commands
 
 PaganiStack has nine top-level commands: `install` (with `--uninstall`),
-`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, `hooks`, and `network`.
+`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, and `hooks`.
 
 ```bash
 ./install.sh --target both
@@ -234,7 +236,6 @@ pagani job report [--retro] [--write] [--exit-code]
 pagani worktree create <job> <task>
 pagani worktree prune <job> [--force]
 pagani hooks install|uninstall [path]
-pagani network init|check <url>
 ```
 
 Setup, uninstall, and troubleshooting are in [SETUP.md](SETUP.md).
@@ -312,10 +313,6 @@ Everything here is optional and local. Nothing starts an agent or a server.
   them when `.git` exists. A missing gitleaks is a clean skip.
 - **PreCompact handoff.** A Claude Code `PreCompact` hook writes a snapshot to
   the newest job's `handoff.md`, or `pagani/handoff.md`.
-- **Network allowlist.** `pagani network init` enables an opt-in Claude
-  `WebFetch` allowlist. Shell and `agent-browser` egress are not covered.
-- **Skill evals.** `evals/skills/run.sh` checks skill triggers. It spends tokens
-  and is opt-in.
 
 ## Safety and limits
 
@@ -331,9 +328,8 @@ Everything here is optional and local. Nothing starts an agent or a server.
 - Builders commit locally; they never push or merge.
 - The human decides the merge.
 
-**Opt-in and limited:** the Claude `WebFetch` allowlist covers only that tool.
-Shell, `curl`, and `agent-browser` egress are not covered. There is no exact cost
-tracking, budget enforcement, or backup command.
+**Not included:** there is no network allowlist, exact cost tracking, budget
+enforcement, or backup command.
 
 **Deliberate non-goals:** full OS sandboxing and a control plane that starts or
 stops agents. Untrusted content still reaches agents through browser pages, PR
