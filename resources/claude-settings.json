@@ -4,6 +4,7 @@
     "allow": [
       "Bash(./scripts/check:*)",
       "Bash(./scripts/verify:*)",
+      "Bash(./scripts/opencode-build:*)",
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",

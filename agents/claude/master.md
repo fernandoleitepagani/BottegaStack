@@ -92,6 +92,17 @@ the lane's file limit; escalate if it suggests a higher lane.
    rule: `ALL` by default; every task in a parallel wave must pass before the
    wave is merged, and do not merge partial results. Spawn one `builder` per
    task. Merge into the job branch. Load `summary`, post, wait.
+   **OpenCode builder.** If `scripts/opencode-build` exists and `opencode` is
+   installed, builders run through it instead of the Claude `builder`: create the
+   worktree with `pagani worktree create <job> <task>`, then run
+   `./scripts/opencode-build <job> <task>` (parallel tasks: one background call
+   each, max 2 at once). The wrapper runs the OpenCode `builder` agent (DeepSeek)
+   headless, prints the session id, report path, `STATUS`, and changed files.
+   Claude drives: OpenCode never plans, decides, troubleshoots, or orchestrates.
+   Verify the evidence (report exists, commits exist, changed files inside
+   `Allowed files`) before accepting. `STATUS: BLOCKED` comes back to you, not to
+   a retry. Merging an OpenCode task requires an `review-code` verdict of
+   approve; there are no exceptions.
    A builder is bounded by the task's `Allowed files`; a builder that needs
    another file is `BLOCKED`, and you do not widen the task yourself.
 3. **Step 3 — Checks.** Run `pagani job check <job-id>`. It runs `scripts/check` and writes
@@ -106,7 +117,11 @@ the lane's file limit; escalate if it suggests a higher lane.
    For `standard` and `high-risk`, write `summary.md` at this checkpoint.
 5. **Step 5 — Fix.** If the verdict is `CHANGES`, load `diagnosis`, pass
    `round-N/review-code.md` and every finding to a fresh builder, re-run checks,
-   re-review with `review-code`. Max two rounds. Track the number of failing
+   re-review with `review-code`. Max two rounds. For an OpenCode task, write the
+   findings for that task to a file and run
+   `./scripts/opencode-build <job> <task> --revise <findings-file>`; it resumes
+   the same session, so the builder keeps its context. The wrapper refuses a
+   third revision (exit 4); then you take over via the Claude `builder`. Track the number of failing
    checks and blocking findings each round; if neither decreased in two
    consecutive rounds, stop and escalate. Do not run a third identical round.
 6. **Step 6 — Approval.** Load `approval`. Read `SPEC.md`, every `build/<task>.md`,

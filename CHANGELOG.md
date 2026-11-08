@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added `scripts/opencode-build` (installed by `pagani init`/`upgrade`): the Claude
+  master runs the OpenCode `builder` agent (`opencode-go/deepseek-v4.1-flash#high`)
+  headless per task, gets the session id, report path, and changed files back, and
+  resumes the same session with review findings (`--revise`, max 2). Claude
+  plans, reviews, and approves; OpenCode only implements.
 - Added `## Options considered` to the spec, finding examples to the reviewer,
   and a rule-placement hierarchy with harness-decay checks. Both masters now
   join parallel waves with `ALL` and share a context policy; closeout resumes

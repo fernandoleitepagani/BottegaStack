@@ -47,6 +47,18 @@ failing test first. `small` jobs get a short interview and a short spec.
 
 ### Step 2: Build
 
+**OpenCode builder (Claude drives, DeepSeek implements).** When
+`scripts/opencode-build` and `opencode` are present, the master creates the task
+worktree and runs `./scripts/opencode-build <job> <task>`. It runs the OpenCode
+`builder` agent headless on `opencode-go/deepseek-v4.1-flash#high`, then prints the
+session id, report path, `STATUS`, and changed files. `review-code` reviews the
+diff; on `CHANGES` the master writes the findings to a file and runs
+`--revise <file>`, which resumes the same session. The wrapper allows two
+revisions (exit 4 after that) and the master takes over with the Claude builder.
+OpenCode never plans, decides, troubleshoots, or orchestrates. Set
+`PAGANI_BUILDER_MODEL`, `PAGANI_BUILDER_AGENT`, or `PAGANI_MAX_REVISIONS` to
+override the defaults.
+
 The master reads the task graph from `SPEC.md` and inspects the ready set before
 building. It defaults to sequential. If two or more ready tasks touch disjoint
 files and have no dependency between them, it runs that wave in parallel with

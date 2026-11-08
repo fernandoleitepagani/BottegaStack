@@ -78,6 +78,14 @@ cd ~/Projects/my-project
 keeps an existing `scripts/format`, and creates `SPEC.md` and `ROADMAP.md` when
 they are missing. It needs `python3` to merge `.claude/settings.json`.
 
+## OpenCode builder from Claude Code
+
+Needs `opencode` logged in to OpenCode Go and the OpenCode target installed
+(`./install.sh --target both`) so the `builder` agent exists. `pagani init` and
+`pagani upgrade` copy `scripts/opencode-build`. An existing project's
+`.claude/settings.json` keeps its permissions, so add
+`"Bash(./scripts/opencode-build:*)"` to `permissions.allow` by hand.
+
 ## Hooks, network, and worktrees
 
 ```bash

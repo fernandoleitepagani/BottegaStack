@@ -453,7 +453,7 @@ cmd_lint() {
   done
 
   for f in AGENTS.md SPEC.md ROADMAP.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
-           format.sh claude-hook.sh git-hooks/pre-commit git-hooks/pre-push \
+           format.sh claude-hook.sh opencode-build.sh git-hooks/pre-commit git-hooks/pre-push \
            network-allowlist.example; do
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"
@@ -716,6 +716,7 @@ cmd_init() {
   [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
   [ -f "$dest/scripts/format" ] || cp "$ROOT/resources/format.sh" "$dest/scripts/format"
   [ -f "$dest/scripts/claude-hook.sh" ] || cp "$ROOT/resources/claude-hook.sh" "$dest/scripts/claude-hook.sh"
+  [ -f "$dest/scripts/opencode-build" ] || cp "$ROOT/resources/opencode-build.sh" "$dest/scripts/opencode-build"
   [ -f "$dest/REVIEW.md" ] || cp "$ROOT/resources/REVIEW.md" "$dest/REVIEW.md"
   [ -f "$dest/CODING_STANDARDS.md" ] || cp "$ROOT/resources/CODING_STANDARDS.md" "$dest/CODING_STANDARDS.md"
   [ -f "$dest/GLOSSARY.md" ] || cp "$ROOT/resources/GLOSSARY.md" "$dest/GLOSSARY.md"
@@ -729,7 +730,7 @@ cmd_init() {
   [ -f "$dest/pagani/network-allowlist.example" ] || cp "$ROOT/resources/network-allowlist.example" "$dest/pagani/network-allowlist.example"
   [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
   chmod +x "$dest/scripts/check" "$dest/scripts/verify" \
-    "$dest/scripts/format" "$dest/scripts/claude-hook.sh"
+    "$dest/scripts/format" "$dest/scripts/claude-hook.sh" "$dest/scripts/opencode-build"
   if [ -f "$dest/.gitignore" ]; then
     append_runtime_gitignore "$dest"
   else
@@ -764,6 +765,12 @@ cmd_upgrade() {
     cp "$src_hook" "$dest/scripts/claude-hook.sh"
     chmod +x "$dest/scripts/claude-hook.sh"
     echo "updated: $dest/scripts/claude-hook.sh"
+  fi
+
+  if [ ! -L "$dest/scripts/opencode-build" ]; then
+    cp "$ROOT/resources/opencode-build.sh" "$dest/scripts/opencode-build"
+    chmod +x "$dest/scripts/opencode-build"
+    echo "updated: $dest/scripts/opencode-build"
   fi
 
   local target="$dest/.claude/settings.json" tmp
