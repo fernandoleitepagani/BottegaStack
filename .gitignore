@@ -10,7 +10,6 @@ pagani/handoff.md
 # Secrets
 .env
 .env.*
-!.env.example
 
 # OS/editor
 .DS_Store

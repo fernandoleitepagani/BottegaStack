@@ -7,7 +7,6 @@ pagani/handoff.md
 # Secrets
 .env
 .env.*
-!.env.example
 
 # Eval output
 evals/skills/results.tsv

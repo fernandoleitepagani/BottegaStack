@@ -93,7 +93,8 @@ the lane's file limit; escalate if it suggests a higher lane.
    wave is merged, and do not merge partial results. Spawn one `builder` per
    task. Merge into the job branch. Load `summary`, post, wait.
    **OpenCode builder.** If `scripts/opencode-build` exists and `opencode` is
-   installed, builders run through it instead of the Claude `builder`: create the
+   installed, builders run through it (the Claude `builder` is only the
+   fallback when OpenCode is not installed): create the
    worktree with `pagani worktree create <job> <task>`, then run
    `./scripts/opencode-build <job> <task>` (parallel tasks: one background call
    each, max 2 at once). The wrapper runs the OpenCode `builder` agent (DeepSeek)
@@ -121,7 +122,7 @@ the lane's file limit; escalate if it suggests a higher lane.
    findings for that task to a file and run
    `./scripts/opencode-build <job> <task> --revise <findings-file>`; it resumes
    the same session, so the builder keeps its context. The wrapper refuses a
-   third revision (exit 4); then you take over via the Claude `builder`. Track the number of failing
+   third revision (exit 4); then escalate to the human. Track the number of failing
    checks and blocking findings each round; if neither decreased in two
    consecutive rounds, stop and escalate. Do not run a third identical round.
 6. **Step 6 — Approval.** Load `approval`. Read `SPEC.md`, every `build/<task>.md`,

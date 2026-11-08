@@ -1,7 +1,7 @@
 ---
 description: PaganiStack builder. Implements exactly one task in its own worktree or the job checkout, runs checks, commits locally, and writes build/<task>.md.
 mode: subagent
-model: opencode-go/deepseek-v4.1-flash
+model: opencode-go/deepseek-v4.1-flash#high
 steps: 60
 permissions:
   - action: skill

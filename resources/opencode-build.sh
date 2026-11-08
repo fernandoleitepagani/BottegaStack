@@ -5,8 +5,8 @@
 #   scripts/opencode-build <job> <task>                      first build
 #   scripts/opencode-build <job> <task> --revise <findings>  resume with review findings
 #
-# Env: PAGANI_BUILDER_AGENT (default builder), PAGANI_BUILDER_MODEL
-# (default opencode-go/deepseek-v4.1-flash#high), PAGANI_MAX_REVISIONS (default 2).
+# Model and permissions come from the OpenCode `builder` agent (agents/opencode/
+# builder.md, generated from agents/models.conf). Nothing is configured by env.
 set -euo pipefail
 
 usage() { echo "usage: scripts/opencode-build <job> <task> [--revise <findings-file>]" >&2; exit 2; }
@@ -25,9 +25,8 @@ repo="$(git rev-parse --show-toplevel)"
 name="$(basename "$repo")"
 jobdir="$repo/pagani/jobs/$job"
 wt="$(cd "$repo/.." && pwd)/$name-pagani/$job/$task"
-agent="${PAGANI_BUILDER_AGENT:-builder}"
-model="${PAGANI_BUILDER_MODEL:-opencode-go/deepseek-v4.1-flash#high}"
-max_rev="${PAGANI_MAX_REVISIONS:-2}"
+agent=builder
+max_rev=2
 report="$jobdir/build/$task.md"
 wt_report="$wt/pagani/jobs/$job/build/$task.md"
 state="$jobdir/build/$task.opencode"
@@ -44,7 +43,7 @@ if [ -n "$findings" ]; then
   sid="$(sed -n 's/^session=//p' "$state")"
   rev="$(sed -n 's/^revisions=//p' "$state")"; rev="${rev:-0}"
   if [ "$rev" -ge "$max_rev" ]; then
-    echo "opencode-build: $max_rev revisions used; the master takes over (workflow rule)" >&2
+    echo "opencode-build: $max_rev revisions used; escalate to the human (workflow rule: max two fix rounds)" >&2
     exit 4
   fi
   rev=$((rev + 1))
@@ -63,14 +62,14 @@ fi
 
 log="$jobdir/build/$task.opencode.log"
 set +e
-(cd "$wt" && opencode run --agent "$agent" --model "$model" --auto --format json \
+(cd "$wt" && opencode run --agent "$agent" --auto --format json \
   --title "pagani $job/$task" "${args[@]}" "$msg") > "$log" 2>&1
 rc=$?
 set -e
 if [ -s "$wt_report" ]; then cp "$wt_report" "$report"; fi
 
 sid="${sid:-$(grep -o '"sessionID":"[^"]*"' "$log" | head -1 | cut -d'"' -f4)}"
-[ -n "$sid" ] && printf 'session=%s\nrevisions=%s\nagent=%s\nmodel=%s\n' "$sid" "$rev" "$agent" "$model" > "$state"
+[ -n "$sid" ] && printf 'session=%s\nrevisions=%s\nagent=%s\n' "$sid" "$rev" "$agent" > "$state"
 
 status="MISSING"
 [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"

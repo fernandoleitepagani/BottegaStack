@@ -54,10 +54,9 @@ worktree and runs `./scripts/opencode-build <job> <task>`. It runs the OpenCode
 session id, report path, `STATUS`, and changed files. `review-code` reviews the
 diff; on `CHANGES` the master writes the findings to a file and runs
 `--revise <file>`, which resumes the same session. The wrapper allows two
-revisions (exit 4 after that) and the master takes over with the Claude builder.
-OpenCode never plans, decides, troubleshoots, or orchestrates. Set
-`PAGANI_BUILDER_MODEL`, `PAGANI_BUILDER_AGENT`, or `PAGANI_MAX_REVISIONS` to
-override the defaults.
+revisions (exit 4 after that) and the master escalates to the human. OpenCode
+never plans, decides, troubleshoots, or orchestrates. The model comes from the
+OpenCode `builder` agent, (`agents/opencode/builder.md`, `deepseek-v4.1-flash#high`).
 
 The master reads the task graph from `SPEC.md` and inspects the ready set before
 building. It defaults to sequential. If two or more ready tasks touch disjoint
