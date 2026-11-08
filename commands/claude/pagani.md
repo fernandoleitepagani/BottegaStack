@@ -3,6 +3,12 @@ description: Start or continue a PaganiStack job.
 argument-hint: "<feature> | status | resume | --lane <lane> <feature> | quick <feature>"
 model: opus
 allowed-tools: Read, Grep, Glob, Bash, Write, Task, Skill, AskUserQuestion, TodoWrite
+hooks:
+  PreToolUse:
+    - matcher: "Agent|Task"
+      hooks:
+        - type: command
+          command: "pagani guard builder"
 ---
 
 The user's request is:

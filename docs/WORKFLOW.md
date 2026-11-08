@@ -47,16 +47,17 @@ failing test first. `small` jobs get a short interview and a short spec.
 
 ### Step 2: Build
 
-**OpenCode builder (Claude drives, DeepSeek implements).** When
-`scripts/opencode-build` and `opencode` are present, the master creates the task
-worktree and runs `./scripts/opencode-build <job> <task>`. It runs the OpenCode
-`builder` agent headless on `opencode-go/deepseek-v4.1-flash#high`, then prints the
-session id, report path, `STATUS`, and changed files. `review-code` reviews the
-diff; on `CHANGES` the master writes the findings to a file and runs
-`--revise <file>`, which resumes the same session. The wrapper allows two
-revisions (exit 4 after that) and the master escalates to the human. OpenCode
-never plans, decides, troubleshoots, or orchestrates. The model comes from the
-OpenCode `builder` agent, (`agents/opencode/builder.md`, `deepseek-v4.1-flash#high`).
+**Headless builder (Claude drives, a third-party model implements).** When
+`pagani build --check` passes, the master creates the task worktree and runs
+`pagani build <job> <task>`. It runs the Claude Code `builder` agent headless
+(`claude -p`) on the model configured in `~/.config/pagani/builder.env`, then
+prints the session id, report path, `STATUS`, and changed files. `review-code`
+reviews the diff; on `CHANGES` the master writes the findings to a file and runs
+`--revise <file>`, which resumes the same session. It allows two revisions (exit
+4 after that) and the master escalates to the human. The builder never plans,
+decides, troubleshoots, or orchestrates. While `/pagani` runs, a frontmatter
+hook denies the Claude-model `builder` subagent whenever the headless builder is
+configured; if it is not, the Claude `builder` is the fallback.
 
 The master reads the task graph from `SPEC.md` and inspects the ready set before
 building. It defaults to sequential. If two or more ready tasks touch disjoint
@@ -215,8 +216,8 @@ Other skills are invoked directly by name, not through `/pagani`:
 
 ## Commands
 
-PaganiStack has eight top-level commands: `install` (with `--uninstall`),
-`doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, and `network`.
+PaganiStack has nine top-level commands: `install` (with `--uninstall`),
+`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, `hooks`, and `network`.
 
 ```bash
 ./install.sh --target both

@@ -94,8 +94,8 @@ to spend the human's attention where the risk is, not on ceremony.
 
 ### Fewer commands
 
-The CLI is eight top-level commands: `install` (with `--uninstall`), `doctor`,
-`init`, `upgrade`, `job`, `worktree`, `hooks`, and `network`. `job` owns the
+The CLI is nine top-level commands: `install` (with `--uninstall`), `doctor`,
+`init`, `upgrade`, `build`, `job`, `worktree`, `hooks`, and `network`. `job` owns the
 lifecycle subcommands. `doctor` absorbs lint. `install --uninstall` replaces a
 separate `uninstall` command.
 

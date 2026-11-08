@@ -11,14 +11,24 @@
 ## Install
 
 ```bash
-git clone <this-repo> ~/Projects/PaganiStack
-~/Projects/PaganiStack/install.sh --target both
-~/Projects/PaganiStack/bin/pagani doctor
+git clone <this-repo> /tmp/PaganiStack
+/tmp/PaganiStack/install.sh
+pagani doctor
+rm -rf /tmp/PaganiStack      # the install is self-contained
 ```
 
-`install.sh` forwards to `bin/pagani install`. Choose a target with
-`--target opencode|claude|both`. The default mode is `--link`; use `--copy` to
-copy files instead. Preview with `--dry-run`, or skip prompts with `--yes`.
+`install.sh` forwards to `bin/pagani install`. The default target is `auto`: every
+runtime found on the machine (`~/.claude`, `~/.config/opencode`). Force one with
+`--target opencode|claude|both`. The default mode is `--copy`: real files go into
+each target, and the CLI with its resources goes to `<target>/pagani/`, so the
+clone is not needed afterwards. `--link` symlinks into the clone instead (for
+development). Preview with `--dry-run`, or skip prompts with `--yes`.
+
+A copy install never overwrites `~/.claude/settings.json`: missing keys are added
+and your existing ones (model, theme, permissions) are kept.
+
+Update an installed copy without a clone: `pagani upgrade --self` (or
+`--from <git-url-or-path>`).
 
 The installer flattens `skills/<category>/<skill>` to
 `<target>/skills/<skill>` because both runtimes discover skills at that depth.
@@ -78,13 +88,21 @@ cd ~/Projects/my-project
 keeps an existing `scripts/format`, and creates `SPEC.md` and `ROADMAP.md` when
 they are missing. It needs `python3` to merge `.claude/settings.json`.
 
-## OpenCode builder from Claude Code
+## Headless builder (`pagani build`)
 
-Needs `opencode` logged in to OpenCode Go and the OpenCode target installed
-(`./install.sh --target both`) so the `builder` agent exists. `pagani init` and
-`pagani upgrade` copy `scripts/opencode-build`. An existing project's
-`.claude/settings.json` keeps its permissions, so add
-`"Bash(./scripts/opencode-build:*)"` to `permissions.allow` by hand.
+The builder runs as `claude -p --agent builder` on a third-party model through
+an Anthropic-compatible endpoint. It is global: nothing is copied into projects.
+
+```bash
+pagani build --init     # creates ~/.config/pagani/builder.env (mode 600)
+$EDITOR ~/.config/pagani/builder.env
+pagani build --check    # verifies the file without printing it
+```
+
+The defaults target OpenCode Go (`deepseek-v4.1-flash`); you only add your key to `ANTHROPIC_AUTH_TOKEN`. To change the model, map
+the model aliases (see `resources/builder.env.example`). The file is sourced in a
+subshell for the builder only, so your own Claude login is untouched. Without the
+file, `/pagani` falls back to the Claude `builder` subagent.
 
 ## Hooks, network, and worktrees
 

@@ -60,8 +60,8 @@ downgrade.
 | builder | `builder-lite` | `builder` | `builder` | `builder` | `builder` |
 | review-code | `review-code-lite` | `review-code-lite` | `review-code-lite` | `review-code` | `review-code-strong` |
 
-When the Claude master has `scripts/opencode-build`, every lane's builder is the
-OpenCode `builder` (DeepSeek) run through that wrapper.
+When `pagani build --check` passes, every lane's builder is the headless Claude
+Code `builder` run through `pagani build` on the model in `builder.env`.
 
 One reviewer covers code, UI, UX, and security for every lane. The master writes
 `decision.md` at Step 6.

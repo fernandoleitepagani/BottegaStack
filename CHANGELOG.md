@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Install is self-contained: `--copy` is the default, `--target auto` detects
+  Claude Code and OpenCode, and the CLI plus resources are copied to
+  `<config>/pagani/` so the clone can be deleted. `pagani upgrade --self`
+  refreshes an installed copy. A copy install merges `settings.json` instead of
+  overwriting it.
+- Replaced `scripts/opencode-build` with the global `pagani build`, which runs
+  the Claude Code `builder` agent headless (`claude -p`) on a third-party model
+  from `~/.config/pagani/builder.env`. The `/pagani` command carries a
+  frontmatter hook (`pagani guard builder`) that denies the Claude `builder`
+  subagent only while the headless builder is configured. No per-project copy.
+
 - `install` links `pagani` onto `PATH` (`~/.local/bin`), `bin/pagani` resolves its
   root through symlinks, `opencode-build` mirrors the job folder into the
   worktree, and every lane uses the OpenCode builder when the wrapper exists.

@@ -48,8 +48,9 @@ Prefer the highest item that actually prevents recurrence.
 
 ## Commands
 
-PaganiStack has eight top-level commands: `install` (with `--uninstall`),
-`doctor`, `init`, `upgrade`, `job`, `worktree`, `hooks`, and `network`.
+PaganiStack has nine top-level commands: `install` (with `--uninstall`),
+`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, `hooks`, and `network`.
+(`guard` is an internal hook entry point, not a user command.)
 
 ```bash
 ./install.sh --target both --dry-run
@@ -57,6 +58,8 @@ PaganiStack has eight top-level commands: `install` (with `--uninstall`),
 ./scripts/validate.sh
 ./bin/pagani init /tmp/example
 ./bin/pagani upgrade [path]
+./bin/pagani upgrade --self
+./bin/pagani build <job> <task> [--revise <file>]
 ./bin/pagani job new "<title>"
 ./bin/pagani job report [--retro] [--write] [--exit-code]
 ./bin/pagani worktree create <job> <task>

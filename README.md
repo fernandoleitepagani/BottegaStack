@@ -11,7 +11,7 @@ state machine.
 
 ```bash
 git clone <this-repo> ~/Projects/PaganiStack
-~/Projects/PaganiStack/install.sh --target both
+~/Projects/PaganiStack/install.sh      # copies everything; the clone can be deleted afterwards
 ~/Projects/PaganiStack/bin/pagani doctor
 ```
 
