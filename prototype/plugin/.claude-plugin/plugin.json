@@ -1,0 +1,8 @@
+{
+  "name": "pagani-prototype",
+  "description": "Throwaway plugin used to probe Claude Code plugin capabilities for PaganiStack.",
+  "version": "0.0.1",
+  "author": {
+    "name": "PaganiStack prototype"
+  }
+}

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Proof that a plugin bin/ executable is reachable by bare name in a session.
+set -euo pipefail
+echo "pagani-probe-ok args=$*"

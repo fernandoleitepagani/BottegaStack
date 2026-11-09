@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "pagani-prototype",
+  "description": "Throwaway local marketplace for the PaganiStack plugin prototype.",
+  "owner": {
+    "name": "PaganiStack prototype"
+  },
+  "plugins": [
+    {
+      "name": "pagani-prototype",
+      "description": "Throwaway plugin used to probe Claude Code plugin capabilities.",
+      "source": "./plugin"
+    }
+  ]
+}
