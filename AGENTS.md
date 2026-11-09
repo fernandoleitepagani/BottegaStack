@@ -54,6 +54,7 @@ PaganiStack has nine top-level commands: `install` (with `--uninstall`),
 (`guard` is an internal hook entry point, not a user command.)
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/fernandoleitepagani/PaganiStack/main/get.sh | bash   # end-user install (get.sh)
 ./install.sh --target both --dry-run
 ./bin/pagani doctor
 ./scripts/validate.sh

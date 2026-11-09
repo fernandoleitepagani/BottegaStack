@@ -11,6 +11,26 @@
 ## Install
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/fernandoleitepagani/PaganiStack/main/get.sh | bash
+pagani doctor
+```
+
+`get.sh` needs only `bash`, `curl`, and `tar` (Linux, macOS, Windows via WSL or Git
+Bash). It downloads the `main` tarball to a temp dir, installs a self-contained copy
+into `~/.claude` and the `pagani` launcher into `~/.local/bin`, then deletes the temp
+dir. No git clone, no repo kept.
+
+- Preview: `... | bash -s -- --dry-run`.
+- Flags pass through: `... | bash -s -- --target claude`.
+- `PAGANI_REF=<branch-or-tag>` installs another ref (default `main`).
+- Update later with `pagani upgrade --self` (tarball-based, no `--from` needed).
+
+Read before you pipe: this runs whatever is on `main` right now, and no checksum is
+verified. Read <https://github.com/fernandoleitepagani/PaganiStack/blob/main/get.sh> first if that matters to you.
+
+### Contributors / from a clone
+
+```bash
 git clone <this-repo> /tmp/PaganiStack
 /tmp/PaganiStack/install.sh
 pagani doctor
@@ -38,7 +58,7 @@ the Agent tool's `model` parameter. The master runs on Opus 5.5 at medium effort
 ## Uninstall
 
 ```bash
-./bin/pagani install --uninstall
+pagani install --uninstall   # or ./bin/pagani install --uninstall from a clone
 ```
 
 Add `--dry-run` to print `would remove:` lines without deleting anything. Add

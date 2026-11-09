@@ -20,9 +20,10 @@ Usage:
   pagani doctor
   pagani init [path]
   pagani upgrade [path]
-  pagani upgrade --self [--from <git-url-or-path>]
+  pagani upgrade --self [--from <github-url|tarball-url|git-url|path>]
   pagani build <job> <task> [--revise <findings-file>] [--block|--wait]
   pagani build --init | --check
+  pagani build --status <job> [--every <seconds>]
   pagani job new|check|gate|report
   pagani job new "<title>"
   pagani job check <job>
@@ -418,7 +419,7 @@ cmd_self_upgrade() {
   local from="${PAGANI_SOURCE:-}"
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --from) from="${2:?--from needs a git URL or path}"; shift 2 ;;
+      --from) from="${2:?--from needs a URL or path}"; shift 2 ;;
       *) echo "unknown flag: $1" >&2; exit 1 ;;
     esac
   done
@@ -428,15 +429,32 @@ cmd_self_upgrade() {
       [ -f "$d/SOURCE" ] && { from="$(head -1 "$d/SOURCE")"; break; }
     done
   fi
-  [ -n "$from" ] || { echo "pagani upgrade --self: no source recorded; pass --from <git-url-or-path>" >&2; exit 1; }
-  command -v git >/dev/null 2>&1 || { echo "pagani upgrade --self: git is required" >&2; exit 1; }
-  local tmp
+  [ -n "$from" ] || { echo "pagani upgrade --self: no source recorded; pass --from <url-or-path>" >&2; exit 1; }
+  local tmp tarball=""
+  case "$from" in
+    *.tar.gz|*.tgz) tarball="$from" ;;
+    http://github.com/*|https://github.com/*)
+      tarball="${from%.git}"; tarball="${tarball%/}/archive/refs/heads/main.tar.gz" ;;
+  esac
   tmp="$(mktemp -d)"
   echo "fetching: $from"
-  if ! git clone --depth 1 --quiet "$from" "$tmp/pagani"; then
-    rm -rf "$tmp"
-    echo "pagani upgrade --self: clone failed" >&2
-    exit 1
+  mkdir -p "$tmp/pagani"
+  if [ -n "$tarball" ]; then
+    command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || { rm -rf "$tmp"; echo "pagani upgrade --self: curl and tar are required" >&2; exit 1; }
+    if ! curl -fsSL "$tarball" | tar xz --strip-components=1 -C "$tmp/pagani"; then
+      rm -rf "$tmp"
+      echo "pagani upgrade --self: download failed" >&2
+      exit 1
+    fi
+    [ "$tarball" = "$from" ] || from="$tarball"
+  else
+    command -v git >/dev/null 2>&1 || { rm -rf "$tmp"; echo "pagani upgrade --self: git is required" >&2; exit 1; }
+    rm -rf "$tmp/pagani"
+    if ! git clone --depth 1 --quiet "$from" "$tmp/pagani"; then
+      rm -rf "$tmp"
+      echo "pagani upgrade --self: clone failed" >&2
+      exit 1
+    fi
   fi
   PAGANI_SOURCE="$from" "$tmp/pagani/bin/pagani" install --yes
   rm -rf "$tmp"
@@ -1107,8 +1125,72 @@ builder_init() {
 #   --wait   attach to a running build, same bounded wait
 #   --block  wait until the build ends; for a background Bash task. The builder
 #            itself is capped by PAGANI_BUILD_TIMEOUT (default 1800 s = 30 min).
+# One status line for a job: done/running/queued counts plus running tasks.
+build_status_line() {
+  local jobdir="$1" bdir="$1/build" n=0 d=0 r=0 q t f sl="" last
+  local -A seen=()
+  if [ -f "$jobdir/SPEC.md" ]; then
+    n="$(grep -cE '^#{2,4} +Task\b' "$jobdir/SPEC.md" || true)"
+  fi
+  for f in "$bdir"/*.run "$bdir"/*.md "$bdir"/*.progress; do
+    [ -e "$f" ] || continue
+    t="$(basename "$f")"; t="${t%.*}"
+    seen[$t]=1
+  done
+  [ "$n" -gt 0 ] || n="${#seen[@]}"
+  for t in "${!seen[@]}"; do
+    if [ -f "$bdir/$t.md" ] && grep -q 'STATUS: DONE' "$bdir/$t.md"; then
+      d=$((d + 1))
+    elif [ -f "$bdir/$t.run" ] && [ ! -f "$bdir/$t.rc" ]; then
+      r=$((r + 1))
+      last="$(tail -n 1 "$bdir/$t.progress" 2>/dev/null | cut -c1-60 || true)"
+      sl="$sl │ $t: $(wc -l < "$bdir/$t.progress" 2>/dev/null | tr -d ' ' || echo 0) steps, last ${last:--}"
+    fi
+  done
+  q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
+  echo "Builders $d/$n done · $r running · $q queued$sl"
+  BUILD_STATUS_D=$d; BUILD_STATUS_R=$r; BUILD_STATUS_N=$n
+}
+
+build_status() {
+  local job="" every="" repo jobdir line now last_print=0 idle=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --every)
+        case "${2:-}" in
+          ''|*[!0-9]*) every="${PAGANI_STATUS_EVERY:-180}"; shift ;;
+          *) every="$2"; shift 2 ;;
+        esac ;;
+      *) job="$1"; shift ;;
+    esac
+  done
+  [ -n "$job" ] || { echo "usage: pagani build --status <job> [--every <seconds>]" >&2; exit 2; }
+  repo="$(git rev-parse --show-toplevel)"
+  jobdir="$repo/pagani/jobs/$job"
+  [ -d "$jobdir" ] || { echo "no such job: $job" >&2; exit 2; }
+  if [ -z "${every:-}" ]; then build_status_line "$jobdir"; return 0; fi
+  case "$every" in ''|*[!0-9]*) echo "--every needs a number of seconds" >&2; exit 2 ;; esac
+  local pd="" pr=""
+  while :; do
+    line="$(build_status_line "$jobdir")"
+    BUILD_STATUS_D="${line#Builders }"; BUILD_STATUS_D="${BUILD_STATUS_D%%/*}"
+    now="$(date +%s)"
+    local cur_r="${line#*done · }"; cur_r="${cur_r%% running*}"
+    local cur_n="${line#*/}"; cur_n="${cur_n%% done*}"
+    if [ -z "$pd" ] || [ "$BUILD_STATUS_D" != "$pd" ] || [ "$cur_r" != "$pr" ] || [ $((now - last_print)) -ge "$every" ]; then
+      if [ -n "$pd" ] && [ "$BUILD_STATUS_D" = "$pd" ] && [ "$cur_r" = "$pr" ]; then idle=$((idle + 1)); else idle=0; fi
+      echo "$line"
+      last_print=$now; pd="$BUILD_STATUS_D"; pr="$cur_r"
+      [ "$cur_n" -gt 0 ] && [ "$BUILD_STATUS_D" -ge "$cur_n" ] && return 0
+      [ "$cur_r" = 0 ] && [ "$idle" -ge 3 ] && return 0
+    fi
+    sleep 5
+  done
+}
+
 cmd_build() {
   case "${1:-}" in
+    --status) shift; build_status "$@"; return ;;
     --init) builder_init; return ;;
     --check)
       if builder_ready; then echo "builder: ready ($(builder_env_file))"; else exit 1; fi
@@ -1116,7 +1198,7 @@ cmd_build() {
       ;;
   esac
 
-  local usage="usage: pagani build <job> <task> [--revise <findings-file>] [--block|--wait] | --init | --check"
+  local usage="usage: pagani build <job> <task> [--revise <findings-file>] [--block|--wait] | --init | --check | --status <job> [--every <seconds>]"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
   local job="$1" task="$2" findings="" block=0
   shift 2

@@ -136,11 +136,13 @@ the lane's file limit; escalate if it suggests a higher lane.
    builder never plans, decides, troubleshoots, or orchestrates.
    **Progress.** Before starting, create one `TodoWrite` item per task. Mark it
    `in_progress` when its build starts and `completed` when it prints
-   `STATUS: DONE`. For live detail, load the `Monitor` tool (ToolSearch
-   `select:Monitor`) and follow `pagani/jobs/<job>/build/<task>.progress`, which
-   gets one line per builder action; skip this if the tool is unavailable. Do not
-   ask the user whether tasks finished. On every completion post one line,
-   `Builders: <started> started · <running> running · <done> done`, and when the
+   `STATUS: DONE`. As soon as the first build of a wave starts, load `Monitor`
+   (ToolSearch `select:Monitor`) and start `pagani build --status <job> --every
+   180` through it, once per wave. Post each notification line to the user
+   unchanged (the first is the 0/N start); do not poll with sleep or extra Bash
+   calls. The loop ends by itself when all tasks are done. If `Monitor` is
+   unavailable, run `pagani build --status <job>` once after each build completes
+   and post its line. Do not ask the user whether tasks finished. When the
    whole wave has joined go straight to Step 3. Verify the evidence (report
    exists, commits exist, changed files inside `Allowed files`) before
    accepting. `STATUS: BLOCKED` comes back to you, not to a retry. Merging a

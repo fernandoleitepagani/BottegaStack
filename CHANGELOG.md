@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `pagani build --status <job> [--every <seconds>]` prints one progress line
+  (`Builders 2/5 done · 2 running · 1 queued`); the master runs it through
+  `Monitor` once per wave and posts each line, replacing the `.progress` tail and
+  the hand-written tally.
+
+- New recommended install: `get.sh`, a one-liner (`curl -fsSL
+  https://raw.githubusercontent.com/fernandoleitepagani/PaganiStack/main/get.sh | bash`)
+  that needs only bash, curl, and tar, installs a self-contained copy, and keeps no
+  clone. `PAGANI_REF` picks another ref. Cloning is now the contributor path.
+
 - `pagani guard stop` no longer blocks while a background `pagani job check`,
   `scripts/check`, or a builder without a `.run` file is running, and ignores a
   `.run` file older than 360 minutes.

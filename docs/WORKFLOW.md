@@ -51,9 +51,11 @@ approval and the final decision). A `Stop` hook enforces it: mid-pipeline, with 
 builder running, the master cannot end its turn. It never waits for "proceed" between steps.
 The master runs each build itself as a background Bash task
 (`pagani build <job> <task> --block`), so no relay model is involved. It keeps a
-`TodoWrite` item per task, follows `build/<task>.progress` with the `Monitor` tool
-for live steps, and posts `Builders: N started · N running · N done` when a build
-ends, then moves to checks as soon as the wave has joined. A build is capped at 30
+`TodoWrite` item per task and, once per wave, runs
+`pagani build --status <job> --every 180` through `Monitor`, posting each line
+(`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
+`--status` once per finished build. It moves to checks as soon as the wave has
+joined. A build is capped at 30
 minutes (`PAGANI_BUILD_TIMEOUT`).
 
 **Headless builder (Claude drives, a third-party model implements).** When

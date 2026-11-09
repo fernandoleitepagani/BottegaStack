@@ -9,10 +9,13 @@ state machine.
 ## Install
 
 ```bash
-git clone <this-repo> ~/Projects/PaganiStack
-~/Projects/PaganiStack/install.sh      # copies everything; the clone can be deleted afterwards
-~/Projects/PaganiStack/bin/pagani doctor
+curl -fsSL https://raw.githubusercontent.com/fernandoleitepagani/PaganiStack/main/get.sh | bash
 ```
+
+Needs only `bash`, `curl`, and `tar` (Linux, macOS, Windows via WSL or Git Bash).
+No clone and no repo is kept: it installs a self-contained copy into `~/.claude`.
+Preview with `... | bash -s -- --dry-run`. Details, flags, and uninstall:
+[docs/SETUP.md](docs/SETUP.md). Contributors can install from a clone instead.
 
 The installer links `pagani` into `~/.local/bin` (override with `PAGANI_BIN_DIR`);
 agents call it by name, so that directory must be on `PATH`.
