@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# PaganiStack runtime CLI (the installed copy). Jobs, worktrees, builds, guard
-# hooks, project init/upgrade. Install and lint live in bin/pagani-setup, which
-# is not installed: `pagani install` and `pagani upgrade --self` fetch it.
+# PaganiStack runtime CLI (shipped in the plugin's bin/, so it is on PATH).
+# Jobs, worktrees, builds, guard hooks, project init/upgrade/seed.
 set -euo pipefail
 
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -11,13 +10,10 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 usage() {
   cat <<'EOF'
 Usage:
-  pagani install [--uninstall] [--target auto|claude] [--copy|--link] [--dry-run] [--yes]
-      (installed copy: fetches the recorded source and runs its installer)
   pagani doctor
   pagani init [path]
   pagani seed <Name>
   pagani upgrade [path]
-  pagani upgrade --self [--from <github-url|tarball-url|git-url|path>]
   pagani build <job> <task> [--revise <findings-file>] [--block|--wait]
   pagani build --here <slug> --task "<text>" [--block|--wait]
   pagani build --review <job> <task> [--block|--wait]
@@ -32,12 +28,8 @@ Usage:
   pagani worktree prune <job> [--force]
   pagani hooks install|uninstall [path]
 
-Target:
-  claude    ~/.claude (CLAUDE_CONFIG_DIR is honored)
-
-Install copies real files (--copy, the default) into ~/.claude, including the
-CLI itself under ~/.claude/pagani/, so the clone can be deleted afterwards. Use
---link for development: it symlinks into the clone instead.
+PaganiStack is a Claude Code plugin. The plugin puts `pagani` on PATH and ships
+the agents, commands, skills, hooks, and the `resources/` templates beside it.
 
 Headless builder:
   `pagani build` runs the Claude Code `builder` agent headless on a third-party
@@ -48,8 +40,8 @@ Headless builder:
   `pagani build --review <job> <task>` runs the read-only `review-code` agent
   in the task worktree and writes build/<task>.review2.md.
 
-The skills source is organized by category. The installer flattens it to
-<target>/skills/<name> because both runtimes discover skills at that depth.
+The skills stay organized by category; the plugin manifest points at each
+category directory so Claude Code discovers the skills inside.
 EOF
 }
 
@@ -58,80 +50,6 @@ config_dir() {
     claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
     *) echo "unknown target: $1" >&2; exit 1 ;;
   esac
-}
-
-# Fetch the recorded source into a temp dir; sets FETCH_DIR and FETCH_FROM.
-fetch_source() {
-  local from="$1" who="$2" tmp tarball=""
-  case "$from" in
-    *.tar.gz|*.tgz) tarball="$from" ;;
-    http://github.com/*|https://github.com/*)
-      tarball="${from%.git}"; tarball="${tarball%/}/archive/refs/heads/main.tar.gz" ;;
-  esac
-  tmp="$(mktemp -d)"
-  echo "fetching: $from"
-  mkdir -p "$tmp/pagani"
-  if [ -n "$tarball" ]; then
-    command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || { rm -rf "$tmp"; echo "$who: curl and tar are required" >&2; exit 1; }
-    if ! curl -fsSL "$tarball" | tar xz --strip-components=1 -C "$tmp/pagani"; then
-      rm -rf "$tmp"
-      echo "$who: download failed" >&2
-      exit 1
-    fi
-    [ "$tarball" = "$from" ] || from="$tarball"
-  else
-    command -v git >/dev/null 2>&1 || { rm -rf "$tmp"; echo "$who: git is required" >&2; exit 1; }
-    rm -rf "$tmp/pagani"
-    if ! git clone --depth 1 --quiet "$from" "$tmp/pagani"; then
-      rm -rf "$tmp"
-      echo "$who: clone failed" >&2
-      exit 1
-    fi
-  fi
-  [ -f "$tmp/pagani/bin/pagani-setup" ] || { rm -rf "$tmp"; echo "$who: fetched source has no bin/pagani-setup" >&2; exit 1; }
-  FETCH_DIR="$tmp"
-  FETCH_FROM="$from"
-}
-
-# Run the installer from a fetched copy of the recorded source, so it is always
-# the new version's installer. Args after the first are passed to `install`.
-delegate_setup() {
-  local who="$1" from="$2"; shift 2
-  if [ -z "$from" ]; then
-    local d
-    for d in "$ROOT" "$(config_dir claude)/pagani"; do
-      [ -f "$d/SOURCE" ] && { from="$(head -1 "$d/SOURCE")"; break; }
-    done
-  fi
-  if [ -z "$from" ]; then
-    echo "$who: no source recorded for this installed copy." >&2
-    echo "Reinstall with get.sh (curl -fsSL <raw get.sh url> | bash) or from a clone (./install.sh)," >&2
-    echo "or pass --from <url-or-path>." >&2
-    exit 1
-  fi
-  fetch_source "$from" "$who"
-  local rc=0
-  PAGANI_SOURCE="$FETCH_FROM" "$FETCH_DIR/pagani/bin/pagani-setup" install "$@" || rc=$?
-  rm -rf "$FETCH_DIR"
-  exit "$rc"
-}
-
-cmd_install() {
-  if [ -x "$ROOT/bin/pagani-setup" ]; then
-    exec "$ROOT/bin/pagani-setup" install "$@"
-  fi
-  delegate_setup "pagani install" "${PAGANI_SOURCE:-}" "$@"
-}
-
-cmd_self_upgrade() {
-  local from="${PAGANI_SOURCE:-}"
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --from) from="${2:?--from needs a URL or path}"; shift 2 ;;
-      *) echo "unknown flag: $1" >&2; exit 1 ;;
-    esac
-  done
-  delegate_setup "pagani upgrade --self" "$from" --yes
 }
 
 cmd_job_new() {
@@ -270,7 +188,6 @@ cmd_gate() {
 cmd_doctor() {
   echo "PaganiStack doctor"
   echo "root: $ROOT"
-  if [ -f "$ROOT/bin/pagani-setup" ]; then echo "mode: clone"; else echo "mode: installed copy"; fi
   if builder_ready quiet; then
     echo "headless builder: ready ($(builder_env_file))"
   else
@@ -283,11 +200,6 @@ cmd_doctor() {
   command -v gitleaks >/dev/null 2>&1 && echo "gitleaks: yes" || echo "gitleaks: no"
 
   local skills
-  if [ ! -f "$ROOT/bin/pagani-setup" ]; then
-    [ -d "$(config_dir claude)/skills" ] && echo "claude skills: $(find "$(config_dir claude)/skills" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
-    echo "lint: skipped (installed copy; run from a clone for the full check)"
-    return 0
-  fi
   skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
   echo "skills: $skills"
 
@@ -348,7 +260,11 @@ cmd_doctor() {
     [ -d "$config" ] && echo "  exists" || echo "  missing"
   done
 
-  "$ROOT/bin/pagani-setup" lint || true
+  if [ -f "$ROOT/scripts/lint.sh" ]; then
+    "$ROOT/scripts/lint.sh"
+  else
+    echo "lint: skipped (scripts/lint.sh not found)"
+  fi
 }
 
 # Every path pagani creates in a project. None of them is ever committed: they are
@@ -1438,13 +1354,10 @@ cmd_retro_scan() {
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  install) cmd_install "$@" ;;
   doctor) cmd_doctor ;;
   init) cmd_init "${1:-$PWD}" ;;
   seed) cmd_seed "$@" ;;
-  upgrade)
-    if [ "${1:-}" = "--self" ]; then shift; cmd_self_upgrade "$@"; else cmd_upgrade "${1:-$PWD}"; fi
-    ;;
+  upgrade) cmd_upgrade "${1:-$PWD}" ;;
   build) cmd_build "$@" ;;
   guard) cmd_guard "$@" ;;
   _build-exec) cmd_build_exec "$@" ;;

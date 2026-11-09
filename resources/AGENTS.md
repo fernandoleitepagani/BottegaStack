@@ -26,7 +26,6 @@ not obvious facts the code already shows.
 ## PaganiStack commands
 
 ```bash
-pagani install --uninstall
 pagani job report [--retro] [--write] [--exit-code]
 pagani job check <job>
 pagani job gate <job>

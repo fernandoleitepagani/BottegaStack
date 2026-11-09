@@ -229,3 +229,46 @@ on for a plugin-provided agent; declare hooks in the plugin's `hooks/hooks.json`
 instead.
 
 VERDICT: GO
+
+---
+
+## Plugin notes
+
+PaganiStack now ships as the `pagani` plugin (`.claude-plugin/plugin.json` plus
+`.claude-plugin/marketplace.json`, source `./`). The plugin provides:
+
+- `bin/pagani` on PATH (the plugin loader adds the plugin's `bin/`; the copy in
+  the plugin cache resolves its own `ROOT` and runs `resources/`, `scripts/lint.sh`
+  and the rest correctly).
+- Agents: `pagani:master`, `pagani:builder`, `pagani:explorer`, `pagani:planner`,
+  `pagani:review-code` (bare `master` also resolves when unambiguous).
+- Commands: `/pagani:pagani` and `/pagani:pagani-models` (bare `/pagani` and
+  `/pagani-models` also resolve).
+- Skills from every category directory listed in the manifest.
+- Hooks from `hooks/hooks.json`: PreToolUse `Agent|Task` runs
+  `pagani guard builder`; Stop runs `pagani guard stop`. Hooks declared in a
+  plugin agent's own frontmatter do not fire in 2.1.319 (see Q3), so the master
+  frontmatter no longer carries them.
+
+A plugin cannot do what the old installer did:
+
+- It does not merge keys into the user's global `~/.claude/settings.json`
+  (permissions, model, `agent`, `env`). The user sets those by hand.
+- It does not write `~/.claude/CLAUDE.md`.
+- It does not install a launcher into `~/.local/bin`. The plugin's `bin/` is on
+  PATH only inside a session. An old `~/.local/bin/pagani` launcher left by the
+  previous installer shadows the plugin's copy, so remove it.
+- It does not run the repo lint. `pagani doctor` runs `scripts/lint.sh` only
+  when that file is next to the CLI (the plugin cache carries it).
+
+Manual steps for a user:
+
+1. `claude plugin marketplace add fernandoleitepagani/PaganiStack`
+2. `claude plugin install pagani@pagani -y`
+3. Start a new session (or `/reload-plugins`). Optionally set `"agent": "master"`
+   in `~/.claude/settings.json` for `claude --agent master`.
+4. Allow `Bash(pagani build:*)` in settings if the builder runs without prompts.
+5. Run `pagani build --init` once to create `builder.env` for the headless builder.
+
+Update with `claude plugin update pagani@pagani`; remove with
+`claude plugin uninstall pagani` (and `claude plugin marketplace remove pagani`).

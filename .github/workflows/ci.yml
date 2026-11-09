@@ -20,20 +20,14 @@ jobs:
       - name: Validate
         run: ./scripts/validate.sh
 
-      - name: Installer dry run
-        run: ./install.sh --target claude --dry-run
+      - name: Generated command is fresh
+        run: ./scripts/gen-command.sh --check
 
-      - name: Installer sync check
+      - name: Validate plugin manifests
         run: |
           set -euo pipefail
-          export HOME="$(mktemp -d)"
-          export XDG_CONFIG_HOME="$(mktemp -d)"
-          export GIT_AUTHOR_NAME=ci GIT_AUTHOR_EMAIL=ci@example.com
-          export GIT_COMMITTER_NAME=ci GIT_COMMITTER_EMAIL=ci@example.com
-          ./install.sh --target claude --yes
-          generated="$HOME/.claude/commands/pagani.md"
-          test -f "$generated"
-          grep -qF 'pagani guard stop' "$generated"
-          grep -qF '# PaganiStack Master' "$generated"
-          grep -qF 'Step 0' "$generated"
-          echo "sync check: PASS"
+          if command -v claude >/dev/null 2>&1; then
+            claude plugin validate .
+          else
+            echo "claude not installed; skipping plugin validate"
+          fi

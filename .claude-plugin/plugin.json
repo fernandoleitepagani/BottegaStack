@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "pagani",
+  "version": "0.5.0",
+  "description": "A personal agentic development workflow: playbooks, builders, reviewers, and project templates for Claude Code.",
+  "author": {
+    "name": "PaganiStack"
+  },
+  "license": "MIT",
+  "commands": [
+    "./commands/pagani.md",
+    "./commands/claude/pagani-models.md"
+  ],
+  "skills": [
+    "./skills/business-automation",
+    "./skills/code-quality",
+    "./skills/data-analysis",
+    "./skills/infrastructure-ops",
+    "./skills/library-api-reference",
+    "./skills/product-verification",
+    "./skills/runbooks",
+    "./skills/scaffolding",
+    "./skills/workflow"
+  ]
+}
