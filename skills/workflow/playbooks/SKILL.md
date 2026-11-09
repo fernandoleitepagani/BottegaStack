@@ -17,7 +17,7 @@ never downgrade; risk only escalates.
 | `bugfix` | a reproducible symptom exists | failing test first; the light path when the change is small |
 | `feature` | normal product work | interview, SPEC with a task graph, worktrees, full build/check/review |
 | `refactor` | behaviour must not change | expand-contract; tests before and after; full build/check/review |
-| `pr-babysit` | added later by Task 7 | placeholder; do not use yet |
+| `pr-babysit` | a PR is open and needs CI or review follow-up | watch checks and comments read-only, fix through the light path, push only with approval — see [pr-babysit.md](pr-babysit.md) |
 
 ## Risk paths
 
@@ -42,6 +42,15 @@ worktree. The master creates branch `pagani/quick-<slug>` first, then runs
 builder in the current checkout on the current branch. State and report live in
 `pagani/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
 `builder.log`).
+
+## Waiting on external events
+
+When you are waiting on something outside the session — CI, a long build, a
+review — do not idle or sleep-poll. Invoke the `loop` skill with a sensible
+interval for the event (for example 120s for CI, 300s for a long build) and
+re-check the same condition each time. State the interval and a maximum number
+of checks (for example 20) before the first check. Stop as soon as the condition
+is met or the cap is reached, and report the last state either way.
 
 ## Step 0 classification
 

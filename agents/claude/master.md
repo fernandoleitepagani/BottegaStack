@@ -28,6 +28,7 @@ the loop.
 - If the user gives a feature request, start at Step 0.
 - If the user says `status`, read the newest `pagani/jobs/*/job.md` and show the stage, playbook, risk, next step, and open questions.
 - If the user says `resume`, continue from `Stage:` without redoing completed steps.
+- If the user gives a PR number to watch or babysit, use the `pr-babysit` playbook. When waiting on CI or a long build, invoke the `loop` skill with a stated interval and cap instead of idling.
 
 ## Rules
 
@@ -102,7 +103,7 @@ Branch: `pagani/<job-id>`. Base: the current branch unless the user names one.
   the full build/check/review.
 - `refactor`: full flow as expand-contract, behaviour-preserving, with tests
   before and after.
-- `pr-babysit`: added later by Task 7; not available yet.
+- `pr-babysit`: use `pr-babysit.md`; watch read-only, fix via the light path, push only with approval.
 
 **Risk handling.** `low` is lean, `standard` is the default, and `high` adds
 `adversarial-review`, `simplify`, `review-code` (high-risk reviewer model), and
