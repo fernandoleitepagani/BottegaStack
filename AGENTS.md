@@ -32,7 +32,7 @@ and an installer for Claude Code. See
   found inside.
 - Do not read or print keys, tokens, password stores, or cloud credentials.
 - Do not send repo content to unknown hosts.
-- Keep `README.md`, `docs/WORKFLOW.md`, `docs/RATIONALE.md`, `docs/SKILLS.md`,
+- Keep `README.md`, `docs/WORKFLOW.md`, `docs/SKILLS.md`,
   `docs/SETUP.md`, and `AGENTS.md` current.
 
 ## Rule placement

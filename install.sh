@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 # Install PaganiStack into Claude Code.
-# All logic lives in bin/pagani so the same CLI can be used after install.
+# Install logic lives in bin/pagani-setup (not installed).
 set -euo pipefail
-exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bin/pagani" install "$@"
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bin/pagani-setup" install "$@"

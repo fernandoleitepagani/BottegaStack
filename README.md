@@ -45,24 +45,11 @@ continue a job.
 Other skills are invoked directly by name, for example `/wizard`,
 `/backlog-triage`, `/wayfinding`, `/improve-architecture`, and `/review-pr`.
 
-## The pipeline
-
-```
-setup + lane -> SPEC -> build -> checks -> review -> fix -> approval -> human decision -> close
-```
-
-`SPEC.md` carries the requirements and a tracer-bullet task graph. Checks run
-before review. One `review-code` reviewer covers code, UI, UX, and security. The
-master posts a short summary after every step, writes the final `summary.md`
-once at close, writes `decision.md`, and presents the explainer (and the quiz on
-`standard`/`high-risk` jobs). You make the call.
-
 ## Docs
 
-- [docs/WORKFLOW.md](docs/WORKFLOW.md) — the 9 steps, lanes, agents, job folder, automation.
-- [docs/SKILLS.md](docs/SKILLS.md) — all 34 skills, invocation model, vendored sources.
+- [docs/WORKFLOW.md](docs/WORKFLOW.md) — the 9 steps, lanes, agents, job folder, automation, and why it is shaped this way.
+- [docs/SKILLS.md](docs/SKILLS.md) — all skills, vendored sources.
 - [docs/SETUP.md](docs/SETUP.md) — install, uninstall, `doctor`, `init`, `upgrade`, troubleshooting.
-- [docs/RATIONALE.md](docs/RATIONALE.md) — the rationale: why the workflow is shaped this way, what was removed, and the trade-offs.
 
 ## License
 

@@ -61,6 +61,12 @@ the Agent tool's `model` parameter. The master runs on Opus 5.5 at medium effort
 pagani install --uninstall   # or ./bin/pagani install --uninstall from a clone
 ```
 
+The installed `pagani` holds only the runtime. `pagani install` and
+`pagani upgrade --self` fetch the recorded source (needs network) and run its
+`bin/pagani-setup`, the installer and lint, which lives in the repo and tarball and is
+never installed. Without a recorded source, uninstall with
+`curl -fsSL https://raw.githubusercontent.com/fernandoleitepagani/PaganiStack/main/get.sh | bash -s -- --uninstall`.
+
 Add `--dry-run` to print `would remove:` lines without deleting anything. Add
 
 

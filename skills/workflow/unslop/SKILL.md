@@ -11,7 +11,7 @@ patterns below, then rewrite. Preserve meaning and match the intended tone.
 Use this on:
 - `summary.md` before posting it,
 - UX copy in `review-code`,
-- `AGENTS.md`, `docs/RATIONALE.md`, and skill text when you edit them.
+- `AGENTS.md`, `docs/WORKFLOW.md`, and skill text when you edit them.
 
 ## Patterns to detect and fix
 

@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
-# PaganiStack installer and helper CLI.
-# No state machine. It installs files, checks them, and scaffolds a project.
+# PaganiStack runtime CLI (the installed copy). Jobs, worktrees, builds, guard
+# hooks, project init/upgrade. Install and lint live in bin/pagani-setup, which
+# is not installed: `pagani install` and `pagani upgrade --self` fetch it.
 set -euo pipefail
 
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
-TARGET="auto"
-MODE="copy"
-DRY_RUN=0
-ASSUME_YES=0
-UNINSTALL=0
-COMMAND_DIR="commands"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
 usage() {
   cat <<'EOF'
 Usage:
   pagani install [--uninstall] [--target auto|claude] [--copy|--link] [--dry-run] [--yes]
+      (installed copy: fetches the recorded source and runs its installer)
   pagani doctor
   pagani init [path]
   pagani upgrade [path]
@@ -57,383 +53,9 @@ config_dir() {
   esac
 }
 
-# Claude Code is the only runtime. --target is kept so old invocations still work.
-resolve_targets() {
-  case "$TARGET" in
-    auto|claude|both) TARGETS=(claude) ;;
-    *) echo "unknown target: $TARGET (only claude is supported)" >&2; exit 1 ;;
-  esac
-}
-
-backup_path() {
-  local path="$1" config="$2"
-  if [ -e "$path" ] || [ -L "$path" ]; then
-    local dir="$config/.pagani-backup-$STAMP"
-    mkdir -p "$dir"
-    mv "$path" "$dir/$(basename "$path")"
-    echo "backup: $path -> $dir/$(basename "$path")"
-  fi
-}
-
-install_one() {
-  local src="$1" dest="$2" config="$3"
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "would install: $src -> $dest"
-    return
-  fi
-  mkdir -p "$(dirname "$dest")"
-  if [ "$MODE" = "link" ] && [ -L "$dest" ] && [ "$(readlink "$dest")" = "$src" ]; then
-    printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-    return
-  fi
-  # A symlink left by link mode is replaced by a real copy, never treated as "same".
-  if [ "$MODE" = "copy" ] && [ -L "$dest" ]; then
-    rm -f "$dest"
-  fi
-  if [ "$MODE" = "copy" ] && [ -e "$dest" ]; then
-    if { [ -f "$src" ] && [ -f "$dest" ] && cmp -s "$src" "$dest"; } \
-      || { [ -d "$src" ] && [ -d "$dest" ] && diff -rq "$src" "$dest" >/dev/null 2>&1; }; then
-      printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-      return
-    fi
-  fi
-  if [ "$MODE" = "copy" ] && [ -L "$dest" ]; then
-    rm -f "$dest"
-  elif [ -e "$dest" ] || [ -L "$dest" ]; then
-    backup_path "$dest" "$config"
-  fi
-  if [ "$MODE" = "copy" ]; then
-    cp -R "$src" "$dest"
-  else
-    ln -sfn "$src" "$dest"
-  fi
-  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-}
-
-install_skills() {
-  local config="$1" target="$2"
-  local dest_root="$config/skills"
-  mkdir -p "$dest_root"
-  while IFS= read -r skill; do
-    local src name dest
-    src="$(dirname "$skill")"
-    name="$(basename "$src")"
-    dest="$dest_root/$name"
-    install_one "$src" "$dest" "$config"
-  done < <(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | sort)
-}
-
-install_agents() {
-  local config="$1" target="$2"
-  local src_dir="$ROOT/agents/$target"
-  [ -d "$src_dir" ] || return 0
-  while IFS= read -r agent; do
-    install_one "$agent" "$config/agents/$(basename "$agent")" "$config"
-  done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
-}
-
-install_claude_command() {
-  local config="$1"
-  local src="$ROOT/commands/claude/pagani.md"
-  local master="$ROOT/agents/claude/master.md"
-  local dest="$config/$COMMAND_DIR/pagani.md"
-  [ -f "$src" ] && [ -f "$master" ] || return 0
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "would generate: $dest (command header + master body)"
-    return 0
-  fi
-  mkdir -p "$(dirname "$dest")"
-  local tmp
-  tmp="$(mktemp)"
-  # Command header, then the master's hooks block (one source of truth), then bodies.
-  awk 'NR==1{print; next} $0=="---"{exit} {print}' "$src" > "$tmp"
-  awk 'NR==1{next} $0=="---"{exit} /^hooks:/{on=1} on{print}' "$master" >> "$tmp"
-  echo '---' >> "$tmp"
-  awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$master" >> "$tmp"
-  awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$src" >> "$tmp"
-  if [ -e "$dest" ] && cmp -s "$tmp" "$dest"; then
-    rm -f "$tmp"
-    printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-    return 0
-  fi
-  if [ -e "$dest" ] || [ -L "$dest" ]; then
-    backup_path "$dest" "$config"
-  fi
-  mv "$tmp" "$dest"
-  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-}
-
-install_global_files() {
-  local config="$1" target="$2"
-  [ "$target" = "claude" ] || return 0
-  if [ -f "$ROOT/claude/global/CLAUDE.md" ]; then
-    install_one "$ROOT/claude/global/CLAUDE.md" "$config/CLAUDE.md" "$config"
-  fi
-  [ -f "$ROOT/claude/global/settings.json" ] || return 0
-  if [ "$MODE" = "link" ]; then
-    install_one "$ROOT/claude/global/settings.json" "$config/settings.json" "$config"
-  else
-    install_settings_copy "$ROOT/claude/global/settings.json" "$config/settings.json"
-  fi
-  return 0
-}
-
-# settings.json holds your own choices (model, theme, permissions), so a copy
-# install never overwrites it: missing keys are added, existing ones are kept.
-# A symlink left over from link mode is turned into a real file first. It is not
-# in the uninstall manifest: it is user data.
-install_settings_copy() {
-  local src="$1" dest="$2"
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "would merge: $src -> $dest (existing keys kept)"
-    return 0
-  fi
-  mkdir -p "$(dirname "$dest")"
-  if [ -L "$dest" ]; then
-    local resolved
-    resolved="$(mktemp)"
-    cat "$dest" > "$resolved"
-    rm -f "$dest"
-    mv "$resolved" "$dest"
-    chmod 644 "$dest"
-  fi
-  if [ ! -e "$dest" ]; then
-    cp "$src" "$dest"
-    return 0
-  fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "kept: $dest (python3 missing; not merged)"
-    return 0
-  fi
-  local tmp
-  tmp="$(mktemp)"
-  python3 - "$src" "$dest" "$tmp" <<'PY'
-import json, sys
-src = json.load(open(sys.argv[1]))
-try:
-    dst = json.load(open(sys.argv[2]))
-except Exception:
-    dst = {}
-if not isinstance(dst, dict):
-    dst = {}
-for k, v in src.items():
-    if k not in dst:
-        dst[k] = v
-# Permission lists are unioned so new allow rules reach existing settings.
-sp, dp = src.get("permissions"), dst.get("permissions")
-if isinstance(sp, dict) and isinstance(dp, dict):
-    for name, rules in sp.items():
-        if isinstance(rules, list) and isinstance(dp.get(name), list):
-            dp[name] += [r for r in rules if r not in dp[name]]
-with open(sys.argv[3], "w") as f:
-    json.dump(dst, f, indent=2)
-    f.write("\n")
-PY
-  if cmp -s "$tmp" "$dest"; then
-    rm -f "$tmp"
-  else
-    cp "$dest" "$dest.pagani-backup-$STAMP"
-    mv "$tmp" "$dest"
-    chmod 644 "$dest"
-    echo "merged: $dest (backup: $dest.pagani-backup-$STAMP)"
-  fi
-}
-
-install_commands() {
-  local config="$1" target="$2"
-  if [ "$target" = "claude" ]; then
-    install_claude_command "$config"
-    return 0
-  fi
-  local src_dir="$ROOT/commands/$target"
-  [ -d "$src_dir" ] || return 0
-  while IFS= read -r cmd; do
-    install_one "$cmd" "$config/$COMMAND_DIR/$(basename "$cmd")" "$config"
-  done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
-}
-
-
-# Tier variants (builder-lite, review-code-lite, review-code-strong) and the
-# build-runner relay are gone: the master picks a tier per call with the Agent
-# tool's `model` parameter and runs `pagani build` itself. Remove the files older
-# installs generated.
-remove_obsolete() {
-  local config="$1" f
-  for f in builder-lite review-code-lite review-code-strong build-runner; do
-    if [ "$DRY_RUN" = "1" ]; then
-      [ -e "$config/agents/$f.md" ] && echo "would remove: $config/agents/$f.md"
-    else
-      rm -f "$config/agents/$f.md"
-    fi
-  done
-  # Vendored skills dropped from the repo: remove only the symlinks older link
-  # installs left behind, never a real copy you installed yourself.
-  for f in agent-browser skill-creator vercel-react-best-practices; do
-    if [ -L "$config/skills/$f" ]; then
-      if [ "$DRY_RUN" = "1" ]; then echo "would remove: $config/skills/$f"; else rm -f "$config/skills/$f"; fi
-    fi
-  done
-}
-
-require_clone() {
-  if [ ! -d "$ROOT/skills" ] || [ ! -d "$ROOT/agents" ]; then
-    echo "pagani install: run this from a PaganiStack clone (this copy has no skills/)." >&2
-    echo "To update an installed copy: pagani upgrade --self" >&2
-    exit 1
-  fi
-}
-
-# Copy the CLI and the files it reads at runtime into <config>/pagani/, so the
-# clone can be deleted after install. Link mode skips this and uses the clone.
-install_support() {
-  local config="$1" dest="$1/pagani"
-  [ "$MODE" = "copy" ] || return 0
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "would install: CLI and resources -> $dest"
-    return 0
-  fi
-  local tmp
-  tmp="$(mktemp -d)"
-  mkdir -p "$tmp/bin"
-  cp "$ROOT/bin/pagani" "$tmp/bin/pagani"
-  chmod +x "$tmp/bin/pagani"
-  cp -R "$ROOT/resources" "$tmp/resources"
-  [ -f "$ROOT/VERSION" ] && cp "$ROOT/VERSION" "$tmp/VERSION"
-  local origin="${PAGANI_SOURCE:-}"
-  [ -n "$origin" ] || origin="$(git -C "$ROOT" remote get-url origin 2>/dev/null || true)"
-  if [ -n "$origin" ]; then
-    printf '%s\n' "$origin" > "$tmp/SOURCE"
-  elif [ -f "$dest/SOURCE" ]; then
-    cp "$dest/SOURCE" "$tmp/SOURCE"
-  fi
-  chmod 755 "$tmp"
-  if [ -d "$dest" ] && diff -rq "$tmp" "$dest" >/dev/null 2>&1; then
-    rm -rf "$tmp"
-  else
-    rm -rf "$dest"
-    cp -R "$tmp" "$dest"
-    rm -rf "$tmp"
-  fi
-  printf '%s\n' "$dest" >> "$config/.pagani-manifest-$(basename "$config").txt"
-}
-
-cmd_install() {
-  require_clone
-  resolve_targets
-  local t
-  for t in "${TARGETS[@]}"; do
-    local config
-    config="$(config_dir "$t")"
-    echo "== $t -> $config ($MODE) =="
-    if [ "$DRY_RUN" = "0" ]; then
-      mkdir -p "$config"
-      : > "$config/.pagani-manifest-$(basename "$config").txt"
-    fi
-    install_skills "$config" "$t"
-    install_agents "$config" "$t"
-    remove_obsolete "$config"
-    install_commands "$config" "$t"
-    install_global_files "$config" "$t"
-    install_support "$config"
-    echo "installed: $t"
-  done
-  install_cli
-}
-
-# Put `pagani` on PATH; agents call it by name. In copy mode it is a small
-# launcher that runs the first installed copy (<config>/pagani/bin/pagani).
-install_cli() {
-  local bindir="${PAGANI_BIN_DIR:-$HOME/.local/bin}" dest
-  dest="$bindir/pagani"
-  if [ "$DRY_RUN" = "1" ]; then
-    echo "would install: $dest ($MODE)"
-    return 0
-  fi
-  mkdir -p "$bindir"
-  if [ -e "$dest" ] && [ ! -L "$dest" ] && ! grep -q 'pagani-launcher' "$dest" 2>/dev/null; then
-    echo "kept: $dest (not managed by pagani)"
-    return 0
-  fi
-  if [ "$MODE" = "link" ]; then
-    ln -sfn "$ROOT/bin/pagani" "$dest"
-    echo "linked: $dest"
-  else
-    rm -f "$dest"
-    cat > "$dest" <<'LAUNCHER'
-#!/usr/bin/env bash
-# pagani-launcher: runs the first installed PaganiStack CLI.
-d="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-[ -x "$d/pagani/bin/pagani" ] && exec "$d/pagani/bin/pagani" "$@"
-echo "pagani: no installed copy found; reinstall from a PaganiStack clone" >&2
-exit 1
-LAUNCHER
-    chmod +x "$dest"
-    echo "installed: $dest"
-  fi
-  case ":$PATH:" in *":$bindir:"*) ;; *) echo "note: add $bindir to PATH" ;; esac
-}
-
-cmd_uninstall() {
-  resolve_targets
-  local t
-  for t in "${TARGETS[@]}"; do
-    local config manifest
-    config="$(config_dir "$t")"
-    manifest="$config/.pagani-manifest-$(basename "$config").txt"
-    if [ ! -f "$manifest" ]; then
-      [ "$DRY_RUN" = "1" ] || echo "no manifest for $t"
-      continue
-    fi
-    if [ "$DRY_RUN" = "1" ]; then
-      while IFS= read -r path; do
-        [ -n "$path" ] || continue
-        echo "would remove: $path"
-      done < "$manifest"
-      continue
-    fi
-    if [ "$ASSUME_YES" != "1" ]; then
-      echo "Remove the paths in $manifest? [y/N]"
-      read -r answer
-      [ "$answer" = "y" ] || [ "$answer" = "Y" ] || continue
-    fi
-    while IFS= read -r path; do
-      [ -n "$path" ] || continue
-      if [ -L "$path" ] || [ -f "$path" ]; then
-        rm -f "$path"
-        echo "removed: $path"
-      elif [ -d "$path" ]; then
-        rm -rf "$path"
-        echo "removed: $path"
-      fi
-    done < "$manifest"
-    rm -f "$manifest"
-  done
-  # Remove the launcher only when no installed copy is left.
-  local cli="${PAGANI_BIN_DIR:-$HOME/.local/bin}/pagani" d left=0
-  d="$(config_dir claude)"
-  [ -x "$d/pagani/bin/pagani" ] && left=1
-  if [ "$left" = "0" ] && { [ -L "$cli" ] || grep -q 'pagani-launcher' "$cli" 2>/dev/null; }; then
-    if [ "$DRY_RUN" = "1" ]; then echo "would remove: $cli"; else rm -f "$cli"; echo "removed: $cli"; fi
-  fi
-}
-
-# Update an installed copy from its source repo without keeping a clone around.
-cmd_self_upgrade() {
-  local from="${PAGANI_SOURCE:-}"
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --from) from="${2:?--from needs a URL or path}"; shift 2 ;;
-      *) echo "unknown flag: $1" >&2; exit 1 ;;
-    esac
-  done
-  if [ -z "$from" ]; then
-    local d
-    for d in "$ROOT" "$(config_dir claude)/pagani"; do
-      [ -f "$d/SOURCE" ] && { from="$(head -1 "$d/SOURCE")"; break; }
-    done
-  fi
-  [ -n "$from" ] || { echo "pagani upgrade --self: no source recorded; pass --from <url-or-path>" >&2; exit 1; }
-  local tmp tarball=""
+# Fetch the recorded source into a temp dir; sets FETCH_DIR and FETCH_FROM.
+fetch_source() {
+  local from="$1" who="$2" tmp tarball=""
   case "$from" in
     *.tar.gz|*.tgz) tarball="$from" ;;
     http://github.com/*|https://github.com/*)
@@ -443,27 +65,67 @@ cmd_self_upgrade() {
   echo "fetching: $from"
   mkdir -p "$tmp/pagani"
   if [ -n "$tarball" ]; then
-    command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || { rm -rf "$tmp"; echo "pagani upgrade --self: curl and tar are required" >&2; exit 1; }
+    command -v curl >/dev/null 2>&1 && command -v tar >/dev/null 2>&1 || { rm -rf "$tmp"; echo "$who: curl and tar are required" >&2; exit 1; }
     if ! curl -fsSL "$tarball" | tar xz --strip-components=1 -C "$tmp/pagani"; then
       rm -rf "$tmp"
-      echo "pagani upgrade --self: download failed" >&2
+      echo "$who: download failed" >&2
       exit 1
     fi
     [ "$tarball" = "$from" ] || from="$tarball"
   else
-    command -v git >/dev/null 2>&1 || { rm -rf "$tmp"; echo "pagani upgrade --self: git is required" >&2; exit 1; }
+    command -v git >/dev/null 2>&1 || { rm -rf "$tmp"; echo "$who: git is required" >&2; exit 1; }
     rm -rf "$tmp/pagani"
     if ! git clone --depth 1 --quiet "$from" "$tmp/pagani"; then
       rm -rf "$tmp"
-      echo "pagani upgrade --self: clone failed" >&2
+      echo "$who: clone failed" >&2
       exit 1
     fi
   fi
-  PAGANI_SOURCE="$from" "$tmp/pagani/bin/pagani" install --yes
-  rm -rf "$tmp"
+  [ -f "$tmp/pagani/bin/pagani-setup" ] || { rm -rf "$tmp"; echo "$who: fetched source has no bin/pagani-setup" >&2; exit 1; }
+  FETCH_DIR="$tmp"
+  FETCH_FROM="$from"
 }
 
-# Lane order. Lanes only escalate, so compare ranks and keep the higher one.
+# Run the installer from a fetched copy of the recorded source, so it is always
+# the new version's installer. Args after the first are passed to `install`.
+delegate_setup() {
+  local who="$1" from="$2"; shift 2
+  if [ -z "$from" ]; then
+    local d
+    for d in "$ROOT" "$(config_dir claude)/pagani"; do
+      [ -f "$d/SOURCE" ] && { from="$(head -1 "$d/SOURCE")"; break; }
+    done
+  fi
+  if [ -z "$from" ]; then
+    echo "$who: no source recorded for this installed copy." >&2
+    echo "Reinstall with get.sh (curl -fsSL <raw get.sh url> | bash) or from a clone (./install.sh)," >&2
+    echo "or pass --from <url-or-path>." >&2
+    exit 1
+  fi
+  fetch_source "$from" "$who"
+  local rc=0
+  PAGANI_SOURCE="$FETCH_FROM" "$FETCH_DIR/pagani/bin/pagani-setup" install "$@" || rc=$?
+  rm -rf "$FETCH_DIR"
+  exit "$rc"
+}
+
+cmd_install() {
+  if [ -x "$ROOT/bin/pagani-setup" ]; then
+    exec "$ROOT/bin/pagani-setup" install "$@"
+  fi
+  delegate_setup "pagani install" "${PAGANI_SOURCE:-}" "$@"
+}
+
+cmd_self_upgrade() {
+  local from="${PAGANI_SOURCE:-}"
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --from) from="${2:?--from needs a URL or path}"; shift 2 ;;
+      *) echo "unknown flag: $1" >&2; exit 1 ;;
+    esac
+  done
+  delegate_setup "pagani upgrade --self" "$from" --yes
+}
 
 cmd_job_new() {
   local title="${1:?title required}"
@@ -598,144 +260,10 @@ cmd_gate() {
   echo "GATE: PASS"
 }
 
-cmd_lint() {
-  local fail=0
-  echo "PaganiStack lint"
-  for f in "$ROOT"/skills/*/*/SKILL.md; do
-    [ -f "$f" ] || continue
-    local d n
-    d="$(basename "$(dirname "$f")")"
-    n="$(sed -n 's/^name: //p' "$f" | head -1)"
-    if [ "$d" != "$n" ]; then
-      echo "FAIL name mismatch: $f (dir=$d name=$n)"
-      fail=1
-    fi
-    if ! grep -q '^description:' "$f"; then
-      echo "FAIL missing description: $f"
-      fail=1
-    fi
-  done
-
-  for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md mistakes.md REVIEW.md checks.sh verify.sh verify.conf FEATURE-MAP.md claude-settings.json \
-           builder.env.example git-hooks/pre-commit git-hooks/pre-push; do
-    if [ ! -f "$ROOT/resources/$f" ]; then
-      echo "FAIL missing resource: resources/$f"
-      fail=1
-    fi
-  done
-
-  if [ -f "$ROOT/resources/claude-settings.json" ]; then
-    if command -v python3 >/dev/null 2>&1; then
-      if ! python3 -m json.tool "$ROOT/resources/claude-settings.json" >/dev/null 2>&1; then
-        echo "FAIL invalid JSON: resources/claude-settings.json"
-        fail=1
-      fi
-    fi
-  fi
-
-  for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md mistakes.md REVIEW.md \
-           BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
-    if grep -rq -- "$f" "$ROOT/agents" "$ROOT/skills" 2>/dev/null; then
-      if [ ! -f "$ROOT/resources/$f" ]; then
-        echo "FAIL referenced project file has no template: $f"
-        fail=1
-      fi
-    fi
-  done
-
-  while IFS= read -r name; do
-    [ -n "$name" ] || continue
-    if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$name" | grep -q .; then
-      echo "FAIL unresolved skill reference: $name"
-      fail=1
-    fi
-  done < <(grep -rhoE '([Ll]oad|loads)( the)? `[a-z0-9][a-z0-9-]*`' "$ROOT/agents" "$ROOT/skills" 2>/dev/null | grep -oE '`[a-z0-9][a-z0-9-]*`' | tr -d '`' | sort -u)
-
-  if ! grep -q 'Step 0' "$ROOT/agents/claude/master.md"; then
-    echo "FAIL missing Step 0: agents/claude/master.md"
-    fail=1
-  fi
-
-  # Command files must not reference a step the matching master does not have.
-  local cmd_file target master step
-  for cmd_file in "$ROOT"/commands/*/pagani.md; do
-    [ -f "$cmd_file" ] || continue
-    target="$(basename "$(dirname "$cmd_file")")"
-    master="$ROOT/agents/$target/master.md"
-    while IFS= read -r step; do
-      [ -n "$step" ] || continue
-      if ! grep -qF "$step" "$master" 2>/dev/null; then
-        echo "FAIL step reference: $cmd_file mentions $step but $master does not"
-        fail=1
-      fi
-    done < <(grep -oE 'Step [0-9]+' "$cmd_file" | sort -u)
-  done
-
-  if [ -f "$ROOT/.claude/settings.json" ]; then
-    if command -v python3 >/dev/null 2>&1; then
-      if ! python3 - "$ROOT/resources/claude-settings.json" "$ROOT/.claude/settings.json" <<'PY'
-import json, sys
-a = json.load(open(sys.argv[1]))
-b = json.load(open(sys.argv[2]))
-def norm(d):
-    hooks = d.get("hooks", {})
-    out = {}
-    for event, entries in hooks.items():
-        rows = []
-        for entry in entries:
-            handlers = sorted(
-                (h.get("command", ""), tuple(h.get("args", [])))
-                for h in entry.get("hooks", [])
-            )
-            rows.append((entry.get("matcher", ""), tuple(handlers)))
-        out[event] = sorted(rows)
-    return out
-if a.get("permissions") != b.get("permissions") or norm(a) != norm(b):
-    sys.exit(1)
-PY
-      then
-        echo "FAIL .claude/settings.json hooks/permissions differ from resources/claude-settings.json; run: pagani upgrade ."
-        fail=1
-      fi
-    fi
-  fi
-
-  for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md docs/RATIONALE.md; do
-    if [ ! -f "$ROOT/$f" ]; then
-      echo "FAIL missing doc: $f"
-      fail=1
-    fi
-  done
-
-  local md dir link target
-  for md in "$ROOT"/*.md "$ROOT"/docs/*.md; do
-    [ -f "$md" ] || continue
-    dir="$(dirname "$md")"
-    while IFS= read -r link; do
-      case "$link" in
-        http://*|https://*|mailto:*|'#'*) continue ;;
-      esac
-      target="${link%%#*}"
-      [ -n "$target" ] || continue
-      if [ ! -e "$dir/$target" ]; then
-        echo "FAIL broken link: ${md#"$ROOT"/} -> $link"
-        fail=1
-      fi
-    done < <(grep -oE '\]\([^)]+\)' "$md" | sed -E 's/^\]\(//; s/\)$//')
-  done
-
-  if [ "$fail" = "0" ]; then
-    echo "lint: PASS"
-  else
-    echo "lint: FAIL"
-    return 1
-  fi
-}
-
 cmd_doctor() {
   echo "PaganiStack doctor"
   echo "root: $ROOT"
-  if [ -d "$ROOT/skills" ]; then echo "mode: clone"; else echo "mode: installed copy"; fi
+  if [ -f "$ROOT/bin/pagani-setup" ]; then echo "mode: clone"; else echo "mode: installed copy"; fi
   if builder_ready quiet; then
     echo "headless builder: ready ($(builder_env_file))"
   else
@@ -748,7 +276,7 @@ cmd_doctor() {
   command -v gitleaks >/dev/null 2>&1 && echo "gitleaks: yes" || echo "gitleaks: no"
 
   local skills
-  if [ ! -d "$ROOT/skills" ]; then
+  if [ ! -f "$ROOT/bin/pagani-setup" ]; then
     [ -d "$(config_dir claude)/skills" ] && echo "claude skills: $(find "$(config_dir claude)/skills" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')"
     echo "lint: skipped (installed copy; run from a clone for the full check)"
     return 0
@@ -813,7 +341,7 @@ cmd_doctor() {
     [ -d "$config" ] && echo "  exists" || echo "  missing"
   done
 
-  cmd_lint || true
+  "$ROOT/bin/pagani-setup" lint || true
 }
 
 # Every path pagani creates in a project. None of them is ever committed: they are
@@ -1652,21 +1180,7 @@ cmd_retro_scan() {
 cmd="${1:-}"
 shift || true
 case "$cmd" in
-  install)
-    while [ "$#" -gt 0 ]; do
-      case "$1" in
-        --uninstall) UNINSTALL=1; shift ;;
-        --target) TARGET="$2"; shift 2 ;;
-        --link) MODE="link"; shift ;;
-        --copy) MODE="copy"; shift ;;
-        --dry-run) DRY_RUN=1; shift ;;
-        --yes) ASSUME_YES=1; shift ;;
-        --command-dir) COMMAND_DIR="$2"; shift 2 ;;
-        *) echo "unknown flag: $1" >&2; exit 1 ;;
-      esac
-    done
-    if [ "$UNINSTALL" = "1" ]; then cmd_uninstall; else cmd_install; fi
-    ;;
+  install) cmd_install "$@" ;;
   doctor) cmd_doctor ;;
   init) cmd_init "${1:-$PWD}" ;;
   upgrade)

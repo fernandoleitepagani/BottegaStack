@@ -197,14 +197,13 @@ and `master` default to Opus.
 
 ## Skills
 
-PaganiStack ships 34 skills in the Claude Code categories plus `workflow/`.
+PaganiStack ships 31 skills in the Claude Code categories plus `workflow/`.
 The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
 `verification`, `review-code`, `approval`, `summary`, `closeout`,
 `session-handoff`, `session-retro`, `diagnosis`, and `untrusted-content`. The
 rest are situational.
 
-The full inventory, the vendored-skills table, and the rules for adding a skill
-are in [SKILLS.md](SKILLS.md). The installer flattens
+The inventory and the rules for adding a skill are in [SKILLS.md](SKILLS.md). The installer flattens
 `skills/<category>/<skill>` to `<target>/skills/<skill>` because Claude Code
 discover skills at that depth.
 
@@ -331,8 +330,29 @@ enforcement, or backup command.
 **Deliberate non-goals:** full OS sandboxing and a control plane that starts or
 stops agents. Untrusted content still reaches agents through browser pages, PR
 bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
-`untrusted-content` skill is a convention, not a sandbox. See
-[RATIONALE.md](RATIONALE.md) for the trade-offs.
+`untrusted-content` skill is a convention, not a sandbox.
+
+## Why it is shaped this way
+
+PaganiStack optimizes for a change a human can trust, not for output: a spec
+before code, vertical tasks that each fit one fresh context, deterministic checks
+before any reviewer, one focused reviewer, and a human decision. A retro turns
+repeated findings into a lint rule, test, skill edit, or `AGENTS.md` line.
+
+Trade-offs:
+
+- One reviewer can miss a specialist issue. The checklists and the `high-risk`
+  lane (adversarial review, `simplify`, `review-code` on Opus) cover it; run a
+  specialist skill by name if needed.
+- One planning pass can under-specify a large job. `standard` and `high-risk`
+  get the full interview, and the planner returns open questions.
+- The master is busier (it writes `decision.md`); that removes a handoff.
+- Parallel waves buy wall-clock time but cost worktrees, ports, and merge work,
+  so the master goes parallel only when ready tasks touch disjoint files.
+- Harness decay: on a model upgrade, remove one component at a time on a branch,
+  re-run a few real jobs, and keep it only if it still earns its place.
+- A repeated rule moves down the hierarchy until it sticks; see
+  `## Rule placement` in [AGENTS.md](../AGENTS.md).
 
 ## Sources
 

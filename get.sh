@@ -2,6 +2,7 @@
 # One-line install, no clone, no git:
 #   curl -fsSL https://raw.githubusercontent.com/fernandoleitepagani/PaganiStack/main/get.sh | bash
 #   curl -fsSL .../get.sh | bash -s -- --dry-run
+#   curl -fsSL .../get.sh | bash -s -- --uninstall
 # Env: PAGANI_REF (branch or tag, default main).
 set -euo pipefail
 
@@ -17,4 +18,4 @@ trap 'rm -rf "$tmp"' EXIT
 echo "fetching: $url"
 curl -fsSL "$url" | tar xz --strip-components=1 -C "$tmp"
 # The recorded source lets `pagani upgrade --self` work with no --from.
-PAGANI_SOURCE="$url" bash "$tmp/bin/pagani" install --yes "$@" </dev/null
+PAGANI_SOURCE="$url" bash "$tmp/bin/pagani-setup" install --yes "$@" </dev/null
