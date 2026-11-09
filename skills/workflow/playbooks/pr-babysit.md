@@ -26,7 +26,7 @@ git log --oneline <base>..HEAD
 git diff --stat <base>..HEAD
 git push
 ```
-Ask with `AskUserQuestion` and push only after an explicit yes (principle `never-push-without-approval`). Never force-push, edit the PR body, or resolve threads on the user's behalf without asking.
+Ask with `AskUserQuestion` and push only after an explicit yes (principle `never-block-on-the-human`). Never force-push, edit the PR body, or resolve threads on the user's behalf without asking.
 ## Report otherwise
 When there is nothing to fix, report PR number and title, check summary, review decision, what you are waiting on, and the next check. If a failure is outside the repository or a comment needs a human decision, say so and stop.
 ## Waiting

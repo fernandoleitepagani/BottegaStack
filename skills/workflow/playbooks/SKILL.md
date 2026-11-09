@@ -13,13 +13,14 @@ Pick a playbook and risk at Step 0, write both to `job.md`, and run only the ste
 | normal product work | `feature` |
 | behaviour must not change | `refactor` |
 | an open PR needs CI or review follow-up | `pr-babysit` |
-Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first. If the user passes `--playbook <playbook>`, use it; `quick` means `trivial` or a small `bugfix`. Work that fits none: use `figure-it-out` (added later).
+Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first. If the user passes `--playbook <playbook>`, use it; `quick` means `trivial` or a small `bugfix`. Work that fits none: use `figure-it-out`.
 ## Risk
 `low` internal and reversible; `standard` the default; `high` for auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling, or any glob under `## Risk paths` in `REVIEW.md` (a missing file means none; defaults in `resources/REVIEW.md`).
 `high` adds `adversarial-review`, `simplify`, `review-code` (`model: opus`), and `pagani build --review <job> <task> [--block]`, which writes `pagani/jobs/<job>/build/<task>.review2.md`. After the first builder commit run `git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD`; escalate if a risk glob is touched, ~300 lines change, or the scope grows. Never downgrade.
 ## Common rules
 - **Light path:** `trivial` and small `bugfix` use branch `pagani/quick-<slug>` and `pagani build --here <slug> --task "<text>" [--block]`; no job folder, SPEC, or worktree. State lives in `pagani/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`, `builder.log`).
 - **Waiting on external events:** do not sleep-poll. Invoke the `loop` skill with a stated interval (120s for CI, 300s for a long build) and cap (for example 20 checks); stop when the condition is met or the cap is reached, and report the last state.
+- **Every playbook ends with Steps 6 and 7:** the decision goes through `AskUserQuestion`, even on the light path (no job files).
 - **Every job:** at start copy the matched playbook's steps verbatim into `TodoWrite`, and keep a skipped step with a one-line skip reason; at the end reply with verbatim before/after evidence and label each claim measured, inferred, or guessed (see principle `prove-it-works`).
 - **Gotchas:** classify by risk path, not file count; re-run the diff check after the first builder commit; one `review-code` covers UI, UX, and security; the project check still runs on `trivial`.
 ## trivial
@@ -27,8 +28,8 @@ Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first
 2. Run `pagani build --here <slug> --task "<text>" --block`.
 3. Run `./scripts/check` and fix any failure.
 4. Run `review-code` on the diff.
-5. Check the diff against `Allowed files`.
-6. Post the before/after evidence.
+5. Post the before/after evidence.
+6. Ask the decision with `AskUserQuestion` (Steps 6-7); a chat summary alone is never enough.
 `Done: <what changed>`
 `Evidence: <verbatim before/after output>`
 `Claims: measured | inferred | guessed`

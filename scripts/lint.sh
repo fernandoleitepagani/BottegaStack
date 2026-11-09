@@ -58,6 +58,14 @@ while IFS= read -r name; do
   fi
 done < <(grep -rhoE '([Ll]oad|loads)( the)? `[a-z0-9][a-z0-9-]*`' "$ROOT/agents" "$ROOT/skills" 2>/dev/null | grep -oE '`[a-z0-9][a-z0-9-]*`' | tr -d '`' | sort -u)
 
+while IFS= read -r slug; do
+  [ -n "$slug" ] || continue
+  if [ ! -d "$ROOT/skills/workflow/principle-$slug" ]; then
+    echo "FAIL unresolved principle citation: $slug"
+    fail=1
+  fi
+done < <(grep -rhoE 'principle `[a-z-]+`' "$ROOT/agents" "$ROOT/skills" "$ROOT/commands/claude" 2>/dev/null | grep -oE '`[a-z-]+`' | tr -d '`' | sort -u)
+
 if ! grep -q 'Step 0' "$ROOT/agents/master.md"; then
   echo "FAIL missing Step 0: agents/master.md"
   fail=1
