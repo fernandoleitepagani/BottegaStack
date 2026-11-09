@@ -9,6 +9,10 @@ Verification is how an agent checks the real result instead of trusting the
 code. Use this skill whenever a ticket or acceptance criterion can be seen or
 exercised.
 
+If `.claude/skills/verify-*` exists, use it first for the project's start
+command, ready check, flows, and result-reading steps; this skill covers
+evidence, drive tools, and gotchas.
+
 ## First, read the project
 
 Read `AGENTS.md` for the install, dev-server, test, lint, typecheck, and build
