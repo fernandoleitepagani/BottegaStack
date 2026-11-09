@@ -19,18 +19,18 @@ chat summary.
 Post the short version in chat. Do not write a file at each checkpoint.
 
 - Keep the chat version under 12 lines.
-- Post it and keep going. Stop for the human only at the lane's checkpoints
+- Post it and keep going. Stop for the human only at the playbook's checkpoints
   (SPEC approval, the final decision), on an escalation, or on ambiguity.
 - After every subagent run, post a short summary of what it returned before
   moving on.
 
 ## Write `summary.md` once
 
-Write `summary.md` once at close. For `standard` and `high-risk`, write it at
-the review checkpoint instead.
+Write `summary.md` once at close. For `feature`, `refactor`, and `high` risk,
+write it at the review checkpoint instead.
 
-- `trivial`, `bugfix`, `small`: write it at close.
-- `standard`, `high-risk`: write it at review.
+- `trivial`, `bugfix`: write it at close.
+- `feature`, `refactor`, `high` risk: write it at review.
 - The final summary lives at the job root, not in a round folder.
 
 ## The six sections

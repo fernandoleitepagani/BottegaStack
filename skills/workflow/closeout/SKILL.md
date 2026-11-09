@@ -15,7 +15,7 @@ Show:
 - the master's decision and why,
 - the acceptance-criteria mapping,
 - the explainer,
-- for `standard` and `high-risk` only, the quiz and its answers,
+- for `feature`, `refactor`, and `high` risk only, the quiz and its answers,
 - the exact git command you would run for each option.
 
 Ask with `AskUserQuestion`:

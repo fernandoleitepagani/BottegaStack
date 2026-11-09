@@ -162,8 +162,8 @@ cmd_job_new() {
 
 Stage: setup
 Round: 0
-Lane: pending
-Lane-reason: pending
+Playbook: pending
+Risk: pending
 Branch: pagani/$id
 Base: $(git branch --show-current)
 EOF
@@ -1007,12 +1007,15 @@ cmd_status() {
   for job in pagani/jobs/*/job.md; do
     [ -f "$job" ] || continue
     found=1
-    local id stage round lane
+    local id stage round playbook risk
     id="$(basename "$(dirname "$job")")"
     stage="$(grep -m1 '^Stage:' "$job" | sed 's/^Stage:[[:space:]]*//')"
     round="$(grep -m1 '^Round:' "$job" | sed 's/^Round:[[:space:]]*//')"
-    lane="$(grep -m1 '^Lane:' "$job" | sed 's/^Lane:[[:space:]]*//')"
-    printf '%-32s lane=%-10s stage=%-12s round=%s\n' "$id" "${lane:-?}" "${stage:-?}" "${round:-0}"
+    playbook="$(grep -m1 '^Playbook:' "$job" | sed 's/^Playbook:[[:space:]]*//' || true)"
+    # Deliberate compatibility: old jobs stored `Lane:`; read it for display only.
+    [ -n "$playbook" ] || playbook="$(grep -m1 '^Lane:' "$job" | sed 's/^Lane:[[:space:]]*//' || true)"
+    risk="$(grep -m1 '^Risk:' "$job" | sed 's/^Risk:[[:space:]]*//' || true)"
+    printf '%-32s playbook=%-10s risk=%-9s stage=%-12s round=%s\n' "$id" "${playbook:-?}" "${risk:-?}" "${stage:-?}" "${round:-0}"
   done
   [ "$found" = "1" ] || echo "no jobs"
 }

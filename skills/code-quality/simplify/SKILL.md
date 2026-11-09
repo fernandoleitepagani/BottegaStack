@@ -59,5 +59,5 @@ CHECKS: <pass/fail>
   absent.
 - Collapsing a backticked skill reference into prose, which breaks the
   `pagani doctor` reference check.
-- "Simplifying" the master by dropping the Step 0 lane gate.
+- "Simplifying" the master by dropping the Step 0 playbook gate.
 - Deleting code that looks unused only because no test covers it.

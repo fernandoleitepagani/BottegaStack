@@ -1,6 +1,6 @@
 ---
 name: approval
-description: Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and, for standard/high-risk, a quiz, and presents it to the human.
+description: Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and, for feature/refactor or high risk, a quiz, and presents it to the human.
 ---
 
 # PaganiStack Approval
@@ -75,8 +75,8 @@ What could still be wrong.
 The files, commands, or pages the human should look at.
 
 ## Quiz
-Required for `standard` and `high-risk`: 3-5 questions with answers.
-For `trivial`, `bugfix`, and `small`: `Not applicable`.
+Required for `feature`, `refactor`, and `high` risk: 3-5 questions with answers.
+For `trivial` and `bugfix`: `Not applicable`.
 
 ## For the human
 Only when escalating: the exact decision or check you need, and the files to
@@ -88,11 +88,11 @@ Rules:
 - The first line must be exactly `APPROVE` or `ESCALATE`.
 - The explainer is for a human who has not read the diff. Explain the mechanism,
   not the line numbers.
-- The quiz is mandatory only for `standard` and `high-risk`. It has 3-5
+- The quiz is mandatory for `feature`, `refactor`, and `high` risk. It has 3-5
   questions, answerable from the artifacts and the code, not from hidden
   context. Include the answers.
-- For `trivial`, `bugfix`, and `small`, write a short explainer and no quiz; mark
-  `## Quiz` as `Not applicable`.
+- For `trivial` and `bugfix` at `low` or `standard` risk, write a short
+  explainer and no quiz; mark `## Quiz` as `Not applicable`.
 - Do not invent acceptance criteria. Use `SPEC.md`.
 - Do not approve a change you would not merge yourself.
 
@@ -102,8 +102,8 @@ After writing `decision.md`, present it to the human in the conversation:
 
 1. State the decision and the one-line why.
 2. Show the explainer.
-3. For `standard` and `high-risk`, show the quiz without the answers first, then
-   the answers after the human attempts it, or together if they prefer.
+3. For `feature`, `refactor`, and `high` risk, show the quiz without the answers
+   first, then the answers after the human attempts it, or together if they prefer.
 4. Ask for the decision with `AskUserQuestion`. Offer approve and merge,
    approve and commit, approve and push, approve and open PR, rework, and reject.
 
@@ -121,8 +121,8 @@ QUIZ: <count> questions | not applicable
 
 - Approving with stale `checks.md`. Run `pagani job gate <job>` first.
 - Mapping an acceptance criterion to a build claim instead of evidence.
-- A quiz on a `trivial`, `bugfix`, or `small` lane, or a missing quiz on
-  `standard`/`high-risk`.
+- A quiz on a `trivial` or `bugfix` playbook at `low`/`standard` risk, or a
+  missing quiz on `feature`/`refactor` or `high` risk.
 - A quiz with formatting hints or answers that are not in the artifacts.
 - Approving a change you cannot explain in two sentences.
 - Missing the risk tier: auth, payments, data, deploy, schema, dependencies.
