@@ -411,7 +411,10 @@ cmd_lint() {
     fi
   done
 
-  for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md mistakes.md REVIEW.md checks.sh verify.sh verify.conf FEATURE-MAP.md claude-settings.json \
+  # Templates for the on-demand project files. `pagani seed <Name>` copies these
+  # lazily; init does not create them, so the lint only checks the templates.
+  for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md BACKLOG.md mistakes.md REVIEW.md \
+           checks.sh verify.sh verify.conf FEATURE-MAP.md claude-settings.json \
            builder.env.example git-hooks/pre-commit git-hooks/pre-push; do
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"

@@ -54,7 +54,8 @@ Use the smell baseline below as labelled judgement calls, not hard violations:
 
 ## Read
 
-1. `AGENTS.md`, `GLOSSARY.md`, and any docs they list.
+1. `AGENTS.md`, `GLOSSARY.md`, `REVIEW.md` (a missing file means there are no
+   risk paths), and any docs they list.
 2. The job `SPEC.md`, including `Allowed files`, `Test first`, `Done when`, and
    `## Sensors`.
 3. Every `build/<task>.md`.

@@ -15,6 +15,7 @@ Usage:
       (installed copy: fetches the recorded source and runs its installer)
   pagani doctor
   pagani init [path]
+  pagani seed <Name>
   pagani upgrade [path]
   pagani upgrade --self [--from <github-url|tarball-url|git-url|path>]
   pagani build <job> <task> [--revise <findings-file>] [--block|--wait]
@@ -413,29 +414,61 @@ copy_pagani_files() {
   done < <(pagani_files)
 }
 
+# Project files are created on demand: init sets up only what the workflow
+# needs to start. Skills call `pagani seed <Name>` for the rest.
 cmd_init() {
   local dest="${1:-$PWD}"
-  mkdir -p "$dest/scripts" "$dest/docs/adr" "$dest/.claude" "$dest/pagani/jobs"
+  mkdir -p "$dest/scripts" "$dest/.claude" "$dest/pagani/jobs"
   [ -f "$dest/AGENTS.md" ] || cp "$ROOT/resources/AGENTS.md" "$dest/AGENTS.md"
-  [ -f "$dest/SPEC.md" ] || cp "$ROOT/resources/SPEC.md" "$dest/SPEC.md"
-  [ -f "$dest/PLAN.md" ] || cp "$ROOT/resources/PLAN.md" "$dest/PLAN.md"
-  [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
-  [ -f "$dest/scripts/verify" ] || cp "$ROOT/resources/verify.sh" "$dest/scripts/verify"
-  [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
-  [ -f "$dest/REVIEW.md" ] || cp "$ROOT/resources/REVIEW.md" "$dest/REVIEW.md"
-  [ -f "$dest/GLOSSARY.md" ] || cp "$ROOT/resources/GLOSSARY.md" "$dest/GLOSSARY.md"
-  [ -f "$dest/BACKLOG.md" ] || cp "$ROOT/resources/BACKLOG.md" "$dest/BACKLOG.md"
-  [ -f "$dest/mistakes.md" ] || cp "$ROOT/resources/mistakes.md" "$dest/mistakes.md"
   [ -f "$dest/CLAUDE.md" ] || printf '@AGENTS.md\n' > "$dest/CLAUDE.md"
-  [ -f "$dest/docs/FEATURE-MAP.md" ] || cp "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md"
+  [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
   [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
-  [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
-  chmod +x "$dest/scripts/check" "$dest/scripts/verify"
+  chmod +x "$dest/scripts/check"
   exclude_pagani_files "$dest"
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
   fi
   echo "initialized: $dest"
+}
+
+# Create one on-demand project file from its template, only when it is absent.
+seed_one() {
+  local src="$1" dest="$2"
+  if [ -e "$dest" ]; then
+    echo "kept: $dest"
+    return 1
+  fi
+  mkdir -p "$(dirname "$dest")"
+  cp "$src" "$dest"
+  echo "created: $dest"
+}
+
+# `pagani seed <Name>`: copy a project-file template in if absent. Idempotent;
+# prints created:/kept: for each destination.
+cmd_seed() {
+  local name="${1:-}" dest
+  [ -n "$name" ] || {
+    echo "usage: pagani seed SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md|FEATURE-MAP.md|verify" >&2
+    exit 2
+  }
+  dest="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  case "$name" in
+    SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md)
+      seed_one "$ROOT/resources/$name" "$dest/$name" || true
+      ;;
+    FEATURE-MAP.md)
+      seed_one "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md" || true
+      ;;
+    verify)
+      seed_one "$ROOT/resources/verify.sh" "$dest/scripts/verify" && chmod +x "$dest/scripts/verify" || true
+      seed_one "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf" || true
+      ;;
+    *)
+      echo "pagani seed: unknown project file: $name" >&2
+      echo "usage: pagani seed SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md|FEATURE-MAP.md|verify" >&2
+      exit 2
+      ;;
+  esac
 }
 
 cmd_upgrade() {
@@ -449,8 +482,6 @@ cmd_upgrade() {
   fi
 
   local src_settings="$ROOT/resources/claude-settings.json"
-  local src_spec="$ROOT/resources/SPEC.md"
-  local src_plan="$ROOT/resources/PLAN.md"
 
   mkdir -p "$dest/scripts" "$dest/.claude" "$dest/pagani"
   # Retired: the format/PreCompact hook script is gone.
@@ -512,20 +543,6 @@ PY
 
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
-  fi
-
-  if [ -f "$dest/SPEC.md" ]; then
-    echo "kept: $dest/SPEC.md"
-  else
-    cp "$src_spec" "$dest/SPEC.md"
-    echo "created: $dest/SPEC.md"
-  fi
-
-  if [ -f "$dest/PLAN.md" ] || [ -f "$dest/ROADMAP.md" ]; then
-    echo "kept: plan file in $dest"
-  else
-    cp "$src_plan" "$dest/PLAN.md"
-    echo "created: $dest/PLAN.md"
   fi
 }
 
@@ -1424,6 +1441,7 @@ case "$cmd" in
   install) cmd_install "$@" ;;
   doctor) cmd_doctor ;;
   init) cmd_init "${1:-$PWD}" ;;
+  seed) cmd_seed "$@" ;;
   upgrade)
     if [ "${1:-}" = "--self" ]; then shift; cmd_self_upgrade "$@"; else cmd_upgrade "${1:-$PWD}"; fi
     ;;

@@ -13,7 +13,9 @@ exercised.
 
 Read `AGENTS.md` for the install, dev-server, test, lint, typecheck, and build
 commands. Read `docs/FEATURE-MAP.md` for the feature you are checking: route,
-how to reach it, seed data or login, expected result, and flow name.
+how to reach it, seed data or login, expected result, and flow name. If
+`docs/FEATURE-MAP.md` or `scripts/verify` is missing, create it with
+`pagani seed FEATURE-MAP.md` and `pagani seed verify`.
 
 If the project has a `scripts/check`, `make check`, or similar, prefer it.
 Use `scripts/verify` as the app driver:

@@ -45,7 +45,8 @@ becomes `ready-for-agent`.
 
 ## Show what needs attention
 
-Read `BACKLOG.md` and list, oldest first:
+If `BACKLOG.md` is missing, create it with `pagani seed BACKLOG.md`. Then read
+it and list, oldest first:
 
 1. Items with no state.
 2. Items in `needs-triage`.

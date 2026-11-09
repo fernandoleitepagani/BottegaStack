@@ -72,13 +72,14 @@ Branch: `pagani/<job-id>`. Base: the current branch unless the user names one.
 ## Steps
 
 0. **Step 0 — Explore and set up.** Read `AGENTS.md`, `GLOSSARY.md` if it exists, and the
-   `## Risk paths` section of `REVIEW.md` (a missing file means no risk paths). Inspect
+   `## Risk paths` section of `REVIEW.md` (a missing file means no risk paths; seed it
+   with `pagani seed REVIEW.md` only when a risk path is first needed). Inspect
    the code. Load `playbooks`, propose a playbook and risk, confirm both. For
    `trivial` or a small `bugfix`, take the light path: create branch
    `pagani/quick-<slug>` and run `pagani build --here <slug> --task "<text>" --block`;
    create no job folder, SPEC, or worktree. Otherwise run `pagani job new "<short title>"`
    to create the folder and branch, then write `Playbook`/`Risk` to `job.md`. `pagani job new`
-   sets the project up on first use (missing `AGENTS.md`, `REVIEW.md`, `scripts/check`). If `scripts/check` still says it is not configured, have
+   sets the project up on first use (missing `AGENTS.md`, `scripts/check`, `.claude/settings.json`). If `scripts/check` still says it is not configured, have
    `explorer` find the project's real lint, typecheck, test, and build commands
    (package.json scripts, Makefile, pyproject, and so on), confirm them with
    `AskUserQuestion`, and write them into `scripts/check`. If it finds nothing, do
