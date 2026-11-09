@@ -184,7 +184,11 @@ ready tasks touch disjoint files.
 ## Playbooks and risk
 
 A playbook chooses the pipeline; risk is a modifier on top of it. The master
-picks both at Step 0, writes them to `job.md`, and never downgrades either.
+picks both at Step 0, writes them to `job.md`, and never downgrades either. It
+copies the matched playbook's steps verbatim into `TodoWrite`; a skipped step
+stays in the list with a one-line skip reason. Work that fits no playbook loads
+`figure-it-out`, which proposes a one-off playbook and confirms it with
+`AskUserQuestion` before running it.
 
 | Playbook | Use when | Pipeline |
 |---|---|---|
@@ -210,6 +214,10 @@ loads the `loop` skill with a stated interval and a maximum number of checks
 instead of idling, and stops as soon as the condition is met or the cap is
 reached.
 
+Every job, including the light path, ends with a reply that pastes the verbatim
+before/after evidence and labels each claim measured, inferred, or guessed
+(principle `prove-it-works`).
+
 ## Agents and models
 
 | Agent | Role |
@@ -229,11 +237,18 @@ written by `/pagani-models`. Otherwise the defaults are explorer `haiku`, trivia
 
 ## Skills
 
-PaganiStack ships 32 skills in the Claude Code categories plus `workflow/`. The
+PaganiStack ships 58 skills in the Claude Code categories plus `workflow/`. The
 core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 `implementation`, `verification`, `review-code`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
-`untrusted-content`. The rest are situational.
+`untrusted-content`. The rest are situational: `how` and `why` explain code and
+decisions read-only, `figure-it-out` builds a one-off playbook,
+`create-verification-skill` writes a project `verify-*` skill, and `automate-me`
+drafts a personal mode skill from the user's transcripts after approval.
+
+Each of the 21 principles is its own `principle-<slug>` skill; `principles` is
+the index that keeps the citations stable. Agents and skills cite a principle
+instead of restating a rule, which keeps `agents/master.md` at about 130 lines.
 
 The inventory and the rules for adding a skill are in [SKILLS.md](SKILLS.md). The
 plugin manifest lists each category directory; Claude Code discovers the skills

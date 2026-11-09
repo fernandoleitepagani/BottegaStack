@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Playbooks rewritten in pstack style: routing table, risk modifier, light path, the `loop` rule for external waits, and a `figure-it-out` fallback. Each playbook is a short numbered checklist copied into `TodoWrite`; every job ends with verbatim before/after evidence and claims labelled measured, inferred, or guessed.
+- `principles` is now a short index; each of the 21 rules is its own `principle-<slug>` skill, so `principle <slug>` citations stay stable.
+- `agents/master.md` shortened to about 130 lines, citing principles and skills instead of restating rules; `commands/pagani.md` regenerated.
+- Shortened `review-code`, `implementation`, `interview`, `planning`, and `closeout` with the same report formats and decision options.
+- New skills: `how` and `why` (read-only, evidence-based explanations), `figure-it-out` (one-off playbook), `create-verification-skill` (project `.claude/skills/verify-*`), and `automate-me` (personal mode skill from transcripts, after approval).
+- `docs/SKILLS.md` and `docs/WORKFLOW.md` updated for the new skill inventory and rules.
 - PaganiStack ships as the Claude Code plugin `pagani` (`.claude-plugin/plugin.json` plus `marketplace.json`, source `./`). It puts `bin/pagani` on `PATH`, provides the agents, `/pagani` and `/pagani-models`, every skill, and `hooks/hooks.json`; the installer, the copy mode, and the launcher are gone.
 - Playbooks (`trivial`, `bugfix`, `feature`, `refactor`, `pr-babysit`) and a `low|standard|high` risk modifier replace lanes; the `playbooks` skill replaces `lanes`, and `job.md` carries `Playbook:` and `Risk:`.
 - Light path: `pagani build --here <slug> --task "<text>"` runs the headless builder in the current checkout with state in `pagani/quick/<slug>/`; `pagani build --review <job> <task>` runs the read-only `review-code` agent on the third-party model and writes `build/<task>.review2.md`.
