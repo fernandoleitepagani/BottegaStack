@@ -994,6 +994,7 @@ names = ("ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL"
          "CLAUDE_CODE_SUBAGENT_MODEL")
 env = {k: os.environ[k] for k in names if os.environ.get(k)}
 env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
+env["PAGANI_HEADLESS"] = "1"
 prof = {"env": env}
 if helper:
     prof["apiKeyHelper"] = helper
@@ -1003,6 +1004,7 @@ with open(path, "w") as f:
     json.dump(prof, f)
 PY
     export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+    export PAGANI_HEADLESS=1
     cd "$wt" && timeout "${PAGANI_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
       --output-format stream-json --verbose \
       "${resume[@]}" \
@@ -1040,6 +1042,8 @@ for line in sys.stdin:
 #   guard stop     Stop: do not let the master end its turn between steps. It
 #                  blocks only while a job is mid-pipeline with nothing running.
 cmd_guard() {
+  # Headless builder/reviewer sessions load the same plugin hooks: stay out of their way.
+  [ -z "${PAGANI_HEADLESS:-}" ] || exit 0
   case "${1:-}" in
     builder) guard_builder ;;
     stop) guard_stop ;;
