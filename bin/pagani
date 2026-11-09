@@ -18,6 +18,8 @@ Usage:
   pagani upgrade [path]
   pagani upgrade --self [--from <github-url|tarball-url|git-url|path>]
   pagani build <job> <task> [--revise <findings-file>] [--block|--wait]
+  pagani build --here <slug> --task "<text>" [--block|--wait]
+  pagani build --review <job> <task> [--block|--wait]
   pagani build --init | --check
   pagani build --status <job> [--every <seconds>]
   pagani job new|check|gate|report
@@ -40,6 +42,10 @@ Headless builder:
   `pagani build` runs the Claude Code `builder` agent headless on a third-party
   model. Credentials live in ~/.config/pagani/builder.env (create it with
   `pagani build --init`); they are never stored in the repo.
+  `pagani build --here <slug>` is the light path: no job, SPEC, or worktree; it
+  builds in the current checkout and keeps state in pagani/quick/<slug>/.
+  `pagani build --review <job> <task>` runs the read-only `review-code` agent
+  in the task worktree and writes build/<task>.review2.md.
 
 The skills source is organized by category. The installer flattens it to
 <target>/skills/<name> because both runtimes discover skills at that depth.
@@ -671,6 +677,240 @@ build_status() {
   done
 }
 
+# Start a detached headless run, so a timeout or kill of the caller cannot stop
+# it. The optional agent and tool arguments default to the builder's.
+start_build_exec() {
+  local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}"
+  # Empty strings fall back to the builder defaults in cmd_build_exec.
+  setsid "$SELF" _build-exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid" \
+    "${9:-}" "${10:-}" "${11:-}" "${12:-}" \
+    </dev/null >/dev/null 2>&1 &
+}
+
+# Bounded wait shared by every build flavour. --block waits for the builder's
+# own timeout (plus a minute) so a background task ends when the build ends.
+build_wait_limit() {
+  if [ "${1:-0}" = "1" ]; then
+    echo $(( ${PAGANI_BUILD_TIMEOUT:-1800} + 60 ))
+  else
+    echo "${PAGANI_BUILD_WAIT:-540}"
+  fi
+}
+
+build_wait() {
+  local rcfile="$1" limit="$2" waited=0
+  while [ ! -f "$rcfile" ] && [ "$waited" -lt "$limit" ]; do
+    sleep 2
+    waited=$((waited + 2))
+  done
+}
+
+build_cost() {
+  grep -o '"total_cost_usd":[0-9.]*' "$1" | tail -1 | cut -d: -f2 || true
+}
+
+# The final assistant text in a stream-json log, written to a file. Used by the
+# read-only second-opinion review: the reviewer has no Write tool, so its reply
+# is captured here.
+build_result_text() {
+  local log="$1" out="$2"
+  [ -f "$log" ] || return 0
+  python3 - "$log" "$out" <<'PY'
+import json, sys
+log_path, out_path = sys.argv[1:3]
+text = ""
+with open(log_path, errors="replace") as f:
+    for line in f:
+        try:
+            ev = json.loads(line)
+        except Exception:
+            continue
+        if ev.get("type") == "result":
+            result = ev.get("result")
+            if isinstance(result, str) and result.strip():
+                text = result
+if text:
+    with open(out_path, "w") as f:
+        f.write(text.rstrip() + "\n")
+PY
+}
+
+# `pagani build --here <slug> --task "<text>" [--block|--wait]`: the light path.
+# No job folder, SPEC, or worktree; the builder works in the current checkout
+# and commits on the current branch. All state lives under pagani/quick/<slug>/.
+build_here() {
+  local slug="" text="" block=0 have_text=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --task) text="${2:?--task needs text}"; have_text=1; shift 2 ;;
+      --block) block=1; shift ;;
+      --wait) shift ;;
+      -*) echo "pagani build --here: unknown flag: $1" >&2; exit 2 ;;
+      *)
+        [ -z "$slug" ] || { echo "pagani build --here: one slug only" >&2; exit 2; }
+        slug="$1"; shift ;;
+    esac
+  done
+  [ -n "$slug" ] || { echo 'usage: pagani build --here <slug> --task "<text>" [--block|--wait]' >&2; exit 2; }
+  case "$slug" in
+    *[!a-z0-9-]*|-*|'') echo "pagani build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
+  esac
+
+  local repo branch qdir
+  repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "pagani build --here: not a git repository" >&2; exit 3; }
+  branch="$(git -C "$repo" branch --show-current)"
+  [ -n "$branch" ] || { echo "pagani build --here: detached HEAD; switch to a branch first" >&2; exit 3; }
+  qdir="$repo/pagani/quick/$slug"
+
+  local run="$qdir/run" rcfile="$qdir/rc" progress="$qdir/progress"
+  local prompt="$qdir/prompt" log="$qdir/builder.log" profile="$qdir/settings.json"
+  local report="$qdir/report.md" base=""
+
+  if [ -f "$run" ]; then
+    base="$(sed -n 's/^base=//p' "$run")"
+  elif [ "$have_text" = "0" ]; then
+    echo 'usage: pagani build --here <slug> --task "<text>" [--block|--wait]' >&2
+    exit 2
+  fi
+
+  builder_ready || exit 3
+  mkdir -p "$qdir"
+
+  if [ -f "$run" ]; then
+    # Already running or finished but not collected: attach.
+    if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
+      echo 1 > "$rcfile"
+    fi
+  else
+    base="$(git -C "$repo" rev-parse HEAD)"
+    cat > "$prompt" <<EOF
+Quick task: $text
+Checkout: $repo
+Branch: $branch
+No job folder and no separate worktree: work in this checkout only.
+Write the report to pagani/quick/$slug/report.md (gitignored; do not commit it).
+Commit locally on $branch. Never push or merge.
+EOF
+    rm -f "$rcfile"
+    : > "$progress"
+    printf 'base=%s\nsid=\n' "$base" > "$run"
+    start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" ""
+  fi
+
+  build_wait "$rcfile" "$(build_wait_limit "$block")"
+  if [ ! -f "$rcfile" ]; then
+    echo "RUNNING task: $slug (still building; call again: pagani build --here $slug --task \"<text>\" --wait)"
+    echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
+    [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
+    echo "progress: $progress"
+    exit 5
+  fi
+
+  local rc status="MISSING" commits=0 cost
+  rc="$(cat "$rcfile")"
+  rm -f "$rcfile" "$run"
+  [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
+  [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
+  cost="$(build_cost "$log")"
+
+  echo "task: $slug"
+  echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
+  [ -n "$cost" ] && echo "cost (estimate): \$$cost"
+  echo "report: $report ($status)"
+  echo "commits on $branch: $commits"
+  echo "files changed:"; git -C "$repo" diff --name-only "$base"...HEAD 2>/dev/null | sed 's/^/  /'
+  [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
+}
+
+# `pagani build --review <job> <task> [--block|--wait]`: a read-only second
+# opinion from the review-code agent in the task worktree. Its reply lands in
+# pagani/jobs/<job>/build/<task>.review2.md.
+build_review() {
+  local job="" task="" block=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --block) block=1; shift ;;
+      --wait) shift ;;
+      -*) echo "pagani build --review: unknown flag: $1" >&2; exit 2 ;;
+      *)
+        if [ -z "$job" ]; then job="$1"
+        elif [ -z "$task" ]; then task="$1"
+        else echo "pagani build --review: unexpected argument: $1" >&2; exit 2; fi
+        shift ;;
+    esac
+  done
+  [ -n "$job" ] && [ -n "$task" ] || { echo "usage: pagani build --review <job> <task> [--block|--wait]" >&2; exit 2; }
+
+  builder_ready || exit 3
+  local repo name jobdir wt
+  repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "pagani build --review: not a git repository" >&2; exit 3; }
+  name="$(basename "$repo")"
+  jobdir="$repo/pagani/jobs/$job"
+  wt="$(cd "$repo/.." && pwd)/$name-pagani/$job/$task"
+  [ -d "$jobdir" ] || { echo "pagani build --review: no job folder $jobdir" >&2; exit 3; }
+  [ -d "$wt" ] || { echo "pagani build --review: no worktree $wt (run: pagani worktree create $job $task)" >&2; exit 3; }
+
+  local rdir="$jobdir/build/review2" findings="$jobdir/build/$task.review2.md"
+  local run="$rdir/$task.run" rcfile="$rdir/$task.rc" progress="$rdir/$task.progress"
+  local prompt="$rdir/$task.prompt" log="$rdir/$task.log" profile="$rdir/$task.settings.json"
+  mkdir -p "$rdir" "$wt/pagani/jobs/$job/build"
+
+  if [ -f "$run" ]; then
+    if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
+      echo 1 > "$rcfile"
+    fi
+  else
+    # Mirror the inputs so the reviewer never needs to read outside the worktree.
+    local f
+    for f in SPEC.md job.md interview.md; do
+      [ -f "$jobdir/$f" ] && cp "$jobdir/$f" "$wt/pagani/jobs/$job/$f"
+    done
+    [ -f "$jobdir/checks.md" ] && cp "$jobdir/checks.md" "$wt/pagani/jobs/$job/checks.md"
+    [ -f "$jobdir/build/$task.md" ] && cp "$jobdir/build/$task.md" "$wt/pagani/jobs/$job/build/$task.md"
+    local base
+    if git -C "$wt" rev-parse --verify -q "pagani/$job" >/dev/null 2>&1; then
+      base="pagani/$job"
+    else
+      base="$(git -C "$wt" rev-list --max-parents=0 HEAD | head -1)"
+    fi
+    cat > "$prompt" <<EOF
+Second opinion for job pagani/jobs/$job, task $task.
+Worktree: $wt
+Read the job folder, SPEC.md, the build report for $task, checks.md, and the diff.
+Diff: git diff $base...HEAD (in the worktree)
+Review only: never edit code, never commit, never push.
+Do not write any file. Reply with the full findings as your final message, in markdown.
+EOF
+    rm -f "$rcfile" "$findings"
+    : > "$progress"
+    printf 'sid=\n' > "$run"
+    start_build_exec "$wt" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "" \
+      "review-code" "Read,Grep,Glob,Bash" "Read,Grep,Glob,Bash" \
+      "Edit,Write,NotebookEdit,Bash(git commit:*),Bash(git add:*),Bash(git push:*),Bash(git merge:*),Bash(git reset:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
+  fi
+
+  build_wait "$rcfile" "$(build_wait_limit "$block")"
+  if [ ! -f "$rcfile" ]; then
+    echo "RUNNING review: $job $task (still reviewing; call again: pagani build --review $job $task --wait)"
+    echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
+    [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
+    echo "progress: $progress"
+    exit 5
+  fi
+
+  local rc cost
+  rc="$(cat "$rcfile")"
+  rm -f "$rcfile" "$run"
+  build_result_text "$log" "$findings"
+  cost="$(build_cost "$log")"
+
+  echo "review: $job $task"
+  echo "reviewer exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
+  [ -n "$cost" ] && echo "cost (estimate): \$$cost"
+  echo "findings: $findings ($([ -s "$findings" ] && echo present || echo missing))"
+  [ "$rc" -eq 0 ] && [ -s "$findings" ] || exit 1
+}
+
 cmd_build() {
   case "${1:-}" in
     --status) shift; build_status "$@"; return ;;
@@ -679,9 +919,11 @@ cmd_build() {
       if builder_ready; then echo "builder: ready ($(builder_env_file))"; else exit 1; fi
       return
       ;;
+    --here) shift; build_here "$@"; return ;;
+    --review) shift; build_review "$@"; return ;;
   esac
 
-  local usage="usage: pagani build <job> <task> [--revise <findings-file>] [--block|--wait] | --init | --check | --status <job> [--every <seconds>]"
+  local usage="usage: pagani build <job> <task> [--revise <findings-file>] [--block|--wait] | --here <slug> --task \"<text>\" [--block|--wait] | --review <job> <task> [--block|--wait] | --init | --check | --status <job> [--every <seconds>]"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
   local job="$1" task="$2" findings="" block=0
   shift 2
@@ -753,19 +995,11 @@ Implement exactly this task from pagani/jobs/$job/SPEC.md. Follow your builder i
     rm -f "$rcfile"
     : > "$progress"
     printf 'rev=%s\nsid=%s\n' "$rev" "$sid" > "$run"
-    # Detached (own session): a timeout or kill of the caller cannot stop the builder.
-    setsid "$SELF" _build-exec "$wt" "$envfile" "$jobdir/build/$task.prompt" "$log" "$rcfile" "$progress" "$profile" "$sid" \
-      </dev/null >/dev/null 2>&1 &
+    start_build_exec "$wt" "$envfile" "$jobdir/build/$task.prompt" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
-  # Bounded wait for a foreground caller; --block waits for the builder's own
-  # timeout (plus a minute) so a background task ends when the build ends.
-  local limit="${PAGANI_BUILD_WAIT:-540}" waited=0
-  [ "$block" = "1" ] && limit=$(( ${PAGANI_BUILD_TIMEOUT:-1800} + 60 ))
-  while [ ! -f "$rcfile" ] && [ "$waited" -lt "$limit" ]; do
-    sleep 2
-    waited=$((waited + 2))
-  done
+  # Bounded wait for a foreground caller.
+  build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
     echo "RUNNING task: $task (still building; call again: pagani build $job $task --wait)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
@@ -786,7 +1020,7 @@ Implement exactly this task from pagani/jobs/$job/SPEC.md. Follow your builder i
   local status="MISSING" commits cost
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   commits="$(git -C "$wt" log --oneline "pagani/$job..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
-  cost="$(grep -o '"total_cost_usd":[0-9.]*' "$log" | tail -1 | cut -d: -f2 || true)"
+  cost="$(build_cost "$log")"
 
   echo "task: $task"
   echo "session: ${sid:-none}"
@@ -807,6 +1041,10 @@ Implement exactly this task from pagani/jobs/$job/SPEC.md. Follow your builder i
 # echoed. Stream events are logged and summarised into the progress file.
 cmd_build_exec() {
   local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}" rc helper=""
+  local agent="${9:-builder}"
+  local tools="${10:-Bash,Edit,Glob,Grep,Read,Skill,Write,TodoWrite}"
+  local allowed="${11:-Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite}"
+  local disallowed="${12:-Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)}"
   local -a resume=()
   [ -n "$sid" ] && resume=(--resume "$sid")
   [ -s "$(builder_key_file)" ] && helper="\"$SELF\" keyget"
@@ -832,15 +1070,15 @@ with open(path, "w") as f:
     json.dump(prof, f)
 PY
     export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-    cd "$wt" && timeout "${PAGANI_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent builder \
+    cd "$wt" && timeout "${PAGANI_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
       --output-format stream-json --verbose \
       "${resume[@]}" \
       --settings "$profile" \
       --permission-mode acceptEdits \
       --max-budget-usd "${PAGANI_BUILD_BUDGET:-10}" \
-      --tools "Bash,Edit,Glob,Grep,Read,Skill,Write,TodoWrite" --strict-mcp-config \
-      --allowedTools "Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite" \
-      --disallowedTools "Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
+      --tools "$tools" --strict-mcp-config \
+      --allowedTools "$allowed" \
+      --disallowedTools "$disallowed"
   ) 2>&1 | tee "$log" | python3 -c '
 import json, sys
 out = open(sys.argv[1], "a")
