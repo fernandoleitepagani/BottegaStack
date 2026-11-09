@@ -217,11 +217,17 @@ PY
 
 install_commands() {
   local config="$1" target="$2"
+  local src_dir="$ROOT/commands/$target" cmd
   if [ "$target" = "claude" ]; then
     install_claude_command "$config"
+    # `pagani.md` is generated above from the command header plus the master;
+    # every other command is a plain copy.
+    while IFS= read -r cmd; do
+      [ "$(basename "$cmd")" = "pagani.md" ] && continue
+      install_one "$cmd" "$config/$COMMAND_DIR/$(basename "$cmd")" "$config"
+    done < <(find "$src_dir" -maxdepth 1 -name '*.md' | sort)
     return 0
   fi
-  local src_dir="$ROOT/commands/$target"
   [ -d "$src_dir" ] || return 0
   while IFS= read -r cmd; do
     install_one "$cmd" "$config/$COMMAND_DIR/$(basename "$cmd")" "$config"

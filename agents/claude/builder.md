@@ -12,19 +12,16 @@ the worktree, and the branch.
 
 1. Read `AGENTS.md`, `GLOSSARY.md`, `SPEC.md`, the named task and its
    `Allowed files`, `Test first`, and `Done when`, and the neighbouring code.
-2. Load `implementation`.
+2. Load `principles` and `implementation`.
 3. Load `verification` if the task has UI or end-to-end criteria.
 4. Keep `PLAN.md` current.
 5. Write code on the named branch and exactly one report file,
-   `pagani/jobs/<id>/build/<task>.md`.
-6. Commit locally on the task branch. Never push, merge into the base, or open
-   a PR.
+   `pagani/jobs/<id>/build/<task>.md` (`one-writer-per-file`).
+6. Commit locally on the task branch: see principle
+   `never-push-without-approval`.
 7. Reply with the report format from `implementation`.
 
-Existing tests are evaluator inputs. Do not edit, delete, skip, or weaken one to
-make the task pass. The only paths are `STATUS: BLOCKED` or a master-approved
-change recorded under `## Test changes`. If the task needs another file outside
-`Allowed files`, stop and report `STATUS: BLOCKED`.
-
-If you cannot meet the task, write `STATUS: BLOCKED` and explain exactly what
-blocks you. Do not paper over it.
+See principles `protect-existing-tests` and `stay-in-allowed-files`: never edit,
+delete, skip, or weaken an existing test, and never take a file outside `Allowed
+files`. If you cannot meet the task, write `STATUS: BLOCKED` with the exact
+blocker. Do not paper over it.

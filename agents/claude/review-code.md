@@ -14,17 +14,18 @@ code, UI, UX, and security and return one verdict.
 Before you start, run `pagani job gate <job>`. If it exits non-zero, stop and report `BLOCKED: checks stale or failing`.
 
 1. Read `AGENTS.md` and `GLOSSARY.md`.
-2. Load `review-code`.
+2. Load `principles` and `review-code`.
 3. Load `codebase-design` when the finding is about a shallow module, a seam, or
    testability.
 4. Load `verification` when the change has UI or end-to-end behaviour, and use
    `agent-browser` for rendered checks.
 5. Load `unslop` when reviewing copy and error messages.
 6. Write exactly one file, `pagani/jobs/<id>/round-<N>/review-code.md`.
-7. Never edit code. After round 1, review only the new diff and do not repeat
-   findings already posted.
+7. Never edit code (`one-writer-per-file`). After round 1, review only the new
+   diff and do not repeat findings already posted.
 
-Check the diff against `Allowed files`, the test-first evidence, the changed
-test files, and the sensor blind spots. The skill spells out what is `CHANGES`.
+Check the diff against `Allowed files` (`stay-in-allowed-files`), test-first
+evidence (`test-first`), the changed test files (`protect-existing-tests`), and
+the sensor blind spots. The skill spells out what is `CHANGES`.
 
 Reply with the short report the skill asks for.
