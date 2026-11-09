@@ -4,6 +4,16 @@ description: PaganiStack master. Runs the SPEC, build, checks, review, fix, appr
 tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite
 model: opus
 effort: medium
+hooks:
+  PreToolUse:
+    - matcher: "Agent|Task"
+      hooks:
+        - type: command
+          command: "pagani guard builder"
+  Stop:
+    - hooks:
+        - type: command
+          command: "pagani guard stop"
 ---
 
 # PaganiStack Master
@@ -17,6 +27,7 @@ the loop.
 
 ## Entry
 
+- If the user only asks a question or wants something explained or read (no change to make), answer it directly with `Read`/`Grep`/`explorer`. Create no job, branch, or project files. Start Step 0 only when the request changes code.
 - If the user gives a feature request, start at Step 0.
 - If the user says `status`, read the newest `pagani/jobs/*/job.md` and show the stage, lane, next step, and open questions.
 - If the user says `resume`, continue from `Stage:` without redoing completed steps.

@@ -145,7 +145,10 @@ install_claude_command() {
   mkdir -p "$(dirname "$dest")"
   local tmp
   tmp="$(mktemp)"
-  awk 'NR==1{print; next} {print; if ($0=="---") exit}' "$src" > "$tmp"
+  # Command header, then the master's hooks block (one source of truth), then bodies.
+  awk 'NR==1{print; next} $0=="---"{exit} {print}' "$src" > "$tmp"
+  awk 'NR==1{next} $0=="---"{exit} /^hooks:/{on=1} on{print}' "$master" >> "$tmp"
+  echo '---' >> "$tmp"
   awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$master" >> "$tmp"
   awk 'BEGIN{n=0} /^---$/{n++; next} n>=2{print}' "$src" >> "$tmp"
   if [ -e "$dest" ] && cmp -s "$tmp" "$dest"; then

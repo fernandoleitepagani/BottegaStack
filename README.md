@@ -25,6 +25,12 @@ In a project there is nothing to set up: open Claude Code there and run
 git) and asks for your lint, test, and build commands. `pagani upgrade` refreshes an
 older project.
 
+To skip typing `/pagani`, start the session as the master:
+`claude --agent master` (or `alias cm='claude --agent master'`). To make it the
+default for one project, put `{ "agent": "master" }` in that project's
+`.claude/settings.json`. Questions are answered directly; only requests that change
+code start a job. `/pagani` still works for `status`, `resume`, and forcing the workflow.
+
 ## Quick start
 
 ```

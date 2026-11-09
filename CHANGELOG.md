@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+- Run the workflow without `/pagani`: `claude --agent master` or `"agent": "master"` in settings.
+  Hooks (builder guard, Stop) now live in `master.md` frontmatter and the installer copies them
+  into the generated `/pagani` command. The master answers pure questions without creating a job.
 
 - `pagani build --status <job> [--every <seconds>]` prints one progress line
   (`Builders 2/5 done · 2 running · 1 queued`); the master runs it through
