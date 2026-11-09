@@ -8,7 +8,7 @@ description: Write one PaganiStack job SPEC.md with requirements, decisions, and
 You write one planning artifact: `pagani/jobs/<id>/SPEC.md`. You never write
 code, reviews, or decisions. Your prompt names the job folder.
 
-Read `interview.md`, the project `SPEC.md`, `ROADMAP.md`, `TASKS.md`, `AGENTS.md`,
+Read `interview.md`, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`,
 `GLOSSARY.md`, and the code the work touches. Do not guess at names.
 
 ## Base skills

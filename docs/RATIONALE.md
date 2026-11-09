@@ -84,7 +84,7 @@ files.
 
 `job.md` holds only `Stage`, `Round`, `Lane`, `Lane-reason`, `Branch`, and
 `Base`. The checklist moved nowhere: `SPEC.md` carries the task graph and the
-project-level `TASKS.md` carries long-run work. Duplicate job artifacts are gone:
+project-level `PLAN.md` carries long-run work. Duplicate job artifacts are gone:
 the decision is appended to `decision.md`, the findings stay in the review file,
 and the final `summary.md` is written once.
 
@@ -111,11 +111,11 @@ removed; the master does those checks directly.
 | `job frontier`, `job classify`, `job route` | The master reads `SPEC.md` and checks the diff directly. |
 | Separate `uninstall` command | `pagani install --uninstall` keeps install and removal together. |
 | Dashboard, usage snapshots, and metrics | `job.md`, `checks.md`, and the retro scan are the state; `pagani job report` reads them directly. |
-| Duplicate artifacts | The decision lives in `decision.md`, findings in the review file, tasks in `SPEC.md` and the project `TASKS.md`, and the summary once at the job root. |
+| Duplicate artifacts | The decision lives in `decision.md`, findings in the review file, tasks in `SPEC.md` and the project `PLAN.md`, and the summary once at the job root. |
 | `review-ui`, `review-ux`, `review-security` agents and skills | Folded into the `review-code` checklists. |
 | `approver` agent and skill | The master writes `decision.md` and presents it. |
 | Security and approval model variants | One reviewer, one approver; variants scale by lane instead. |
-| Old project plan template | Project docs are `SPEC.md`, `ROADMAP.md`, and `TASKS.md`. |
+| Old project plan template | Project docs are `SPEC.md` and `PLAN.md`. |
 | Design skills, `ci-cd`, `weekly-review` | Out of scope for a personal workflow. |
 
 ## Trade-offs

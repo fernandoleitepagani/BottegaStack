@@ -90,8 +90,8 @@ pagani init
 You normally never run this: the first `/pagani` request in a project runs it for
 you (through `pagani job new`) and then asks you for the project's lint, test, and
 build commands to fill in `scripts/check`. Run `pagani init` yourself only to set a
-project up without starting a job. It creates `SPEC.md`, `ROADMAP.md`, and `TASKS.md`, plus `AGENTS.md`,
-`REVIEW.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `BACKLOG.md`, `mistakes.md`,
+project up without starting a job. It creates `SPEC.md` and `PLAN.md`, plus `AGENTS.md` (with the coding standards),
+`REVIEW.md`, `GLOSSARY.md`, `BACKLOG.md`, `mistakes.md`,
 `CLAUDE.md`, the `scripts/` check and verify stubs, `.claude/settings.json`,
 `docs/FEATURE-MAP.md`, and the ADR template. It
 installs the git hooks when `.git` exists.
@@ -112,7 +112,7 @@ cd ~/Projects/my-project
 ```
 
 `upgrade` refreshes the Claude hook and settings without dropping your settings,
-keeps an existing `scripts/format`, and creates `SPEC.md` and `ROADMAP.md` when
+removes the retired `scripts/claude-hook.sh`, and creates `SPEC.md` and `PLAN.md` when
 they are missing. It needs `python3` to merge `.claude/settings.json`.
 
 ## Headless builder (`pagani build`)
@@ -173,19 +173,15 @@ pagani worktree prune <job> [--force]
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
 | Git hooks missing | Run `pagani hooks install [path]`. |
 | `pagani upgrade` fails | Install `python3`. |
-| Context full | Load `session-handoff`, write `TASKS.md`, start a fresh session. |
+| Context full | Load `session-handoff`, write `PLAN.md`, start a fresh session. |
 
 ## Claude smoke test
 
 Run this by hand after installing or upgrading the Claude Code target.
 
 1. `./install.sh --target claude --dry-run` exits 0.
-2. `./bin/pagani doctor` shows `claude: yes`, the settings hooks, and executable
-   `scripts/claude-hook.sh`.
-3. `python3 -m json.tool .claude/settings.json` succeeds and the file has the
-   `PostToolUse` `Edit|Write` and `PreCompact` hooks.
-4. `scripts/claude-hook.sh format` runs `scripts/format` on a scratch file and
-   exits 0 even when the formatter fails.
-5. `/pagani status` loads the generated command and reads the newest job.
-6. `pagani job gate <job>` fails after an uncommitted edit and passes with
+2. `./bin/pagani doctor` shows `claude: yes`.
+3. `python3 -m json.tool .claude/settings.json` succeeds.
+4. `/pagani status` loads the generated command and reads the newest job.
+5. `pagani job gate <job>` fails after an uncommitted edit and passes with
    `--allow-dirty`.

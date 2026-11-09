@@ -35,34 +35,5 @@
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)"
     ]
-  },
-  "hooks": {
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": [
-              "format"
-            ]
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PROJECT_DIR}/scripts/claude-hook.sh",
-            "args": [
-              "precompact"
-            ]
-          }
-        ]
-      }
-    ]
   }
 }

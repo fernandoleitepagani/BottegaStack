@@ -32,7 +32,7 @@ directory and tell the user the path.
 
 - Reference artifacts by path; do not duplicate `SPEC.md`, `build/<task>.md`, or
   review files.
-- `TASKS.md` is the project-level file; do not copy it into the job folder.
+- `PLAN.md` is the project-level file; do not copy it into the job folder.
 - Redact secrets, tokens, and personal data.
 - Name the exact next action.
 - Name the skills the next agent should load.

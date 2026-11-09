@@ -27,7 +27,7 @@ one verdict for the whole change.
 Run two separate passes and keep them separate in your findings:
 
 - **Standards:** does the diff follow the repo's documented standards?
-  `CODING_STANDARDS.md`, `CONTRIBUTING.md`, and the project `AGENTS.md` win over
+  `CONTRIBUTING.md` and the project `AGENTS.md` (including its coding standards) win over
   any generic rule. Skip anything tooling already enforces.
 - **Spec:** does the diff implement the originating spec, and only that? Check
   missing or partial requirements, scope creep, and requirements that look

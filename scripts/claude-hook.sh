@@ -1,1 +1,0 @@
-../resources/claude-hook.sh

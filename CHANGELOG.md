@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Removed `claude-hook.sh` (auto-format and PreCompact handoff). Run your formatter inside `scripts/check`; `pagani upgrade` removes the old script and hooks from projects.
+- Project templates trimmed: `ROADMAP.md` and `TASKS.md` merge into `PLAN.md`, `CODING_STANDARDS.md` moves into `AGENTS.md`, and the PR template is gone. Existing projects keep their old files.
 - Run the workflow without `/pagani`: `claude --agent master` or `"agent": "master"` in settings.
   Hooks (builder guard, Stop) now live in `master.md` frontmatter and the installer copies them
   into the generated `/pagani` command. The master answers pure questions without creating a job.

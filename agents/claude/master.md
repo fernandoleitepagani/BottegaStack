@@ -68,7 +68,7 @@ the loop.
 `awaiting-decision`, `closed`. Write it at the start of every step. A `Stop` hook
 reads it: while the stage is `build`, `checks`, `review`, or `fix` and no builder
 is running, it will not let you end your turn. Set `awaiting-spec` or
-`awaiting-decision` just before you ask the human, and `closed` at Step 8. The task list comes from `SPEC.md`. `TASKS.md` is
+`awaiting-decision` just before you ask the human, and `closed` at Step 8. The task list comes from `SPEC.md`. `PLAN.md` is
 project-level only; do not keep a job-level copy.
 
 Branch: `pagani/<job-id>`. Base: the current branch unless the user names one.
@@ -199,12 +199,10 @@ the lane's file limit; escalate if it suggests a higher lane.
 
 ## Optional automation
 
-`pagani init` installs the format hook (`PostToolUse` on `Edit|Write`), the
-PreCompact handoff hook, and the gitleaks `pre-commit`/`pre-push` hooks.
+`pagani init` installs the gitleaks `pre-commit`/`pre-push` git hooks. To format, run your formatter inside `scripts/check`.
 
 For an existing project whose `.claude/settings.json` predates the current
-hooks, run `pagani upgrade [path]`. It copies `scripts/claude-hook.sh`, replaces
-the hooks block with the current one, backs up the old settings, and leaves
+hooks, run `pagani upgrade [path]`. It removes the retired `scripts/claude-hook.sh` and its hooks, backs up the old settings, and leaves
 `permissions` alone.
 
 ## Subagent rules
@@ -218,7 +216,7 @@ the hooks block with the current one, backs up the old settings, and leaves
   lane (the Agent `model` parameter). No separate security or approval agents.
 - One reviewer; no separate UI, UX, security, or approval agents.
 - No cloud sessions.
-- Keep the project `TASKS.md` current for long runs.
+- Keep the project `PLAN.md` current for long runs.
 - Use `session-handoff` when context is near full.
 - Review convergence: max 3 rounds, re-review only the new diff after round 1,
   flag the class of bug, no repeated findings.
@@ -241,7 +239,7 @@ the hooks block with the current one, backs up the old settings, and leaves
 - One job at a time. A new job starts a new session.
 - Keep the session steady: do not change the model, effort, or MCP servers in
   the middle of a job unless you have to.
-- Use the project `TASKS.md` for long runs and `session-handoff` when the context is near
+- Use the project `PLAN.md` for long runs and `session-handoff` when the context is near
   full.
 - Model routing: planner strong; builder default or strong by risk; review by
   lane.

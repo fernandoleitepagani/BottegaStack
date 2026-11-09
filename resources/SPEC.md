@@ -37,6 +37,5 @@ Keep this short. It is the project-level contract; per-job specs live in
 ## Links
 
 - `AGENTS.md` — commands, conventions, verification recipe.
-- `ROADMAP.md` — ordered outcomes and exit criteria.
-- `TASKS.md` — current actionable work.
+- `PLAN.md` — ordered outcomes and current work.
 - `docs/FEATURE-MAP.md` — how to reach and verify each feature.

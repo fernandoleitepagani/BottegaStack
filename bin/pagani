@@ -616,8 +616,8 @@ cmd_lint() {
     fi
   done
 
-  for f in AGENTS.md SPEC.md ROADMAP.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md checks.sh verify.sh verify.conf PR-TEMPLATE.md CODING_STANDARDS.md FEATURE-MAP.md claude-settings.json \
-           format.sh claude-hook.sh builder.env.example git-hooks/pre-commit git-hooks/pre-push; do
+  for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md mistakes.md REVIEW.md checks.sh verify.sh verify.conf FEATURE-MAP.md claude-settings.json \
+           builder.env.example git-hooks/pre-commit git-hooks/pre-push; do
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL missing resource: resources/$f"
       fail=1
@@ -631,14 +631,10 @@ cmd_lint() {
         fail=1
       fi
     fi
-    if ! grep -q 'scripts/claude-hook.sh' "$ROOT/resources/claude-settings.json"; then
-      echo "FAIL claude-settings.json does not reference scripts/claude-hook.sh"
-      fail=1
-    fi
   fi
 
-  for f in AGENTS.md SPEC.md ROADMAP.md GLOSSARY.md mistakes.md TASKS.md REVIEW.md \
-           CODING_STANDARDS.md BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
+  for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md mistakes.md REVIEW.md \
+           BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
     if grep -rq -- "$f" "$ROOT/agents" "$ROOT/skills" 2>/dev/null; then
       if [ ! -f "$ROOT/resources/$f" ]; then
         echo "FAIL referenced project file has no template: $f"
@@ -699,15 +695,6 @@ if a.get("permissions") != b.get("permissions") or norm(a) != norm(b):
 PY
       then
         echo "FAIL .claude/settings.json hooks/permissions differ from resources/claude-settings.json; run: pagani upgrade ."
-        fail=1
-      fi
-    else
-      if ! grep -q 'scripts/claude-hook.sh' "$ROOT/.claude/settings.json"; then
-        echo "FAIL .claude/settings.json does not reference scripts/claude-hook.sh"
-        fail=1
-      fi
-      if ! grep -q 'PreCompact' "$ROOT/.claude/settings.json"; then
-        echo "FAIL .claude/settings.json does not reference PreCompact"
         fail=1
       fi
     fi
@@ -797,34 +784,8 @@ cmd_doctor() {
 
   if [ -f .claude/settings.json ]; then
     echo "project claude settings: yes"
-    if grep -q 'scripts/claude-hook.sh' .claude/settings.json; then
-      echo "claude settings hook: yes"
-    else
-      echo "claude settings hook: no (run pagani upgrade)"
-    fi
-    if grep -q 'PreCompact' .claude/settings.json; then
-      echo "claude settings PreCompact: yes"
-    else
-      echo "claude settings PreCompact: no (run pagani upgrade)"
-    fi
   else
     echo "project claude settings: missing (run pagani init)"
-  fi
-
-  local scripts_file
-  for scripts_file in scripts/claude-hook.sh; do
-    if [ -f "$scripts_file" ] && [ -x "$scripts_file" ]; then
-      echo "$scripts_file: yes (executable)"
-    elif [ -f "$scripts_file" ]; then
-      echo "$scripts_file: present (not executable)"
-    else
-      echo "$scripts_file: missing"
-    fi
-  done
-  if [ -f scripts/format ] && [ -x scripts/format ]; then
-    echo "scripts/format: yes (optional)"
-  else
-    echo "scripts/format: optional (not configured)"
   fi
 
   local gitdir hook
@@ -863,6 +824,7 @@ pagani_files() {
 AGENTS.md
 CLAUDE.md
 SPEC.md
+PLAN.md
 ROADMAP.md
 TASKS.md
 BACKLOG.md
@@ -874,7 +836,6 @@ scripts/check
 scripts/verify
 scripts/verify.conf
 scripts/format
-scripts/claude-hook.sh
 .claude
 pagani
 docs/FEATURE-MAP.md
@@ -920,28 +881,22 @@ copy_pagani_files() {
 
 cmd_init() {
   local dest="${1:-$PWD}"
-  mkdir -p "$dest/scripts" "$dest/docs/adr" "$dest/.github" "$dest/.claude" "$dest/pagani/jobs"
+  mkdir -p "$dest/scripts" "$dest/docs/adr" "$dest/.claude" "$dest/pagani/jobs"
   [ -f "$dest/AGENTS.md" ] || cp "$ROOT/resources/AGENTS.md" "$dest/AGENTS.md"
   [ -f "$dest/SPEC.md" ] || cp "$ROOT/resources/SPEC.md" "$dest/SPEC.md"
-  [ -f "$dest/ROADMAP.md" ] || cp "$ROOT/resources/ROADMAP.md" "$dest/ROADMAP.md"
+  [ -f "$dest/PLAN.md" ] || cp "$ROOT/resources/PLAN.md" "$dest/PLAN.md"
   [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
   [ -f "$dest/scripts/verify" ] || cp "$ROOT/resources/verify.sh" "$dest/scripts/verify"
   [ -f "$dest/scripts/verify.conf" ] || cp "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf"
-  [ -f "$dest/scripts/format" ] || cp "$ROOT/resources/format.sh" "$dest/scripts/format"
-  [ -f "$dest/scripts/claude-hook.sh" ] || cp "$ROOT/resources/claude-hook.sh" "$dest/scripts/claude-hook.sh"
   [ -f "$dest/REVIEW.md" ] || cp "$ROOT/resources/REVIEW.md" "$dest/REVIEW.md"
-  [ -f "$dest/CODING_STANDARDS.md" ] || cp "$ROOT/resources/CODING_STANDARDS.md" "$dest/CODING_STANDARDS.md"
   [ -f "$dest/GLOSSARY.md" ] || cp "$ROOT/resources/GLOSSARY.md" "$dest/GLOSSARY.md"
   [ -f "$dest/BACKLOG.md" ] || cp "$ROOT/resources/BACKLOG.md" "$dest/BACKLOG.md"
-  [ -f "$dest/TASKS.md" ] || cp "$ROOT/resources/TASKS.md" "$dest/TASKS.md"
   [ -f "$dest/mistakes.md" ] || cp "$ROOT/resources/mistakes.md" "$dest/mistakes.md"
   [ -f "$dest/CLAUDE.md" ] || printf '@AGENTS.md\n' > "$dest/CLAUDE.md"
-  [ -f "$dest/.github/pull_request_template.md" ] || cp "$ROOT/resources/PR-TEMPLATE.md" "$dest/.github/pull_request_template.md"
   [ -f "$dest/docs/FEATURE-MAP.md" ] || cp "$ROOT/resources/FEATURE-MAP.md" "$dest/docs/FEATURE-MAP.md"
   [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
   [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
-  chmod +x "$dest/scripts/check" "$dest/scripts/verify" \
-    "$dest/scripts/format" "$dest/scripts/claude-hook.sh"
+  chmod +x "$dest/scripts/check" "$dest/scripts/verify"
   exclude_pagani_files "$dest"
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
@@ -959,19 +914,15 @@ cmd_upgrade() {
     exit 1
   fi
 
-  local src_hook="$ROOT/resources/claude-hook.sh"
   local src_settings="$ROOT/resources/claude-settings.json"
-  local src_format="$ROOT/resources/format.sh"
   local src_spec="$ROOT/resources/SPEC.md"
-  local src_roadmap="$ROOT/resources/ROADMAP.md"
+  local src_plan="$ROOT/resources/PLAN.md"
 
   mkdir -p "$dest/scripts" "$dest/.claude" "$dest/pagani"
-  if [ -L "$dest/scripts/claude-hook.sh" ]; then
-    echo "kept: $dest/scripts/claude-hook.sh (symlink)"
-  else
-    cp "$src_hook" "$dest/scripts/claude-hook.sh"
-    chmod +x "$dest/scripts/claude-hook.sh"
-    echo "updated: $dest/scripts/claude-hook.sh"
+  # Retired: the format/PreCompact hook script is gone.
+  if [ -f "$dest/scripts/claude-hook.sh" ] && [ ! -L "$dest/scripts/claude-hook.sh" ]; then
+    rm -f "$dest/scripts/claude-hook.sh"
+    echo "removed: $dest/scripts/claude-hook.sh (retired)"
   fi
 
   # The headless builder is global now (`pagani build`); drop the old per-project wrapper.
@@ -997,7 +948,16 @@ if not isinstance(target, dict):
 for k, v in src.items():
     if k != "hooks" and k not in target:
         target[k] = v
-target["hooks"] = src.get("hooks", {})
+# Drop the retired pagani hooks (claude-hook.sh); keep any other hooks.
+kept = {}
+for event, entries in (target.get("hooks") or {}).items():
+    rows = [e for e in entries if "claude-hook.sh" not in json.dumps(e)]
+    if rows:
+        kept[event] = rows
+if kept:
+    target["hooks"] = kept
+else:
+    target.pop("hooks", None)
 with open(out_path, "w") as f:
     json.dump(target, f, indent=2)
     f.write("\n")
@@ -1020,14 +980,6 @@ PY
     install_git_hooks "$dest"
   fi
 
-  if [ -f "$dest/scripts/format" ]; then
-    echo "kept: $dest/scripts/format"
-  else
-    cp "$src_format" "$dest/scripts/format"
-    chmod +x "$dest/scripts/format"
-    echo "created: $dest/scripts/format"
-  fi
-
   if [ -f "$dest/SPEC.md" ]; then
     echo "kept: $dest/SPEC.md"
   else
@@ -1035,11 +987,11 @@ PY
     echo "created: $dest/SPEC.md"
   fi
 
-  if [ -f "$dest/ROADMAP.md" ]; then
-    echo "kept: $dest/ROADMAP.md"
+  if [ -f "$dest/PLAN.md" ] || [ -f "$dest/ROADMAP.md" ]; then
+    echo "kept: plan file in $dest"
   else
-    cp "$src_roadmap" "$dest/ROADMAP.md"
-    echo "created: $dest/ROADMAP.md"
+    cp "$src_plan" "$dest/PLAN.md"
+    echo "created: $dest/PLAN.md"
   fi
 }
 

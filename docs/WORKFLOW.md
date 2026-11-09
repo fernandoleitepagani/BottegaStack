@@ -282,7 +282,7 @@ pagani/jobs/<id>/
 
 The job folder is the source of truth. No JSON state machine, no `plan.md`, no
 `tickets/`. `job.md` is state, not a checklist; the task list lives in `SPEC.md`.
-`TASKS.md` is project-level only; there is no job-level copy. The final
+`PLAN.md` is project-level only; there is no job-level copy. The final
 `summary.md` is written once at close, or at review for `standard` and
 `high-risk`. Every step still posts a short summary in chat.
 
@@ -298,23 +298,18 @@ NEVER      secrets, raw logs, whole directories, unrelated files
 
 ## Project docs
 
-`pagani init` creates three project-level docs:
+`pagani init` creates two project-level docs:
 
 - `SPEC.md` — product and technical requirements, and acceptance criteria.
-- `ROADMAP.md` — ordered outcomes, dependencies, risks, and exit criteria.
-- `TASKS.md` — current actionable work and validated status.
+- `PLAN.md` — ordered outcomes, dependencies, risks, current work, and validated status.
 
 ## Automation
 
 Everything here is optional and local. Nothing starts an agent or a server.
 
-- **Format hook.** A Claude Code `PostToolUse` hook runs `scripts/format` after
-  an edit when the project provides it. `pagani init` copies a stub.
 - **Git hooks.** `pagani hooks install [path]` installs a gitleaks pre-commit
   hook and a pre-push hook that runs `scripts/check`. `pagani init` installs
   them when `.git` exists. A missing gitleaks is a clean skip.
-- **PreCompact handoff.** A Claude Code `PreCompact` hook writes a snapshot to
-  the newest job's `handoff.md`, or `pagani/handoff.md`.
 
 ## Safety and limits
 
