@@ -7,23 +7,29 @@ state; there is no database or state machine.
 ## The workflow
 
 ```
-0. SETUP     lane, job folder, branch
+0. SETUP     playbook, risk, job folder, branch (or the light path)
 1. SPEC      interview -> SPEC.md                    [approve]
 2. BUILD     one builder per ready task              [approve per wave]
 3. CHECKS    pagani job check -> checks.md           (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
 5. FIX       review-code.md -> fresh builder -> checks -> re-review
-6. APPROVAL  master -> decision.md + quiz (standard/high-risk)
+6. APPROVAL  master -> decision.md + quiz (feature/refactor/high)
 7. HUMAN     approve, rework, or reject
 8. CLOSE     retro, merge/commit/push/PR on request
 ```
 
-### Step 0: Set up and choose a lane
+### Step 0: Set up and choose a playbook
 
 The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
-`REVIEW.md`. It loads `lanes`, proposes a lane, and asks you to confirm or
-override. It creates the job folder and branch and writes `Lane` and
-`Lane-reason` to `job.md`.
+`REVIEW.md` (a missing file means no risk paths). It loads `playbooks`, proposes
+a playbook (`trivial`, `bugfix`, `feature`, `refactor`, `pr-babysit`) and a risk
+(`low`, `standard`, `high`), and asks you to confirm or override. It creates the
+job folder and branch and writes `Playbook` and `Risk` to `job.md`.
+
+For `trivial` and small `bugfix` work it takes the light path instead: branch
+`pagani/quick-<slug>`, then `pagani build --here <slug> --task "<text>" --block`.
+That creates no job folder, SPEC, or worktree; state lives in
+`pagani/quick/<slug>/`.
 
 If the project predates the current hooks, run `pagani upgrade` once.
 
@@ -40,23 +46,20 @@ or `## Sensors` is missing, the master asks the planner to revise before
 approval. If the spec has open questions, the master asks you and revises. You
 approve the spec and the first wave.
 
-`trivial` and `bugfix` jobs skip the full spec, but a `bugfix` still writes a
-failing test first. `small` jobs get a short interview and a short spec.
-`standard` and `high-risk` jobs get the full pass.
+`trivial` jobs skip this step. A `bugfix` still writes a failing test first.
+`feature` and `refactor` jobs get the full pass; `refactor` also runs as
+expand-contract and keeps behaviour unchanged.
 
 ### Step 2: Build
 
 **Autonomy.** The master runs on its own between human checkpoints (SPEC
-approval and the final decision). A `Stop` hook enforces it: mid-pipeline, with no
-builder running, the master cannot end its turn. It never waits for "proceed" between steps.
-The master runs each build itself as a background Bash task
-(`pagani build <job> <task> --block`), so no relay model is involved. It keeps a
-`TodoWrite` item per task and, once per wave, runs
-`pagani build --status <job> --every 180` through `Monitor`, posting each line
-(`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
-`--status` once per finished build. It moves to checks as soon as the wave has
-joined. A build is capped at 30
-minutes (`PAGANI_BUILD_TIMEOUT`).
+approval and the final decision). A `Stop` hook enforces it: mid-pipeline, with
+no builder running, the master cannot end its turn. It never waits for "proceed"
+between steps.
+
+**Light path.** `trivial` and small `bugfix` jobs run the headless builder in the
+current checkout through `pagani build --here <slug> --task "<text>"`, with state
+in `pagani/quick/<slug>/`. They still get the Step 6/7 decision prompt.
 
 **Headless builder (Claude drives, a third-party model implements).** When
 `pagani build --check` passes, the master creates the task worktree and runs
@@ -66,9 +69,17 @@ prints the session id, report path, `STATUS`, and changed files. `review-code`
 reviews the diff; on `CHANGES` the master writes the findings to a file and runs
 `--revise <file>`, which resumes the same session. It allows two revisions (exit
 4 after that) and the master escalates to the human. The builder never plans,
-decides, troubleshoots, or orchestrates. While `/pagani` runs, a frontmatter
-hook denies the Claude-model `builder` subagent whenever the headless builder is
-configured; if it is not, the Claude `builder` is the fallback.
+decides, troubleshoots, or orchestrates. The `/pagani` `PreToolUse` hook denies
+the Claude-model `builder` subagent whenever the headless builder is configured;
+if it is not, the Claude `builder` is the fallback.
+
+The master runs each build itself as a background Bash task
+(`pagani build <job> <task> --block`), so no relay model is involved. It keeps a
+`TodoWrite` item per task and, once per wave, runs
+`pagani build --status <job> --every 180` through `Monitor`, posting each line
+(`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
+`--status` once per finished build. It moves to checks as soon as the wave has
+joined. A build is capped at 30 minutes (`PAGANI_BUILD_TIMEOUT`).
 
 The master reads the task graph from `SPEC.md` and inspects the ready set before
 building. It defaults to sequential. If two or more ready tasks touch disjoint
@@ -116,7 +127,12 @@ spots listed under `## Sensors`. An out-of-bounds edit, a task with no
 red-before-green evidence (unless docs/config-only), or an unjustified test edit,
 skip, or weakened assertion is `CHANGES`; an acceptance criterion that depends on
 an uncovered area goes under Risks. The master posts the summary in chat; for
-`standard` and `high-risk` it writes `summary.md` at this checkpoint.
+`feature`, `refactor`, and `high` risk it writes `summary.md` at this checkpoint.
+
+For `high` risk the master also runs the second-opinion reviewer:
+`pagani build --review <job> <task> --block` runs `review-code` headless on the
+third-party model, read-only, and writes findings to
+`pagani/jobs/<job>/build/<task>.review2.md`.
 
 ### Step 5: Fix
 
@@ -131,18 +147,18 @@ it stops and escalates instead of running a third identical round.
 
 The master loads `approval` and reads `SPEC.md`, the build reports, checks, and
 reviews. It writes `decision.md` itself with `APPROVE` or `ESCALATE`, the
-acceptance-criteria mapping, risks, and an explainer. For `standard` and
-`high-risk` it adds a short quiz; `trivial`, `bugfix`, and `small` get the
-explainer only. In every lane it then presents the decision and asks for it
+acceptance-criteria mapping, risks, and an explainer. For `feature`, `refactor`,
+and `high` risk it adds a quiz; `trivial`, `bugfix`, and `low` risk get the
+explainer only. In every playbook it then presents the decision and asks for it
 through the native question UI; a chat summary alone never closes a job. The
 quiz uses retrieval practice: no formatting hints, answers answerable from the
 artifacts.
 
 ### Step 7: Human decision
 
-You read the explainer, answer the quiz on `standard` and `high-risk` jobs, and
-choose merge, commit, push, PR, rework, or reject. The master shows the exact
-git command before running it and appends the decision to `## Human decision` in
+You read the explainer, answer the quiz where one applies, and choose merge,
+commit, push, PR, rework, or reject. The master shows the exact git command
+before running it and appends the decision to `## Human decision` in
 `decision.md`.
 
 Before it creates a branch, worktree, or PR, the master checks whether it already
@@ -165,20 +181,34 @@ The entry rule: a feature request starts at Step 0, `status` reads the newest
 The master defaults to sequential builds and prefers a parallel wave when the
 ready tasks touch disjoint files.
 
-## Lanes
+## Playbooks and risk
 
-| Lane | Use when | Pipeline |
+A playbook chooses the pipeline; risk is a modifier on top of it. The master
+picks both at Step 0, writes them to `job.md`, and never downgrades either.
+
+| Playbook | Use when | Pipeline |
 |---|---|---|
-| `trivial` | docs, copy, config only; ≤3 files; no risk path | builder (haiku) → check → review-code (haiku) → human |
-| `bugfix` | a reproducible symptom | diagnosis → failing test → builder → check → review-code (haiku) → human |
-| `small` | one feature, one area, ≲10 files | short interview → SPEC → one task → builder → check → review-code (haiku) → human |
-| `standard` | normal product change | full flow |
-| `high-risk` | auth, payments, data/schema, deploy/CI, dependencies, secrets | full flow + adversarial review + simplify + review-code (opus) |
+| `trivial` | docs, copy, comments, config-only; a few files; no risk path; no behaviour change | light path: headless builder → check → `review-code` → human |
+| `bugfix` | a reproducible symptom | failing test first; the light path when small; otherwise builder → check → `review-code` → human |
+| `feature` | normal product work | interview → SPEC → task graph → worktrees → full build/check/review |
+| `refactor` | behaviour must not change | expand-contract; tests before and after; full build/check/review |
+| `pr-babysit` | an open PR needs CI or review follow-up | watch checks and comments read-only, fix through the light path, push only with approval — see [skills/workflow/playbooks/pr-babysit.md](../skills/workflow/playbooks/pr-babysit.md) |
 
-The master picks the lane at Step 0. After the first builder commit, compare
-`git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD` against
-the risk paths in `REVIEW.md` and the lane's file limit. Escalate if the diff
-grows or touches a risk path. Lanes never downgrade.
+| Risk | Use when |
+|---|---|
+| `low` | internal, reversible, no risk path |
+| `standard` | normal product change; the default |
+| `high` | auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling, or any path under `## Risk paths` in `REVIEW.md` |
+
+After the first builder commit, compare `git diff --stat <base>...HEAD` and
+`git diff --name-only <base>...HEAD` against the risk paths and the playbook's
+scope. Escalate the risk if the diff grows (roughly 300 changed lines) or touches
+a risk path. Risk only escalates.
+
+When the master waits on something outside the session (CI, a long build), it
+loads the `loop` skill with a stated interval and a maximum number of checks
+instead of idling, and stops as soon as the condition is met or the cap is
+reached.
 
 ## Agents and models
 
@@ -191,21 +221,23 @@ grows or touches a risk path. Lanes never downgrade.
 | `review-code` | One reviewer for code, UI, UX, and security; one file, one verdict. |
 
 There are no tier variants of an agent. The master picks the model per call with
-the Agent tool's `model` parameter (`haiku` for the lighter lanes, `opus` for
-`high-risk` review); each agent's frontmatter `model:` is the default. `planner`
-and `master` default to Opus.
+the Agent tool's `model` parameter; each agent's frontmatter `model:` is the
+default. The routing comes from `~/.claude/rules/pagani-models.md` when present,
+written by `/pagani-models`. Otherwise the defaults are explorer `haiku`, trivial
+`haiku`, reviewer `sonnet`, high-risk reviewer `opus`, and builder `headless`.
+`planner` and `master` keep their own models.
 
 ## Skills
 
-PaganiStack ships 31 skills in the Claude Code categories plus `workflow/`.
-The core workflow skills are `lanes`, `interview`, `planning`, `implementation`,
-`verification`, `review-code`, `approval`, `summary`, `closeout`,
-`session-handoff`, `session-retro`, `diagnosis`, and `untrusted-content`. The
-rest are situational.
+PaganiStack ships 32 skills in the Claude Code categories plus `workflow/`. The
+core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
+`implementation`, `verification`, `review-code`, `approval`, `summary`,
+`closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
+`untrusted-content`. The rest are situational.
 
-The inventory and the rules for adding a skill are in [SKILLS.md](SKILLS.md). The installer flattens
-`skills/<category>/<skill>` to `<target>/skills/<skill>` because Claude Code
-discover skills at that depth.
+The inventory and the rules for adding a skill are in [SKILLS.md](SKILLS.md). The
+plugin manifest lists each category directory; Claude Code discovers the skills
+inside `skills/<category>/<name>/`, so they stay grouped by category.
 
 Other skills are invoked directly by name, not through `/pagani`:
 
@@ -219,15 +251,20 @@ Other skills are invoked directly by name, not through `/pagani`:
 
 ## Commands
 
-PaganiStack has nine top-level commands: `install` (with `--uninstall`),
-`doctor`, `init`, `upgrade`, `build`, `job`, `worktree`, and `hooks`.
+PaganiStack has eight top-level commands: `doctor`, `init`, `seed`, `upgrade`,
+`build`, `job`, `worktree`, and `hooks`. (`guard` and `keyget` are internal hook
+entry points, not user commands.)
 
 ```bash
-./install.sh --target both
-./bin/pagani install --uninstall
-./bin/pagani doctor
-./bin/pagani init [path]
-./bin/pagani upgrade [path]
+pagani doctor
+pagani init [path]
+pagani seed <Name>
+pagani upgrade [path]
+pagani build <job> <task> [--revise <findings-file>] [--block]
+pagani build --here <slug> --task "<text>" [--block]
+pagani build --review <job> <task> [--block]
+pagani build --status <job> [--every <seconds>]
+pagani build --init | --check
 
 pagani job new "<title>"
 pagani job check <job>
@@ -239,7 +276,8 @@ pagani worktree prune <job> [--force]
 pagani hooks install|uninstall [path]
 ```
 
-Setup, uninstall, and troubleshooting are in [SETUP.md](SETUP.md).
+Use `./bin/pagani` instead of `pagani` when running from a clone outside a
+session. Setup and troubleshooting are in [SETUP.md](SETUP.md).
 
 ## Checks, review, and verification
 
@@ -259,31 +297,36 @@ criterion, the agent writes one and adds it to the map.
 
 Review is capped at three rounds. After round 1, the reviewer reads only the new
 diff. Findings are not repeated. A finding needs a file, line, and evidence.
-Risk tiers decide how many humans approve: low is automated checks plus AI
-review; medium is one person; high is two people, or the human reading the diff
-when working solo.
+Risk decides how much review runs: `low` is automated checks plus AI review,
+`standard` is the default, and `high` adds adversarial review, `simplify`, the
+high-risk reviewer model, the second-opinion reviewer, and a mandatory quiz. The
+human still makes the final decision.
 
 ## Job folder and state
 
 ```
 pagani/jobs/<id>/
-  job.md              stage, round, lane, branch, base (state only)
+  job.md              stage, round, playbook, risk, branch, base (state only)
   interview.md
   SPEC.md
   build/<task>.md
+  build/<task>.review2.md
   checks.md
   checks.log
   round-N/review-code.md
   summary.md
   decision.md         verdict, explainer, and ## Human decision
   handoff.md
+
+pagani/quick/<slug>/
+  run, rc, progress, prompt, report.md, builder.log
 ```
 
 The job folder is the source of truth. No JSON state machine, no `plan.md`, no
 `tickets/`. `job.md` is state, not a checklist; the task list lives in `SPEC.md`.
 `PLAN.md` is project-level only; there is no job-level copy. The final
-`summary.md` is written once at close, or at review for `standard` and
-`high-risk`. Every step still posts a short summary in chat.
+`summary.md` is written once at close, or at review for `feature`, `refactor`,
+and `high` risk. Every step still posts a short summary in chat.
 
 ## Context policy
 
@@ -295,12 +338,20 @@ ISOLATED   subagent work, returned as a short report
 NEVER      secrets, raw logs, whole directories, unrelated files
 ```
 
-## Project docs
+## Project docs and files
 
-`pagani init` creates two project-level docs:
+Project files are created on demand. `pagani init` writes only `AGENTS.md`,
+`CLAUDE.md`, `scripts/check`, `.claude/settings.json`, `pagani/jobs`, the exclude
+block, and the git hooks. Everything else is seeded only when a skill first needs
+it, with `pagani seed <Name>` (idempotent; prints `created:` or `kept:`):
 
-- `SPEC.md` — product and technical requirements, and acceptance criteria.
-- `PLAN.md` — ordered outcomes, dependencies, risks, current work, and validated status.
+- `SPEC.md` and `PLAN.md` — product and technical requirements, and ordered
+  outcomes, dependencies, risks, and validated status.
+- `REVIEW.md` — the risk paths. A missing file means no risk paths.
+- `GLOSSARY.md` — the project's domain language.
+- `BACKLOG.md`, `mistakes.md` — backlog items and repeated lessons.
+- `docs/FEATURE-MAP.md` — how to reach and verify each feature.
+- `scripts/verify` and `scripts/verify.conf` — the browser driver.
 
 ## Automation
 
@@ -309,6 +360,10 @@ Everything here is optional and local. Nothing starts an agent or a server.
 - **Git hooks.** `pagani hooks install [path]` installs a gitleaks pre-commit
   hook and a pre-push hook that runs `scripts/check`. `pagani init` installs
   them when `.git` exists. A missing gitleaks is a clean skip.
+- **CI.** `.github/workflows/ci.yml` runs `./scripts/validate.sh`, checks that
+  the committed `commands/pagani.md` is fresh (`scripts/gen-command.sh
+  --check`), and validates the plugin manifests with `claude plugin validate .`
+  when `claude` is installed, on Ubuntu and macOS.
 
 ## Safety and limits
 
@@ -341,11 +396,11 @@ repeated findings into a lint rule, test, skill edit, or `AGENTS.md` line.
 
 Trade-offs:
 
-- One reviewer can miss a specialist issue. The checklists and the `high-risk`
-  lane (adversarial review, `simplify`, `review-code` on Opus) cover it; run a
-  specialist skill by name if needed.
-- One planning pass can under-specify a large job. `standard` and `high-risk`
-  get the full interview, and the planner returns open questions.
+- One reviewer can miss a specialist issue. The checklists and the `high` risk
+  path (adversarial review, `simplify`, `review-code` on Opus, the second-opinion
+  reviewer) cover it; run a specialist skill by name if needed.
+- One planning pass can under-specify a large job. `feature` and `refactor` get
+  the full interview, and the planner returns open questions.
 - The master is busier (it writes `decision.md`); that removes a handoff.
 - Parallel waves buy wall-clock time but cost worktrees, ports, and merge work,
   so the master goes parallel only when ready tasks touch disjoint files.

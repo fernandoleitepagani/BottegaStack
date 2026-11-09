@@ -1,16 +1,17 @@
 # Skills
 
-PaganiStack ships 31 skills. A skill is a folder with a `SKILL.md`. The installer
-flattens `skills/<category>/<skill>` to `<target>/skills/<skill>`.
+PaganiStack ships 32 skills. A skill is a folder with a `SKILL.md`. The plugin
+manifest lists each category directory (`skills/<category>`), and Claude Code
+discovers the skills inside it, so skills stay grouped by category.
 
 `/pagani` only starts, shows status, and resumes a job. Every other skill is
 invoked by name (`/wizard`, `/review-pr`, ...). Inside a job the master loads the
-workflow skills it needs.
+workflow skills it needs. `/pagani-models` writes the model routing rule.
 
 | Skill | Purpose |
 |---|---|
 | `adversarial-review` | Fresh-eyes review that tries to break a change before the normal reviewers do. |
-| `approval` | Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and, for standard/high-risk, a quiz, and presents it to the human. |
+| `approval` | Act as the PaganiStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, writes decision.md with an explainer and, for feature/refactor/high risk, a quiz, and presents it to the human. |
 | `backlog-triage` | Move items in a local BACKLOG.md through a small state machine, verify them, grill if needed, and write an agent-ready brief. |
 | `closeout` | Handle the PaganiStack human decision and final git actions. |
 | `codebase-design` | Shared vocabulary for designing deep modules. |
@@ -21,9 +22,10 @@ workflow skills it needs.
 | `improve-architecture` | Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick. |
 | `infra-ops` | Review dependencies, cost, access, and orphaned resources. |
 | `interview` | Conduct the PaganiStack plan interview. |
-| `lanes` | Classify a PaganiStack job into a lane at Step 0 and escalate it when the diff grows or touches a risk path. |
 | `library-reference` | Document how to use a project's internal library, CLI, SDK, or API correctly. |
 | `planning` | Write one PaganiStack job SPEC.md with requirements, decisions, and a tracer-bullet task graph. |
+| `playbooks` | Choose a playbook (trivial, bugfix, feature, refactor, pr-babysit) and a risk modifier (low, standard, high) at Step 0, take the light path for small work, and escalate when the diff grows or touches a risk path. |
+| `principles` | The named rules shared by the master, agents, and skills; cite one instead of restating a rule. |
 | `review-code` | Review a PaganiStack change for code quality, UI, UX, and security in one pass. |
 | `review-pr` | Review a pull request as a merge decision: intent, diff, CI, risk, tests, security, and revert plan. |
 | `runbook` | Investigate an incident, alert, or "why is this broken" symptom with a structured runbook. |
@@ -40,6 +42,9 @@ workflow skills it needs.
 | `web-design-guidelines` | Review UI code for Web Interface Guidelines compliance. |
 | `wizard` | Generate an interactive bash wizard that walks a human through steps only they can perform. |
 | `writing-for-agents` | Writing documents for agents. |
+
+The `pr-babysit` playbook lives as a file beside the `playbooks` skill, at
+`skills/workflow/playbooks/pr-babysit.md`.
 
 ## Vendored skills
 
