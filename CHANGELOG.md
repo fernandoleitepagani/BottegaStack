@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- `/pagani` sets a project up by itself: `pagani job new` runs `init` when the
+  project files are missing, and the master fills in `scripts/check` with the
+  project's real commands (confirmed with you) instead of leaving the failing stub.
+
+- Nothing `pagani init` or `upgrade` creates in a project is committed any more. The
+  files (AGENTS.md, scripts/, .claude/, pagani/, ...) are listed in
+  `.git/info/exclude` instead of the project `.gitignore`, and the pre-commit hook
+  refuses to stage a newly added one. `pagani worktree create` copies them into each
+  task worktree because untracked files are not in a checkout. This also fixes
+  `pagani job new` failing its clean-tree check after `init`.
+
 - Removed the `build-runner` relay subagent. The master now runs
   `pagani build <job> <task> --block` itself as a background Bash task (the shell's
   exit is the completion notice) and follows `build/<task>.progress` with the

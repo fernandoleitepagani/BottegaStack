@@ -18,7 +18,20 @@ else
   echo "pagani: gitleaks not installed; skipping secret scan" >&2
 fi
 
-# 2. Repo checks (when the project has a pagani CLI).
+# 2. Files pagani created must never be committed. Only newly added files are
+# checked, so a project that already tracked its own AGENTS.md can keep editing it.
+if command -v pagani >/dev/null 2>&1; then
+  added="$(git diff --cached --name-only --diff-filter=A 2>/dev/null || true)"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if [ -n "$added" ] && printf '%s\n' "$added" | grep -qxE "$f|$f/.*"; then
+      echo "pagani: refusing to commit $f (a pagani file, local only). Unstage: git restore --staged $f" >&2
+      status=1
+    fi
+  done < <(pagani _files)
+fi
+
+# 3. Repo checks (when the project has a pagani CLI).
 if [ -x ./bin/pagani ]; then
   if ! ./bin/pagani doctor; then
     echo "pagani: doctor failed" >&2

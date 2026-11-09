@@ -17,15 +17,10 @@ git clone <this-repo> ~/Projects/PaganiStack
 The installer links `pagani` into `~/.local/bin` (override with `PAGANI_BIN_DIR`);
 agents call it by name, so that directory must be on `PATH`.
 
-In a project:
-
-```bash
-cd ~/Projects/my-project
-~/Projects/PaganiStack/bin/pagani init
-```
-
-`pagani init` creates `SPEC.md`, `ROADMAP.md`, `TASKS.md`, and `AGENTS.md`.
-Run `pagani upgrade` for an existing project.
+In a project there is nothing to set up: open Claude Code there and run
+`/pagani <request>`. The first request creates the project files (all excluded from
+git) and asks for your lint, test, and build commands. `pagani upgrade` refreshes an
+older project.
 
 ## Quick start
 

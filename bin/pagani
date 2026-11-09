@@ -449,6 +449,12 @@ cmd_job_new() {
   local repo
   repo="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
   cd "$repo"
+  # /pagani is the only command you need: set the project up on first use. init
+  # only creates what is missing and everything it creates is excluded from git,
+  # so the clean-tree check below is unaffected.
+  if [ ! -f AGENTS.md ] || [ ! -x scripts/check ] || [ ! -f .claude/settings.json ]; then
+    cmd_init "$repo" | tail -1
+  fi
   if [ -n "$(git status --porcelain)" ]; then
     echo "working tree is dirty; commit or stash first" >&2
     exit 1
@@ -828,20 +834,67 @@ cmd_doctor() {
   cmd_lint || true
 }
 
-append_runtime_gitignore() {
-  local dest="$1"
-  local gitignore="$dest/.gitignore" entry
-  [ -f "$gitignore" ] || : > "$gitignore"
-  if [ -s "$gitignore" ] && [ -n "$(tail -c 1 "$gitignore")" ]; then
-    printf '\n' >> "$gitignore"
-  fi
-  for entry in pagani/jobs/ pagani/retro-scan.md \
-               pagani/handoff.md; do
-    if ! grep -qxF "$entry" "$gitignore"; then
-      printf '%s\n' "$entry" >> "$gitignore"
-      echo "gitignore: $entry"
-    fi
-  done
+# Every path pagani creates in a project. None of them is ever committed: they are
+# listed in .git/info/exclude (local, never committed, shared by worktrees) and
+# the pre-commit hook rejects staging a new one.
+pagani_files() {
+  cat <<'LIST'
+AGENTS.md
+CLAUDE.md
+SPEC.md
+ROADMAP.md
+TASKS.md
+BACKLOG.md
+GLOSSARY.md
+REVIEW.md
+CODING_STANDARDS.md
+mistakes.md
+scripts/check
+scripts/verify
+scripts/verify.conf
+scripts/format
+scripts/claude-hook.sh
+.claude
+pagani
+docs/FEATURE-MAP.md
+docs/adr/0001-record-architecture-decisions.md
+.github/pull_request_template.md
+LIST
+}
+
+# Write the managed block to the repo's local exclude file. Idempotent. Does not
+# touch .gitignore, so the project's tracked files are never modified.
+exclude_pagani_files() {
+  local dest="$1" common file tmp
+  common="$(git -C "$dest" rev-parse --git-common-dir 2>/dev/null)" || {
+    echo "note: $dest is not a git repository; nothing excluded"
+    return 0
+  }
+  case "$common" in /*) ;; *) common="$dest/$common" ;; esac
+  file="$common/info/exclude"
+  mkdir -p "$common/info"
+  [ -f "$file" ] || : > "$file"
+  tmp="$(mktemp)"
+  awk '/^# >>> pagani/{skip=1} !skip{print} /^# <<< pagani/{skip=0}' "$file" > "$tmp"
+  {
+    echo "# >>> pagani (local only; never committed)"
+    pagani_files | sed 's|^|/|'
+    echo "# <<< pagani"
+  } >> "$tmp"
+  if cmp -s "$tmp" "$file"; then rm -f "$tmp"; else mv "$tmp" "$file"; echo "excluded: pagani files ($file)"; fi
+}
+
+# Untracked files do not exist in a fresh worktree, so copy the ones the builder
+# needs (AGENTS.md, scripts/check, settings, hooks) into it without overwriting.
+copy_pagani_files() {
+  local from="$1" to="$2" f
+  while IFS= read -r f; do
+    [ "$f" = "pagani" ] && continue
+    [ -e "$from/$f" ] || continue
+    [ -e "$to/$f" ] && continue
+    mkdir -p "$(dirname "$to/$f")"
+    cp -R "$from/$f" "$to/$f"
+  done < <(pagani_files)
 }
 
 cmd_init() {
@@ -868,11 +921,7 @@ cmd_init() {
   [ -f "$dest/docs/adr/0001-record-architecture-decisions.md" ] || cp "$ROOT/resources/docs/adr/0001-record-architecture-decisions.md" "$dest/docs/adr/0001-record-architecture-decisions.md"
   chmod +x "$dest/scripts/check" "$dest/scripts/verify" \
     "$dest/scripts/format" "$dest/scripts/claude-hook.sh"
-  if [ -f "$dest/.gitignore" ]; then
-    append_runtime_gitignore "$dest"
-  else
-    cp "$ROOT/resources/.gitignore" "$dest/.gitignore"
-  fi
+  exclude_pagani_files "$dest"
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
   fi
@@ -944,7 +993,7 @@ PY
     echo "updated: $target"
   fi
 
-  append_runtime_gitignore "$dest"
+  exclude_pagani_files "$dest"
 
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
@@ -1302,6 +1351,7 @@ cmd_worktree() {
       git worktree add -b "pagani/$job-$task" "../$name-pagani/$job/$task" "pagani/$job" 2>/dev/null \
         || git worktree add -b "pagani/$job-$task" "../$name-pagani/$job/$task" "$base"
       local path="../$name-pagani/$job/$task"
+      copy_pagani_files "$repo" "$repo/$path"
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
       echo "worktree: $path"
       echo "port: $port"
@@ -1583,6 +1633,7 @@ case "$cmd" in
   guard) cmd_guard "$@" ;;
   _build-exec) cmd_build_exec "$@" ;;
   keyget) cmd_keyget ;;
+  _files) pagani_files ;;
   job) cmd_job "$@" ;;
   worktree) cmd_worktree "$@" ;;
   hooks) cmd_hooks "$@" ;;

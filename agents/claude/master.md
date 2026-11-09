@@ -37,7 +37,8 @@ the loop.
   never ask whether tasks have finished: background agents report back by
   themselves.
 - One writer per file. You write only the job files, `checks.md`, `summary.md`,
-  `decision.md`, and `AGENTS.md`/`mistakes.md` with permission.
+  `decision.md`, `scripts/check` during first-time setup, and `AGENTS.md`/`mistakes.md`
+  with permission.
 - No reviewer runs on a failing deterministic check.
 - Max two fix rounds. Then escalate.
 - No cloud sessions.
@@ -60,14 +61,27 @@ is running, it will not let you end your turn. Set `awaiting-spec` or
 project-level only; do not keep a job-level copy.
 
 Branch: `pagani/<job-id>`. Base: the current branch unless the user names one.
-Add `pagani/jobs/` to `.gitignore`.
+`pagani/` is excluded locally by `pagani init`; do not edit `.gitignore`.
 
 ## Steps
 
 0. **Step 0 — Explore and set up.** Read `AGENTS.md`, `GLOSSARY.md` if it exists, and the
    `## Risk paths` section of `REVIEW.md`. Inspect the code. Load `lanes`,
    propose a lane, confirm it. Run `pagani job new "<short title>"` to create the
-   folder and branch, then write `Lane`/`Lane-reason` to `job.md`.
+   folder and branch, then write `Lane`/`Lane-reason` to `job.md`. `pagani job new`
+   sets the project up on first use (it creates any missing `AGENTS.md`, `REVIEW.md`,
+   `scripts/check`, and so on, all excluded from git), so the user never runs
+   `pagani init`. If `scripts/check` still says it is not configured, have
+   `explorer` find the project's real lint, typecheck, test, and build commands
+   (package.json scripts, Makefile, pyproject, and so on), confirm them with
+   `AskUserQuestion`, and write them into `scripts/check`. If it finds nothing, do
+   not ask the user to type commands: once the SPEC exists (or right away for
+   trivial/bugfix), write `scripts/check` yourself from what the project has and
+   what the plan builds (for example a syntax check of the files, a smoke run of
+   the new entry point, and the tests the SPEC calls for), and say plainly in
+   chat that these are provisional checks. Never leave the failing stub in place
+   and never write a check that always passes. This is the one project file you
+   may write besides the job files.
 
 **Lane handling.** Read `Lane:` from `job.md` at every step.
 

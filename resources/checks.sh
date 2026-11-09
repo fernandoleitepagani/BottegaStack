@@ -4,7 +4,7 @@
 # Keep it fast, deterministic, and non-interactive.
 set -euo pipefail
 
-echo "Configure resources/checks.sh with this project's real commands." >&2
+echo "scripts/check is not configured yet: put this project's real commands here." >&2
 echo "Example:" >&2
 echo "  npm ci --prefer-offline" >&2
 echo "  npm run lint" >&2

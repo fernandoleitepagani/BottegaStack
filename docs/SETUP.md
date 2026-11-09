@@ -64,14 +64,25 @@ then runs the lint. It is the release gate:
 
 ```bash
 cd ~/Projects/my-project
-~/Projects/PaganiStack/bin/pagani init
+pagani init
 ```
 
-`pagani init` creates `SPEC.md`, `ROADMAP.md`, and `TASKS.md`, plus `AGENTS.md`,
+You normally never run this: the first `/pagani` request in a project runs it for
+you (through `pagani job new`) and then asks you for the project's lint, test, and
+build commands to fill in `scripts/check`. Run `pagani init` yourself only to set a
+project up without starting a job. It creates `SPEC.md`, `ROADMAP.md`, and `TASKS.md`, plus `AGENTS.md`,
 `REVIEW.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `BACKLOG.md`, `mistakes.md`,
 `CLAUDE.md`, the `scripts/` check and verify stubs, `.claude/settings.json`,
 `docs/FEATURE-MAP.md`, and the ADR template. It
 installs the git hooks when `.git` exists.
+
+**None of these files is ever committed.** `init` lists them in
+`.git/info/exclude` (local, shared by worktrees, never committed), so `git status`
+stays clean, your `.gitignore` is not touched, and `pagani job new` sees a clean
+tree. The pre-commit hook also refuses to stage a newly added pagani file. A file
+your project already tracked (say its own `AGENTS.md`) is left alone and stays
+tracked. `pagani worktree create` copies the files into each task worktree, since
+untracked files are not part of a checkout.
 
 ## Upgrade a project
 
