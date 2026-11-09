@@ -2,33 +2,17 @@
 name: planning
 description: Write one PaganiStack job SPEC.md with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
 ---
-
 # PaganiStack Planning
-
-You write one planning artifact: `pagani/jobs/<id>/SPEC.md`. You never write
-code, reviews, or decisions. Your prompt names the job folder.
-
-Read `interview.md`, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`,
-`GLOSSARY.md`, and the code the work touches. Do not guess at names. If
-`SPEC.md` or `PLAN.md` is missing, create it first: `pagani seed SPEC.md` and
-`pagani seed PLAN.md`.
-
-## Base skills
-
-- The template below is adapted from Matt Pocock's `to-spec` and `to-tickets`.
-  Keep its shape; do not invent a different spec format.
-- Load `codebase-design` for module, interface, depth, seam, and adapter
-  vocabulary when the spec touches architecture or testability.
-- Load `domain-modeling` to keep `GLOSSARY.md` and ADRs current as decisions
-  land.
-- If the work is too big for one spec, load `wayfinding` first and settle the
-  destination and decisions before writing it.
-
-## Write `pagani/jobs/<id>/SPEC.md`
-
+Write one artifact: `pagani/jobs/<id>/SPEC.md`. Never code, reviews, or decisions.
+Read `interview.md`, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`, `GLOSSARY.md`,
+and the code the work touches. Do not guess names; seed missing files with
+`pagani seed SPEC.md` and `pagani seed PLAN.md`. Load `codebase-design` for
+architecture or testability vocabulary, `domain-modeling` to keep `GLOSSARY.md`
+and ADRs current, and `wayfinding` when the work is too big for one spec. The
+template is adapted from Matt Pocock's `to-spec` and `to-tickets`; keep its shape.
+## Template
 ```markdown
 # Spec: <title>
-
 ## Problem
 ## Goal
 ## Users and actors
@@ -37,59 +21,37 @@ Read `interview.md`, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`,
 2. <alternate flow>
 3. <empty / loading / error state>
 4. <edge case>
-
 ## Scope
 ### In
 ### Out
-
 ## Constraints
 ## Acceptance criteria
 1. <observable behaviour> — verify by <command / page / file>
-
 ## Options considered
 1. <direction> — <trade-off>
 2. <direction> — <trade-off>
 Chosen: <direction> because <reason>.
-
 ## Implementation decisions
 Modules, interfaces, contracts, schema changes, API shapes, state machines.
-No stale file paths. If a prototype encoded a decision, inline the decision-rich
-part and say it came from a prototype.
-
 ## Testing decisions
-What makes a good test (external behaviour, not implementation details), which
-modules are tested, the seams, and prior art in the repo.
-
+External behaviour, not implementation; the modules tested, seams, prior art.
 ## Sensors
-- `scripts/check` covers: <tests, lint, types, build>
-- `scripts/verify` / agent-browser covers: <flows, screenshots>
-- Neither covers: <SSO, browser modals, background jobs, data freshness>
-
+- `scripts/check`: <tests, lint, types, build>
+- `scripts/verify` / agent-browser: <flows, screenshots>
+- Neither: <SSO, browser modals, background jobs, data freshness>
 ## Tasks
 ### Task 1 — <title>
-**What to build:** the end-to-end behaviour this task makes work, from the
-user's perspective.
-
+**What to build:** the end-to-end behaviour, from the user's perspective.
 **Blocked by:** <task numbers/titles> or "None (can start immediately)".
-
-**Files and interfaces:** the modules, components, types, or contracts this
-task touches. No stale line numbers.
-
-**Allowed files:** exact paths this task may create or modify. No other files.
-
+**Files and interfaces:** modules, types, or contracts; no stale line numbers.
+**Allowed files:** exact paths this task may create or modify. No others.
 **Test first:** the failing test or check that proves the task before the fix.
-
 **Done when:** the observable result and the command that proves it.
-
 **Acceptance criteria:**
 - [ ] <criterion>
-- [ ] <criterion>
-
 **Verification:** the exact command, page, or check that proves it.
-
 ### Task 2 — <title>
 ...
-
 ## UI / UX
 ## Security and privacy
 ## Rollout and rollback
@@ -98,56 +60,26 @@ task touches. No stale line numbers.
 ## Definition of done
 ## Risks
 ```
-
 ## Task rules
-
-- A task is a **tracer bullet**: a narrow but complete vertical slice through
-  every layer (data, logic, UI, tests). It is demoable or verifiable on its own.
-- It fits one fresh context window.
-- Fill `Allowed files`, `Test first`, and `Done when` for every task. A task
-  with an empty `Allowed files` or `Done when` is not ready.
-- Prefactoring comes first.
-- A task with no blockers can start immediately.
-- Wide refactors are the exception: use expand–contract, with the expand first,
-  migrate batches next, and contract last.
-- No file paths or code snippets that will go stale, unless a decision depends
-  on them.
-
+- A task is a tracer bullet: a narrow but complete vertical slice (data, logic, UI, tests), demoable or verifiable alone and one context window.
+- Fill `Allowed files`, `Test first`, and `Done when`; an empty field means not ready.
+- Prefactoring comes first; a task with no blockers can start immediately. Wide refactors use expand-contract.
+- Inline decision-rich prototype code only when a decision depends on it; no stale paths or line numbers.
 ## Rules
-
-- Synthesize the interview. Do not interview again.
-- Acceptance criteria are the contract. Every one must be checkable by someone
-  who only has the repo.
-- Show the alternatives and the trade-off in `## Options considered`: 2-3
-  directions and the chosen one. This is not a new checkpoint; the user still
-  approves one `SPEC.md`.
-- Use the highest existing seam for tests. Prefer one seam over many.
-- Include doc updates the change needs.
-- Use the project's domain vocabulary.
-- Prefer the smallest change that fully meets the request.
-- Do not add options, fallbacks, or extras the user did not ask for.
-- If a category is genuinely unanswered, put it under **Open questions** and
-  stop. The master will ask the user and re-run you. Do not invent a product
-  decision.
-- The task graph must have no cycles. The first wave contains every task with
-  no blockers.
-- If the request is too vague to task, stop and say so; do not invent scope.
-
+- Synthesize the interview; do not interview again.
+- Acceptance criteria are the contract and each is checkable with only the repo; test the highest existing seam, prefer one.
+- Show 2-3 directions and trade-offs under `## Options considered`; the user still approves one `SPEC.md`, so not a new checkpoint.
+- Use the project's vocabulary, include needed doc updates, prefer the smallest change, and add no options or extras the user did not ask for.
+- Put unanswered categories under **Open questions** and stop; the master asks the user and re-runs you. Never invent a product decision.
+- Keep the graph acyclic; the first wave holds every task with no blockers. Too vague to task means stop.
 ## Report
-
 ```
 WROTE: <file>
 OPEN QUESTIONS: <none, or a short list>
 NEXT: <what the master should do>
 ```
-
 ## Gotchas
-
 - Horizontal tasks: one layer per task instead of a vertical slice.
-- Leaving open questions inside `SPEC.md` instead of returning them to the
-  master.
-- Acceptance criteria that cannot be checked by someone with only the repo.
-- Adding options or fallbacks the request did not ask for.
-- A task without a test-first check or an allowed-files list.
-- Stale file paths or line numbers.
-- A task graph with a cycle, or a first wave that is missing a ready task.
+- Open questions left inside `SPEC.md` instead of returned to the master.
+- Acceptance criteria nobody with only the repo can check.
+- A task graph with a cycle, or a first wave missing a ready task.
