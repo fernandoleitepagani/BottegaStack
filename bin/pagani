@@ -1334,8 +1334,14 @@ guard_stop() {
   dir="$(dirname "$job")"
   for r in "$dir"/build/*.run; do
     [ -f "$r" ] || continue
-    [ -f "${r%.run}.rc" ] || exit 0   # a builder is still running: idle is correct
+    [ -f "${r%.run}.rc" ] && continue
+    # a builder is still running: idle is correct (a .run older than 360 min is stale)
+    [ -n "$(find "$r" -mmin +360 2>/dev/null)" ] || exit 0
   done
+  # other legitimate async work (background checks, builders without a .run file)
+  if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|pagani job check|scripts/check' >/dev/null 2>&1; then
+    exit 0
+  fi
   printf '%s\n' "{\"decision\":\"block\",\"reason\":\"Job $(basename "$dir") is at Stage: $stage and no human checkpoint or running builder is pending. Continue to the next step now; do not stop and do not ask the user to proceed. If you are truly blocked, set Stage to awaiting-decision and ask with AskUserQuestion.\"}"
 }
 

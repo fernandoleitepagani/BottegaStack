@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `pagani guard stop` no longer blocks while a background `pagani job check`,
+  `scripts/check`, or a builder without a `.run` file is running, and ignores a
+  `.run` file older than 360 minutes.
+
 - `/pagani` sets a project up by itself: `pagani job new` runs `init` when the
   project files are missing, and the master fills in `scripts/check` with the
   project's real commands (confirmed with you) instead of leaving the failing stub.
