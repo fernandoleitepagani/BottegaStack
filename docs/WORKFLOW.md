@@ -121,7 +121,7 @@ failure goes back to a fresh builder; no reviewer runs on a failing build.
 
 The master runs `maestro gate <run>` first. A failing, stale, or dirty gate stops
 the review. For `low` risk it first runs `maestro build --review <run> <task>
---block` on the headless model: no findings means no Claude reviewer runs, and
+--block` (on the light path `maestro build --review --here <slug> --block`) on the headless model: no findings means no Claude reviewer runs, and
 any finding means the `review-code` reviewer below runs. `standard` and `high`
 risk are unchanged. It then spawns one `review-code` reviewer, which covers code,
 UI, UX, and security in one pass and returns one verdict:
@@ -341,6 +341,7 @@ maestro report --finding <run> "<title>"
 maestro build <run> <task> [--revise <file|->] [--block|--wait]
 maestro build --here <slug> --task "<text>" [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
+maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run> [--every <seconds>]
 maestro build --init | --check
 

@@ -232,6 +232,7 @@ an Anthropic-compatible endpoint.
 maestro build <run> <task> [--revise <file|->] [--block|--wait]
 maestro build --here <slug> --task "<text>" [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
+maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run> [--every <seconds>]
 ```
 
@@ -241,7 +242,9 @@ maestro build --status <run> [--every <seconds>]
   `builder.log`, `settings.json`).
 - `--review` runs the read-only `review-code` agent in the task worktree on the
   third-party model and puts the findings in
-  `$STATE/<run>/build/<task>.review2.md`. It cannot edit or commit.
+  `$STATE/<run>/build/<task>.review2.md`. It cannot edit or commit. With
+  `--here <slug>` it reviews the current checkout against the default branch and
+  writes `$STATE/quick/<slug>/review.md`.
 - `--block` waits until the build ends, for a background Bash task. `--wait`
   attaches to a running build with the same bounded wait. Without either, the
   call waits up to `BOTTEGA_BUILD_WAIT` seconds and then prints `RUNNING` and
