@@ -1,6 +1,6 @@
 ---
 name: adversarial-review
-description: Fresh-eyes review that tries to break a change before the normal reviewers do. Use for high-risk changes, security-sensitive code, migrations, and anything that is hard to undo.
+description: Fresh-eyes review that tries to break a change before the normal reviewers do. Use for high-risk changes, security-sensitive code, migrations, anything that is hard to undo, or when a change may break code outside the diff (load `blast-radius`).
 ---
 
 # Adversarial Review
@@ -33,6 +33,7 @@ fails. You are not the style reviewer.
 - Do not report style, naming, or cleanup.
 - If you cannot state how it fails, it is a note, not a finding.
 - Stop when the remaining findings are nitpicks. Do not invent a new round.
+- For `high` risk, follow this pass with the report-only `interrogate` stress test (load `interrogate`).
 
 ## Output
 
