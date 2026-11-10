@@ -22,8 +22,10 @@ are the record. There is no database or state machine.
 ### Step 0: Set up and choose a playbook
 
 The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
-`REVIEW.md` (a missing file means no risk paths). It loads `playbooks`, proposes
-a playbook (`trivial`, `bugfix`, `feature`, `refactor`, `pr-babysit`) and a risk
+`REVIEW.md` (a missing file means no risk paths). It runs `maestro stack`, shows
+the detected profile (`language:`, `package-manager:`, `commands:`, `frameworks:`),
+confirms or corrects it with `AskUserQuestion`, and writes it into the `## Stack`
+section of `AGENTS.md`. It loads `playbooks`, proposes a playbook and a risk
 (`low`, `standard`, `high`), and asks you to confirm or override. It tracks
 playbook and risk as todo items, then runs `maestro start "<title>"`, which creates
 the branch `bottega/<slug>` and the state directory `$STATE/<slug>/` and prints
@@ -71,7 +73,8 @@ in `$STATE/quick/<slug>/`. They still get the Step 6/7 decision prompt.
 `maestro build --check` passes, the master creates the task worktree and runs
 `maestro build <run> <task>`. It runs the Claude Code `builder` agent headless
 (`claude -p`) on the model configured in `~/.config/bottega/builder.env`, then
-prints the session id, report location, `STATUS`, and changed files. The builder
+prints the session id, report location, `STATUS`, `tokens: in <n> out <n>`,
+`steps: <n>`, and changed files. The builder
 ends its final reply with the report; `maestro build` extracts it into
 `$STATE/<run>/build/<task>.report.md`. `review-code` reviews the diff; on
 `CHANGES` the master passes the findings inline and runs `--revise <file|->`,
@@ -87,7 +90,8 @@ The master runs each build itself as a background Bash task
 `maestro build --status <run> --every 180` through `Monitor`, posting each line
 (`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
 `--status` once per finished build. It moves to checks as soon as the wave has
-joined. A build is capped at 30 minutes (`BOTTEGA_BUILD_TIMEOUT`).
+joined. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
+is the only stop. Each build reports its token counts and step count.
 
 The master reads the task graph from the saved SPEC and inspects the ready set
 before building. It defaults to sequential. If two or more ready tasks touch
@@ -116,8 +120,11 @@ failure goes back to a fresh builder; no reviewer runs on a failing build.
 ### Step 4: Review
 
 The master runs `maestro gate <run>` first. A failing, stale, or dirty gate stops
-the review. It then spawns one `review-code` reviewer, which covers code, UI, UX,
-and security in one pass and returns one verdict:
+the review. For `low` risk it first runs `maestro build --review <run> <task>
+--block` on the headless model: no findings means no Claude reviewer runs, and
+any finding means the `review-code` reviewer below runs. `standard` and `high`
+risk are unchanged. It then spawns one `review-code` reviewer, which covers code,
+UI, UX, and security in one pass and returns one verdict:
 
 - **Code** — correctness, simplicity, conventions, tests, and spec fidelity.
 - **UI** — visual consistency, design-system fit, spacing, responsive layout,
@@ -168,7 +175,11 @@ artifacts.
 You read the explainer, answer the quiz where one applies, and choose merge,
 commit, push, PR, rework, or reject. The master shows the exact git command
 before running it. The decision is recorded in the PR body or the merge-commit
-(commit) message, not in a file.
+(commit) message, not in a file. Before offering merge or PR options, `closeout`
+runs the `ship` checklist — CI green, security checks passed, an independent
+`review-code` of the latest commit, review threads resolved, and manual testing
+noted — and an unmet item blocks "Approve and merge" until it is fixed or you
+explicitly waive it.
 
 Before it creates a branch, worktree, or PR, the master checks whether it already
 exists (`git branch --list`, `git worktree list`, `gh pr view`) so a resume does
@@ -180,7 +191,8 @@ The master runs `maestro report --retro --exit-code` and loads `session-retro` t
 propose one environment change. If the scan exits 1, findings repeat across runs;
 on repeated findings it proposes Gotchas patches. It loads `session-handoff` if
 the run continues elsewhere. Once the PR or merge is confirmed, it runs
-`maestro report --close <slug>` to remove the state directory and stops.
+`maestro worktree prune <slug>` and `maestro report --close <slug>` to remove the
+worktrees and the state directory, then stops.
 
 ### Resume
 
@@ -205,6 +217,12 @@ loads `figure-it-out`, which proposes a one-off playbook and confirms it with
 | `bugfix` | a reproducible symptom | failing test first; the light path when small; otherwise builder → check → `review-code` → human |
 | `feature` | normal product work | interview → SPEC → task graph → worktrees → full build/check/review |
 | `refactor` | behaviour must not change | expand-contract; tests before and after; full build/check/review |
+| `investigate` | a symptom with no clear fix | read-only: reproduce, test hypotheses with runtime evidence, report the cause and the next playbook — see [investigate.md](../skills/workflow/playbooks/investigate.md) |
+| `perf` | a metric must improve against a target | baseline, profile, one change at a time, re-measure, keep only wins beyond noise — see [perf.md](../skills/workflow/playbooks/perf.md) |
+| `prototype` | a question needs a working answer | throwaway on `bottega/proto-<slug>`, answer with evidence, decide, never merge — see [prototype.md](../skills/workflow/playbooks/prototype.md) |
+| `ship` | an existing PR or branch needs merge-readiness checks | read-only checklist: CI, security, independent review, threads, manual testing; never merge or push without approval — see [ship.md](../skills/workflow/playbooks/ship.md) |
+| `autopilot` | a queue of items to run end to end | one item at a time on its own branch, stop at a ready local branch, never push, merge, or open a PR — see [autopilot.md](../skills/workflow/playbooks/autopilot.md) |
+| `pause` | stop a run and resume it later | write a local `PLAN.md` note; resume rebuilds the todo list from it — see [pause.md](../skills/workflow/playbooks/pause.md) |
 | `pr-babysit` | an open PR needs CI or review follow-up | watch checks and comments read-only, fix through the light path, push only with approval — see [skills/workflow/playbooks/pr-babysit.md](../skills/workflow/playbooks/pr-babysit.md) |
 
 Every playbook ends with the PR (or merge) write-up; the decision lives in that
@@ -240,16 +258,32 @@ guessed (principle `prove-it-works`).
 | `builder` | Implements exactly one task and ends its reply with the report. |
 | `review-code` | One reviewer for code, UI, UX, and security; one verdict as its reply. |
 
-There are no tier variants of an agent. The master picks the model per call with
-the Agent tool's `model` parameter; each agent's frontmatter `model:` is the
-default. The routing comes from `~/.claude/rules/bottega-models.md` when present,
-written by `/maestro-models`. Otherwise the defaults are explorer `haiku`, trivial
-`haiku`, reviewer `sonnet`, high-risk reviewer `opus`, and builder `headless`.
-`planner` and `master` keep their own models.
+There are no tier variants of an agent. The master picks the model and effort per
+call with the Agent tool's `model` and `effort` parameters; each agent's
+frontmatter is the default. The routing comes from
+`~/.claude/rules/bottega-models.md` when present, written by `/maestro-models`.
+Each line is `role: value, effort`, where `value` is a Claude alias (`haiku`,
+`sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`, or `high`:
+
+```
+explorer: haiku, low
+trivial: haiku, low
+builder: headless, medium
+reviewer: sonnet, medium
+reviewer-high-risk: opus, high
+second-opinion: headless, medium
+planner: opus, high
+master: opus, medium
+```
+
+Without the file the same defaults apply; `planner` and `master` keep their own
+models. The headless runner reads the `builder` line for `build` and `--here`,
+and the `second-opinion` line for `--review`, passing only the effort as
+`--effort`; a malformed line is ignored.
 
 ## Skills
 
-BottegaStack ships 58 skills in the Claude Code categories plus `workflow/`. The
+BottegaStack ships 63 skills in the Claude Code categories plus `workflow/`. The
 core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 `implementation`, `verification`, `review-code`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
@@ -257,6 +291,13 @@ core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 decisions read-only, `figure-it-out` builds a one-off playbook,
 `create-verification-skill` writes a project `verify-*` skill, and `automate-me`
 drafts a personal mode skill from the user's transcripts after approval.
+`interrogate` stress-tests a high-risk change and `blast-radius` maps what it can
+break outside the diff; both are report-only. `linux-sysadmin`,
+`podman-operator`, and `bash-scripting` live in the `sysadmin`, `containers`, and
+`devops` categories and are adapted from ChrisTitusTech/titstack (MIT).
+`trivial`, `bugfix`, `feature`, and `refactor` are sections in the `playbooks`
+skill; the other playbooks are files beside it at
+`skills/workflow/playbooks/<name>.md`.
 
 Each of the 21 principles is its own `principle-<slug>` skill; `principles` is
 the index that keeps the citations stable. Agents and skills cite a principle
@@ -278,12 +319,13 @@ Other skills are invoked directly by name, not through `/maestro`:
 
 ## Commands
 
-BottegaStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
-`start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and `hooks`.
-(`guard` and `keyget` are internal hook entry points, not user commands.)
+BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
+`upgrade`, `start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and
+`hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
 maestro doctor
+maestro stack
 maestro init [path]
 maestro seed <Name>
 maestro upgrade [path]
@@ -294,10 +336,11 @@ maestro check <run>
 maestro gate <run> [--allow-dirty]
 maestro report [--retro] [--write] [--exit-code]
 maestro report --close <run>
+maestro report --finding <run> "<title>"
 
-maestro build <run> <task> [--revise <file|->] [--block]
-maestro build --here <slug> --task "<text>" [--block]
-maestro build --review <run> <task> [--block]
+maestro build <run> <task> [--revise <file|->] [--block|--wait]
+maestro build --here <slug> --task "<text>" [--block|--wait]
+maestro build --review <run> <task> [--block|--wait]
 maestro build --status <run> [--every <seconds>]
 maestro build --init | --check
 
@@ -369,6 +412,10 @@ Everything here is optional and local. Nothing starts an agent or a server.
   the committed `commands/maestro.md` is fresh (`scripts/gen-command.sh
   --check`), and validates the plugin manifests with `claude plugin validate .`
   when `claude` is installed, on Ubuntu and macOS.
+- **Doctor.** `maestro doctor` prints runtime and tool versions, the skill count,
+  `AGENTS.md` size, hook status, and security warnings: gitleaks missing, `.env`
+  tracked, no dependency-update config, and no CI security job. It then runs the
+  repo lint and is the release gate.
 
 ## Safety and limits
 
@@ -384,8 +431,8 @@ Everything here is optional and local. Nothing starts an agent or a server.
 - Builders commit locally; they never push or merge.
 - The human decides the merge.
 
-**Not included:** there is no network allowlist, exact cost tracking, budget
-enforcement, or backup command.
+**Not included:** there is no network allowlist or backup command. Builds report
+`tokens:` and `steps:`; the only stop is the 30-minute builder timeout.
 
 **Deliberate non-goals:** full OS sandboxing and a control plane that starts or
 stops agents. Untrusted content still reaches agents through browser pages, PR
@@ -408,7 +455,7 @@ Trade-offs:
   the full interview, and the planner returns open questions.
 - The master is busier (it decides approval and drafts the PR write-up); that
   removes a handoff.
-- Parallel waves buy wall-clock time but cost worktrees, ports, and merge work,
+- Parallel waves buy wall-clock time but use worktrees, ports, and merge work,
   so the master goes parallel only when ready tasks touch disjoint files.
 - Harness decay: on a model upgrade, remove one component at a time on a branch,
   re-run a few real runs, and keep it only if it still earns its place.
