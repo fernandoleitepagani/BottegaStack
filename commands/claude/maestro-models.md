@@ -1,47 +1,59 @@
 ---
-description: Choose the model each BottegaStack role uses and write ~/.claude/rules/bottega-models.md.
-argument-hint: "[rerun to change model routing]"
+description: Choose the model and effort each BottegaStack role uses and write ~/.claude/rules/bottega-models.md.
+argument-hint: "[rerun to change model and effort routing]"
 allowed-tools: Read, Write, Bash, AskUserQuestion
 ---
 
 # Bottega Model Routing
 
-Ask the user which model each BottegaStack role uses, then write the routing rule
-file. No secrets, no personal data.
+Ask the user for a value and an effort for each BottegaStack role, then write
+the routing rule file at
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rules/bottega-models.md`. No secrets, no
+personal data.
 
 ## Roles and defaults
 
-| Role | Default | Values |
+| Role | Default value | Default effort |
 |---|---|---|
-| explorer | haiku | a Claude model alias or `headless` |
-| builder | headless | a Claude model alias or `headless` |
-| reviewer | sonnet | a Claude model alias or `headless` |
-| second-opinion | headless | a Claude model alias or `headless` |
-| trivial | haiku | a Claude model alias or `headless` |
+| explorer | haiku | low |
+| trivial | haiku | low |
+| builder | headless | medium |
+| reviewer | sonnet | medium |
+| reviewer-high-risk | opus | high |
+| second-opinion | headless | medium |
+| planner | `opus` (own model) | high |
+| master | `opus` (own model) | medium |
 
-`headless` means the third-party headless builder or reviewer; a Claude alias
-(`haiku`, `sonnet`, `opus`) means the Claude subagent.
+A value is a Claude alias (`haiku`, `sonnet`, `opus`) or `headless`. `headless`
+means the third-party headless builder or reviewer; a Claude alias means the
+Claude subagent. `planner` and `master` keep their own model, written as their
+agent's alias.
 
 ## Ask
 
-Use `AskUserQuestion` for each role, pre-selecting its default. Offer the Claude
-aliases and `headless`. If the user picks a value outside that set, ask again.
+Use `AskUserQuestion` for every role, in batches of at most four questions. Ask
+the value and the effort separately, pre-selecting the default from the table.
+Offer `haiku`, `sonnet`, `opus`, and `headless` for the value, and `low`,
+`medium`, and `high` for the effort. If an answer is outside those sets, ask
+again; the effort must be `low`, `medium`, or `high`. Keep
+`reviewer-high-risk` at `opus, high` unless the user changes it.
 
 ## Write
 
-Run `mkdir -p ~/.claude/rules` if needed, then write
-`~/.claude/rules/bottega-models.md` with the `Write` tool. Keep it under 15 lines,
-with no secrets and no extra keys:
+Run `mkdir -p "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rules"` if needed, then write
+the file with the `Write` tool. One line per role as `role: value, effort`, in
+this order, under 15 lines and with no extra keys:
 
-```markdown
+```
 # Bottega model routing (written by /maestro-models)
-explorer: <value>
-trivial: <value>
-builder: <value>
-reviewer: <value>
-reviewer-high-risk: opus
-second-opinion: <value>
+explorer: haiku, low
+trivial: haiku, low
+builder: headless, medium
+reviewer: sonnet, medium
+reviewer-high-risk: opus, high
+second-opinion: headless, medium
+planner: opus, high
+master: opus, medium
 ```
 
-Keep `reviewer-high-risk: opus` unless the user asks to change it. Report the
-path written and the chosen values.
+Report the path written and the chosen values.
