@@ -93,12 +93,12 @@
   <path d="M255 46V176" stroke="url(#gold)" stroke-width="1.5"/>
 
   <!-- Wordmark -->
-  <text x="303" y="102" fill="#f4dfb4"
+  <text x="434" y="102" text-anchor="middle" fill="#f4dfb4"
         font-family="Georgia, 'Times New Roman', serif"
         font-size="49" font-weight="bold" letter-spacing="-1.4">Bottega</text>
 
-  <path d="M294 130H355M508 130H573" stroke="#d99a37" stroke-width="1.35"/>
-  <text x="434" y="141" text-anchor="middle" fill="#e5a83e"
+  <path d="M293 130H360M508 130H575" stroke="#d99a37" stroke-width="1.35"/>
+  <text x="437" y="141" text-anchor="middle" fill="#e5a83e"
         font-family="Georgia, 'Times New Roman', serif"
         font-size="25" letter-spacing="6">STACK</text>
 
