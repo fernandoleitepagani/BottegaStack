@@ -11,6 +11,7 @@ Improve the environment, not just the code.
 
 - The conversation: the SPEC, the builder reports, the review verdicts, the
   check output, and the closeout decision.
+- `pagani report --retro`: findings repeated across runs, from the titles the master recorded with `pagani report --finding`.
 - `AGENTS.md` and `mistakes.md`. If `mistakes.md` is missing, create it with
   `pagani seed mistakes.md`.
 

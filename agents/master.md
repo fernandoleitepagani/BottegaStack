@@ -103,7 +103,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 5. **Step 5 — Fix.** On `CHANGES`, load `diagnosis`, pass the review findings to a fresh builder, re-run checks,
    and re-review with `review-code`. Max two rounds. For a headless task, pass the findings on stdin to
    `pagani build <slug> <task> --revise -`; it resumes the same session and refuses a third revision (exit 4),
-   so escalate then. Track failing checks and blocking findings per round; if neither fell in two consecutive
+   so escalate then. Record each blocking finding with `pagani report --finding <slug> "<title>"` (the retro scan reads these). Track failing checks and blocking findings per round; if neither fell in two consecutive
    rounds, stop and escalate. Never run a third identical round.
 6. **Step 6 — Approval.** Load `approval`. Read the SPEC, every builder report, the check output, and every
    review reply. Decide `APPROVE` or `ESCALATE` yourself, with the acceptance-criteria mapping, risks, and an

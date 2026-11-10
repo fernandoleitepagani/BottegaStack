@@ -19,7 +19,7 @@ Usage:
   pagani spec <run> [file]
   pagani check <run>
   pagani gate <run> [--allow-dirty]
-  pagani report [--retro] [--write] [--exit-code]
+  pagani report [--retro] [--write] [--exit-code] | --close <run> | --finding <run> "<title>"
   pagani report --close <run>
   pagani build <run> <task> [--revise <file|->] [--block|--wait]
   pagani build --here <slug> --task "<text>" [--block|--wait]
@@ -1417,19 +1417,24 @@ cmd_worktree() {
 }
 
 cmd_report() {
-  local retro=0 write=0 exit_code=0 close=""
+  local retro=0 write=0 exit_code=0 close="" finding_run="" finding_title=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --retro) retro=1; shift ;;
       --write) retro=1; write=1; shift ;;
       --exit-code) retro=1; exit_code=1; shift ;;
       --close) close="${2:?--close needs a run}"; shift 2 ;;
+      --finding) finding_run="${2:?--finding needs a run and a title}"; finding_title="${3:?--finding needs a run and a title}"; shift 3 ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
   done
   if [ -n "$close" ]; then
     cmd_close "$close"
+    return
+  fi
+  if [ -n "$finding_run" ]; then
+    cmd_finding "$finding_run" "$finding_title"
     return
   fi
   if [ "$retro" = "1" ]; then
@@ -1440,6 +1445,21 @@ cmd_report() {
     return
   fi
   cmd_status
+}
+
+# `pagani report --finding <run> "<title>"`: record one blocking review finding
+# so the retro scan can spot a finding that repeats across runs. The log lives
+# in the state directory root, so closing a run does not remove it.
+cmd_finding() {
+  local slug="$1" title="$2" base
+  case "$slug" in
+    ''|*[!a-z0-9-]*) echo "pagani report --finding: bad run id: $slug" >&2; exit 2 ;;
+  esac
+  title="$(printf '%s' "$title" | tr '\t\n' '  ')"
+  [ -n "$title" ] || { echo "pagani report --finding: empty title" >&2; exit 2; }
+  base="$(ensure_state_dir)" || { echo "pagani report --finding: not in a git repository" >&2; exit 1; }
+  printf '%s\t%s\n' "$slug" "$title" >> "$base/findings.log"
+  echo "noted: $title"
 }
 
 # `pagani report --close <run>`: remove the run's state directory. The master
@@ -1606,6 +1626,21 @@ cmd_retro_scan() {
       files_for[$title]+="$file"$'\n'
     done < <(grep -E '^(##|###) |^PROBLEM: |^- PROBLEM: ' "$file" 2>/dev/null || true)
   done
+
+  if [ -f "$state/findings.log" ]; then
+    local frun ftitle
+    while IFS=$'\t' read -r frun ftitle; do
+      [ -n "$frun" ] && [ -n "$ftitle" ] || continue
+      title="$(retro_title "$ftitle")"
+      [ -n "$title" ] || continue
+      retro_generic "$title" && continue
+      key="$title"$'\t'"$frun"
+      [ -n "${seen[$key]:-}" ] && continue
+      seen[$key]=1
+      run_count[$title]=$(( ${run_count[$title]:-0} + 1 ))
+      files_for[$title]+="findings.log ($frun)"$'\n'
+    done < "$state/findings.log"
+  fi
 
   local repeats=0
   local -a report=()

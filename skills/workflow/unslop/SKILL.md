@@ -9,7 +9,7 @@ Adapted from pstack's `unslop`. Edit text to remove AI patterns. Scan for the
 patterns below, then rewrite. Preserve meaning and match the intended tone.
 
 Use this on:
-- `summary.md` before posting it,
+- the run summary or PR body before posting it,
 - UX copy in `review-code`,
 - `AGENTS.md`, `docs/WORKFLOW.md`, and skill text when you edit them.
 
