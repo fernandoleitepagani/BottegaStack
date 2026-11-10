@@ -38,6 +38,10 @@ git init -q -b main && git commit -q --allow-empty -m init
 "$M" init . >/dev/null 2>&1
 printf '#!/usr/bin/env bash\necho ok\n' > scripts/check && chmod +x scripts/check
 
+# /maestro loads the one master prompt.
+f=$(grep -oE '@\$\{CLAUDE_PLUGIN_ROOT\}/[^ ]+' "$ROOT/commands/maestro.md" | sed 's#@${CLAUDE_PLUGIN_ROOT}/##')
+[ -n "$f" ] && [ -f "$ROOT/$f" ] && ok "/maestro includes $f" || fail "/maestro includes the master"
+
 # Runs and branches.
 expect_not "start refused on main" "$M" start "On main"
 git switch -q -c feat/e2e

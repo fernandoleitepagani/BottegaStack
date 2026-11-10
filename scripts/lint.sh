@@ -64,7 +64,7 @@ while IFS= read -r slug; do
     echo "FAIL unresolved principle citation: $slug"
     fail=1
   fi
-done < <(grep -rhoE 'principle `[a-z-]+`' "$ROOT/agents" "$ROOT/skills" "$ROOT/commands/claude" 2>/dev/null | grep -oE '`[a-z-]+`' | tr -d '`' | sort -u)
+done < <(grep -rhoE 'principle `[a-z-]+`' "$ROOT/agents" "$ROOT/skills" "$ROOT/commands" 2>/dev/null | grep -oE '`[a-z-]+`' | tr -d '`' | sort -u)
 
 if ! grep -q 'Step 0' "$ROOT/agents/master.md"; then
   echo "FAIL missing Step 0: agents/master.md"
@@ -72,7 +72,7 @@ if ! grep -q 'Step 0' "$ROOT/agents/master.md"; then
 fi
 
 # Command files must not reference a step the master does not have.
-for cmd_file in "$ROOT/commands/maestro.md" "$ROOT/commands/claude/maestro.md"; do
+for cmd_file in "$ROOT/commands/maestro.md"; do
   [ -f "$cmd_file" ] || continue
   while IFS= read -r step; do
     [ -n "$step" ] || continue
@@ -83,9 +83,9 @@ for cmd_file in "$ROOT/commands/maestro.md" "$ROOT/commands/claude/maestro.md"; 
   done < <(grep -oE 'Step [0-9]+' "$cmd_file" | sort -u)
 done
 
-# The committed command is generated from the command source plus the master.
-if ! "$ROOT/scripts/gen-command.sh" --check 2>/dev/null; then
-  echo "FAIL stale generated command: commands/maestro.md (run: scripts/gen-command.sh)"
+# /maestro loads the master prompt at run time; it must point at it.
+if ! grep -qF '@${CLAUDE_PLUGIN_ROOT}/agents/master.md' "$ROOT/commands/maestro.md"; then
+  echo "FAIL commands/maestro.md does not load agents/master.md"
   fail=1
 fi
 

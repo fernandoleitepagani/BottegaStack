@@ -8,6 +8,8 @@
 - The project pre-commit hook no longer runs `maestro doctor` (pre-push runs the checks); the project settings template allows `Bash(maestro:*)`. Plugin version 0.6.0.
 
 ## 0.6.0 — 2026-11-10
+
+- `/maestro` is a thin command that loads `agents/master.md` at run time; removed `scripts/gen-command.sh` and the generated copy.
 - `maestro doctor` prints whether the optional `rtk` is installed; `docs/SETUP.md` gains a Token savings section (install, license, caveats).
 - `orchestrate` (from pstack, rewritten, user-invoked only): coordinate a program of PR-sized units with a `PLAN.md` ledger, one owner and one reviewer-verifier per unit, `maestro gate --proof` per unit, live supervision, at most 3 builds in flight, and the user merging every PR. `maestro worktree create <run> <task> --branch <name> [--base <ref>]` creates a worktree on a user-named branch that `prune` never deletes.
 - `autonomous-run` (from pstack, rewritten, user-invoked only): one task to a command-checkable exit condition, one verified change per iteration, reverted with `git revert` when it did not help, a `maestro log` row each time, an iteration and time cap, ends on a local branch.

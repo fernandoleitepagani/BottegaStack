@@ -20,9 +20,6 @@ jobs:
       - name: Validate
         run: ./scripts/validate.sh
 
-      - name: Generated command is fresh
-        run: ./scripts/gen-command.sh --check
-
       - name: Validate plugin manifests
         run: |
           npm install -g @anthropic-ai/claude-code

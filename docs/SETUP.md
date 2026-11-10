@@ -332,7 +332,7 @@ Run this by hand after installing the plugin.
 2. `maestro --help` resolves inside a session and prints the usage.
 3. `maestro doctor` shows `claude: yes`.
 4. `python3 -m json.tool .claude/settings.json` succeeds in a project.
-5. `/maestro status` loads the generated command and reads the todo list and
+5. `/maestro status` loads the master prompt and reads the todo list and
    current branch.
 6. `maestro gate <run>` fails after an uncommitted edit and passes with
    `--allow-dirty`.

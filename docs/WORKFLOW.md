@@ -414,9 +414,7 @@ Everything here is optional and local. Nothing starts an agent or a server.
 - **Git hooks.** `maestro hooks install [path]` installs a gitleaks pre-commit
   hook and a pre-push hook that runs `scripts/check`. `maestro init` installs
   them when `.git` exists. A missing gitleaks is a clean skip.
-- **CI.** `.github/workflows/ci.yml` runs `./scripts/validate.sh`, checks that
-  the committed `commands/maestro.md` is fresh (`scripts/gen-command.sh
-  --check`), and validates the plugin manifests with `claude plugin validate .`
+- **CI.** `.github/workflows/ci.yml` runs `./scripts/validate.sh` and validates the plugin manifests with `claude plugin validate .`
   when `claude` is installed, on Ubuntu and macOS.
 - **Doctor.** `maestro doctor` prints runtime and tool versions, the skill count,
   `AGENTS.md` size, hook status, and security warnings: gitleaks missing, `.env`

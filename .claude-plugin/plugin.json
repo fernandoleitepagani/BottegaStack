@@ -9,7 +9,7 @@
   "license": "MIT",
   "commands": [
     "./commands/maestro.md",
-    "./commands/claude/maestro-models.md"
+    "./commands/maestro-models.md"
   ],
   "skills": [
     "./skills/business-automation",
