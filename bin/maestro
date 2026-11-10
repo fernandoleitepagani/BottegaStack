@@ -752,8 +752,43 @@ build_wait() {
   done
 }
 
-build_cost() {
-  grep -o '"total_cost_usd":[0-9.]*' "$1" | tail -1 | cut -d: -f2 || true
+# Token usage from the final stream result event: input includes cache reads and
+# writes. Prints `in <n> out <n>`, or `unknown` when the log has no usage.
+build_tokens() {
+  local log="$1"
+  [ -f "$log" ] || { echo unknown; return 0; }
+  python3 - "$log" <<'PY'
+import json, sys
+tokens = None
+with open(sys.argv[1], errors="replace") as f:
+    for line in f:
+        try:
+            ev = json.loads(line)
+        except Exception:
+            continue
+        if ev.get("type") != "result":
+            continue
+        usage = ev.get("usage")
+        if not isinstance(usage, dict):
+            tokens = None
+            continue
+        inp = usage.get("input_tokens")
+        out = usage.get("output_tokens")
+        if inp is None and out is None:
+            tokens = None
+            continue
+        inp = (inp or 0) + (usage.get("cache_read_input_tokens") or 0) \
+            + (usage.get("cache_creation_input_tokens") or 0)
+        tokens = "in %d out %d" % (inp, out or 0)
+print(tokens or "unknown")
+PY
+}
+
+# Number of lines in a progress file; 0 when it is missing.
+build_steps() {
+  local progress="$1" n
+  n="$(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
+  printf '%s\n' "${n:-0}"
 }
 
 # The final assistant text in a stream-json log, written to a file. Used by the
@@ -862,18 +897,18 @@ EOF
     exit 5
   fi
 
-  local rc status="MISSING" commits=0 cost
+  local rc status="MISSING" commits=0
   rc="$(cat "$rcfile")"
   rm -f "$rcfile" "$run"
   cap_log "$log"
   build_result_text "$log" "$report"
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
-  cost="$(build_cost "$log")"
 
   echo "task: $slug"
   echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
-  [ -n "$cost" ] && echo "cost (estimate): \$$cost"
+  echo "tokens: $(build_tokens "$log")"
+  echo "steps: $(build_steps "$progress")"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$repo" diff --name-only "$base"...HEAD 2>/dev/null | sed 's/^/  /'
@@ -957,16 +992,16 @@ EOF
     exit 5
   fi
 
-  local rc cost
+  local rc
   rc="$(cat "$rcfile")"
   rm -f "$rcfile" "$run"
   build_result_text "$log" "$findings"
   cap_log "$log"
-  cost="$(build_cost "$log")"
 
   echo "review: $slug $task"
   echo "reviewer exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
-  [ -n "$cost" ] && echo "cost (estimate): \$$cost"
+  echo "tokens: $(build_tokens "$log")"
+  echo "steps: $(build_steps "$progress")"
   echo "findings: $findings ($([ -s "$findings" ] && echo present || echo missing))"
   [ "$rc" -eq 0 ] && [ -s "$findings" ] || exit 1
 }
@@ -1094,17 +1129,17 @@ $(cat "$taskfile")"
   fi
   printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
 
-  local status="MISSING" commits cost
+  local status="MISSING" commits
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   commits="$(git -C "$wt" log --oneline "bottega/$slug..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
-  cost="$(build_cost "$log")"
 
   echo "task: $task"
   echo "run: $slug"
   echo "session: ${sid:-none}"
   echo "revisions: $rev/$max_rev"
   echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
-  [ -n "$cost" ] && echo "cost (estimate): \$$cost"
+  echo "tokens: $(build_tokens "$log")"
+  echo "steps: $(build_steps "$progress")"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "bottega/$slug...HEAD" 2>/dev/null | sed 's/^/  /'
@@ -1155,7 +1190,6 @@ PY
       "${resume[@]}" \
       --settings "$profile" \
       --permission-mode acceptEdits \
-      --max-budget-usd "${BOTTEGA_BUILD_BUDGET:-10}" \
       --tools "$tools" --strict-mcp-config \
       --allowedTools "$allowed" \
       --disallowedTools "$disallowed"
