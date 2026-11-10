@@ -29,12 +29,6 @@
     </filter>
   </defs>
 
-  <!-- Background and fine frame -->
-  <rect width="613" height="230" fill="url(#bg)"/>
-  <rect width="613" height="230" fill="url(#grain)"/>
-  <rect x="1" y="1" width="611" height="228" fill="none" stroke="#b77b3d" stroke-opacity=".55"/>
-  <path d="M2 4H611" stroke="#f3d79d" stroke-opacity=".18"/>
-
   <!-- Storefront emblem -->
   <g transform="translate(39 32)">
     <!-- Arch -->
