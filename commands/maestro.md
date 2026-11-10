@@ -99,8 +99,8 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 3. **Step 3 — Checks.** Run `maestro check <slug>`; it runs `scripts/check` and records `RESULT`, `HEAD`, duration,
    and exit code in the state directory. Post its output in chat. On failure load `diagnosis` and pass the
    findings to a fresh builder.
-4. **Step 4 — Review.** For `low` risk, run `maestro build --review <slug> <task> --block` (headless) first: read
-   its reply; no findings means no Claude reviewer, any finding means the `review-code` reviewer below runs.
+4. **Step 4 — Review.** For `low` risk, run `maestro build --review <slug> <task> --block` (headless; on the light
+   path `maestro build --review --here <slug> --block`) first: read its reply; no findings means no Claude reviewer, any finding means the `review-code` reviewer below runs.
    `standard` and `high` spawn one `review-code` reviewer covering code, UI, UX, and security; it returns its
    verdict and findings as its reply. Tell it to load `verification` when the change has UI or end-to-end
    behaviour, and to check the diff against `Allowed files` (principle `stay-in-allowed-files`), test-first

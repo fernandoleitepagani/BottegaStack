@@ -23,7 +23,7 @@ Usage:
   maestro report [--retro] [--write] [--exit-code] | --close <run> | --finding <run> "<title>"
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
   maestro build --here <slug> --task "<text>" [--block|--wait]
-  maestro build --review <run> <task> [--block|--wait]
+  maestro build --review <run> <task> | --here <slug> [--block|--wait]
   maestro build --init | --check
   maestro build --status <run> [--every [seconds]]
   maestro worktree create <run> <task>
@@ -45,7 +45,7 @@ Headless builder:
   `maestro build --here <slug>` is the light path: no run, spec, or worktree; it
   builds in the current checkout and keeps state in the state directory under
   quick/<slug>/.
-  `maestro build --review <run> <task>` runs the read-only `review-code` agent
+  `maestro build --review <run> <task>` (or `--review --here <slug>` on the light path) runs the read-only `review-code` agent
   in the task worktree and writes build/<task>.review2.md.
 
 The skills stay organized by category; the plugin manifest points at each
@@ -1319,12 +1319,25 @@ EOF
 # `maestro build --review <run> <task> [--block|--wait]`: a read-only second
 # opinion from the review-code agent in the task worktree. Its reply lands in
 # the run's build/<task>.review2.md.
+# The base ref a light-path review diffs against: the default branch, else the root commit.
+default_base_ref() {
+  local repo="$1" r
+  for r in "$(git -C "$repo" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)" main master; do
+    if [ -n "$r" ] && git -C "$repo" rev-parse --verify -q "$r" >/dev/null 2>&1; then
+      printf '%s\n' "$r"
+      return
+    fi
+  done
+  git -C "$repo" rev-list --max-parents=0 HEAD | head -1
+}
+
 build_review() {
-  local slug="" task="" block=0
+  local slug="" task="" block=0 here=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --block) block=1; shift ;;
       --wait) shift ;;
+      --here) here=1; shift ;;
       -*) echo "maestro build --review: unknown flag: $1" >&2; exit 2 ;;
       *)
         if [ -z "$slug" ]; then slug="$1"
@@ -1333,25 +1346,37 @@ build_review() {
         shift ;;
     esac
   done
-  [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> [--block|--wait]" >&2; exit 2; }
+  if [ "$here" = "1" ]; then
+    [ -n "$slug" ] && [ -z "$task" ] || { echo "usage: maestro build --review --here <slug> [--block|--wait]" >&2; exit 2; }
+    case "$slug" in *[!a-z0-9-]*|-*) echo "maestro build --review --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;; esac
+  else
+    [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
+  fi
 
   builder_ready || exit 3
-  local repo name dir wt
+  local repo name dir wt bdir pre findings again
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --review: not a git repository" >&2; exit 3; }
-  name="$(basename "$repo")"
-  dir="$(run_state_dir "$slug")" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
-  wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
-  [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 3; }
-  [ -d "$wt" ] || { echo "maestro build --review: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
-
-  local bdir="$dir/build"
-  local findings="$bdir/$task.review2.md"
-  local run="$bdir/$task.review2.run"
-  local rcfile="$bdir/$task.review2.rc"
-  local progress="$bdir/$task.review2.progress"
-  local prompt="$bdir/$task.review2.prompt"
-  local log="$bdir/$task.review2.log"
-  local profile="$bdir/$task.review2.settings.json"
+  if [ "$here" = "1" ]; then
+    # Light path: review the current checkout; state sits beside the quick run.
+    wt="$repo"
+    dir="$(light_dir "$slug")" || { echo "maestro build --review: could not create the state directory" >&2; exit 3; }
+    bdir="$dir"; pre="review"; findings="$dir/review.md"
+    again="maestro build --review --here $slug --wait"
+  else
+    name="$(basename "$repo")"
+    dir="$(run_state_dir "$slug")" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
+    wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
+    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 3; }
+    [ -d "$wt" ] || { echo "maestro build --review: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
+    bdir="$dir/build"; pre="$task.review2"; findings="$bdir/$task.review2.md"
+    again="maestro build --review $slug $task --wait"
+  fi
+  local run="$bdir/$pre.run"
+  local rcfile="$bdir/$pre.rc"
+  local progress="$bdir/$pre.progress"
+  local prompt="$bdir/$pre.prompt"
+  local log="$bdir/$pre.log"
+  local profile="$bdir/$pre.settings.json"
   mkdir -p "$bdir"
 
   if [ -f "$run" ]; then
@@ -1360,11 +1385,22 @@ build_review() {
     fi
   else
     local diff_base
-    if git -C "$wt" rev-parse --verify -q "bottega/$slug" >/dev/null 2>&1; then
+    if [ "$here" = "1" ]; then
+      diff_base="$(default_base_ref "$wt")"
+    elif git -C "$wt" rev-parse --verify -q "bottega/$slug" >/dev/null 2>&1; then
       diff_base="bottega/$slug"
     else
       diff_base="$(git -C "$wt" rev-list --max-parents=0 HEAD | head -1)"
     fi
+    if [ "$here" = "1" ]; then
+      cat > "$prompt" <<EOF
+Second opinion for the light-path run $slug.
+Checkout: $wt
+Diff: git diff $diff_base...HEAD (in the checkout)
+Review only: never edit code, never commit, never push.
+Do not write any file. Reply with the full findings as your final message, in markdown.
+EOF
+    else
     cat > "$prompt" <<EOF
 Second opinion for run $slug, task $task.
 Worktree: $wt
@@ -1376,6 +1412,7 @@ Diff: git diff $diff_base...HEAD (in the worktree)
 Review only: never edit code, never commit, never push.
 Do not write any file. Reply with the full findings as your final message, in markdown.
 EOF
+    fi
     rm -f "$rcfile" "$findings"
     : > "$progress"
     printf 'sid=\n' > "$run"
@@ -1386,7 +1423,7 @@ EOF
 
   build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
-    echo "RUNNING review: $slug $task (still reviewing; call again: maestro build --review $slug $task --wait)"
+    echo "RUNNING review: $slug $task (still reviewing; call again: $again)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
     [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
     echo "progress: $progress"
