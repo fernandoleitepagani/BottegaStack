@@ -1,6 +1,6 @@
 ---
 name: summary
-description: Post a short PaganiStack summary in chat after every step and write the final summary once. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
+description: Post a short PaganiStack summary in chat after every step and the final summary once. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
 ---
 
 # PaganiStack Summary
@@ -10,9 +10,9 @@ that lets the human decide without reading the whole diff.
 
 ## Base skill
 
-Run `unslop` only on text that ships: the final `summary.md`, the approval
-explainer, and user-facing docs. Do not run it on two-line status updates or the
-chat summary.
+Run `unslop` only on text that ships: the final summary (the PR body or the
+merge-commit message), the approval explainer, and user-facing docs. Do not run
+it on two-line status updates or the chat summary.
 
 ## After every step
 
@@ -24,14 +24,14 @@ Post the short version in chat. Do not write a file at each checkpoint.
 - After every subagent run, post a short summary of what it returned before
   moving on.
 
-## Write `summary.md` once
+## Post the final summary once
 
-Write `summary.md` once at close. For `feature`, `refactor`, and `high` risk,
-write it at the review checkpoint instead.
+Post the full summary once at close, as the closeout write-up: the PR body, or
+the merge-commit message for a local merge.
 
-- `trivial`, `bugfix`: write it at close.
-- `feature`, `refactor`, `high` risk: write it at review.
-- The final summary lives at the job root, not in a round folder.
+- `trivial`, `bugfix`: post it at close.
+- `feature`, `refactor`, `high` risk: post it at review.
+- It is a single write-up, never one per round.
 
 ## The six sections
 
@@ -87,4 +87,4 @@ The human can also ask a question; answer it and do not change state.
 - Hiding a risk or a failed check to make the summary look clean.
 - Summarising from an agent report instead of the artifact and the diff.
 - Advancing without an explicit `approve`.
-- Writing `summary.md` at every checkpoint instead of once at close.
+- Posting the full summary at every checkpoint instead of once at close.

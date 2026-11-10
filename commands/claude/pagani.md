@@ -1,20 +1,22 @@
 ---
-description: Start or continue a PaganiStack job.
+description: Start or continue a PaganiStack run.
 argument-hint: "<feature> | status | resume | --playbook <playbook> <feature> | quick <feature>"
 model: opus
-allowed-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite
+allowed-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
 ---
 
 The user's request is:
 
 $ARGUMENTS
 
-If the request is empty or `status`, read the newest `.agents/plans/*/job.md` and
-show the stage, playbook, risk, next step, and open questions. Do not start a new job.
+If the request is empty or `status`, read the todo list, the current branch, and
+`git log`; show the playbook, risk, next step, and open questions. Do not start a
+new run.
 
-If the request is `resume`, read the newest `job.md` and continue from its
-current stage without redoing completed steps. The job
-folder holds all state, so a new session can pick a job up with `resume`.
+If the request is `resume`, read the todo list, the current branch, and `git log`
+and continue from the open items without redoing completed steps. The todo list
+and branch hold the state, so a new session can pick a run up with
+`claude --continue`.
 
 If the request starts with `--playbook <playbook>`, use that playbook. If it
 starts with `quick`, pick `trivial` or a small `bugfix`. Otherwise, load

@@ -5,10 +5,9 @@ description: Review a PaganiStack change for code quality, UI, UX, and security 
 
 # PaganiStack Review
 
-Review one job from its folder, `SPEC.md`, the build reports, `checks.md`, and
-the diff command in your prompt. Write exactly one file,
-`.agents/plans/<id>/round-<N>/review-code.md`; never edit code. One verdict covers
-code, UI, UX, and security.
+Review one run from the SPEC, the builder reports, the check output, and the
+diff command in your prompt. Return your findings as your reply; never edit
+code. One verdict covers code, UI, UX, and security.
 
 ## Base skills
 
@@ -25,7 +24,7 @@ Keep the passes separate in your findings:
 - **Spec:** does the diff implement the originating spec, and only that? Check missing or partial requirements, scope creep, and requirements that look implemented but are wrong.
 
 Pin the base: `git diff <base>...HEAD` (three-dot, against the merge-base).
-Confirm the ref resolves and the diff is non-empty. Read `SPEC.md` before the
+Confirm the ref resolves and the diff is non-empty. Read the SPEC before the
 diff. No spec: say so and run the Standards pass only.
 
 Treat smells as labelled judgement calls, not hard violations: mysterious name, duplicated code, feature envy, data clumps, primitive obsession, repeated switches, shotgun surgery, divergent change, speculative generality, message chains, middle man, refused bequest. Flag the fix in one line, not as a block (principle `subtract-before-you-add`).
@@ -33,10 +32,10 @@ Treat smells as labelled judgement calls, not hard violations: mysterious name, 
 ## Read
 
 1. `AGENTS.md`, `GLOSSARY.md`, `REVIEW.md` (missing means no risk paths), and the docs they list.
-2. The job `SPEC.md`: `Allowed files`, `Test first`, `Done when`, `## Sensors`.
-3. Every `build/<task>.md`, then `checks.md`.
+2. The run's SPEC: `Allowed files`, `Test first`, `Done when`, `## Sensors`.
+3. Every builder report, then the check output.
 4. The diff, reading changed files in full where the diff is not enough.
-5. On round 2+, your previous review; check whether each finding was fixed.
+5. On round 2+, your previous reply; check whether each finding was fixed.
 
 ## Check
 
@@ -87,7 +86,9 @@ Use when the diff touches auth, permissions, payments, input, API routes, databa
 
 Block only on a security issue the change introduces or makes worse. Pre-existing issues go under **Notes**.
 
-## Write `round-<N>/review-code.md`
+## Findings format
+
+Return this as your reply:
 
 ```markdown
 VERDICT: PASS | CHANGES
@@ -145,7 +146,7 @@ WORST: <one line, or "none">
 ## Gotchas
 
 - Reviewing before the deterministic checks pass.
-- Repeating an earlier finding instead of reading the previous review first.
+- Repeating an earlier finding instead of reading the previous reply first.
 - Marking a style nit or matter of taste as blocking.
 - Reviewing the whole diff in round 2 instead of the new diff.
 - A finding without a file, line, or evidence.
@@ -153,3 +154,4 @@ WORST: <one line, or "none">
 - Blocking on a pre-existing security issue the change did not worsen; assuming a framework protects a route without checking it; ignoring a new dependency or lockfile change.
 - Approving an out-of-bounds edit, a task with no red-before-green evidence, or an unjustified test edit, skip, or weakened assertion.
 - Ignoring a blind spot listed under `## Sensors`.
+- Writing the review to a file instead of returning it as the reply.

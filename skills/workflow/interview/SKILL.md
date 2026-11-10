@@ -1,6 +1,6 @@
 ---
 name: interview
-description: Conduct the PaganiStack plan interview. Use when starting a new job, before writing SPEC.md, to ask targeted questions with the native question UI until every requirement, use case, edge case, constraint, and acceptance criterion is covered.
+description: Conduct the PaganiStack plan interview. Use when starting a new run, before planning, to ask targeted questions with the native question UI until every requirement, use case, edge case, constraint, and acceptance criterion is covered.
 ---
 
 # PaganiStack Interview
@@ -43,7 +43,8 @@ it up. The decisions are the user's: put each to them and wait.
 Each answer pushes the frontier outward and unblocks dependent questions. A
 question that depends on another open question belongs to a later round. Stop
 when the frontier is empty: every branch visited, nothing silently assumed. Do
-not write `SPEC.md` until the user confirms the shared understanding.
+not hand the plan to the planner until the user confirms the shared
+understanding.
 
 ## Rules
 - Explore first. Read `AGENTS.md`, `GLOSSARY.md`, and the code the request
@@ -56,7 +57,7 @@ not write `SPEC.md` until the user confirms the shared understanding.
 - Keep a small request small; do not inflate a one-line fix into product
   discovery.
 - Keep asking until every category below is answered or explicitly accepted as
-  an assumption. Then write `interview.md` and stop.
+  an assumption. Then return the interview answers and stop.
 
 ## Question checklist
 
@@ -81,7 +82,10 @@ Stop when every category is answered or explicitly accepted as an assumption.
 Record genuine unknowns under **Assumptions** or **Open questions**; never
 guess silently.
 
-## Write `interview.md`
+## Return the interview
+
+The answers live in the conversation. Return them as your reply, or keep them
+in chat when you are the master, using these headings:
 
 ```markdown
 # Interview: <feature>
@@ -118,4 +122,5 @@ The user's request, verbatim.
 - Asking what the repo conventions already answer.
 - Letting a vague answer pass without a concrete acceptance criterion.
 - Filling gaps with invented requirements or product decisions.
-- Proceeding to `SPEC.md` with an open question.
+- Planning with an open question.
+- Writing the answers to a file instead of keeping them in chat.

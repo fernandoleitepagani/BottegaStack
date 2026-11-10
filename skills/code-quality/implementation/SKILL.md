@@ -1,11 +1,11 @@
 ---
 name: implementation
-description: Implement exactly one PaganiStack task with TDD, run the project checks, commit locally, and write build/<task>.md. Use by the builder subagent.
+description: Implement exactly one PaganiStack task with TDD, run the project checks, commit locally, and report in your final reply. Use by the builder subagent.
 ---
 
 # PaganiStack Implementation
 
-Implement exactly one task. Write code on the named branch and exactly one report file, `.agents/plans/<id>/build/<task>.md`. Load `diagnosis` if a failing check or bug blocks you; build a red-capable feedback loop before changing code.
+Implement exactly one task. Write code on the named branch, commit locally, and end your final reply with the report below. Load `diagnosis` if a failing check or bug blocks you; build a red-capable feedback loop before changing code.
 
 ## TDD rules
 
@@ -16,8 +16,8 @@ Implement exactly one task. Write code on the named branch and exactly one repor
 
 ## Read and check first
 
-1. Project `AGENTS.md` and `GLOSSARY.md`; the job `SPEC.md`; the task's `Allowed files`, `Test first`, and `Done when`.
-2. On fix rounds `round-N/review-code.md`; the neighbouring code; load `verification` if the task has UI or browser criteria.
+1. Project `AGENTS.md` and `GLOSSARY.md`; the run's SPEC and the task's `Allowed files`, `Test first`, and `Done when`.
+2. On fix rounds the review findings in your prompt; the neighbouring code; load `verification` if the task has UI or browser criteria.
 3. Work in the named worktree or use absolute paths; `git branch --show-current` must match your prompt, else report `STATUS: BLOCKED`.
 4. If the code already satisfies the task, report that with evidence instead of inventing work.
 5. `Allowed files` is a hard boundary (principle `stay-in-allowed-files`); needing another file means `STATUS: BLOCKED` with the path and reason.
@@ -28,9 +28,10 @@ Implement exactly one task. Write code on the named branch and exactly one repor
 - Run scoped tests often; at the end run install if needed, lint, typecheck, test, build. No watch mode or command that rewrites files repo-wide.
 - Commit locally with short one-line messages, staging explicit paths, never `git add -A`. Never push, merge into the base, or open a PR.
 
-## Write `build/<task>.md`
+## Report format
 
-Rewrite it at the end of the round; keep a short log if there was more than one round.
+Write this at the end of the round; keep a short log if there was more than one
+round. It is your final reply, not a file.
 
 ```markdown
 STATUS: READY | BLOCKED
@@ -66,7 +67,7 @@ What could still be wrong.
 What you did; on fix rounds, each finding and the response.
 ```
 
-If you cannot meet the task, write `STATUS: BLOCKED` on the first line and explain exactly what blocks you under `## Blocked` (principle `never-block-on-the-human`). Do not paper over it.
+If you cannot meet the task, report `STATUS: BLOCKED` on the first line and explain exactly what blocks you under `## Blocked` (principle `never-block-on-the-human`). Do not paper over it.
 
 ## Report
 
@@ -85,3 +86,4 @@ QUESTIONS: <or "none">
 - Committing on the wrong branch; reporting READY before the project checks pass; reusing a stale dev server from an earlier round.
 - Editing a test to make it pass; fix the code or report `STATUS: BLOCKED`.
 - Touching a file outside `Allowed files`; stop and report `STATUS: BLOCKED`.
+- Writing the report to a file instead of ending the reply with it.

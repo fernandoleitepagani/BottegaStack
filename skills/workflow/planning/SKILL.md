@@ -1,10 +1,10 @@
 ---
 name: planning
-description: Write one PaganiStack job SPEC.md with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
+description: Produce one PaganiStack run SPEC with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
 ---
 # PaganiStack Planning
-Write one artifact: `.agents/plans/<id>/SPEC.md`. Never code, reviews, or decisions.
-Read `interview.md`, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`, `GLOSSARY.md`,
+Produce one artifact, the SPEC, and return it as your final reply. Write no files and never write code, reviews, or decisions.
+Read the interview answers in your prompt, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`, `GLOSSARY.md`,
 and the code the work touches. Do not guess names; seed missing files with
 `pagani seed SPEC.md` and `pagani seed PLAN.md`. Load `codebase-design` for
 architecture or testability vocabulary, `domain-modeling` to keep `GLOSSARY.md`
@@ -68,18 +68,16 @@ External behaviour, not implementation; the modules tested, seams, prior art.
 ## Rules
 - Synthesize the interview; do not interview again.
 - Acceptance criteria are the contract and each is checkable with only the repo; test the highest existing seam, prefer one.
-- Show 2-3 directions and trade-offs under `## Options considered`; the user still approves one `SPEC.md`, so not a new checkpoint.
+- Show 2-3 directions and trade-offs under `## Options considered`; the user still approves one SPEC, so not a new checkpoint.
 - Use the project's vocabulary, include needed doc updates, prefer the smallest change, and add no options or extras the user did not ask for.
 - Put unanswered categories under **Open questions** and stop; the master asks the user and re-runs you. Never invent a product decision.
 - Keep the graph acyclic; the first wave holds every task with no blockers. Too vague to task means stop.
-## Report
-```
-WROTE: <file>
-OPEN QUESTIONS: <none, or a short list>
-NEXT: <what the master should do>
-```
+## Reply
+Your final reply is the SPEC itself. Put open questions inside it under
+**Open questions**; append no other report.
 ## Gotchas
 - Horizontal tasks: one layer per task instead of a vertical slice.
-- Open questions left inside `SPEC.md` instead of returned to the master.
+- Open questions left inside the SPEC instead of returned to the master.
 - Acceptance criteria nobody with only the repo can check.
 - A task graph with a cycle, or a first wave missing a ready task.
+- Writing the SPEC to a file instead of returning it as the reply.

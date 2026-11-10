@@ -42,7 +42,7 @@ rule, and the stall exit.
 
 ## Reproduce
 
-1. Read the failing check log or the review file.
+1. Read the failing check output or the review reply.
 2. Reproduce the failure locally. A fix without a reproduction is a guess.
 3. If you cannot reproduce it, say what you tried and what is missing. Ask the
    user or the reviewer for the missing evidence.
@@ -62,7 +62,7 @@ cheaper one first. Do not change code until the cause is stated.
 ## Write the fix brief
 
 For every `CHANGES` finding or failed check, write the brief into the builder
-prompt or append it to `round-N/review-code.md`:
+prompt or pass it as the revision findings on stdin:
 
 ```markdown
 # Fix round <N>
@@ -89,7 +89,7 @@ Rules:
 
 - Spawn a **fresh** builder for the affected ticket. Do not resume the failed
   builder.
-- Give it `round-N/review-code.md` or the brief in its prompt, the task, and the
+- Give it the review findings or the brief in its prompt, the task, and the
   branch.
 - After the fix, re-run the deterministic checks.
 - Re-run only the reviewers whose verdict was `CHANGES` and any reviewer whose

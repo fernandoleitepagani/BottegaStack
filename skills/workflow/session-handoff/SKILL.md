@@ -1,25 +1,26 @@
 ---
 name: session-handoff
-description: Compact a PaganiStack session into a handoff document for a fresh agent. Use when the context is near full, the session is ending, or another machine will continue the job.
+description: Compact a PaganiStack session into a handoff for a fresh agent. Use when the context is near full, the session is ending, or another machine will continue the run.
 ---
 
 # Session Handoff
 
-Write the smallest document that lets a fresh agent continue without rereading
+Write the smallest handoff that lets a fresh agent continue without rereading
 the conversation.
 
 ## Where
 
-`.agents/plans/<id>/handoff.md`. If there is no job, write to the OS temp
-directory and tell the user the path.
+Return the handoff as your reply; it lives in chat, not in a file. When the run
+continues in a new session, the master keeps it in the conversation and points
+the next agent at the worktree, branch, and todo list.
 
 ## Include
 
 ```markdown
-# Handoff: <job>
+# Handoff: <run>
 
 ## Goal
-## Current stage
+## Current step
 ## What changed
 ## What is next
 ## Open questions
@@ -30,9 +31,9 @@ directory and tell the user the path.
 
 ## Rules
 
-- Reference artifacts by path; do not duplicate `SPEC.md`, `build/<task>.md`, or
-  review files.
-- `PLAN.md` is the project-level file; do not copy it into the job folder.
+- Reference the branch, the SPEC reply, and the review verdicts; do not
+  duplicate them.
+- `PLAN.md` is the project-level file; do not copy it into the handoff.
 - Redact secrets, tokens, and personal data.
 - Name the exact next action.
 - Name the skills the next agent should load.
@@ -41,6 +42,6 @@ directory and tell the user the path.
 ## Report
 
 ```
-HANDOFF: <path>
+HANDOFF: returned in this reply
 NEXT: <one line>
 ```

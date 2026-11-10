@@ -10,9 +10,9 @@ fails. You are not the style reviewer.
 
 ## Read
 
-- `SPEC.md`, the named task, `build/<task>.md`, `checks.md`.
+- The SPEC, the named task, the builder reports, and the check output.
 - The diff. Read the changed files in full.
-- The previous review files, if this is a later round.
+- The previous review replies, if this is a later round.
 
 ## Try to break it
 
@@ -36,7 +36,7 @@ fails. You are not the style reviewer.
 
 ## Output
 
-`round-<N>/review-adversarial.md`:
+Return this as your reply:
 
 ```markdown
 VERDICT: PASS | CHANGES

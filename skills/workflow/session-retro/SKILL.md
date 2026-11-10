@@ -1,6 +1,6 @@
 ---
 name: session-retro
-description: Retrospective on a PaganiStack job. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. Use after a job closes or when the same finding appears twice.
+description: Retrospective on a PaganiStack run. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. Use after a run closes or when the same finding appears twice.
 ---
 
 # Session Retro
@@ -9,8 +9,8 @@ Improve the environment, not just the code.
 
 ## Read
 
-- `.agents/plans/<id>/job.md` and `decision.md`.
-- The review files and `checks.md`.
+- The conversation: the SPEC, the builder reports, the review verdicts, the
+  check output, and the closeout decision.
 - `AGENTS.md` and `mistakes.md`. If `mistakes.md` is missing, create it with
   `pagani seed mistakes.md`.
 
@@ -44,13 +44,13 @@ until it sticks.
 ## Model-upgrade decay check
 
 When the model changes, test one component at a time. Remove it on a branch, run a
-real job, then keep or delete it. A component that fixed an
+real run, then keep or delete it. A component that fixed an
 old model's weakness may be dead weight on the new one. Do not remove several at
 once: you will not know which one still earns its place.
 
 ## Output
 
-`retro.md` with candidates ordered by severity, each with:
+Return the candidates as your reply, ordered by severity, each with:
 
 - the evidence,
 - the proposed change,
@@ -87,3 +87,4 @@ APPLIED: <none|list>
   check whether an old component still earns its place.
 - Adding a rule that duplicates a check the tooling already enforces.
 - Editing `AGENTS.md` or a skill before the human approves.
+- Writing the retro to a file instead of returning it as the reply.
