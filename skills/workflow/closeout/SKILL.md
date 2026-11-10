@@ -11,6 +11,7 @@ Before presenting merge or PR options, run the `ship` checklist against the bran
 - CI checks all green via `gh pr checks <n>` when a PR exists (`./scripts/check` for a branch only).
 - Security checks passed.
 - An independent `review-code` of the latest commit (`git rev-parse HEAD`), by a reviewer who did not write it.
+- Proof recorded for every criterion: `maestro gate <run> --proof` passes (waivers are listed in the PR body).
 - Review threads resolved.
 - Manual testing noted.
 List each unmet item with its verbatim command output. Unmet items are shown to the user and **block the "Approve and merge" option**: do not offer or run the merge until each is fixed or the user explicitly waives it with `AskUserQuestion`. Record any waiver in the merge-commit message. A fully met checklist is not consent; still ask.

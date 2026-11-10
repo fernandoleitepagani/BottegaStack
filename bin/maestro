@@ -19,14 +19,17 @@ Usage:
   maestro start "<title>"
   maestro spec <run> [file]
   maestro check <run>
-  maestro gate <run> [--allow-dirty]
-  maestro report [--retro] [--write] [--exit-code] | --close <run> | --finding <run> "<title>"
+  maestro gate <run> [--allow-dirty] [--proof]
+  maestro log <run> [<phase> <decision> <why> <evidence> <result>]
+  maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>] [--note <text>]
+  maestro verify waive <run> <AC> "<reason>" | list <run>
+  maestro report [--retro] [--write] [--exit-code] | --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>] | --finding <run> "<title>" | --trust [n]
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
   maestro build --here <slug> --task "<text>" [--block|--wait]
   maestro build --review <run> <task> | --here <slug> [--block|--wait]
   maestro build --init | --check
   maestro build --status <run> [--every [seconds]]
-  maestro worktree create <run> <task>
+  maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
 
@@ -321,15 +324,16 @@ gate_commit_order_warning() {
 }
 
 cmd_gate() {
-  local slug="" allow_dirty=0
+  local slug="" allow_dirty=0 proof=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --allow-dirty) allow_dirty=1; shift ;;
+      --proof) proof=1; shift ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo "usage: maestro gate <run> [--allow-dirty]" >&2; exit 1; }
+  [ -n "$slug" ] || { echo "usage: maestro gate <run> [--allow-dirty] [--proof]" >&2; exit 1; }
 
   if [ "$allow_dirty" = "0" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if [ -n "$(git status --porcelain)" ]; then
@@ -354,8 +358,143 @@ cmd_gate() {
     echo "GATE: FAIL (checks stale: $sha != $head)"
     return 1
   fi
+  if [ "$proof" = "1" ]; then
+    local pmsg
+    pmsg="$(verify_unmet "$slug" "$head")" || { echo "GATE: FAIL (proof: $pmsg)"; return 1; }
+  fi
   gate_commit_order_warning "$slug"
   echo "GATE: PASS"
+}
+
+# ---- Proof of acceptance criteria ------------------------------------------
+# The SPEC marks each criterion `AC<n>: ... Proof: <command> -> <expected>`;
+# `Proof: none` opts a criterion out. Rows live in $STATE/<run>/verify/index.tsv:
+# time, AC, result, HEAD, by, evidence, note. The latest row per AC wins.
+
+# Criteria ids that need proof, one per line.
+verify_required_acs() {
+  local spec="$1"
+  [ -f "$spec" ] || return 0
+  grep -E '^[-*0-9. ]*AC[0-9]+[:.)]' "$spec" \
+    | grep -E 'Proof:' | grep -viE 'Proof:[[:space:]]*`?none' \
+    | sed -E 's/^[-*0-9. ]*(AC[0-9]+).*/\1/' | sort -u
+}
+
+# Print nothing and return 0 when every required criterion has a PASS row for
+# $2 (or a WAIVED row); otherwise print the first problem and return 1.
+verify_unmet() {
+  local slug="$1" head="$2" dir idx ac row result rhead
+  dir="$(run_state_dir "$slug")" || { echo "not a git repository"; return 1; }
+  idx="$dir/verify/index.tsv"
+  [ -f "$idx" ] || idx=/dev/null
+  while IFS= read -r ac; do
+    [ -n "$ac" ] || continue
+    row="$(awk -F'\t' -v a="$ac" '$2 == a { last = $0 } END { print last }' "$idx" 2>/dev/null)"
+    if [ -z "$row" ]; then echo "$ac has no recorded proof"; return 1; fi
+    result="$(printf '%s' "$row" | cut -f3)"
+    rhead="$(printf '%s' "$row" | cut -f4)"
+    case "$result" in
+      WAIVED) ;;
+      PASS) [ "$rhead" = "$head" ] || { echo "$ac proof is stale (${rhead:0:9} != ${head:0:9})"; return 1; } ;;
+      *) echo "$ac is $result"; return 1 ;;
+    esac
+  done < <(verify_required_acs "$dir/spec.md")
+  return 0
+}
+
+# `maestro log <run> <phase> <decision> <why> <evidence> <result>`: append one row
+# to the run's decision log ($STATE/decisions/<run>.tsv, kept after the run is
+# closed). With only <run> it prints the log as a table. Cells are one line; a
+# cell that starts with = + - @ gets a leading quote so a spreadsheet will not
+# run it as a formula.
+cmd_log() {
+  local slug="${1:-}" base file
+  [ -n "$slug" ] || { echo 'usage: maestro log <run> [<phase> <decision> <why> <evidence> <result>]' >&2; exit 2; }
+  case "$slug" in *[!a-z0-9-]*) echo "maestro log: bad run id: $slug" >&2; exit 2 ;; esac
+  base="$(ensure_state_dir)" || { echo "maestro log: not in a git repository" >&2; exit 1; }
+  file="$base/decisions/$slug.tsv"
+  if [ "$#" -eq 1 ]; then
+    [ -s "$file" ] || { echo "no decisions logged for $slug"; return 0; }
+    column -t -s "$(printf '\t')" "$file"
+    return 0
+  fi
+  [ "$#" -eq 6 ] || { echo 'usage: maestro log <run> <phase> <decision> <why> <evidence> <result>' >&2; exit 2; }
+  (umask 077; mkdir -p "$base/decisions")
+  [ -s "$file" ] || printf 'ts\tphase\tdecision\twhy\tevidence\tresult\n' >> "$file"
+  local -a cells=() c
+  shift
+  for c in "$@"; do
+    c="$(printf '%s' "$c" | tr '\t\n\r' '   ')"
+    case "$c" in =*|+*|-*|@*) c="'$c" ;; esac
+    cells+=("$c")
+  done
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(date -u +%FT%TZ)" "${cells[@]}" >> "$file"
+  echo "logged: $slug ${cells[0]}"
+}
+
+cmd_verify() {
+  local action="${1:-}"
+  shift || true
+  local slug="${1:-}" dir idx head
+  [ -n "$slug" ] || { echo "usage: maestro verify record|waive|list <run> ..." >&2; exit 2; }
+  shift || true
+  dir="$(run_state_dir "$slug")" || { echo "maestro verify: not a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "maestro verify: no such run: $slug" >&2; exit 1; }
+  idx="$dir/verify/index.tsv"
+  head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  case "$action" in
+    record)
+      local ac="${1:-}" result="${2:-}" by="" evidence="" note=""
+      shift 2 2>/dev/null || true
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --by) by="${2:?--by needs a role}"; shift 2 ;;
+          --evidence) evidence="${2:?--evidence needs a file}"; shift 2 ;;
+          --note) note="${2:?--note needs text}"; shift 2 ;;
+          *) echo "maestro verify record: unknown argument: $1" >&2; exit 2 ;;
+        esac
+      done
+      case "$ac" in AC[0-9]*) ;; *) echo "maestro verify record: criterion must look like AC1" >&2; exit 2 ;; esac
+      case "$result" in PASS|FAIL|INCONCLUSIVE) ;; *) echo "maestro verify record: result must be PASS, FAIL, or INCONCLUSIVE" >&2; exit 2 ;; esac
+      case "$by" in
+        reviewer|second-opinion|master) ;;
+        builder) echo "maestro verify record: a builder cannot verify its own work" >&2; exit 2 ;;
+        *) echo "maestro verify record: --by must be reviewer, second-opinion, or master" >&2; exit 2 ;;
+      esac
+      if [ "$result" = "PASS" ] && { [ -z "$evidence" ] || [ ! -f "$evidence" ]; }; then
+        echo "maestro verify record: PASS needs --evidence <existing file> (command, output, exit code)" >&2
+        exit 2
+      fi
+      (umask 077; mkdir -p "$dir/verify")
+      local kept="-"
+      if [ -n "$evidence" ] && [ -f "$evidence" ]; then
+        kept="verify/${ac}-$(date +%s)-$(basename "$evidence")"
+        cp "$evidence" "$dir/$kept"
+      fi
+      note="$(printf '%s' "$note" | tr '\t\n' '  ')"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%FT%T)" "$ac" "$result" "$head" "$by" "$kept" "${note:--}" >> "$idx"
+      echo "recorded: $ac $result at ${head:0:9}"
+      ;;
+    waive)
+      local ac="${1:-}" reason="${2:-}"
+      [ -n "$reason" ] || { echo 'usage: maestro verify waive <run> <AC> "<reason>"' >&2; exit 2; }
+      (umask 077; mkdir -p "$dir/verify")
+      reason="$(printf '%s' "$reason" | tr '\t\n' '  ')"
+      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%FT%T)" "$ac" "WAIVED" "$head" "user" "-" "$reason" >> "$idx"
+      echo "waived: $ac (record the user's approval in the PR body)"
+      ;;
+    list)
+      local ac
+      [ -f "$idx" ] || idx=/dev/null
+      [ -f "$dir/spec.md" ] || echo "no spec saved yet"
+      while IFS= read -r ac; do
+        [ -n "$ac" ] || continue
+        printf '%s: ' "$ac"
+        awk -F'\t' -v a="$ac" -v h="$head" '$2 == a { r = $3 " at " substr($4,1,9) ($4 == h ? "" : " (stale)") " by " $5 } END { print (r == "" ? "no proof" : r) }' "$idx" 2>/dev/null
+      done < <(verify_required_acs "$dir/spec.md")
+      ;;
+    *) echo "usage: maestro verify record|waive|list <run> ..." >&2; exit 2 ;;
+  esac
 }
 
 # ---- Stack detection --------------------------------------------------------
@@ -1634,6 +1773,9 @@ cmd_build_exec() {
   effort="$(model_effort "$role")"
   local -a effort_arg=()
   [ -n "$effort" ] && effort_arg=(--effort "$effort")
+  # BOTTEGA_PLUGIN_DIR loads a checkout of the stack as the plugin (used by the eval playbook).
+  local -a plugin_arg=()
+  [ -n "${BOTTEGA_PLUGIN_DIR:-}" ] && plugin_arg=(--plugin-dir "$BOTTEGA_PLUGIN_DIR")
   [ -s "$(builder_key_file)" ] && helper="\"$SELF\" keyget"
   trap 'echo 143 > "$rcfile"; exit 143' TERM HUP
   set +e
@@ -1660,7 +1802,7 @@ PY
     export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
     export BOTTEGA_HEADLESS=1
     cd "$wt" && timeout "${BOTTEGA_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
-      "${effort_arg[@]}" \
+      "${effort_arg[@]}" "${plugin_arg[@]}" \
       --output-format stream-json --verbose \
       "${resume[@]}" \
       --settings "$profile" \
@@ -1829,14 +1971,32 @@ cmd_worktree() {
   case "$action" in
     create)
       local slug="${2:?run id required}" task="${3:?task required}"
+      shift 3
+      local newbranch="" newbase=""
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --branch) newbranch="${2:?--branch needs a name}"; shift 2 ;;
+          --base) newbase="${2:?--base needs a ref}"; shift 2 ;;
+          *) echo "maestro worktree create: unknown argument: $1" >&2; exit 2 ;;
+        esac
+      done
       local repo name base
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
       base="$(git branch --show-current)"
+      if [ -n "$newbranch" ]; then
+        # A named branch (orchestrate units): the user's name, from --base or the
+        # current branch. prune never deletes it; it is the unit's PR branch.
+        if git show-ref --verify --quiet "refs/heads/$newbranch"; then
+          echo "maestro worktree create: branch already exists: $newbranch" >&2; exit 1
+        fi
+        git worktree add -b "$newbranch" "../$name-bottega/$slug/$task" "${newbase:-$base}" || exit 1
+      else
       local rb
       rb="$(run_branch "$slug")"
       git worktree add -b "$rb-$task" "../$name-bottega/$slug/$task" "$rb" 2>/dev/null \
         || git worktree add -b "$rb-$task" "../$name-bottega/$slug/$task" "$base"
+      fi
       local path="../$name-bottega/$slug/$task"
       copy_maestro_files "$repo" "$repo/$path"
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
@@ -1893,20 +2053,29 @@ cmd_worktree() {
 }
 
 cmd_report() {
-  local retro=0 write=0 exit_code=0 close="" finding_run="" finding_title=""
+  local retro=0 write=0 exit_code=0 close="" finding_run="" finding_title="" trust=0 trust_n=10
+  local t_playbook="" t_risk="" t_outcome=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --retro) retro=1; shift ;;
       --write) retro=1; write=1; shift ;;
       --exit-code) retro=1; exit_code=1; shift ;;
       --close) close="${2:?--close needs a run}"; shift 2 ;;
+      --playbook) t_playbook="${2:?--playbook needs a value}"; shift 2 ;;
+      --risk) t_risk="${2:?--risk needs a value}"; shift 2 ;;
+      --outcome) t_outcome="${2:?--outcome needs a value}"; shift 2 ;;
+      --trust) trust=1; shift; case "${1:-}" in ''|-*) ;; *[!0-9]*) ;; *) trust_n="$1"; shift ;; esac ;;
       --finding) finding_run="${2:?--finding needs a run and a title}"; finding_title="${3:?--finding needs a run and a title}"; shift 3 ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
   done
+  if [ "$trust" = "1" ]; then
+    cmd_trust "$trust_n"
+    return
+  fi
   if [ -n "$close" ]; then
-    cmd_close "$close"
+    cmd_close "$close" "$t_playbook" "$t_risk" "$t_outcome"
     return
   fi
   if [ -n "$finding_run" ]; then
@@ -1938,22 +2107,46 @@ cmd_finding() {
   echo "noted: $title"
 }
 
-# `maestro report --close <run>`: remove the run's state directory. The master
-# calls this at close.
+# `maestro report --close <run> [--playbook p --risk r --outcome o]`: append one
+# line to the trust log (state-directory root, so it outlives the run), then
+# remove the run's state directory. The master calls this at close.
 cmd_close() {
-  local slug="$1" base dir
+  local slug="$1" playbook="${2:-}" risk="${3:-}" outcome="${4:-}" base dir
   case "$slug" in
     ''|*[!a-z0-9-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
   esac
   base="$(ensure_state_dir)" || { echo "maestro report --close: not in a git repository" >&2; exit 1; }
   dir="$base/$slug"
   if [ -d "$dir" ]; then
+    local rounds=0 r f checks
+    for f in "$dir"/build/*.builder; do
+      [ -f "$f" ] || continue
+      r="$(sed -n 's/^revisions=//p' "$f")"; rounds=$((rounds + ${r:-0}))
+    done
+    checks="none"
+    [ -f "$dir/checks.result" ] && checks="$(sed -n 's/^RESULT:[[:space:]]*//p' "$dir/checks.result" | head -1)"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%F)" "$slug" "${playbook:--}" "${risk:--}" "$rounds" "${checks:-none}" "${outcome:--}" \
+      | tr -d '\r' >> "$base/trust.log"
     rm -rf -- "$dir"
     echo "closed: $dir"
   else
     echo "no such run: $slug" >&2
     exit 1
   fi
+}
+
+# `maestro report --trust [n]`: summarize the last n closed runs (default 10)
+# from the trust log. It only reports; nothing is switched on by it.
+cmd_trust() {
+  local n="${1:-10}" base log total clean reworked rejected
+  base="$(ensure_state_dir)" || { echo "maestro report --trust: not in a git repository" >&2; exit 1; }
+  log="$base/trust.log"
+  [ -s "$log" ] || { echo "no closed runs recorded yet"; return 0; }
+  echo "last runs (date, run, playbook, risk, fix rounds, checks, outcome):"
+  tail -n "$n" "$log" | column -t -s "$(printf '\t')"
+  tail -n "$n" "$log" | awk -F'\t' '
+    { t++; if ($5 == 0 && $6 == "PASS") clean++; else if ($5 > 0) rework++; if ($7 == "rejected") rej++ }
+    END { printf "summary: %d runs, %d clean (no fix rounds, checks PASS), %d needed fix rounds, %d rejected\n", t, clean, rework, rej }'
 }
 
 cmd_status() {
@@ -2161,6 +2354,8 @@ case "$cmd" in
   spec) cmd_spec "$@" ;;
   check) cmd_check "$@" ;;
   gate) cmd_gate "$@" ;;
+  verify) cmd_verify "$@" ;;
+  log) cmd_log "$@" ;;
   report) cmd_report "$@" ;;
   build) cmd_build "$@" ;;
   guard) cmd_guard "$@" ;;

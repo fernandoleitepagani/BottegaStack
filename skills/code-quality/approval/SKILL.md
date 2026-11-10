@@ -123,7 +123,7 @@ QUIZ: <count> questions | not applicable
 
 ## Gotchas
 
-- Approving with stale check output. Run `maestro gate <slug>` first.
+- Approving with stale check output or unproven criteria. Run `maestro gate <slug> --proof` first.
 - Mapping an acceptance criterion to a build claim instead of evidence.
 - A quiz on a `trivial` or `bugfix` playbook at `low`/`standard` risk, or a
   missing quiz on `feature`/`refactor` or `high` risk.

@@ -17,7 +17,7 @@ orchestrate, ask, run checks, and keep the user in the loop.
   branch, or files. A feature request starts at Step 0 only when it changes code.
 - `status`: read the todo list, the current branch, and `git log`; show playbook, risk, next step, and
   open questions; continue from the open todo items without redoing completed steps.
-- `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, or `resume`: load `playbooks` and run that
+- `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `eval`, `pause`, or `resume`: load `playbooks` and run that
   playbook; `pause` and `resume` both use `pause.md`.
 - A PR to watch: use `pr-babysit`. While waiting on CI or a long build, invoke the `loop` skill with a
   stated interval and cap instead of idling.
@@ -103,8 +103,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 4. **Step 4 — Review.** For `low` risk, run `maestro build --review <slug> <task> --block` (headless; on the light
    path `maestro build --review --here <slug> --block`) first: read its reply; no findings means no Claude reviewer, any finding means the `review-code` reviewer below runs.
    `standard` and `high` spawn one `review-code` reviewer covering code, UI, UX, and security; it returns its
-   verdict and findings as its reply. Tell it to load `verification` when the change has UI or end-to-end
-   behaviour, and to check the diff against `Allowed files` (a file outside it is a finding), test-first
+   verdict and findings as its reply. Tell it to load `verification`, run every `Proof:` line in the SPEC, and record each result with `maestro verify record <slug> <AC> PASS|FAIL|INCONCLUSIVE --by reviewer --evidence <file>`, and to check the diff against `Allowed files` (a file outside it is a finding), test-first
    evidence (principle `test-behavior-not-implementation`), and sensor blind spots.
    Wait; post the summary. `PASS` goes to Step 6, `CHANGES` to Step 5. For `feature`, `refactor`, or `high` risk,
    post the summary here.
@@ -113,7 +112,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    `maestro build <slug> <task> --revise -`; it resumes the same session and refuses a third revision (exit 4),
    so escalate then. Record each blocking finding with `maestro report --finding <slug> "<title>"` (the retro scan reads these). Track failing checks and blocking findings per round; if neither fell in two consecutive
    rounds, stop and escalate. Never run a third identical round.
-6. **Step 6 — Approval.** Load `approval`. Read the SPEC, every builder report, the check output, and every
+6. **Step 6 — Approval.** Load `approval`; run `maestro gate <slug> --proof` first (it fails on a missing, failing, inconclusive, or stale proof; a waiver needs the user's yes through `AskUserQuestion`, then `maestro verify waive <slug> <AC> "<reason>"`). Read the SPEC, every builder report, the check output, and every
    review reply. Decide `APPROVE` or `ESCALATE` yourself, with the acceptance-criteria mapping, risks, and an
    explainer. For `feature`, `refactor`, and `high` risk add a 3-5 question quiz. In every playbook present the
    decision and explainer with `AskUserQuestion`, the quiz first in chat (never in the PR body); a chat summary alone is never enough.
@@ -122,9 +121,10 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    message, not in a file.
 8. **Step 8 — Close.** After Step 7 confirms a merge or a PR, run `maestro worktree prune <slug>`; it also deletes each merged local task branch and keeps any unmerged one. Run
    `maestro report --retro --exit-code`. Load `session-retro`; if the scan exits 1,
-   findings repeat across runs: propose Gotchas patches for the affected skills, else one lesson for `AGENTS.md`
-   or `mistakes.md`. Load `session-handoff` if the run continues elsewhere, then remove the run's state directory
-   with `maestro report --close <slug>` and stop.
+   findings repeat across runs: load `correct` and fix each class at the highest level that works (a builder
+   applies the approved fixes); docs or `mistakes.md` only for what a check cannot enforce. Load `session-handoff` if the run continues elsewhere, then close the run with
+   `maestro report --close <slug> --playbook <p> --risk <r> --outcome <merged|pr|rejected|paused>`, which logs one
+   line to the trust log and removes the run's state directory, and stop.
 
 ## Subagents
 
@@ -140,7 +140,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 
 ## Context and git
 
-- One run at a time; a new run starts a new session. Do not change model, effort, or MCP servers mid-run. Load
+- One run at a time; a new run starts a new session (the user-started `orchestrate` skill is the only exception). Do not change model, effort, or MCP servers mid-run. Load
   `session-handoff` when context is near full (principle `guard-the-context-window`).
 - Builders commit locally on their task branch; you merge task branches into the run branch. Never push without
   approval, force-push, `reset --hard`, or `clean`.

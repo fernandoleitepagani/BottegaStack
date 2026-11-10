@@ -17,8 +17,9 @@ Before you start, run `maestro gate <slug>`. If it exits non-zero, stop and repo
 2. Load `principles` and `review-code`.
 3. Load `codebase-design` when the finding is about a shallow module, a seam, or
    testability.
-4. Load `verification` when the change has UI or end-to-end behaviour, and use
-   `agent-browser` for rendered checks.
+4. Load `verification` when the SPEC has a criterion with a `Proof:` line: run each
+   proof yourself and record it with `maestro verify record` (you are the
+   verifier; the builder is not). Use `agent-browser` only for rendered checks.
 5. Load `unslop` when reviewing copy and error messages.
 6. Return your findings as your reply, starting with `VERDICT:`; write no file.
 7. Never edit code (`one-writer-per-file`). After round 1, review only the new

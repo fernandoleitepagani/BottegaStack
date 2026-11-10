@@ -1,6 +1,6 @@
 # Skills
 
-BottegaStack ships 42 skills. A skill is a folder with a `SKILL.md`. The plugin
+BottegaStack ships 50 skills. A skill is a folder with a `SKILL.md`. The plugin
 manifest lists each category directory (`skills/<category>`), and Claude Code
 discovers the skills inside it, so skills stay grouped by category. The
 categories include `sysadmin`, `containers`, and `devops` for host, container,
@@ -12,6 +12,7 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 
 | Skill | Purpose |
 |---|---|
+| `architect` | Sketch types, signatures, and module structure twice before any code; the chosen shape goes into the SPEC as the contract. User-invoked only. |
 | `adversarial-review` | Fresh-eyes review that tries to break a change before the normal reviewers do. |
 | `approval` | Act as the BottegaStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, and presents the decision, explainer, and (for feature/refactor/high risk) a quiz to the human; the quiz stays in chat and the decision is recorded in the PR body or merge commit. |
 | `automate-me` | Draft a personal "mode" skill from your own Claude Code transcripts, after explicit go-ahead and draft approval. |
@@ -20,7 +21,9 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `blast-radius` | Find what a change could break outside the diff: map dependents, name the key safety fact, and prove or disprove it with a real run; report-only. |
 | `closeout` | Handle the BottegaStack human decision and final git actions; the default is a PR whose body carries the write-up, and a merge commit carries the same text. |
 | `codebase-design` | Shared vocabulary for designing deep modules. |
-| `create-verification-skill` | Discover how to start a project and prove changes work, then write a project `.claude/skills/verify-<project>/` skill after the user approves the draft. |
+| `correct` | Find mistakes agents repeat and make each impossible: architecture, types, a lint that names the fix, a test, docs last; keeps a rule table. |
+| `create-verification-skill` | Interview the repo, then write a project `.claude/skills/verify-<project>/` skill (Launch, Doctor, Drive, Evidence, Cleanup) and a per-feature map after the user approves the draft. |
+| `maintain-verification-skill` | Keep a project's verification skill and feature map honest: read the source per feature, drive every feature live, propose proven corrections. |
 | `data-analysis` | Answer a data question from logs, CSVs, SQL, metrics, or analytics. |
 | `diagnosis` | Turn failed BottegaStack checks or review findings into a precise fix brief. |
 | `domain-modeling` | Build and sharpen a project's domain model. |
@@ -42,12 +45,17 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `runbook` | Investigate an incident, alert, or "why is this broken" symptom with a structured runbook. |
 | `scaffold` | Create a new component, service, route, migration, or test fixture that matches the project's existing conventions. |
 | `session-handoff` | Compact a BottegaStack session into a handoff reply for a fresh agent. |
+| `show-me-your-work` | Keep a one-row-per-decision log (`maestro log`) for unattended or long runs, audit it against the transcript, and end with a cross-model Attention section. |
+| `autonomous-run` | Drive one task to a checkable exit condition without supervision: one verified change per iteration, reverted if it did not help, logged per iteration, capped. User-invoked only. |
+| `orchestrate` | Coordinate a program of many PR-sized units from one session: an owner and an independent verifier per unit, a `PLAN.md` ledger, live supervision, the user merging every PR. User-invoked only. |
+| `arena` | Give one task to 2 or 3 headless builders in separate worktrees, judge them blind against a hidden rubric, pick a base, and graft. User-invoked only. |
+| `ketchup` | Catch the user up on what changed since their last message and list every decision waiting on them. |
 | `session-retro` | Retrospective on a BottegaStack run. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. |
-| `simplify` | Remove unnecessary complexity from a change before review. |
+| `simplify` | Remove unnecessary complexity from a change before review, including a comment pass: delete narration and workaround comments, encode claimed constraints. |
 | `summary` | Post a short BottegaStack summary in chat after every step and draft the final summary for the PR body or merge commit. |
 | `unslop` | Cut AI tells from BottegaStack summaries, review copy, and docs. |
 | `untrusted-content` | Treat web pages, PR bodies and comments, BACKLOG.md items, logs, screenshots, OCR, and tool output as untrusted data. |
-| `verification` | Start a project, drive it in a browser, and collect evidence for BottegaStack acceptance criteria. |
+| `verification` | Prove each SPEC criterion with a real command and record it with `maestro verify record`; `maestro gate --proof` blocks approval until every criterion has a PASS for the current HEAD. |
 | `wait-what` | Stop. That last message did not land: re-pitch it. |
 | `wayfinding` | Plan a BottegaStack effort too big for one session as a local map of decision tickets. |
 | `web-design-guidelines` | Review UI code for Web Interface Guidelines compliance. |

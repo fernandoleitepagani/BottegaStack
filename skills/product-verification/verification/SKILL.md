@@ -1,42 +1,77 @@
 ---
 name: verification
-description: Start a project, drive it in a browser, and collect evidence for BottegaStack acceptance criteria. Use by the builder and reviewer when a change has UI or end-to-end behaviour.
+description: Prove acceptance criteria with real commands and record the evidence. Use by the reviewer when a SPEC criterion has a `Proof:` line, and by the builder to check its own work before reporting; also drives a rendered page when a change has UI.
 ---
 
 # BottegaStack Verification
 
 Verification is how an agent checks the real result instead of trusting the
-code. Use this skill whenever a ticket or acceptance criterion can be seen or
-exercised.
+code. A passing build is not proof; a command run against the real artifact is.
 
-If `.claude/skills/verify-*` exists, use it first for the project's start
-command, ready check, flows, and result-reading steps; this skill covers
-evidence, drive tools, and gotchas.
+## Prove each criterion (the gate)
 
-## First, read the project
+The SPEC gives every acceptance criterion an id and a proof, for example
+```
+AC1: export prints JSON. Proof: `app export --json | jq .` -> exit 0
+```
+The reviewer (never the builder) runs each proof and records it:
 
-Read `AGENTS.md` for the install, dev-server, test, lint, typecheck, and build
-commands. Read `docs/FEATURE-MAP.md` for the feature you are checking: route,
-how to reach it, seed data or login, expected result, and flow name. If
-`docs/FEATURE-MAP.md` or `scripts/verify` is missing, create it with
-`maestro seed FEATURE-MAP.md` and `maestro seed verify`.
+```bash
+maestro verify record <run> AC1 PASS --by reviewer --evidence out.txt --note "ran it on the sample project"
+maestro verify record <run> AC2 INCONCLUSIVE --by reviewer --note "no fixture for the error path"
+maestro verify list <run>
+```
 
-If the project has a `scripts/check`, `make check`, or similar, prefer it.
-Use `scripts/verify` as the app driver:
+`out.txt` holds the command, its output, and the exit code. A PASS without an
+evidence file is refused. `INCONCLUSIVE` and `FAIL` are not passes, and a PASS
+goes stale when HEAD moves. `maestro gate <run> --proof` blocks approval until
+every criterion has a PASS for the current HEAD, or a waiver the user approved
+(`maestro verify waive <run> <AC> "<reason>"`).
+
+## Proof standards
+
+- Exercise the real path a user or caller takes, not an internal setter or a
+  test-only endpoint.
+- Capture the action and the resulting state, and check side effects (files
+  written, rows inserted, git refs, messages sent) next to the printed result.
+- Match the check to the change: a CLI change runs the real command; a parser or
+  migration replays a saved input; a storage change reads the written value
+  back; a perf change compares before and after runs.
+- A dry-run or test mode is verified by observation: some dry-runs still touch
+  the network or the repo. Check what it actually skipped.
+- Mocks only where a production boundary already isolates the external system.
+- Unable to run it: say `INCONCLUSIVE` and why. Never write PASS from reading
+  the code.
+- Evidence outlives cleanup: tear down the processes you started, never the
+  files you recorded.
+
+## Read the project first
+
+Read `AGENTS.md` for the install, test, lint, typecheck, and build commands. If
+`.claude/skills/verify-*` exists, load it first: it holds the project's launch
+command, ready check, doctor, drive recipes, and feature map. Without one and
+with a service or CLI to drive, suggest `create-verification-skill`.
+
+If the project has a `scripts/check`, `make check`, or similar, prefer it for the
+checks. For an app that must be running, `scripts/verify` is the launcher:
 
 ```bash
 scripts/verify doctor
 scripts/verify start
-scripts/verify snapshot
-scripts/verify screenshot /tmp/<name>.png
-scripts/verify flow <name>
 scripts/verify stop
 ```
 
-`scripts/verify` reads `scripts/verify.conf` (`START_CMD`, `READY_URL`, `PORT`)
-and uses a port derived from the worktree path when `PORT` is not set.
+It reads `scripts/verify.conf` (`START_CMD`, `READY_URL`, `PORT`) and uses a
+port derived from the worktree path when `PORT` is not set. Create it with
+`maestro seed verify` when missing. If the app fails to start, read the log and
+stop; do not verify something you cannot run.
 
-## Start the app
+## Rendered surfaces (outside the proof gate)
+
+For a change with a rendered page, `agent-browser` snapshots and screenshots are
+useful review input; they do not satisfy a `Proof:` line on their own.
+
+### Start the app
 
 - Use `scripts/verify start`. It writes a pid file and a log, polls the ready
   URL, and fails loudly if the app never comes up.
@@ -44,7 +79,7 @@ and uses a port derived from the worktree path when `PORT` is not set.
 - If it fails to start, read the log and stop. Do not review a page you cannot
   load.
 
-## Drive it
+### Drive it
 
 Use the first available tool:
 
@@ -67,7 +102,7 @@ Rules:
 - If no flow in `docs/FEATURE-MAP.md` covers an acceptance criterion, write
   `docs/verify/flows/<name>.sh`, add it to the map, and run it.
 
-## Evidence
+### Evidence
 
 Record:
 
@@ -78,13 +113,13 @@ Record:
 
 A claim without evidence is not verification.
 
-## Stop cleanly
+### Stop cleanly
 
 - Close the browser session.
 - Stop the dev server.
 - Do not leave background processes or temporary files behind.
 
-## If there is no browser
+### If there is no browser
 
 Say so explicitly. Review the code, styles, and tests instead, and mark the
 verification as partial. Never pretend a page was checked when it was not.
@@ -105,7 +140,7 @@ verification as partial. Never pretend a page was checked when it was not.
 ## Report
 
 ```
-VERIFIED: <criteria>
-EVIDENCE: <commands, URLs, screenshot paths>
+VERIFIED: <AC ids with PASS, recorded via maestro verify>
+EVIDENCE: <commands run, evidence files>
 GAPS: <what could not be checked, or "none">
 ```

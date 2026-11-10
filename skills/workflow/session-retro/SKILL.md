@@ -42,6 +42,10 @@ Prefer the highest item that actually prevents recurrence. This follows the
 `## Rule placement` order in `AGENTS.md`: move a repeated rule down the list
 until it sticks.
 
+## Repeated findings
+
+When `maestro report --retro` exits 1, load `correct` and fix each repeated class at the highest level that works. Use Gotchas patches only for what `correct` cannot enforce.
+
 ## Model-upgrade decay check
 
 When the model changes, test one component at a time. Remove it on a branch, run a

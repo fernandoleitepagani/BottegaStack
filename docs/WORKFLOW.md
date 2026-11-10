@@ -134,7 +134,7 @@ UI, UX, and security in one pass and returns one verdict:
 - **Security** — access control, input handling, XSS, data exposure,
   payments/identity, abuse, secrets, dependencies, and sessions/auth.
 
-The reviewer loads `verification` and uses `agent-browser` when the change has
+The reviewer loads `verification`, runs every `Proof:` line in the SPEC, and records each result with `maestro verify record`; `agent-browser` is for rendered checks when the change has
 UI, and loads `unslop` for copy. It returns one `VERDICT` for the whole change as
 its reply. It checks the diff against each task's `Allowed files`, the test-first
 evidence, the changed test files, and the blind spots listed under `## Sensors`.
@@ -223,6 +223,7 @@ loads `figure-it-out`, which proposes a one-off playbook and confirms it with
 | `ship` | an existing PR or branch needs merge-readiness checks | read-only checklist: CI, security, independent review, threads, manual testing; never merge or push without approval — see [ship.md](../skills/workflow/playbooks/ship.md) |
 | `autopilot` | a queue of items to run end to end | one item at a time on its own branch, stop at a ready local branch, never push, merge, or open a PR — see [autopilot.md](../skills/workflow/playbooks/autopilot.md) |
 | `pause` | stop a run and resume it later | write a local `PLAN.md` note; resume rebuilds the todo list from it — see [pause.md](../skills/workflow/playbooks/pause.md) |
+| `eval` | compare two versions of the stack or a skill on the same task | headless builder candidates in clean temp repos, a blind judge on the reviewer model, a transcript check, a promote or keep decision — see [skills/workflow/playbooks/eval.md](../skills/workflow/playbooks/eval.md) |
 | `pr-babysit` | an open PR needs CI or review follow-up | watch checks and comments read-only, fix through the light path, push only with approval — see [skills/workflow/playbooks/pr-babysit.md](../skills/workflow/playbooks/pr-babysit.md) |
 
 Every playbook ends with the PR (or merge) write-up; the decision lives in that
@@ -283,7 +284,7 @@ and the `second-opinion` line for `--review`, passing only the effort as
 
 ## Skills
 
-BottegaStack ships 42 skills in the Claude Code categories plus `workflow/`. The
+BottegaStack ships 50 skills in the Claude Code categories plus `workflow/`. The
 core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 `implementation`, `verification`, `review-code`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
@@ -320,7 +321,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
-`upgrade`, `start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and
+`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -333,9 +334,14 @@ maestro upgrade [path]
 maestro start "<title>"
 maestro spec <run> [file]
 maestro check <run>
-maestro gate <run> [--allow-dirty]
+maestro gate <run> [--allow-dirty] [--proof]
+maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>]
+maestro verify waive <run> <AC> "<reason>"
+maestro verify list <run>
+maestro log <run> [<phase> <decision> <why> <evidence> <result>]
 maestro report [--retro] [--write] [--exit-code]
-maestro report --close <run>
+maestro report --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>]
+maestro report --trust [n]
 maestro report --finding <run> "<title>"
 
 maestro build <run> <task> [--revise <file|->] [--block|--wait]
@@ -345,7 +351,7 @@ maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run> [--every <seconds>]
 maestro build --init | --check
 
-maestro worktree create <run> <task>
+maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 maestro worktree prune <run> [--force]
 maestro hooks install|uninstall [path]
 ```

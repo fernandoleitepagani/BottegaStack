@@ -27,7 +27,8 @@ template is adapted from Matt Pocock's `to-spec` and `to-tickets`; keep its shap
 ### Out
 ## Constraints
 ## Acceptance criteria
-1. <observable behaviour> — verify by <command / page / file>
+- AC1: <observable behaviour>. Proof: `<command>` -> `<expected output or exit code>`
+- AC2: <behaviour a command cannot show>. Proof: none (<why>)
 ## Options considered
 1. <direction> — <trade-off>
 2. <direction> — <trade-off>
@@ -68,7 +69,7 @@ External behaviour, not implementation; the modules tested, seams, prior art.
 - Inline decision-rich prototype code only when a decision depends on it; no stale paths or line numbers.
 ## Rules
 - Synthesize the interview; do not interview again.
-- Acceptance criteria are the contract and each is checkable with only the repo; test the highest existing seam, prefer one.
+- Acceptance criteria are the contract and each is checkable with only the repo; test the highest existing seam, prefer one. Number them `AC1`, `AC2`, and give each a `Proof:` line naming a real command and what it must print. `Proof: none (<why>)` is allowed only for judgment calls; `maestro gate <run> --proof` requires a PASS record for every other criterion.
 - Show 2-3 directions and trade-offs under `## Options considered`; the user still approves one SPEC, so not a new checkpoint.
 - Use the project's vocabulary, include needed doc updates, prefer the smallest change, and add no options or extras the user did not ask for.
 - Put unanswered categories under **Open questions** and stop; the master asks the user and re-runs you. Never invent a product decision.
@@ -79,6 +80,6 @@ Your final reply is the SPEC itself. Put open questions inside it under
 ## Gotchas
 - Horizontal tasks: one layer per task instead of a vertical slice.
 - Open questions left inside the SPEC instead of returned to the master.
-- Acceptance criteria nobody with only the repo can check.
+- Acceptance criteria nobody with only the repo can check, or a `Proof:` line that names no command.
 - A task graph with a cycle, or a first wave missing a ready task.
 - Writing the SPEC to a file instead of returning it as the reply.

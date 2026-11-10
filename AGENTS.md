@@ -19,7 +19,10 @@ A personal agentic development workflow, shipped as the Claude Code plugin
 - Playbooks are the pipeline router; keep `skills/workflow/playbooks/SKILL.md`
   and the master consistent. `trivial`, `bugfix`, `feature`, and `refactor` are
   sections there; `investigate`, `perf`, `prototype`, `ship`, `autopilot`,
-  `pause`, and `pr-babysit` are files beside it.
+  `pause`, `eval`, and `pr-babysit` are files beside it.
+- `architect`, `arena`, `autonomous-run`, and `orchestrate` set
+  `disable-model-invocation: true`: only the user starts them, never the master.
+  `orchestrate` is the one exception to one run per session.
 - Cheap first-pass review: for `low` risk the master runs `maestro build --review
   <run> <task> --block` (headless) first; no findings means no Claude reviewer,
   any finding means `review-code` runs. `standard` and `high` are unchanged.
@@ -67,7 +70,7 @@ Prefer the highest item that actually prevents recurrence.
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
-`upgrade`, `start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and
+`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -80,16 +83,21 @@ BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
 ./bin/maestro start "<title>"
 ./bin/maestro spec <run> [file]
 ./bin/maestro check <run>
-./bin/maestro gate <run> [--allow-dirty]
+./bin/maestro gate <run> [--allow-dirty] [--proof]
+./bin/maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>]
+./bin/maestro verify waive <run> <AC> "<reason>"
+./bin/maestro verify list <run>
+./bin/maestro log <run> [<phase> <decision> <why> <evidence> <result>]
 ./bin/maestro report [--retro] [--write] [--exit-code]
-./bin/maestro report --close <run>
+./bin/maestro report --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>]
+./bin/maestro report --trust [n]
 ./bin/maestro report --finding <run> "<title>"
 ./bin/maestro build <run> <task> [--revise <file|->] [--block|--wait]
 ./bin/maestro build --here <slug> --task "<text>" [--block|--wait]
 ./bin/maestro build --review <run> <task> [--block|--wait]
 ./bin/maestro build --review --here <slug> [--block|--wait]
 ./bin/maestro build --status <run> [--every <seconds>]
-./bin/maestro worktree create <run> <task>
+./bin/maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 ./bin/maestro worktree prune <run> [--force]
 ./bin/maestro hooks install [path]
 ```

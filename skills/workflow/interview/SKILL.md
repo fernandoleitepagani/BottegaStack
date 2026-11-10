@@ -68,7 +68,7 @@ understanding.
 | Use cases | Primary and alternate flows; empty, loading, error, first run, repeat, cancel, network failure, slow response; long text, missing or duplicate data, zero or many items. |
 | Scope | What is in, out, and must not change: APIs, schemas, user state, deploy config, dependencies, behaviour? |
 | Constraints | Stack, styling, compatibility, performance, accessibility, i18n, data model and API contracts. |
-| Acceptance criteria | Which observable behaviour proves each requirement? How do we verify: command, page, file, screenshot? What must be true before merge? |
+| Acceptance criteria | Which observable behaviour proves each requirement? How do we prove it: which command, and what exact output or exit code? What must be true before merge? |
 | UI and UX | Layout, copy, responsive, interaction states; existing components, patterns, and tokens to follow. |
 | Security and privacy | Auth, permissions, validation, data exposure in responses, logs, URLs; secrets, abuse limits, storage, retention. |
 | Testing | What to test, at which seams, with which fixtures and browser checks? |

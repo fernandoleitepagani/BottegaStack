@@ -11,7 +11,7 @@ BottegaStack is a personal agentic development workflow for Claude Code. It turn
 - **Your repo stays clean.** Run state lives in the system temp dir. The record is the chat and the PR or merge commit. No stage files, no database, nothing committed.
 - **Hooks enforce it, not hope.** A todo-driven Stop hook keeps a run going; a guard blocks the wrong builder; checks must pass before any review.
 - **Human gates only where they matter.** SPEC approval and the final decision; merge, push, and PR are never automatic.
-- **Playbooks for real work.** `bugfix`, `feature`, `refactor`, `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, `pr-babysit`, plus 60+ skills including sysadmin, containers, and shell.
+- **Playbooks for real work.** `bugfix`, `feature`, `refactor`, `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, `eval`, `pr-babysit`, plus 60+ skills including sysadmin, containers, and shell.
 
 A run is one execution of a playbook. Its id is the branch slug, its branch is
 the one you are on, and its state lives outside the checkout in a per-repo state
@@ -20,7 +20,7 @@ merge commit) are the human-readable record. There is no database, no cloud
 service, and no state machine.
 
 A playbook chooses the pipeline — `trivial`, `bugfix`, `feature`, `refactor`,
-`investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, and
+`investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, `eval`, and
 `pr-babysit` — and a risk modifier (`low`, `standard`, `high`). At Step 0 the
 master runs `maestro stack`, confirms the detected profile, and records it in
 `AGENTS.md`. Model and effort for each role come from

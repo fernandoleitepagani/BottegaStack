@@ -220,8 +220,11 @@ handoffs, decisions, reviews, and builder reports.
   reclaim under pressure, and its size counts against that filesystem's quota.
   The branch, todo list, and chat/PR record survive regardless; only the spec,
   extracted tasks, build reports, and check results are lost.
-- `maestro report --close <run>` removes a run's state directory; the master
-  calls it after the closeout is confirmed.
+- `maestro report --close <run> [--playbook p --risk r --outcome o]` appends one
+  line to the trust log (`trust.log` in the state root, so it lives in the temp
+  dir and a reboot clears it), then removes the run's state directory; the master
+  calls it after the closeout is confirmed. `maestro report --trust [n]` prints
+  the last n runs (default 10) and a summary; it only reports.
 
 ## Headless builder (`maestro build`)
 
@@ -261,6 +264,8 @@ maestro build --status <run> [--every <seconds>]
 - The only stop is the 30-minute builder timeout (`BOTTEGA_BUILD_TIMEOUT`,
   seconds, default 1800); `BOTTEGA_BUILD_WAIT` defaults to 540 seconds per call.
   There is no other limit.
+- `BOTTEGA_PLUGIN_DIR=<checkout>` makes the headless runner load that checkout of
+  the stack with `--plugin-dir`; the `eval` playbook uses it to run a variant.
 - The builder gets a slim tool set (Bash, Edit, Glob, Grep, Read, Skill, Write,
   TodoWrite) and no MCP servers.
 - `build/<task>.progress` gets one line per builder tool call; `maestro build`
@@ -271,7 +276,7 @@ maestro build --status <run> [--every <seconds>]
 
 ```bash
 maestro hooks install|uninstall [path]
-maestro worktree create <run> <task>
+maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 maestro worktree prune <run> [--force]
 ```
 
@@ -290,6 +295,7 @@ maestro worktree prune <run> [--force]
 | Skills not loading | The plugin manifest lists each category directory. Check `skills/<category>/<name>/SKILL.md`. |
 | Checks always fail | Fill `scripts/check`; it exits 1 until configured. |
 | `maestro gate` says stale | Run `maestro check <run>` after the latest commit. |
+| `maestro gate --proof` fails | A criterion has no PASS for the current HEAD: run its `Proof:` and `maestro verify record` it, or waive it with the user's approval. |
 | `maestro gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
 | `maestro doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `maestro init`. |

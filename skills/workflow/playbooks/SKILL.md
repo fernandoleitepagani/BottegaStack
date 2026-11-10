@@ -1,6 +1,6 @@
 ---
 name: playbooks
-description: Pick a BottegaStack playbook (trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, pr-babysit) and a risk modifier (low, standard, high) at Step 0. Use before planning, again after the first builder commit, and whenever a run's scope changes.
+description: Pick a BottegaStack playbook (trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, eval, pr-babysit) and a risk modifier (low, standard, high) at Step 0. Use before planning, again after the first builder commit, and whenever a run's scope changes.
 ---
 
 # Playbooks
@@ -18,6 +18,7 @@ Pick a playbook and risk at Step 0 and track the chosen steps in the todo list. 
 | an existing PR or branch needs merge-readiness checks | `ship` (see `ship.md`) |
 | a list of work items to run end to end without supervision | `autopilot` (see `autopilot.md`; stops at a local branch) |
 | stop a run and resume it later with its state intact | `pause` (see `pause.md`; covers pause and resume) |
+| compare two versions of the stack or a skill on the same task | `eval` (see `eval.md`; headless builders, blind judge) |
 | an open PR needs CI or review follow-up | `pr-babysit` |
 Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first. If the user passes `--playbook <playbook>`, use it; `quick` means `trivial` or a small `bugfix`. Work that fits none: use `figure-it-out`.
 ## Risk
