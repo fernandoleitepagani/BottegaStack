@@ -791,6 +791,43 @@ build_steps() {
   printf '%s\n' "${n:-0}"
 }
 
+# Effort for a role from the routing rule file written by `/maestro-models`:
+# one line per role as `role: value, effort`, where effort is low, medium, or
+# high. Prints the effort, or nothing when the file or role is missing. A
+# malformed line is skipped and a later valid line is still read. The file's
+# contents are never printed.
+model_effort() {
+  local role="$1" file line key value effort
+  file="$(config_dir claude)/rules/bottega-models.md"
+  [ -f "$file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%%#*}"
+    line="${line#"${line%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [ -n "$line" ] || continue
+    case "$line" in
+      *:*) ;;
+      *) continue ;;
+    esac
+    key="${line%%:*}"
+    key="${key%"${key##*[![:space:]]}"}"
+    [ "$key" = "$role" ] || continue
+    value="${line#*:}"
+    case "$value" in
+      *,*) ;;
+      *) continue ;;
+    esac
+    value="${value%%,*}"
+    effort="${line##*,}"
+    value="$(printf '%s' "$value" | tr -d '[:space:]')"
+    effort="$(printf '%s' "$effort" | tr -d '[:space:]')"
+    [ -n "$value" ] || continue
+    case "$effort" in
+      low|medium|high) printf '%s\n' "$effort"; return 0 ;;
+    esac
+  done < "$file"
+}
+
 # The final assistant text in a stream-json log, written to a file. Used by the
 # read-only second-opinion review: the reviewer has no Write tool, so its reply
 # is captured here.
@@ -1160,6 +1197,13 @@ cmd_build_exec() {
   local disallowed="${12:-Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)}"
   local -a resume=()
   [ -n "$sid" ] && resume=(--resume "$sid")
+  # The headless runner's effort comes from the routing file: the builder line
+  # for implementations, the second-opinion line for reviews.
+  local role="builder" effort
+  [ "$agent" = "review-code" ] && role="second-opinion"
+  effort="$(model_effort "$role")"
+  local -a effort_arg=()
+  [ -n "$effort" ] && effort_arg=(--effort "$effort")
   [ -s "$(builder_key_file)" ] && helper="\"$SELF\" keyget"
   trap 'echo 143 > "$rcfile"; exit 143' TERM HUP
   set +e
@@ -1186,6 +1230,7 @@ PY
     export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
     export BOTTEGA_HEADLESS=1
     cd "$wt" && timeout "${BOTTEGA_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
+      "${effort_arg[@]}" \
       --output-format stream-json --verbose \
       "${resume[@]}" \
       --settings "$profile" \
