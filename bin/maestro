@@ -12,6 +12,7 @@ usage() {
   cat <<'EOF'
 Usage:
   maestro doctor
+  maestro stack
   maestro init [path]
   maestro seed <Name>
   maestro upgrade [path]
@@ -328,6 +329,337 @@ cmd_gate() {
   echo "GATE: PASS"
 }
 
+# ---- Stack detection --------------------------------------------------------
+# `maestro stack` reads root-level file names and manifest fields only. It never
+# opens .env or any other file that could hold secrets.
+stack_add() {
+  local list="$1" item="$2"
+  case ",$list," in
+    *",$item,"*) printf '%s' "$list" ;;
+    *) if [ -n "$list" ]; then printf '%s,%s' "$list" "$item"; else printf '%s' "$item"; fi ;;
+  esac
+}
+
+stack_has_files() {
+  local f
+  for f in package.json tsconfig.json pnpm-lock.yaml yarn.lock package-lock.json \
+           pyproject.toml requirements.txt uv.lock poetry.lock go.mod Cargo.toml \
+           Gemfile pom.xml build.gradle build.gradle.kts composer.json mix.exs \
+           Makefile Dockerfile docker-compose.yml compose.yml compose.yaml; do
+    [ -f "$f" ] && return 0
+  done
+  for f in ./*.tf ./*.sh; do
+    [ -f "$f" ] && return 0
+  done
+  return 1
+}
+
+has_dependency_manifest() {
+  local f
+  for f in package.json pyproject.toml requirements.txt uv.lock poetry.lock go.mod \
+           Cargo.toml Gemfile pom.xml build.gradle build.gradle.kts composer.json \
+           mix.exs; do
+    [ -f "$f" ] && return 0
+  done
+  return 1
+}
+
+stack_package_manager() {
+  if [ -f pnpm-lock.yaml ]; then echo pnpm
+  elif [ -f yarn.lock ]; then echo yarn
+  elif [ -f package-lock.json ]; then echo npm
+  elif [ -f package.json ]; then echo npm
+  elif [ -f uv.lock ]; then echo uv
+  elif [ -f poetry.lock ]; then echo poetry
+  elif [ -f pyproject.toml ] || [ -f requirements.txt ]; then echo pip
+  elif [ -f go.mod ]; then echo go
+  elif [ -f Cargo.toml ]; then echo cargo
+  elif [ -f Gemfile ]; then echo bundler
+  elif [ -f pom.xml ]; then echo maven
+  elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then echo gradle
+  elif [ -f composer.json ]; then echo composer
+  elif [ -f mix.exs ]; then echo mix
+  else echo unknown
+  fi
+}
+
+# Script names present in package.json (`lint`, `test`, `build`), one per line.
+stack_pkg_scripts() {
+  local file="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$file" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(0)
+scripts = data.get("scripts")
+if not isinstance(scripts, dict):
+    sys.exit(0)
+for name in ("lint", "test", "build"):
+    if isinstance(scripts.get(name), str):
+        print(name)
+PY
+  else
+    local name
+    for name in lint test build; do
+      if grep -qE "\"$name\"[[:space:]]*:" "$file"; then
+        echo "$name"
+      fi
+    done
+  fi
+}
+
+# Readable lint/test/build commands from pyproject task tables, one `name<TAB>cmd`
+# per line. Entry-point tables are rendered as `python -m <module>`.
+stack_pyproject_scripts() {
+  command -v python3 >/dev/null 2>&1 || return 0
+  python3 - "$1" <<'PY'
+import sys
+
+try:
+    import tomllib
+except Exception:
+    sys.exit(0)
+try:
+    with open(sys.argv[1], "rb") as fh:
+        data = tomllib.load(fh)
+except Exception:
+    sys.exit(0)
+
+def emit(name, cmd):
+    if isinstance(cmd, str):
+        print("%s\t%s" % (name, cmd))
+    elif isinstance(cmd, dict) and isinstance(cmd.get("cmd"), str):
+        print("%s\t%s" % (name, cmd["cmd"]))
+
+tool = data.get("tool", {})
+tool = tool if isinstance(tool, dict) else {}
+tasks = []
+for key in ("poe", "pdm"):
+    sub = tool.get(key, {})
+    if not isinstance(sub, dict):
+        continue
+    table = sub.get("tasks") if key == "poe" else sub.get("scripts")
+    if isinstance(table, dict):
+        tasks.append(table)
+for table in tasks:
+    for name in ("lint", "test", "build"):
+        if name in table:
+            emit(name, table[name])
+
+entry = []
+project = data.get("project", {})
+if isinstance(project, dict) and isinstance(project.get("scripts"), dict):
+    entry.append(project["scripts"])
+poetry = tool.get("poetry", {})
+if isinstance(poetry, dict) and isinstance(poetry.get("scripts"), dict):
+    entry.append(poetry["scripts"])
+for table in entry:
+    for name in ("lint", "test", "build"):
+        value = table.get(name)
+        if isinstance(value, str):
+            print("%s\tpython -m %s" % (name, value.split(":", 1)[0]))
+PY
+}
+
+# Framework names declared in package.json dependencies, one per line.
+stack_node_frameworks() {
+  local file="$1" pair pkg name
+  [ -f "$file" ] || return 0
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$file" <<'PY'
+import json
+import sys
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as fh:
+        data = json.load(fh)
+except Exception:
+    sys.exit(0)
+deps = {}
+for key in ("dependencies", "devDependencies", "peerDependencies"):
+    table = data.get(key)
+    if isinstance(table, dict):
+        deps.update(table)
+order = [
+    ("react", "react"),
+    ("next", "nextjs"),
+    ("vue", "vue"),
+    ("nuxt", "nuxt"),
+    ("svelte", "svelte"),
+    ("@angular/core", "angular"),
+    ("astro", "astro"),
+    ("express", "express"),
+    ("fastify", "fastify"),
+    ("@nestjs/core", "nestjs"),
+    ("electron", "electron"),
+    ("jest", "jest"),
+    ("vitest", "vitest"),
+    ("@playwright/test", "playwright"),
+    ("prisma", "prisma"),
+    ("tailwindcss", "tailwind"),
+]
+for package, name in order:
+    if package in deps:
+        print(name)
+PY
+  else
+    for pair in 'react:react' 'next:nextjs' 'vue:vue' 'nuxt:nuxt' 'svelte:svelte' 'express:express'; do
+      pkg="${pair%%:*}"
+      name="${pair#*:}"
+      if grep -qiE "\"$pkg\"[[:space:]]*:" "$file"; then
+        echo "$name"
+      fi
+    done
+  fi
+}
+
+cmd_stack() {
+  local root
+  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  (
+    cd "$root" || exit 1
+
+    if ! stack_has_files; then
+      echo "stack: unknown"
+      exit 0
+    fi
+
+    local langs="" fws="" pm
+    local lint=unknown test=unknown build=unknown
+    local f name fw target
+
+    # Languages.
+    if [ -f package.json ] || [ -f tsconfig.json ]; then
+      langs="$(stack_add "$langs" javascript/typescript)"
+    fi
+    if [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f uv.lock ]; then
+      langs="$(stack_add "$langs" python)"
+    fi
+    if [ -f go.mod ]; then langs="$(stack_add "$langs" go)"; fi
+    if [ -f Cargo.toml ]; then langs="$(stack_add "$langs" rust)"; fi
+    if [ -f Gemfile ]; then langs="$(stack_add "$langs" ruby)"; fi
+    if [ -f pom.xml ] || [ -f build.gradle ] || [ -f build.gradle.kts ]; then
+      langs="$(stack_add "$langs" java)"
+    fi
+    if [ -f composer.json ]; then langs="$(stack_add "$langs" php)"; fi
+    if [ -f mix.exs ]; then langs="$(stack_add "$langs" elixir)"; fi
+    for f in ./*.tf; do
+      if [ -f "$f" ]; then
+        langs="$(stack_add "$langs" hcl)"
+        break
+      fi
+    done
+    for f in ./*.sh; do
+      if [ -f "$f" ]; then
+        langs="$(stack_add "$langs" shell)"
+        break
+      fi
+    done
+
+    pm="$(stack_package_manager)"
+
+    # Commands: package.json scripts, then Makefile targets, then pyproject.
+    if [ -f package.json ]; then
+      while IFS= read -r name; do
+        case "$name" in
+          lint) if [ "$lint" = unknown ]; then lint="${pm:-npm} run lint"; fi ;;
+          test) if [ "$test" = unknown ]; then test="${pm:-npm} run test"; fi ;;
+          build) if [ "$build" = unknown ]; then build="${pm:-npm} run build"; fi ;;
+        esac
+      done < <(stack_pkg_scripts package.json)
+    fi
+    if [ -f Makefile ]; then
+      for target in lint test build; do
+        if grep -qE "^$target[[:space:]]*:" Makefile; then
+          case "$target" in
+            lint) if [ "$lint" = unknown ]; then lint="make lint"; fi ;;
+            test) if [ "$test" = unknown ]; then test="make test"; fi ;;
+            build) if [ "$build" = unknown ]; then build="make build"; fi ;;
+          esac
+        fi
+      done
+    fi
+    if [ -f pyproject.toml ]; then
+      while IFS=$'\t' read -r name fw; do
+        [ -n "$name" ] || continue
+        case "$name" in
+          lint) if [ "$lint" = unknown ]; then lint="$fw"; fi ;;
+          test) if [ "$test" = unknown ]; then test="$fw"; fi ;;
+          build) if [ "$build" = unknown ]; then build="$fw"; fi ;;
+        esac
+      done < <(stack_pyproject_scripts pyproject.toml)
+    fi
+
+    # Frameworks.
+    if [ -f package.json ]; then
+      while IFS= read -r fw; do
+        [ -n "$fw" ] && fws="$(stack_add "$fws" "$fw")"
+      done < <(stack_node_frameworks package.json)
+    fi
+    if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
+      for f in pyproject.toml requirements.txt; do
+        [ -f "$f" ] || continue
+        for fw in django flask fastapi; do
+          if grep -qiE "(^|[^a-z0-9_-])$fw([^a-z0-9_-]|$)" "$f"; then
+            fws="$(stack_add "$fws" "$fw")"
+          fi
+        done
+      done
+    fi
+    if [ -f go.mod ]; then
+      if grep -q 'gin-gonic/gin' go.mod; then fws="$(stack_add "$fws" gin)"; fi
+      if grep -q 'labstack/echo' go.mod; then fws="$(stack_add "$fws" echo)"; fi
+      if grep -q 'gofiber/fiber' go.mod; then fws="$(stack_add "$fws" fiber)"; fi
+    fi
+    if [ -f Cargo.toml ]; then
+      if grep -q 'actix-web' Cargo.toml; then fws="$(stack_add "$fws" actix)"; fi
+      if grep -q 'axum' Cargo.toml; then fws="$(stack_add "$fws" axum)"; fi
+      if grep -q 'rocket' Cargo.toml; then fws="$(stack_add "$fws" rocket)"; fi
+    fi
+    if [ -f Gemfile ]; then
+      if grep -qE "^[[:space:]]*gem[[:space:]]+['\"]rails['\"]" Gemfile; then
+        fws="$(stack_add "$fws" rails)"
+      fi
+      if grep -qE "^[[:space:]]*gem[[:space:]]+['\"]sinatra['\"]" Gemfile; then
+        fws="$(stack_add "$fws" sinatra)"
+      fi
+    fi
+    if [ -f pom.xml ] || [ -f build.gradle ] || [ -f build.gradle.kts ]; then
+      for f in pom.xml build.gradle build.gradle.kts; do
+        if [ -f "$f" ] && grep -q 'spring-boot' "$f"; then
+          fws="$(stack_add "$fws" spring)"
+        fi
+      done
+    fi
+    if [ -f composer.json ]; then
+      if grep -qE 'laravel/framework' composer.json; then fws="$(stack_add "$fws" laravel)"; fi
+      if grep -qE 'symfony/' composer.json; then fws="$(stack_add "$fws" symfony)"; fi
+    fi
+    if [ -f mix.exs ] && grep -q ':phoenix' mix.exs; then
+      fws="$(stack_add "$fws" phoenix)"
+    fi
+    if [ -f Dockerfile ] || [ -f docker-compose.yml ] || [ -f compose.yml ] || [ -f compose.yaml ]; then
+      fws="$(stack_add "$fws" docker)"
+    fi
+    for f in ./*.tf; do
+      if [ -f "$f" ]; then
+        fws="$(stack_add "$fws" terraform)"
+        break
+      fi
+    done
+
+    echo "language: ${langs:-unknown}"
+    echo "package-manager: $pm"
+    echo "commands: lint=$lint test=$test build=$build"
+    echo "frameworks: ${fws:-unknown}"
+  )
+}
+
 cmd_doctor() {
   echo "BottegaStack doctor"
   echo "root: $ROOT"
@@ -347,7 +679,12 @@ cmd_doctor() {
   command -v gh >/dev/null 2>&1 && echo "gh: yes" || echo "gh: no"
   command -v agent-browser >/dev/null 2>&1 && echo "agent-browser: yes" || echo "agent-browser: no (install: npm install -g agent-browser)"
   command -v node >/dev/null 2>&1 && echo "node: yes ($(node --version))" || echo "node: no"
-  command -v gitleaks >/dev/null 2>&1 && echo "gitleaks: yes" || echo "gitleaks: no"
+  if command -v gitleaks >/dev/null 2>&1; then
+    echo "gitleaks: yes"
+  else
+    echo "gitleaks: no"
+    echo "warning: gitleaks is not installed; secret scanning is unavailable"
+  fi
 
   local skills
   skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
@@ -365,6 +702,33 @@ cmd_doctor() {
 
   if [ -d .git ] && git ls-files --error-unmatch .env >/dev/null 2>&1; then
     echo "warning: .env is tracked by git"
+  fi
+
+  if has_dependency_manifest; then
+    local dep_config=0 dep_file
+    if [ -f .github/dependabot.yml ] || [ -f .github/dependabot.yaml ] || [ -f renovate.json ]; then
+      dep_config=1
+    fi
+    for dep_file in .renovaterc*; do
+      if [ -e "$dep_file" ]; then dep_config=1; fi
+    done
+    if [ "$dep_config" = 0 ]; then
+      echo "warning: no dependency-update config (.github/dependabot.yml, renovate.json, or .renovaterc)"
+    fi
+  fi
+
+  if [ -d .github/workflows ]; then
+    local ci_security=0 workflow
+    for workflow in .github/workflows/*; do
+      [ -f "$workflow" ] || continue
+      if grep -qiE 'codeql|dependency-review|gitleaks|trivy|osv-scanner' "$workflow"; then
+        ci_security=1
+        break
+      fi
+    done
+    if [ "$ci_security" = 0 ]; then
+      echo "warning: no CI security job (.github/workflows has no codeql, dependency-review, gitleaks, trivy, or osv-scanner)"
+    fi
   fi
 
   if [ -f .claude/settings.json ]; then
@@ -1670,6 +2034,7 @@ cmd="${1:-}"
 shift || true
 case "$cmd" in
   doctor) cmd_doctor ;;
+  stack) cmd_stack ;;
   init) cmd_init "${1:-$PWD}" ;;
   seed) cmd_seed "$@" ;;
   upgrade) cmd_upgrade "${1:-$PWD}" ;;
