@@ -27,8 +27,8 @@ the detected profile (`language:`, `package-manager:`, `commands:`, `frameworks:
 confirms or corrects it with `AskUserQuestion`, and writes it into the `## Stack`
 section of `AGENTS.md`. It loads `playbooks`, proposes a playbook and a risk
 (`low`, `standard`, `high`), and asks you to confirm or override. It tracks
-playbook and risk as todo items, then runs `maestro start "<title>"`, which creates
-the branch `bottega/<slug>` and the state directory `$STATE/<slug>/` and prints
+playbook and risk as todo items, then runs `maestro start "<title>"`, which uses your
+current branch (or creates the one you name with `--branch <name>`) and the state directory `$STATE/<slug>/` and prints
 `run:`, `branch:`, and `state:`. It auto-inits the project on first use and
 requires a clean tree.
 
@@ -219,7 +219,7 @@ loads `figure-it-out`, which proposes a one-off playbook and confirms it with
 | `refactor` | behaviour must not change | expand-contract; tests before and after; full build/check/review |
 | `investigate` | a symptom with no clear fix | read-only: reproduce, test hypotheses with runtime evidence, report the cause and the next playbook — see [investigate.md](../skills/workflow/playbooks/investigate.md) |
 | `perf` | a metric must improve against a target | baseline, profile, one change at a time, re-measure, keep only wins beyond noise — see [perf.md](../skills/workflow/playbooks/perf.md) |
-| `prototype` | a question needs a working answer | throwaway on `bottega/proto-<slug>`, answer with evidence, decide, never merge — see [prototype.md](../skills/workflow/playbooks/prototype.md) |
+| `prototype` | a question needs a working answer | throwaway on a branch you name, answer with evidence, decide, never merge — see [prototype.md](../skills/workflow/playbooks/prototype.md) |
 | `ship` | an existing PR or branch needs merge-readiness checks | read-only checklist: CI, security, independent review, threads, manual testing; never merge or push without approval — see [ship.md](../skills/workflow/playbooks/ship.md) |
 | `autopilot` | a queue of items to run end to end | one item at a time on its own branch, stop at a ready local branch, never push, merge, or open a PR — see [autopilot.md](../skills/workflow/playbooks/autopilot.md) |
 | `pause` | stop a run and resume it later | write a local `PLAN.md` note; resume rebuilds the todo list from it — see [pause.md](../skills/workflow/playbooks/pause.md) |

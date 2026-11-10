@@ -34,7 +34,7 @@ BottegaStack is a Claude Code plugin. The plugin puts `maestro` on PATH and ship
 the agents, commands, skills, hooks, and the `resources/` templates beside it.
 
 A run is one execution of a playbook. Its id is the slug; its branch is
-`bottega/<slug>`. Run state lives outside the repo in
+the one you are on (`start --branch <name>` creates one). Run state lives outside the repo in
 `${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}/<repo-id>/<slug>/`.
 Nothing is written into the repo or a worktree.
 
@@ -95,6 +95,13 @@ ensure_state_dir() {
   printf '%s\n' "$dir"
 }
 
+# The run's branch: the name saved by `start`, else bottega/<slug>.
+run_branch() {
+  local slug="$1" dir b=""
+  dir="$(state_dir 2>/dev/null)" && [ -f "$dir/$slug/branch" ] && b="$(cat "$dir/$slug/branch")"
+  printf '%s\n' "${b:-bottega/$slug}"
+}
+
 # $STATE/<slug>, creating the state directory (used by `start`).
 run_dir() {
   printf '%s/%s\n' "$(ensure_state_dir)" "$1"
@@ -115,11 +122,19 @@ light_dir() {
   printf '%s/quick/%s\n' "$dir" "$1"
 }
 
-# `maestro start "<title>"`: create the branch, the state directory, and the run
-# id (the slug). Auto-inits the project on first use and requires a clean tree.
+# `maestro start "<title>" [--branch <name>]`: create the state directory and the
+# run id (the slug). The run works on the branch you are on; only `--branch`
+# creates one. Auto-inits the project on first use and requires a clean tree.
 cmd_start() {
-  local title="${1:-}"
-  [ -n "$title" ] || { echo 'usage: maestro start "<title>"' >&2; exit 2; }
+  local title="" newbranch=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --branch) newbranch="${2:?--branch needs a name}"; shift 2 ;;
+      -*) echo "maestro start: unknown flag: $1" >&2; exit 2 ;;
+      *) title="$1"; shift ;;
+    esac
+  done
+  [ -n "$title" ] || { echo 'usage: maestro start "<title>" [--branch <name>]' >&2; exit 2; }
   git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "maestro start: not a git repository" >&2; exit 1; }
   local repo
   repo="$(git rev-parse --show-toplevel)"
@@ -140,20 +155,33 @@ cmd_start() {
   [ -n "$slug" ] || slug="run"
   base="$(git branch --show-current 2>/dev/null || true)"
   [ -n "$base" ] || base="HEAD"
-  while git show-ref --verify --quiet "refs/heads/bottega/$slug"; do
+  local branch="$newbranch"
+  if [ -n "$newbranch" ]; then
+    if git show-ref --verify --quiet "refs/heads/$newbranch"; then
+      echo "maestro start: branch already exists: $newbranch" >&2
+      exit 1
+    fi
+    git switch -c "$newbranch" >/dev/null 2>&1 || git checkout -b "$newbranch" >/dev/null 2>&1 || {
+      echo "maestro start: could not create branch $newbranch (base: $base)" >&2
+      exit 1
+    }
+  else
+    branch="$base"
+    case "$branch" in
+      ''|HEAD|main|master)
+        echo "maestro start: you are on '${branch:-detached HEAD}'. Switch to your working branch, or pass --branch <name> to create one." >&2
+        exit 1 ;;
+    esac
+  fi
+  local dir
+  while [ -d "$(state_dir)/$slug" ]; do
     n=$((n + 1))
     slug="${slug%-$((n - 1))}-$n"
   done
-
-  git switch -c "bottega/$slug" >/dev/null 2>&1 || git checkout -b "bottega/$slug" >/dev/null 2>&1 || {
-    echo "maestro start: could not create branch bottega/$slug (base: $base)" >&2
-    exit 1
-  }
-  local dir
   dir="$(run_dir "$slug")" || { echo "maestro start: could not create the state directory" >&2; exit 1; }
-  (umask 077; mkdir -p "$dir/build" "$dir/tasks")
+  (umask 077; mkdir -p "$dir/build" "$dir/tasks"; printf '%s\n' "$branch" > "$dir/branch")
   echo "run: $slug"
-  echo "branch: bottega/$slug"
+  echo "branch: $branch"
   echo "state: $dir"
 }
 
@@ -248,10 +276,11 @@ is_test_path() {
 # The commit the current branch forked from: the run branch for a task
 # worktree, else main, master, or the root commit.
 branch_base() {
-  local slug="${1:-}" cur b base=""
+  local slug="${1:-}" cur b base="" rb=""
   cur="$(git branch --show-current 2>/dev/null || true)"
-  if [ -n "$slug" ] && [ "$cur" != "bottega/$slug" ] && git show-ref --verify --quiet "refs/heads/bottega/$slug"; then
-    base="$(git merge-base HEAD "refs/heads/bottega/$slug" 2>/dev/null || true)"
+  [ -n "$slug" ] && rb="$(run_branch "$slug")"
+  if [ -n "$rb" ] && [ "$cur" != "$rb" ] && git show-ref --verify --quiet "refs/heads/$rb"; then
+    base="$(git merge-base HEAD "refs/heads/$rb" 2>/dev/null || true)"
     [ -n "$base" ] && { printf '%s\n' "$base"; return 0; }
   fi
   for b in main master; do
@@ -1387,8 +1416,8 @@ build_review() {
     local diff_base
     if [ "$here" = "1" ]; then
       diff_base="$(default_base_ref "$wt")"
-    elif git -C "$wt" rev-parse --verify -q "bottega/$slug" >/dev/null 2>&1; then
-      diff_base="bottega/$slug"
+    elif git -C "$wt" rev-parse --verify -q "$(run_branch "$slug")" >/dev/null 2>&1; then
+      diff_base="$(run_branch "$slug")"
     else
       diff_base="$(git -C "$wt" rev-list --max-parents=0 HEAD | head -1)"
     fi
@@ -1569,7 +1598,7 @@ $(cat "$taskfile")"
 
   local status="MISSING" commits
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
-  commits="$(git -C "$wt" log --oneline "bottega/$slug..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
+  commits="$(git -C "$wt" log --oneline "$(run_branch "$slug")..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
 
   echo "task: $task"
   echo "run: $slug"
@@ -1580,7 +1609,7 @@ $(cat "$taskfile")"
   echo "steps: $(build_steps "$progress")"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
-  echo "files changed:"; git -C "$wt" diff --name-only "bottega/$slug...HEAD" 2>/dev/null | sed 's/^/  /'
+  echo "files changed:"; git -C "$wt" diff --name-only "$(run_branch "$slug")...HEAD" 2>/dev/null | sed 's/^/  /'
   [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
 }
 
@@ -1804,8 +1833,10 @@ cmd_worktree() {
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
       base="$(git branch --show-current)"
-      git worktree add -b "bottega/$slug-$task" "../$name-bottega/$slug/$task" "bottega/$slug" 2>/dev/null \
-        || git worktree add -b "bottega/$slug-$task" "../$name-bottega/$slug/$task" "$base"
+      local rb
+      rb="$(run_branch "$slug")"
+      git worktree add -b "$rb-$task" "../$name-bottega/$slug/$task" "$rb" 2>/dev/null \
+        || git worktree add -b "$rb-$task" "../$name-bottega/$slug/$task" "$base"
       local path="../$name-bottega/$slug/$task"
       copy_maestro_files "$repo" "$repo/$path"
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))

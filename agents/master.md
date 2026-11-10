@@ -38,8 +38,8 @@ orchestrate, ask, run checks, and keep the user in the loop.
 
 ## Runs
 
-A run is one execution of a playbook. Its id is the slug: `maestro start "<title>"` creates branch
-`bottega/<slug>` and a per-repo state directory, and prints `run:`, `branch:`, and `state:`. The state
+A run is one execution of a playbook. Its id is the slug: `maestro start "<title>"` records the branch you are on
+(it creates one only when you give a name with `--branch <name>`) and a per-repo state directory, and prints `run:`, `branch:`, and `state:`. The state
 directory lives outside the checkout and is shared by worktrees; it holds `spec.md`, the extracted
 tasks, the build records, and the check results. Nothing is written into the repo.
 
@@ -85,7 +85,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    **Headless builder.** If `maestro build --check` exits 0, builders run through `maestro build` (the Claude
    `builder` subagent is only the fallback; the plugin's hook denies it otherwise). Per task:
    `maestro worktree create <slug> <task>`, then run `maestro build <slug> <task> --block` yourself as a background
-   Bash task (`run_in_background: true`, max 2 at once; a revision adds `--revise -` and passes the findings on
+   Bash task (`run_in_background: true`, max 3 at once; a revision adds `--revise -` and passes the findings on
    stdin). No subagent sits in between. It runs the Claude Code `builder` agent headless on the third-party model
    from `~/.config/bottega/builder.env`, capped at 30 minutes, and prints the session id, `STATUS`, tokens,
    steps, and changed files; its exit is your completion notice.

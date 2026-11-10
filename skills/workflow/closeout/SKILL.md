@@ -18,10 +18,10 @@ Draft the write-up first, then present it. Show the master's decision and why, t
 acceptance-criteria mapping, the explainer, the quiz and its answers for `feature`,
 `refactor`, and `high` risk, the drafted PR body, and the exact git command for each
 option. Ask with `AskUserQuestion`:
-- **Approve and open PR** (default) — push `bottega/<slug>` and create the PR with the write-up.
-- **Approve and merge** — merge `bottega/<slug>` into the base with the same write-up in the merge-commit message.
+- **Approve and open PR** (default) — push `<branch>` only and create the PR with the write-up.
+- **Approve and merge** — merge `<branch>` into the base with the same write-up in the merge-commit message.
 - **Approve and commit** — commit remaining changes with the write-up as the message.
-- **Approve and push** — push `bottega/<slug>`.
+- **Approve and push** — push `<branch>` only; task branches (`<branch>-<task>`) stay local.
 - **Rework** — the human gives feedback; start a fresh round.
 - **Reject** — stop, keep the branch, worktrees, and state directory.
 Create the PR only after the human picks that option. Never infer consent from "looks good".
@@ -34,20 +34,20 @@ Create the PR only after the human picks that option. Never infer consent from "
 ## Commands
 ```bash
 git switch <base>                              # merge
-git merge --no-ff bottega/<slug> -m "<write-up>"  # same text as the PR body
+git merge --no-ff <branch> -m "<write-up>"  # same text as the PR body
 git add <explicit paths>                       # commit
 git commit -m "<write-up>"                     # the commit message carries the decision
-git push -u origin bottega/<slug>               # push
-gh pr create --base <base> --head bottega/<slug> --title "<title>" --body "<write-up>"  # PR
+git push -u origin <branch>               # push
+gh pr create --base <base> --head <branch> --title "<title>" --body "<write-up>"  # PR
 ```
 Use the project's actual remote and base. If `gh` is not available, say so and give the human the command.
 ## Idempotent resume
 A resume may re-enter closeout after a partial run. Before creating a branch,
 worktree, or PR, check whether it exists and reuse it; create only what is missing.
 ```bash
-git branch --list 'bottega/<slug>'
+git branch --list '<branch>'
 git worktree list
-gh pr view bottega/<slug>
+gh pr view <branch>
 maestro build --status <slug>
 ```
 ## PR body

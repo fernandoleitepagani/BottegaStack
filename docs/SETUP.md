@@ -188,7 +188,7 @@ project files and never deletes the ones you have. It needs `python3` to merge
 ## Run state
 
 A run is one execution of a playbook. Its id is the slug, its branch is
-`bottega/<slug>`, and its state lives outside the repo:
+the one you are on, and its state lives outside the repo:
 
 ```
 STATE="${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}/<repo-id>"

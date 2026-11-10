@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- Branches are yours: `maestro start` works on the branch you are on and only creates one with `--branch <name>`; task branches are `<branch>-<task>`, stay local, survive `worktree prune`, and are never pushed; only the run branch is.
+- README banner and "what makes it different" section; `resources/verify.sh` temp names renamed to `bottega-verify`.
 - New playbooks: `investigate`, `perf`, `prototype`, `ship`, `autopilot`, and `pause` (covers pause and resume); `closeout` gains a merge-readiness gate that blocks merge until unmet items are fixed or waived.
 - Cheap first-pass review: for `low` risk the master runs the headless `maestro build --review` first; only findings escalate to the Claude reviewer.
 - Effort routing: `~/.claude/rules/bottega-models.md` holds `role: value, effort` per role; the master passes both per Agent call and headless builds pass `--effort`.

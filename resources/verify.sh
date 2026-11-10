@@ -11,8 +11,8 @@ CONF="$ROOT/scripts/verify.conf"
 PORT="${PORT:-$((5100 + ($(printf '%s' "$ROOT" | cksum | awk '{print $1}') % 400)))}"
 BASE_URL="${READY_URL:-http://localhost:$PORT}"
 export PORT BASE_URL
-PIDFILE="${PIDFILE:-/tmp/maestro-verify-$PORT.pid}"
-LOGFILE="${LOGFILE:-/tmp/maestro-verify-$PORT.log}"
+PIDFILE="${PIDFILE:-/tmp/bottega-verify-$PORT.pid}"
+LOGFILE="${LOGFILE:-/tmp/bottega-verify-$PORT.log}"
 SESSION="${SESSION:-bottega-verify-$PORT}"
 TIMEOUT="${READY_TIMEOUT:-60}"
 
@@ -132,7 +132,7 @@ case "${1:-doctor}" in
     ;;
   screenshot)
     require_up
-    agent-browser --session "$SESSION" screenshot "${2:-/tmp/maestro-verify-$PORT.png}"
+    agent-browser --session "$SESSION" screenshot "${2:-/tmp/bottega-verify-$PORT.png}"
     ;;
   flow)
     name="${2:?flow name required}"

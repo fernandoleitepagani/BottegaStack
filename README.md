@@ -1,9 +1,20 @@
-# BottegaStack
+<p align="center"><img src="assets/banner.svg" alt="BottegaStack" width="760"></p>
+
+<p align="center"><b>A workshop for Claude Code: one master orchestrates cheap builders, and you approve every result.</b></p>
 
 BottegaStack is a personal agentic development workflow for Claude Code. It turns a request into a verified change and keeps a human in the loop.
 
+## What makes it different
+
+- **A master, not a prompt pile.** One agent talks to you. It plans, delegates, checks, and asks; it never writes code itself.
+- **Cheap hands, careful eyes.** Builders run headless on a low-cost model (for example DeepSeek through OpenCode Go), in parallel git worktrees. Claude reviews only when the risk or a finding calls for it.
+- **Your repo stays clean.** Run state lives in the system temp dir. The record is the chat and the PR or merge commit. No stage files, no database, nothing committed.
+- **Hooks enforce it, not hope.** A todo-driven Stop hook keeps a run going; a guard blocks the wrong builder; checks must pass before any review.
+- **Human gates only where they matter.** SPEC approval and the final decision; merge, push, and PR are never automatic.
+- **Playbooks for real work.** `bugfix`, `feature`, `refactor`, `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, `pr-babysit`, plus 60+ skills including sysadmin, containers, and shell.
+
 A run is one execution of a playbook. Its id is the branch slug, its branch is
-`bottega/<slug>`, and its state lives outside the checkout in a per-repo state
+the one you are on, and its state lives outside the checkout in a per-repo state
 directory in the system temp dir, shared by worktrees. The chat and the PR (or
 merge commit) are the human-readable record. There is no database, no cloud
 service, and no state machine.
