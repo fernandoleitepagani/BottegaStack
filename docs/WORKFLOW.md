@@ -34,7 +34,6 @@ For `trivial` and small `bugfix` work it takes the light path instead: run
 `maestro build --here <slug> --task "<text>" --block` on the current branch. That
 creates no run, SPEC, or worktree; state lives in `$STATE/quick/<slug>/`.
 
-If the project predates the current hooks, run `maestro upgrade` once.
 
 ### Step 1: SPEC
 
@@ -78,7 +77,7 @@ ends its final reply with the report; `maestro build` extracts it into
 `CHANGES` the master passes the findings inline and runs `--revise <file|->`,
 which resumes the same session. It allows two revisions (exit 4 after that) and
 the master escalates to the human. The builder never plans, decides,
-troubleshoots, or orchestrates. The `/maestro` `PreToolUse` hook denies the
+troubleshoots, or orchestrates. The plugin's `PreToolUse` hook denies the
 Claude-model `builder` subagent whenever the headless builder is configured; if
 it is not, the Claude `builder` is the fallback.
 
@@ -189,8 +188,7 @@ Run state lives in the state directory and the todo list, so a new session can
 continue a run. The entry rule: a feature request starts at Step 0, `status`
 reads the todo list and current branch, and `resume` continues from the open todo
 items without redoing completed steps; the same session can be picked up with
-`claude --continue`. The master defaults to sequential builds and prefers a
-parallel wave when the ready tasks touch disjoint files.
+`claude --continue`.
 
 ## Playbooks and risk
 
@@ -338,30 +336,10 @@ human still makes the final decision.
 
 ## Run state
 
-```
-$STATE/<slug>/
-  spec.md             the approved SPEC
-  tasks/<n>.md        text of each `### Task <n>` section
-  build/<task>.*      prompt, logs, builder report, second-opinion review
-  checks.log          one line per check plus its output
-  checks.result       RESULT, HEAD, EXIT, SECONDS
-
-$STATE/quick/<slug>/
-  run, rc, progress, prompt, report.md, builder.log, settings.json
-```
-
-The state directory is `<base>/<repo-id>`, where `<base>` is
-`${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}` and `<repo-id>` is the
-repo basename plus the first 8 hex of the sha1 of the realpath of the git common
-dir, so worktrees share it. Nothing is written into the repo or the worktree.
-The branch is the run's identity, the todo list tracks progress, and the chat and
-the PR (or merge commit) are the human-readable record. `maestro report --close
-<slug>` removes the directory. Set `BOTTEGA_STATE_DIR` to a persistent directory
-if a run must survive a reboot or your `/tmp` has a small quota; the default
-temp directory may be cleared.
-
-`PLAN.md` is project-level only; there is no run-level copy. Every step posts a
-short summary in chat.
+A run's working files live in a per-repo state directory outside the repo; the branch,
+the todo list, and the chat or PR carry the record. The layout, `BOTTEGA_STATE_DIR`,
+and the reboot caveat are in [SETUP.md](SETUP.md#run-state). `PLAN.md` is
+project-level only. Every step posts a short summary in chat.
 
 ## Context policy
 
@@ -375,18 +353,10 @@ NEVER      secrets, raw logs, whole directories, unrelated files
 
 ## Project docs and files
 
-Project files are created on demand. `maestro init` writes only `AGENTS.md`,
-`CLAUDE.md`, `scripts/check`, `.claude/settings.json`, the exclude block, and the
-git hooks. Everything else is seeded only when a skill first needs it, with
-`maestro seed <Name>` (idempotent; prints `created:` or `kept:`):
-
-- `SPEC.md` and `PLAN.md` — product and technical requirements, and ordered
-  outcomes, dependencies, risks, and validated status.
-- `REVIEW.md` — the risk paths. A missing file means no risk paths.
-- `GLOSSARY.md` — the project's domain language.
-- `BACKLOG.md`, `mistakes.md` — backlog items and repeated lessons.
-- `docs/FEATURE-MAP.md` — how to reach and verify each feature.
-- `scripts/verify` and `scripts/verify.conf` — the browser driver.
+Project files are created on demand with `maestro seed <Name>`; `maestro init`
+writes only `AGENTS.md`, `CLAUDE.md`, `scripts/check`, `.claude/settings.json`, the
+exclude block, and the git hooks. The list and destinations are in
+[SETUP.md](SETUP.md#project-files-on-demand).
 
 ## Automation
 

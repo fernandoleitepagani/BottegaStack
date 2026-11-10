@@ -10,7 +10,7 @@ service, and no state machine.
 
 ## Install
 
-BottegaStack ships as the Claude Code plugin `maestro`. Inside a Claude Code
+BottegaStack ships as the Claude Code plugin `bottega`. Inside a Claude Code
 session:
 
 ```

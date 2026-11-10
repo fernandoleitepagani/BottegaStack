@@ -20,7 +20,6 @@ Usage:
   maestro check <run>
   maestro gate <run> [--allow-dirty]
   maestro report [--retro] [--write] [--exit-code] | --close <run> | --finding <run> "<title>"
-  maestro report --close <run>
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
   maestro build --here <slug> --task "<text>" [--block|--wait]
   maestro build --review <run> <task> [--block|--wait]
@@ -354,18 +353,6 @@ cmd_doctor() {
   skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
   echo "skills: $skills"
 
-  local missing=()
-  for s in wizard writing-for-agents codebase-design domain-modeling session-handoff session-retro; do
-    if ! find "$ROOT/skills" -mindepth 2 -maxdepth 2 -type d -name "$s" | grep -q .; then
-      missing+=("$s")
-    fi
-  done
-  if [ "${#missing[@]}" -gt 0 ]; then
-    echo "missing upstream skills: ${missing[*]}"
-    echo "install with: npx skills add <owner/repo@skill>"
-  else
-    echo "upstream skills: present"
-  fi
 
   if [ -f AGENTS.md ]; then
     local lines
@@ -427,21 +414,15 @@ AGENTS.md
 CLAUDE.md
 SPEC.md
 PLAN.md
-ROADMAP.md
-TASKS.md
 BACKLOG.md
 GLOSSARY.md
 REVIEW.md
-CODING_STANDARDS.md
 mistakes.md
 scripts/check
 scripts/verify
 scripts/verify.conf
-scripts/format
 .claude
 docs/FEATURE-MAP.md
-docs/adr/0001-record-architecture-decisions.md
-.github/pull_request_template.md
 LIST
 }
 
@@ -549,18 +530,6 @@ cmd_upgrade() {
   local src_settings="$ROOT/resources/claude-settings.json"
 
   mkdir -p "$dest/scripts" "$dest/.claude"
-  # Retired: the format/PreCompact hook script is gone.
-  if [ -f "$dest/scripts/claude-hook.sh" ] && [ ! -L "$dest/scripts/claude-hook.sh" ]; then
-    rm -f "$dest/scripts/claude-hook.sh"
-    echo "removed: $dest/scripts/claude-hook.sh (retired)"
-  fi
-
-  # The headless builder is global now (`maestro build`); drop the old per-project wrapper.
-  if [ -f "$dest/scripts/opencode-build" ] && [ ! -L "$dest/scripts/opencode-build" ]; then
-    rm -f "$dest/scripts/opencode-build"
-    echo "removed: $dest/scripts/opencode-build (replaced by: maestro build)"
-  fi
-
   local target="$dest/.claude/settings.json" tmp
   tmp="$(mktemp)"
   python3 - "$src_settings" "$target" "$tmp" <<'PY'
@@ -576,18 +545,8 @@ except Exception:
 if not isinstance(target, dict):
     target = {}
 for k, v in src.items():
-    if k != "hooks" and k not in target:
+    if k not in target:
         target[k] = v
-# Drop the retired maestro hooks (claude-hook.sh); keep any other hooks.
-kept = {}
-for event, entries in (target.get("hooks") or {}).items():
-    rows = [e for e in entries if "claude-hook.sh" not in json.dumps(e)]
-    if rows:
-        kept[event] = rows
-if kept:
-    target["hooks"] = kept
-else:
-    target.pop("hooks", None)
 with open(out_path, "w") as f:
     json.dump(target, f, indent=2)
     f.write("\n")

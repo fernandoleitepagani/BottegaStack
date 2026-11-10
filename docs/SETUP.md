@@ -10,7 +10,7 @@
 
 ## Install
 
-BottegaStack ships as the Claude Code plugin `maestro`. Inside a session:
+BottegaStack ships as the Claude Code plugin `bottega`. Inside a session:
 
 ```
 /plugin marketplace add fernandoleitepagani/BottegaStack
@@ -57,8 +57,7 @@ A plugin cannot change your global Claude Code config, so set these yourself:
 - The plugin does not write `~/.claude/CLAUDE.md`. Put global instructions
   there yourself.
 - The plugin does not install a launcher into `~/.local/bin`. `maestro` is on
-  `PATH` only inside a session. Remove an old `~/.local/bin/maestro` left by the
-  previous installer so it does not shadow the plugin's copy.
+  `PATH` only inside a session.
 
 ### Builder key
 
@@ -84,8 +83,7 @@ Without these files, `/maestro` falls back to the Claude `builder` subagent.
 maestro doctor
 ```
 
-`doctor` prints the runtime and tool versions, the skill count, missing upstream
-skills, `AGENTS.md` size, project Claude settings, hook status, config paths, and
+`doctor` prints the runtime and tool versions, the skill count, `AGENTS.md` size, project Claude settings, hook status, config paths, and
 then runs the repo lint when `scripts/lint.sh` sits beside the CLI. It is the
 release gate:
 
@@ -153,8 +151,7 @@ maestro upgrade
 ```
 
 `upgrade` refreshes `.claude/settings.json` without dropping your settings,
-removes the retired `scripts/claude-hook.sh` and `scripts/opencode-build`, and
-re-applies the exclude block and git hooks. It no longer creates the on-demand
+and re-applies the exclude block and git hooks. It does not create the on-demand
 project files and never deletes the ones you have. It needs `python3` to merge
 `.claude/settings.json`.
 
@@ -249,14 +246,13 @@ maestro worktree prune <run> [--force]
 | Problem | Fix |
 |---|---|
 | `/maestro` not found | Check `/plugin` (the plugin is installed and enabled), start a new session, then run `maestro doctor`. |
-| `maestro` not found in a session | The plugin puts `bin/maestro` on `PATH` only inside a session. Start a new session, and remove an old `~/.local/bin/maestro` that shadows it. |
+| `maestro` not found in a session | The plugin puts `bin/maestro` on `PATH` only inside a session. Start a new session. |
 | Skills not loading | The plugin manifest lists each category directory. Check `skills/<category>/<name>/SKILL.md`. |
 | Checks always fail | Fill `scripts/check`; it exits 1 until configured. |
 | `maestro gate` says stale | Run `maestro check <run>` after the latest commit. |
 | `maestro gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
 | `maestro doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `maestro init`. |
-| Claude settings has no hooks | Run `maestro upgrade` or reinstall the plugin. |
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
 | Git hooks missing | Run `maestro hooks install [path]`. |
 | `maestro upgrade` fails | Install `python3`. |
@@ -266,7 +262,7 @@ maestro worktree prune <run> [--force]
 
 Run this by hand after installing the plugin.
 
-1. `/plugin` lists `maestro`, and a new session shows the `/maestro` and
+1. `/plugin` lists `bottega`, and a new session shows the `/maestro` and
    `/maestro-models` commands.
 2. `maestro --help` resolves inside a session and prints the usage.
 3. `maestro doctor` shows `claude: yes`.

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Cleanup: removed the dead `claude/global/` snippets, `VERSION` (the plugin manifest is the source), the unused ADR template, the legacy-migration code in `maestro upgrade`, the stale `doctor` upstream-skills check, the local-settings comparison in the lint, and duplicated run-state and project-file docs. Deleted all merged `pagani/*` branches and builder worktrees.
 - Renamed the stack to Bottega: repository and docs `BottegaStack`, plugin `bottega`, CLI and slash command `maestro`, env vars `BOTTEGA_*`, config `~/.config/bottega`, branches `bottega/<slug>`. No compatibility aliases; the `prototype/` research folder is removed.
 - Run state moved out of the repo to a per-repo state directory in the system temp dir (`PAGANI_STATE_DIR` overrides it), shared by worktrees. `pagani start` creates the branch `pagani/<slug>` and the state directory; `pagani spec|check|gate|report` replace `pagani job`, which prints the replacement and exits 2. Nothing is written into the repo or a worktree.
 - Human-readable records moved to chat and the PR or merge commit: the planner returns the SPEC, reviewers return findings, builders end with their report, and the default closeout is a PR whose body (or the merge-commit message) carries Done / Evidence / Claims. The Stop hook is driven by the todo list.

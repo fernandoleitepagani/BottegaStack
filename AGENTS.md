@@ -5,7 +5,7 @@ Keep this file short. It is for agents maintaining BottegaStack itself.
 ## What this repo is
 
 A personal agentic development workflow, shipped as the Claude Code plugin
-`maestro`: agents, skills, commands, hooks, the `maestro` CLI, and templates. See
+`bottega`: agents, skills, commands, hooks, the `maestro` CLI, and templates. See
 [docs/WORKFLOW.md](docs/WORKFLOW.md) for the full explanation and
 [docs/SKILLS.md](docs/SKILLS.md) for the skill inventory.
 

@@ -77,7 +77,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    share a file or migration or one needs another's output. Join rule: `ALL`; a parallel wave merges only when
    every task passes. Spawn one `builder` per task, merge into the run branch, post the summary, go to Step 3.
    **Headless builder.** If `maestro build --check` exits 0, builders run through `maestro build` (the Claude
-   `builder` subagent is only the fallback; the `/maestro` hook denies it otherwise). Per task:
+   `builder` subagent is only the fallback; the plugin's hook denies it otherwise). Per task:
    `maestro worktree create <slug> <task>`, then run `maestro build <slug> <task> --block` yourself as a background
    Bash task (`run_in_background: true`, max 2 at once; a revision adds `--revise -` and passes the findings on
    stdin). No subagent sits in between. It runs the Claude Code `builder` agent headless on the third-party model

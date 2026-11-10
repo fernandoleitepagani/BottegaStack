@@ -1,7 +1,3 @@
-# Orchestration artifacts
-
-# BottegaStack runtime state lives outside the repo in the state directory
-# (see docs/SETUP.md), so nothing here needs ignoring.
 .claude/settings.json.maestro-backup-*
 
 # Secrets

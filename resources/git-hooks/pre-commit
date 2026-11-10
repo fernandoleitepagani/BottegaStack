@@ -25,7 +25,7 @@ if command -v maestro >/dev/null 2>&1; then
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if [ -n "$added" ] && printf '%s\n' "$added" | grep -qxE "$f|$f/.*"; then
-      echo "maestro: refusing to commit $f (a maestro file, local only). Unstage: git restore --staged $f" >&2
+      echo "maestro: refusing to commit $f (a Bottega file, local only). Unstage: git restore --staged $f" >&2
       status=1
     fi
   done < <(maestro _files)

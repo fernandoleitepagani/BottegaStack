@@ -41,7 +41,7 @@ if [ -f "$ROOT/resources/claude-settings.json" ]; then
 fi
 
 for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md mistakes.md REVIEW.md \
-         BACKLOG.md FEATURE-MAP.md CONTEXT.md; do
+         BACKLOG.md FEATURE-MAP.md; do
   if grep -rq -- "$f" "$ROOT/agents" "$ROOT/skills" 2>/dev/null; then
     if [ ! -f "$ROOT/resources/$f" ]; then
       echo "FAIL referenced project file has no template: $f"
@@ -99,47 +99,6 @@ if command -v python3 >/dev/null 2>&1; then
       fail=1
     fi
   done
-  if [ -f "$ROOT/.claude-plugin/plugin.json" ] && [ -f "$ROOT/VERSION" ]; then
-    if ! python3 - "$ROOT/.claude-plugin/plugin.json" "$ROOT/VERSION" <<'PY'
-import json, sys
-version = open(sys.argv[2]).read().strip()
-manifest = json.load(open(sys.argv[1]))
-sys.exit(0 if manifest.get("version") == version else 1)
-PY
-    then
-      echo "FAIL plugin version does not match VERSION: .claude-plugin/plugin.json"
-      fail=1
-    fi
-  fi
-fi
-
-if [ -f "$ROOT/.claude/settings.json" ]; then
-  if command -v python3 >/dev/null 2>&1; then
-    if ! python3 - "$ROOT/resources/claude-settings.json" "$ROOT/.claude/settings.json" <<'PY'
-import json, sys
-a = json.load(open(sys.argv[1]))
-b = json.load(open(sys.argv[2]))
-def norm(d):
-    hooks = d.get("hooks", {})
-    out = {}
-    for event, entries in hooks.items():
-        rows = []
-        for entry in entries:
-            handlers = sorted(
-                (h.get("command", ""), tuple(h.get("args", [])))
-                for h in entry.get("hooks", [])
-            )
-            rows.append((entry.get("matcher", ""), tuple(handlers)))
-        out[event] = sorted(rows)
-    return out
-if a.get("permissions") != b.get("permissions") or norm(a) != norm(b):
-    sys.exit(1)
-PY
-    then
-      echo "FAIL .claude/settings.json hooks/permissions differ from resources/claude-settings.json; run: maestro upgrade ."
-      fail=1
-    fi
-  fi
 fi
 
 for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md; do
