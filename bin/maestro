@@ -1859,20 +1859,26 @@ cmd_worktree() {
       name="$(basename "$repo")"
       root="../$name-bottega/$slug"
       if [ -d "$root" ]; then
+        local rb tb
+        rb="$(run_branch "$slug")"
         for wt in "$root"/*; do
           [ -d "$wt" ] || continue
-          if [ "$force" = "1" ]; then
-            if git worktree remove --force "$wt" 2>/dev/null; then
-              echo "removed: $wt"
-            else
-              echo "failed: $wt (uncommitted changes; use --force)"
+          tb="$rb-$(basename "$wt")"
+          local fflag=""
+          [ "$force" = "1" ] && fflag="--force"
+          if git worktree remove $fflag "$wt" 2>/dev/null; then
+            echo "removed: $wt"
+            # Delete only the local task branch, and only when it is merged (-d
+            # refuses otherwise). The run branch and remotes are never touched.
+            if [ "$tb" != "$rb" ] && git show-ref --verify --quiet "refs/heads/$tb"; then
+              if git branch -d "$tb" >/dev/null 2>&1; then
+                echo "deleted branch: $tb"
+              else
+                echo "kept branch: $tb (not merged)"
+              fi
             fi
           else
-            if git worktree remove "$wt" 2>/dev/null; then
-              echo "removed: $wt"
-            else
-              echo "failed: $wt (uncommitted changes; use --force)"
-            fi
+            echo "failed: $wt (uncommitted changes; use --force)"
           fi
         done
       else

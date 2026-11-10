@@ -1,7 +1,7 @@
 # Changelog
 
 ## Unreleased
-- Branches are yours: `maestro start` works on the branch you are on and only creates one with `--branch <name>`; task branches are `<branch>-<task>`, stay local, survive `worktree prune`, and are never pushed; only the run branch is.
+- Branches are yours: `maestro start` works on the branch you are on and only creates one with `--branch <name>`; task branches are `<branch>-<task>`, stay local and are never pushed; `worktree prune` deletes the merged ones (`git branch -d`, never forced) and keeps unmerged ones. The run branch and remotes are never touched.
 - README banner and "what makes it different" section; `resources/verify.sh` temp names renamed to `bottega-verify`.
 - New playbooks: `investigate`, `perf`, `prototype`, `ship`, `autopilot`, and `pause` (covers pause and resume); `closeout` gains a merge-readiness gate that blocks merge until unmet items are fixed or waived.
 - Cheap first-pass review: for `low` risk the master runs the headless `maestro build --review` first; only findings escalate to the Claude reviewer.

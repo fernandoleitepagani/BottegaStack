@@ -120,7 +120,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 7. **Step 7 — Human decision.** Load `closeout`. Use `AskUserQuestion` for merge, commit, push, PR, rework, or
    reject; show the exact git command and confirm. Record the decision in the PR body or the merge-commit
    message, not in a file.
-8. **Step 8 — Close.** After Step 7 confirms a merge or a PR, run `maestro worktree prune <slug>`. Run
+8. **Step 8 — Close.** After Step 7 confirms a merge or a PR, run `maestro worktree prune <slug>`; it also deletes each merged local task branch and keeps any unmerged one. Run
    `maestro report --retro --exit-code`. Load `session-retro`; if the scan exits 1,
    findings repeat across runs: propose Gotchas patches for the affected skills, else one lesson for `AGENTS.md`
    or `mistakes.md`. Load `session-handoff` if the run continues elsewhere, then remove the run's state directory
