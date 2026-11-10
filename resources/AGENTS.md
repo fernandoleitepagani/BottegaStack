@@ -26,9 +26,11 @@ not obvious facts the code already shows.
 ## PaganiStack commands
 
 ```bash
-pagani job report [--retro] [--write] [--exit-code]
-pagani job check <job>
-pagani job gate <job>
+pagani start "<title>"
+pagani spec <run> [file]
+pagani check <run>
+pagani gate <run> [--allow-dirty]
+pagani report [--retro] [--write] [--exit-code]
 pagani upgrade [path]
 ```
 

@@ -51,9 +51,10 @@ Prefer the highest item that actually prevents recurrence.
 
 ## Commands
 
-PaganiStack has eight top-level commands: `doctor`, `init`, `seed`, `upgrade`,
-`build`, `job`, `worktree`, and `hooks`. (`guard` and `keyget` are internal hook
-entry points, not user commands.)
+PaganiStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
+`start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and `hooks`.
+(`guard` and `keyget` are internal hook entry points, not user commands;
+`pagani job ...` is retired and prints the replacement.)
 
 ```bash
 ./bin/pagani doctor
@@ -61,12 +62,15 @@ entry points, not user commands.)
 ./bin/pagani init /tmp/example
 ./bin/pagani seed GLOSSARY.md
 ./bin/pagani upgrade [path]
-./bin/pagani build <job> <task> [--revise <file>]
+./bin/pagani start "<title>"
+./bin/pagani spec <run> [file]
+./bin/pagani check <run>
+./bin/pagani gate <run> [--allow-dirty]
+./bin/pagani report [--retro] [--write] [--exit-code]
+./bin/pagani build <run> <task> [--revise <file|->]
 ./bin/pagani build --here <slug> --task "<text>"
-./bin/pagani build --review <job> <task>
-./bin/pagani build --status <job> [--every <seconds>]
-./bin/pagani job new "<title>"
-./bin/pagani job report [--retro] [--write] [--exit-code]
-./bin/pagani worktree create <job> <task>
+./bin/pagani build --review <run> <task>
+./bin/pagani build --status <run> [--every <seconds>]
+./bin/pagani worktree create <run> <task>
 ./bin/pagani hooks install [path]
 ```

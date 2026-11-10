@@ -1,7 +1,7 @@
 # Plan
 
-Project-level plan and current work. Keep it short. Per-job task graphs live in
-`.agents/plans/<id>/SPEC.md`.
+Project-level plan and current work. Keep it short. A run's task graph lives in
+its state directory (`$STATE/<slug>/spec.md`), outside the repo.
 
 ## Current focus
 
