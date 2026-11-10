@@ -1,6 +1,6 @@
 ---
 name: session-retro
-description: Retrospective on a PaganiStack run. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. Use after a run closes or when the same finding appears twice.
+description: Retrospective on a BottegaStack run. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. Use after a run closes or when the same finding appears twice.
 ---
 
 # Session Retro
@@ -11,9 +11,9 @@ Improve the environment, not just the code.
 
 - The conversation: the SPEC, the builder reports, the review verdicts, the
   check output, and the closeout decision.
-- `pagani report --retro`: findings repeated across runs, from the titles the master recorded with `pagani report --finding`.
+- `maestro report --retro`: findings repeated across runs, from the titles the master recorded with `maestro report --finding`.
 - `AGENTS.md` and `mistakes.md`. If `mistakes.md` is missing, create it with
-  `pagani seed mistakes.md`.
+  `maestro seed mistakes.md`.
 
 ## Find candidates
 

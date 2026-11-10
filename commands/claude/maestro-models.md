@@ -1,12 +1,12 @@
 ---
-description: Choose the model each PaganiStack role uses and write ~/.claude/rules/pagani-models.md.
+description: Choose the model each BottegaStack role uses and write ~/.claude/rules/bottega-models.md.
 argument-hint: "[rerun to change model routing]"
 allowed-tools: Read, Write, Bash, AskUserQuestion
 ---
 
-# Pagani Model Routing
+# Bottega Model Routing
 
-Ask the user which model each PaganiStack role uses, then write the routing rule
+Ask the user which model each BottegaStack role uses, then write the routing rule
 file. No secrets, no personal data.
 
 ## Roles and defaults
@@ -30,11 +30,11 @@ aliases and `headless`. If the user picks a value outside that set, ask again.
 ## Write
 
 Run `mkdir -p ~/.claude/rules` if needed, then write
-`~/.claude/rules/pagani-models.md` with the `Write` tool. Keep it under 15 lines,
+`~/.claude/rules/bottega-models.md` with the `Write` tool. Keep it under 15 lines,
 with no secrets and no extra keys:
 
 ```markdown
-# Pagani model routing (written by /pagani-models)
+# Bottega model routing (written by /maestro-models)
 explorer: <value>
 trivial: <value>
 builder: <value>

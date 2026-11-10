@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# pagani-managed
+# bottega-managed
 set -euo pipefail
 
 status=0
@@ -11,30 +11,30 @@ if command -v gitleaks >/dev/null 2>&1; then
   elif gitleaks git --staged --redact --no-banner 2>/dev/null; then
     :
   else
-    echo "pagani: gitleaks found a secret in staged changes" >&2
+    echo "maestro: gitleaks found a secret in staged changes" >&2
     status=1
   fi
 else
-  echo "pagani: gitleaks not installed; skipping secret scan" >&2
+  echo "maestro: gitleaks not installed; skipping secret scan" >&2
 fi
 
-# 2. Files pagani created must never be committed. Only newly added files are
+# 2. Files maestro created must never be committed. Only newly added files are
 # checked, so a project that already tracked its own AGENTS.md can keep editing it.
-if command -v pagani >/dev/null 2>&1; then
+if command -v maestro >/dev/null 2>&1; then
   added="$(git diff --cached --name-only --diff-filter=A 2>/dev/null || true)"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     if [ -n "$added" ] && printf '%s\n' "$added" | grep -qxE "$f|$f/.*"; then
-      echo "pagani: refusing to commit $f (a pagani file, local only). Unstage: git restore --staged $f" >&2
+      echo "maestro: refusing to commit $f (a maestro file, local only). Unstage: git restore --staged $f" >&2
       status=1
     fi
-  done < <(pagani _files)
+  done < <(maestro _files)
 fi
 
-# 3. Repo checks (when the project has a pagani CLI).
-if [ -x ./bin/pagani ]; then
-  if ! ./bin/pagani doctor; then
-    echo "pagani: doctor failed" >&2
+# 3. Repo checks (when the project has a maestro CLI).
+if [ -x ./bin/maestro ]; then
+  if ! ./bin/maestro doctor; then
+    echo "maestro: doctor failed" >&2
     status=1
   fi
 fi

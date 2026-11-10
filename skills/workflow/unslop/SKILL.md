@@ -1,6 +1,6 @@
 ---
 name: unslop
-description: Cut AI tells from PaganiStack summaries, review copy, and docs. Use before posting a human summary, reviewing UX copy, or writing documentation.
+description: Cut AI tells from BottegaStack summaries, review copy, and docs. Use before posting a human summary, reviewing UX copy, or writing documentation.
 ---
 
 # Unslop

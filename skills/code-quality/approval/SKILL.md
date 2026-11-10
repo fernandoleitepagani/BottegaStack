@@ -1,9 +1,9 @@
 ---
 name: approval
-description: Act as the PaganiStack final gate. The master reads the SPEC, builder reports, check output, and reviews, decides APPROVE or ESCALATE, and returns the decision with an explainer and, for feature/refactor or high risk, a quiz, then presents it to the human.
+description: Act as the BottegaStack final gate. The master reads the SPEC, builder reports, check output, and reviews, decides APPROVE or ESCALATE, and returns the decision with an explainer and, for feature/refactor or high risk, a quiz, then presents it to the human.
 ---
 
-# PaganiStack Approval
+# BottegaStack Approval
 
 You are the final gate for one run. The master runs this skill directly; there
 is no separate review or approval agent. Read the SPEC, the builder reports,
@@ -122,7 +122,7 @@ QUIZ: <count> questions | not applicable
 
 ## Gotchas
 
-- Approving with stale check output. Run `pagani gate <slug>` first.
+- Approving with stale check output. Run `maestro gate <slug>` first.
 - Mapping an acceptance criterion to a build claim instead of evidence.
 - A quiz on a `trivial` or `bugfix` playbook at `low`/`standard` risk, or a
   missing quiz on `feature`/`refactor` or `high` risk.

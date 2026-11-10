@@ -11,9 +11,9 @@ CONF="$ROOT/scripts/verify.conf"
 PORT="${PORT:-$((5100 + ($(printf '%s' "$ROOT" | cksum | awk '{print $1}') % 400)))}"
 BASE_URL="${READY_URL:-http://localhost:$PORT}"
 export PORT BASE_URL
-PIDFILE="${PIDFILE:-/tmp/pagani-verify-$PORT.pid}"
-LOGFILE="${LOGFILE:-/tmp/pagani-verify-$PORT.log}"
-SESSION="${SESSION:-pagani-verify-$PORT}"
+PIDFILE="${PIDFILE:-/tmp/maestro-verify-$PORT.pid}"
+LOGFILE="${LOGFILE:-/tmp/maestro-verify-$PORT.log}"
+SESSION="${SESSION:-bottega-verify-$PORT}"
 TIMEOUT="${READY_TIMEOUT:-60}"
 
 is_up() {
@@ -132,7 +132,7 @@ case "${1:-doctor}" in
     ;;
   screenshot)
     require_up
-    agent-browser --session "$SESSION" screenshot "${2:-/tmp/pagani-verify-$PORT.png}"
+    agent-browser --session "$SESSION" screenshot "${2:-/tmp/maestro-verify-$PORT.png}"
     ;;
   flow)
     name="${2:?flow name required}"

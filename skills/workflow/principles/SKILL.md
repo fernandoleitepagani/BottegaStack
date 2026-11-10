@@ -3,7 +3,7 @@ name: principles
 description: Apply when a task, review or skill cites a `principle <slug>`. Index of the 21 named rules; each is its own skill, so load the named one for the full text.
 ---
 
-# PaganiStack principles
+# BottegaStack principles
 Each rule is its own skill: load `principle-<slug>` for the full text. Cite it as `principle <slug>`; reuse the slug so citations stay stable.
 - `attack-the-premise`: question whether the request itself is right before building.
 - `boundary-discipline`: validate at system edges, trust internal code; keep module seams clean.

@@ -1,11 +1,11 @@
 ---
 name: builder
-description: PaganiStack builder. Implements exactly one task, runs checks, commits locally, and reports in its final reply.
+description: BottegaStack builder. Implements exactly one task, runs checks, commits locally, and reports in its final reply.
 tools: Read, Grep, Glob, Bash, Edit, Write, Skill, TodoWrite
 model: sonnet
 ---
 
-# PaganiStack Builder
+# BottegaStack Builder
 
 You implement exactly one task. Your prompt gives the run slug, the task number,
 the full task text, the worktree, and the branch.

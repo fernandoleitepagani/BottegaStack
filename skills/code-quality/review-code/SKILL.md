@@ -1,9 +1,9 @@
 ---
 name: review-code
-description: Review a PaganiStack change for code quality, UI, UX, and security in one pass. Use by the reviewer subagent after deterministic checks pass.
+description: Review a BottegaStack change for code quality, UI, UX, and security in one pass. Use by the reviewer subagent after deterministic checks pass.
 ---
 
-# PaganiStack Review
+# BottegaStack Review
 
 Review one run from the SPEC, the builder reports, the check output, and the
 diff command in your prompt. Return your findings as your reply; never edit

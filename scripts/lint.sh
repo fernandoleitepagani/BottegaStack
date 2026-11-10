@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# PaganiStack repo lint. `pagani doctor` and ./scripts/validate.sh run it.
+# BottegaStack repo lint. `maestro doctor` and ./scripts/validate.sh run it.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0
-echo "PaganiStack lint"
+echo "BottegaStack lint"
 
 for f in "$ROOT"/skills/*/*/SKILL.md; do
   [ -f "$f" ] || continue
@@ -20,7 +20,7 @@ for f in "$ROOT"/skills/*/*/SKILL.md; do
   fi
 done
 
-# Templates for the on-demand project files. `pagani seed <Name>` copies these
+# Templates for the on-demand project files. `maestro seed <Name>` copies these
 # lazily; init does not create them, so the lint only checks the templates.
 for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md BACKLOG.md mistakes.md REVIEW.md \
          checks.sh verify.sh verify.conf FEATURE-MAP.md claude-settings.json \
@@ -72,7 +72,7 @@ if ! grep -q 'Step 0' "$ROOT/agents/master.md"; then
 fi
 
 # Command files must not reference a step the master does not have.
-for cmd_file in "$ROOT/commands/pagani.md" "$ROOT/commands/claude/pagani.md"; do
+for cmd_file in "$ROOT/commands/maestro.md" "$ROOT/commands/claude/maestro.md"; do
   [ -f "$cmd_file" ] || continue
   while IFS= read -r step; do
     [ -n "$step" ] || continue
@@ -85,7 +85,7 @@ done
 
 # The committed command is generated from the command source plus the master.
 if ! "$ROOT/scripts/gen-command.sh" --check 2>/dev/null; then
-  echo "FAIL stale generated command: commands/pagani.md (run: scripts/gen-command.sh)"
+  echo "FAIL stale generated command: commands/maestro.md (run: scripts/gen-command.sh)"
   fail=1
 fi
 
@@ -136,7 +136,7 @@ if a.get("permissions") != b.get("permissions") or norm(a) != norm(b):
     sys.exit(1)
 PY
     then
-      echo "FAIL .claude/settings.json hooks/permissions differ from resources/claude-settings.json; run: pagani upgrade ."
+      echo "FAIL .claude/settings.json hooks/permissions differ from resources/claude-settings.json; run: maestro upgrade ."
       fail=1
     fi
   fi

@@ -1,6 +1,6 @@
 ---
 name: session-handoff
-description: Compact a PaganiStack session into a handoff for a fresh agent. Use when the context is near full, the session is ending, or another machine will continue the run.
+description: Compact a BottegaStack session into a handoff for a fresh agent. Use when the context is near full, the session is ending, or another machine will continue the run.
 ---
 
 # Session Handoff

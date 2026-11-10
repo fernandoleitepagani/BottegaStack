@@ -1,9 +1,9 @@
 ---
 name: verification
-description: Start a project, drive it in a browser, and collect evidence for PaganiStack acceptance criteria. Use by the builder and reviewer when a change has UI or end-to-end behaviour.
+description: Start a project, drive it in a browser, and collect evidence for BottegaStack acceptance criteria. Use by the builder and reviewer when a change has UI or end-to-end behaviour.
 ---
 
-# PaganiStack Verification
+# BottegaStack Verification
 
 Verification is how an agent checks the real result instead of trusting the
 code. Use this skill whenever a ticket or acceptance criterion can be seen or
@@ -19,7 +19,7 @@ Read `AGENTS.md` for the install, dev-server, test, lint, typecheck, and build
 commands. Read `docs/FEATURE-MAP.md` for the feature you are checking: route,
 how to reach it, seed data or login, expected result, and flow name. If
 `docs/FEATURE-MAP.md` or `scripts/verify` is missing, create it with
-`pagani seed FEATURE-MAP.md` and `pagani seed verify`.
+`maestro seed FEATURE-MAP.md` and `maestro seed verify`.
 
 If the project has a `scripts/check`, `make check`, or similar, prefer it.
 Use `scripts/verify` as the app driver:

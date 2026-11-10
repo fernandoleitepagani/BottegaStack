@@ -1,9 +1,9 @@
 ---
 name: diagnosis
-description: Turn failed PaganiStack checks or review findings into a precise fix brief. Use when a review returns CHANGES or a deterministic check fails, before spawning a fresh builder.
+description: Turn failed BottegaStack checks or review findings into a precise fix brief. Use when a review returns CHANGES or a deterministic check fails, before spawning a fresh builder.
 ---
 
-# PaganiStack Diagnosis
+# BottegaStack Diagnosis
 
 A failed review or check is not a request to "try again". It is a diagnosis
 problem. Find the cause, explain it precisely, then hand a fresh builder a brief
@@ -37,7 +37,7 @@ If you cannot build a loop, stop and say what you tried. Ask for access, a
 redacted artifact, or permission to add temporary instrumentation. Do not
 hypothesise without a loop.
 
-This skill also owns the PaganiStack fix-brief contract, the max-two-rounds
+This skill also owns the BottegaStack fix-brief contract, the max-two-rounds
 rule, and the stall exit.
 
 ## Reproduce

@@ -1,9 +1,9 @@
 ---
 name: interview
-description: Conduct the PaganiStack plan interview. Use when starting a new run, before planning, to ask targeted questions with the native question UI until every requirement, use case, edge case, constraint, and acceptance criterion is covered.
+description: Conduct the BottegaStack plan interview. Use when starting a new run, before planning, to ask targeted questions with the native question UI until every requirement, use case, edge case, constraint, and acceptance criterion is covered.
 ---
 
-# PaganiStack Interview
+# BottegaStack Interview
 
 Turn a vague request into a complete plan. The master runs this skill; the
 planner does not.

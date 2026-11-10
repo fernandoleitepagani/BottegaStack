@@ -58,6 +58,6 @@ CHECKS: <pass/fail>
 - Removing a real fallback, such as the `sed` path used when `python3` is
   absent.
 - Collapsing a backticked skill reference into prose, which breaks the
-  `pagani doctor` reference check.
+  `maestro doctor` reference check.
 - "Simplifying" the master by dropping the Step 0 playbook gate.
 - Deleting code that looks unused only because no test covers it.

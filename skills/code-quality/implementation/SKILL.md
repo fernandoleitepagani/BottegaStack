@@ -1,9 +1,9 @@
 ---
 name: implementation
-description: Implement exactly one PaganiStack task with TDD, run the project checks, commit locally, and report in your final reply. Use by the builder subagent.
+description: Implement exactly one BottegaStack task with TDD, run the project checks, commit locally, and report in your final reply. Use by the builder subagent.
 ---
 
-# PaganiStack Implementation
+# BottegaStack Implementation
 
 Implement exactly one task. Write code on the named branch, commit locally, and end your final reply with the report below. Load `diagnosis` if a failing check or bug blocks you; build a red-capable feedback loop before changing code.
 

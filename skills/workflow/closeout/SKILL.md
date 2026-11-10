@@ -1,8 +1,8 @@
 ---
 name: closeout
-description: Handle the PaganiStack human decision and final git actions. Use after the master presents the approval decision, when the human chooses merge, commit, push, PR, rework, or reject.
+description: Handle the BottegaStack human decision and final git actions. Use after the master presents the approval decision, when the human chooses merge, commit, push, PR, rework, or reject.
 ---
-# PaganiStack Closeout
+# BottegaStack Closeout
 The master recommends. The human decides. Execute only what the human explicitly asks for.
 The default closeout is a pull request whose body is the run's written record.
 ## Present
@@ -10,10 +10,10 @@ Draft the write-up first, then present it. Show the master's decision and why, t
 acceptance-criteria mapping, the explainer, the quiz and its answers for `feature`,
 `refactor`, and `high` risk, the drafted PR body, and the exact git command for each
 option. Ask with `AskUserQuestion`:
-- **Approve and open PR** (default) — push `pagani/<slug>` and create the PR with the write-up.
-- **Approve and merge** — merge `pagani/<slug>` into the base with the same write-up in the merge-commit message.
+- **Approve and open PR** (default) — push `bottega/<slug>` and create the PR with the write-up.
+- **Approve and merge** — merge `bottega/<slug>` into the base with the same write-up in the merge-commit message.
 - **Approve and commit** — commit remaining changes with the write-up as the message.
-- **Approve and push** — push `pagani/<slug>`.
+- **Approve and push** — push `bottega/<slug>`.
 - **Rework** — the human gives feedback; start a fresh round.
 - **Reject** — stop, keep the branch, worktrees, and state directory.
 Create the PR only after the human picks that option. Never infer consent from "looks good".
@@ -26,21 +26,21 @@ Create the PR only after the human picks that option. Never infer consent from "
 ## Commands
 ```bash
 git switch <base>                              # merge
-git merge --no-ff pagani/<slug> -m "<write-up>"  # same text as the PR body
+git merge --no-ff bottega/<slug> -m "<write-up>"  # same text as the PR body
 git add <explicit paths>                       # commit
 git commit -m "<write-up>"                     # the commit message carries the decision
-git push -u origin pagani/<slug>               # push
-gh pr create --base <base> --head pagani/<slug> --title "<title>" --body "<write-up>"  # PR
+git push -u origin bottega/<slug>               # push
+gh pr create --base <base> --head bottega/<slug> --title "<title>" --body "<write-up>"  # PR
 ```
 Use the project's actual remote and base. If `gh` is not available, say so and give the human the command.
 ## Idempotent resume
 A resume may re-enter closeout after a partial run. Before creating a branch,
 worktree, or PR, check whether it exists and reuse it; create only what is missing.
 ```bash
-git branch --list 'pagani/<slug>'
+git branch --list 'bottega/<slug>'
 git worktree list
-gh pr view pagani/<slug>
-pagani build --status <slug>
+gh pr view bottega/<slug>
+maestro build --status <slug>
 ```
 ## PR body
 The body is the record; there is no decision or summary file.
@@ -70,7 +70,7 @@ writes it in the commit message. Never write the decision to a file.
 ## Rework
 1. Keep the feedback verbatim in the conversation; do not write it to a file.
 2. Spawn a fresh builder with the feedback, the affected task, and the branch. For a
-   headless task, run `pagani build <slug> <task> --revise <file|->` with the feedback.
+   headless task, run `maestro build <slug> <task> --revise <file|->` with the feedback.
 3. Re-run the deterministic checks, then the reviewers whose area it touches.
 4. Reset the fix budget and return to Step 5.
 ## Reject
@@ -79,7 +79,7 @@ writes it in the commit message. Never write the decision to a file.
 ## Close
 1. Record the decision in the PR body or the merge-commit (or commit) message.
 2. If the run produced a reusable lesson, propose one line for `AGENTS.md` or `mistakes.md`; ask before editing.
-3. After the PR or merge is confirmed, run `pagani report --close <slug>` to remove the run's state directory.
+3. After the PR or merge is confirmed, run `maestro report --close <slug>` to remove the run's state directory.
 4. Tell the human what merged or opened, what remains, and where the state directory is.
 ## Gotchas
 - Creating the PR, merging, or pushing before the human picks the option.

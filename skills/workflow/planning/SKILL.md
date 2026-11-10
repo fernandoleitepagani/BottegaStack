@@ -1,12 +1,12 @@
 ---
 name: planning
-description: Produce one PaganiStack run SPEC with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
+description: Produce one BottegaStack run SPEC with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
 ---
-# PaganiStack Planning
+# BottegaStack Planning
 Produce one artifact, the SPEC, and return it as your final reply. Write no files and never write code, reviews, or decisions.
 Read the interview answers in your prompt, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`, `GLOSSARY.md`,
 and the code the work touches. Do not guess names; seed missing files with
-`pagani seed SPEC.md` and `pagani seed PLAN.md`. Load `codebase-design` for
+`maestro seed SPEC.md` and `maestro seed PLAN.md`. Load `codebase-design` for
 architecture or testability vocabulary, `domain-modeling` to keep `GLOSSARY.md`
 and ADRs current, and `wayfinding` when the work is too big for one spec. The
 template is adapted from Matt Pocock's `to-spec` and `to-tickets`; keep its shape.

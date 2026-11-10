@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Renamed the stack to Bottega: repository and docs `BottegaStack`, plugin `bottega`, CLI and slash command `maestro`, env vars `BOTTEGA_*`, config `~/.config/bottega`, branches `bottega/<slug>`. No compatibility aliases; the `prototype/` research folder is removed.
 - Run state moved out of the repo to a per-repo state directory in the system temp dir (`PAGANI_STATE_DIR` overrides it), shared by worktrees. `pagani start` creates the branch `pagani/<slug>` and the state directory; `pagani spec|check|gate|report` replace `pagani job`, which prints the replacement and exits 2. Nothing is written into the repo or a worktree.
 - Human-readable records moved to chat and the PR or merge commit: the planner returns the SPEC, reviewers return findings, builders end with their report, and the default closeout is a PR whose body (or the merge-commit message) carries Done / Evidence / Claims. The Stop hook is driven by the todo list.
 - Playbooks rewritten in pstack style: routing table, risk modifier, light path, the `loop` rule for external waits, and a `figure-it-out` fallback. Each playbook is a short numbered checklist copied into the todo list; every run ends with verbatim before/after evidence and claims labelled measured, inferred, or guessed.

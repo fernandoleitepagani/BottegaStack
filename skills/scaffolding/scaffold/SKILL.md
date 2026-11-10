@@ -53,10 +53,10 @@ TESTS: <pass/fail>
 
 - Adding a skill category outside the Claude Code categories plus `workflow/`.
 - Copying a skill and forgetting that `name:` must equal its directory;
-  `pagani doctor` fails.
-- Adding a `pagani-` prefix to a skill name.
+  `maestro doctor` fails.
+- Adding a `bottega-` prefix to a skill name.
 - Scaffolding a tier variant of an agent instead of passing `model:` on the Agent call.
-- Adding a file to `resources/` but not to the `pagani doctor` existence loop, so
+- Adding a file to `resources/` but not to the `maestro doctor` existence loop, so
   a broken install still passes.
-- Creating `commands/<target>/pagani.md` with a `Step N` the matching master
+- Creating `commands/<target>/maestro.md` with a `Step N` the matching master
   does not have.

@@ -19,7 +19,7 @@ Turn a project's real start and test path into a project skill that `verificatio
 
 Write only after the user has seen the draft in chat and approved it with `AskUserQuestion`.
 
-- Create `.claude/skills/verify-<project>/SKILL.md` at the project root. Never write it into the PaganiStack repo.
+- Create `.claude/skills/verify-<project>/SKILL.md` at the project root. Never write it into the BottegaStack repo.
 - Frontmatter: `name: verify-<project>` and a trigger-rich `description`.
 - Sections: **Start** (exact command and env), **Ready check** (URL or command and expected output), **Flows** (named checks with the command or steps), **Read results** (log and screenshot paths, pass/fail signal), **Stop** (cleanup).
 - Point at `scripts/verify` instead of duplicating it.
@@ -29,7 +29,7 @@ Write only after the user has seen the draft in chat and approved it with `AskUs
 - Guessing ports or commands. Run each one; a skill that does not work is worse than none.
 - Writing before approval. Show the draft and ask first.
 - Copying secrets or personal data into the skill.
-- Writing to the PaganiStack repo instead of the project root.
+- Writing to the BottegaStack repo instead of the project root.
 - Leaving a dev server running after discovery. Stop it.
 
 ## Report

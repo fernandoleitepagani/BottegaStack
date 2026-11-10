@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PaganiStack runtime CLI (shipped in the plugin's bin/, so it is on PATH).
+# BottegaStack runtime CLI (shipped in the plugin's bin/, so it is on PATH).
 # Runs, worktrees, builds, guard hooks, project init/upgrade/seed.
 # Run state lives outside the repo in a per-repo state directory.
 set -euo pipefail
@@ -11,41 +11,41 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 usage() {
   cat <<'EOF'
 Usage:
-  pagani doctor
-  pagani init [path]
-  pagani seed <Name>
-  pagani upgrade [path]
-  pagani start "<title>"
-  pagani spec <run> [file]
-  pagani check <run>
-  pagani gate <run> [--allow-dirty]
-  pagani report [--retro] [--write] [--exit-code] | --close <run> | --finding <run> "<title>"
-  pagani report --close <run>
-  pagani build <run> <task> [--revise <file|->] [--block|--wait]
-  pagani build --here <slug> --task "<text>" [--block|--wait]
-  pagani build --review <run> <task> [--block|--wait]
-  pagani build --init | --check
-  pagani build --status <run> [--every [seconds]]
-  pagani worktree create <run> <task>
-  pagani worktree prune <run> [--force]
-  pagani hooks install|uninstall [path]
+  maestro doctor
+  maestro init [path]
+  maestro seed <Name>
+  maestro upgrade [path]
+  maestro start "<title>"
+  maestro spec <run> [file]
+  maestro check <run>
+  maestro gate <run> [--allow-dirty]
+  maestro report [--retro] [--write] [--exit-code] | --close <run> | --finding <run> "<title>"
+  maestro report --close <run>
+  maestro build <run> <task> [--revise <file|->] [--block|--wait]
+  maestro build --here <slug> --task "<text>" [--block|--wait]
+  maestro build --review <run> <task> [--block|--wait]
+  maestro build --init | --check
+  maestro build --status <run> [--every [seconds]]
+  maestro worktree create <run> <task>
+  maestro worktree prune <run> [--force]
+  maestro hooks install|uninstall [path]
 
-PaganiStack is a Claude Code plugin. The plugin puts `pagani` on PATH and ships
+BottegaStack is a Claude Code plugin. The plugin puts `maestro` on PATH and ships
 the agents, commands, skills, hooks, and the `resources/` templates beside it.
 
 A run is one execution of a playbook. Its id is the slug; its branch is
-`pagani/<slug>`. Run state lives outside the repo in
-`${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}/<repo-id>/<slug>/`.
+`bottega/<slug>`. Run state lives outside the repo in
+`${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}/<repo-id>/<slug>/`.
 Nothing is written into the repo or a worktree.
 
 Headless builder:
-  `pagani build` runs the Claude Code `builder` agent headless on a third-party
-  model. Credentials live in ~/.config/pagani/builder.env (create it with
-  `pagani build --init`); they are never stored in the repo.
-  `pagani build --here <slug>` is the light path: no run, spec, or worktree; it
+  `maestro build` runs the Claude Code `builder` agent headless on a third-party
+  model. Credentials live in ~/.config/bottega/builder.env (create it with
+  `maestro build --init`); they are never stored in the repo.
+  `maestro build --here <slug>` is the light path: no run, spec, or worktree; it
   builds in the current checkout and keeps state in the state directory under
   quick/<slug>/.
-  `pagani build --review <run> <task>` runs the read-only `review-code` agent
+  `maestro build --review <run> <task>` runs the read-only `review-code` agent
   in the task worktree and writes build/<task>.review2.md.
 
 The skills stay organized by category; the plugin manifest points at each
@@ -64,7 +64,7 @@ config_dir() {
 # A run's state lives outside the repo. One directory per git common dir, so
 # every worktree of a repo shares it:
 #   <base>/<repo basename>-<first 8 hex of sha1(realpath(git-common-dir))>
-# where <base> is PAGANI_STATE_DIR or ${TMPDIR:-/tmp}/pagani-<uid>.
+# where <base> is BOTTEGA_STATE_DIR or ${TMPDIR:-/tmp}/maestro-<uid>.
 state_dir() {
   local root common real name id base
   root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
@@ -82,7 +82,7 @@ state_dir() {
   else
     id="$(printf '%s' "$real" | git hash-object --stdin | cut -c1-8)"
   fi
-  base="${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}"
+  base="${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}"
   base="${base%/}"
   printf '%s/%s-%s\n' "$base" "$name" "$id"
 }
@@ -115,16 +115,16 @@ light_dir() {
   printf '%s/quick/%s\n' "$dir" "$1"
 }
 
-# `pagani start "<title>"`: create the branch, the state directory, and the run
+# `maestro start "<title>"`: create the branch, the state directory, and the run
 # id (the slug). Auto-inits the project on first use and requires a clean tree.
 cmd_start() {
   local title="${1:-}"
-  [ -n "$title" ] || { echo 'usage: pagani start "<title>"' >&2; exit 2; }
-  git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "pagani start: not a git repository" >&2; exit 1; }
+  [ -n "$title" ] || { echo 'usage: maestro start "<title>"' >&2; exit 2; }
+  git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "maestro start: not a git repository" >&2; exit 1; }
   local repo
   repo="$(git rev-parse --show-toplevel)"
   cd "$repo"
-  # /pagani is the only command you need: set the project up on first use. init
+  # /maestro is the only command you need: set the project up on first use. init
   # only creates what is missing and everything it creates is excluded from git,
   # so the clean-tree check below is unaffected.
   if [ ! -f AGENTS.md ] || [ ! -x scripts/check ] || [ ! -f .claude/settings.json ]; then
@@ -140,34 +140,34 @@ cmd_start() {
   [ -n "$slug" ] || slug="run"
   base="$(git branch --show-current 2>/dev/null || true)"
   [ -n "$base" ] || base="HEAD"
-  while git show-ref --verify --quiet "refs/heads/pagani/$slug"; do
+  while git show-ref --verify --quiet "refs/heads/bottega/$slug"; do
     n=$((n + 1))
     slug="${slug%-$((n - 1))}-$n"
   done
 
-  git switch -c "pagani/$slug" >/dev/null 2>&1 || git checkout -b "pagani/$slug" >/dev/null 2>&1 || {
-    echo "pagani start: could not create branch pagani/$slug (base: $base)" >&2
+  git switch -c "bottega/$slug" >/dev/null 2>&1 || git checkout -b "bottega/$slug" >/dev/null 2>&1 || {
+    echo "maestro start: could not create branch bottega/$slug (base: $base)" >&2
     exit 1
   }
   local dir
-  dir="$(run_dir "$slug")" || { echo "pagani start: could not create the state directory" >&2; exit 1; }
+  dir="$(run_dir "$slug")" || { echo "maestro start: could not create the state directory" >&2; exit 1; }
   (umask 077; mkdir -p "$dir/build" "$dir/tasks")
   echo "run: $slug"
-  echo "branch: pagani/$slug"
+  echo "branch: bottega/$slug"
   echo "state: $dir"
 }
 
-# `pagani spec <run> [file]`: save the spec and extract each `### Task <n>`
+# `maestro spec <run> [file]`: save the spec and extract each `### Task <n>`
 # section into tasks/<n>.md. Prints the task count.
 cmd_spec() {
   local slug="${1:-}" file="${2:-}"
-  [ -n "$slug" ] || { echo "usage: pagani spec <run> [file]" >&2; exit 2; }
+  [ -n "$slug" ] || { echo "usage: maestro spec <run> [file]" >&2; exit 2; }
   local dir
-  dir="$(run_state_dir "$slug")" || { echo "pagani spec: not in a git repository" >&2; exit 1; }
-  [ -d "$dir" ] || { echo "pagani spec: no such run: $slug (run: pagani start \"<title>\")" >&2; exit 1; }
+  dir="$(run_state_dir "$slug")" || { echo "maestro spec: not in a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "maestro spec: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 1; }
   local spec="$dir/spec.md"
   if [ -n "$file" ]; then
-    [ -f "$file" ] || { echo "pagani spec: no such file: $file" >&2; exit 1; }
+    [ -f "$file" ] || { echo "maestro spec: no such file: $file" >&2; exit 1; }
     cat "$file" > "$spec"
   else
     cat > "$spec"
@@ -193,14 +193,14 @@ cmd_spec() {
   echo "$count"
 }
 
-# `pagani check <run>`: run scripts/check from the repo root and record the
+# `maestro check <run>`: run scripts/check from the repo root and record the
 # result in the state directory.
 cmd_check() {
   local slug="${1:-}"
-  [ -n "$slug" ] || { echo "usage: pagani check <run>" >&2; exit 2; }
+  [ -n "$slug" ] || { echo "usage: maestro check <run>" >&2; exit 2; }
   local dir repo
-  dir="$(run_state_dir "$slug")" || { echo "pagani check: not in a git repository" >&2; exit 1; }
-  [ -d "$dir" ] || { echo "pagani check: no such run: $slug" >&2; exit 1; }
+  dir="$(run_state_dir "$slug")" || { echo "maestro check: not in a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "maestro check: no such run: $slug" >&2; exit 1; }
   repo="$(git rev-parse --show-toplevel)"
   cd "$repo"
   [ -x scripts/check ] || { echo "scripts/check not found or not executable" >&2; exit 1; }
@@ -250,8 +250,8 @@ is_test_path() {
 branch_base() {
   local slug="${1:-}" cur b base=""
   cur="$(git branch --show-current 2>/dev/null || true)"
-  if [ -n "$slug" ] && [ "$cur" != "pagani/$slug" ] && git show-ref --verify --quiet "refs/heads/pagani/$slug"; then
-    base="$(git merge-base HEAD "refs/heads/pagani/$slug" 2>/dev/null || true)"
+  if [ -n "$slug" ] && [ "$cur" != "bottega/$slug" ] && git show-ref --verify --quiet "refs/heads/bottega/$slug"; then
+    base="$(git merge-base HEAD "refs/heads/bottega/$slug" 2>/dev/null || true)"
     [ -n "$base" ] && { printf '%s\n' "$base"; return 0; }
   fi
   for b in main master; do
@@ -300,7 +300,7 @@ cmd_gate() {
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo "usage: pagani gate <run> [--allow-dirty]" >&2; exit 1; }
+  [ -n "$slug" ] || { echo "usage: maestro gate <run> [--allow-dirty]" >&2; exit 1; }
 
   if [ "$allow_dirty" = "0" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if [ -n "$(git status --porcelain)" ]; then
@@ -330,7 +330,7 @@ cmd_gate() {
 }
 
 cmd_doctor() {
-  echo "PaganiStack doctor"
+  echo "BottegaStack doctor"
   echo "root: $ROOT"
   local sdir
   if sdir="$(state_dir 2>/dev/null)"; then
@@ -342,7 +342,7 @@ cmd_doctor() {
   if builder_ready quiet; then
     echo "headless builder: ready ($(builder_env_file))"
   else
-    echo "headless builder: not configured (pagani build --init; Claude builder is the fallback)"
+    echo "headless builder: not configured (maestro build --init; Claude builder is the fallback)"
   fi
   command -v claude >/dev/null 2>&1 && echo "claude: yes" || echo "claude: no"
   command -v gh >/dev/null 2>&1 && echo "gh: yes" || echo "gh: no"
@@ -373,7 +373,7 @@ cmd_doctor() {
     echo "AGENTS.md lines: $lines"
     [ "$lines" -gt 200 ] && echo "warning: AGENTS.md is over 200 lines; move detail into skills"
   else
-    echo "AGENTS.md: missing (run pagani init)"
+    echo "AGENTS.md: missing (run maestro init)"
   fi
 
   if [ -d .git ] && git ls-files --error-unmatch .env >/dev/null 2>&1; then
@@ -383,7 +383,7 @@ cmd_doctor() {
   if [ -f .claude/settings.json ]; then
     echo "project claude settings: yes"
   else
-    echo "project claude settings: missing (run pagani init)"
+    echo "project claude settings: missing (run maestro init)"
   fi
 
   local gitdir hook
@@ -394,8 +394,8 @@ cmd_doctor() {
       *) gitdir="./$gitdir" ;;
     esac
     for hook in pre-commit pre-push; do
-      if [ -f "$gitdir/hooks/$hook" ] && grep -q 'pagani-managed' "$gitdir/hooks/$hook"; then
-        echo "$hook hook: yes (pagani-managed)"
+      if [ -f "$gitdir/hooks/$hook" ] && grep -q 'bottega-managed' "$gitdir/hooks/$hook"; then
+        echo "$hook hook: yes (bottega-managed)"
       else
         echo "$hook hook: no"
       fi
@@ -418,10 +418,10 @@ cmd_doctor() {
   fi
 }
 
-# Every path pagani creates in a project. None of them is ever committed: they are
+# Every path maestro creates in a project. None of them is ever committed: they are
 # listed in .git/info/exclude (local, never committed, shared by worktrees) and
 # the pre-commit hook rejects staging a new one.
-pagani_files() {
+maestro_files() {
   cat <<'LIST'
 AGENTS.md
 CLAUDE.md
@@ -447,7 +447,7 @@ LIST
 
 # Write the managed block to the repo's local exclude file. Idempotent. Does not
 # touch .gitignore, so the project's tracked files are never modified.
-exclude_pagani_files() {
+exclude_maestro_files() {
   local dest="$1" common file tmp
   common="$(git -C "$dest" rev-parse --git-common-dir 2>/dev/null)" || {
     echo "note: $dest is not a git repository; nothing excluded"
@@ -458,29 +458,29 @@ exclude_pagani_files() {
   mkdir -p "$common/info"
   [ -f "$file" ] || : > "$file"
   tmp="$(mktemp)"
-  awk '/^# >>> pagani/{skip=1} !skip{print} /^# <<< pagani/{skip=0}' "$file" > "$tmp"
+  awk '/^# >>> bottega/{skip=1} !skip{print} /^# <<< bottega/{skip=0}' "$file" > "$tmp"
   {
-    echo "# >>> pagani (local only; never committed)"
-    pagani_files | sed 's|^|/|'
-    echo "# <<< pagani"
+    echo "# >>> bottega (local only; never committed)"
+    maestro_files | sed 's|^|/|'
+    echo "# <<< bottega"
   } >> "$tmp"
-  if cmp -s "$tmp" "$file"; then rm -f "$tmp"; else mv "$tmp" "$file"; echo "excluded: pagani files ($file)"; fi
+  if cmp -s "$tmp" "$file"; then rm -f "$tmp"; else mv "$tmp" "$file"; echo "excluded: maestro files ($file)"; fi
 }
 
 # Untracked files do not exist in a fresh worktree, so copy the ones the builder
 # needs (AGENTS.md, scripts/check, settings, hooks) into it without overwriting.
-copy_pagani_files() {
+copy_maestro_files() {
   local from="$1" to="$2" f
   while IFS= read -r f; do
     [ -e "$from/$f" ] || continue
     [ -e "$to/$f" ] && continue
     mkdir -p "$(dirname "$to/$f")"
     cp -R "$from/$f" "$to/$f"
-  done < <(pagani_files)
+  done < <(maestro_files)
 }
 
 # Project files are created on demand: init sets up only what the workflow
-# needs to start. Skills call `pagani seed <Name>` for the rest.
+# needs to start. Skills call `maestro seed <Name>` for the rest.
 cmd_init() {
   local dest="${1:-$PWD}"
   mkdir -p "$dest/scripts" "$dest/.claude"
@@ -489,7 +489,7 @@ cmd_init() {
   [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
   [ -f "$dest/.claude/settings.json" ] || cp "$ROOT/resources/claude-settings.json" "$dest/.claude/settings.json"
   chmod +x "$dest/scripts/check"
-  exclude_pagani_files "$dest"
+  exclude_maestro_files "$dest"
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
   fi
@@ -508,12 +508,12 @@ seed_one() {
   echo "created: $dest"
 }
 
-# `pagani seed <Name>`: copy a project-file template in if absent. Idempotent;
+# `maestro seed <Name>`: copy a project-file template in if absent. Idempotent;
 # prints created:/kept: for each destination.
 cmd_seed() {
   local name="${1:-}" dest
   [ -n "$name" ] || {
-    echo "usage: pagani seed SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md|FEATURE-MAP.md|verify" >&2
+    echo "usage: maestro seed SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md|FEATURE-MAP.md|verify" >&2
     exit 2
   }
   dest="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -529,8 +529,8 @@ cmd_seed() {
       seed_one "$ROOT/resources/verify.conf" "$dest/scripts/verify.conf" || true
       ;;
     *)
-      echo "pagani seed: unknown project file: $name" >&2
-      echo "usage: pagani seed SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md|FEATURE-MAP.md|verify" >&2
+      echo "maestro seed: unknown project file: $name" >&2
+      echo "usage: maestro seed SPEC.md|PLAN.md|REVIEW.md|GLOSSARY.md|BACKLOG.md|mistakes.md|FEATURE-MAP.md|verify" >&2
       exit 2
       ;;
   esac
@@ -538,11 +538,11 @@ cmd_seed() {
 
 cmd_upgrade() {
   local dest="${1:-$PWD}"
-  [ -d "$dest" ] || { echo "pagani upgrade: no such directory: $dest" >&2; exit 1; }
+  [ -d "$dest" ] || { echo "maestro upgrade: no such directory: $dest" >&2; exit 1; }
   dest="$(cd "$dest" && pwd)"
   if ! command -v python3 >/dev/null 2>&1; then
-    echo "pagani upgrade: python3 is required to merge .claude/settings.json." >&2
-    echo "Install python3, then re-run: pagani upgrade $dest" >&2
+    echo "maestro upgrade: python3 is required to merge .claude/settings.json." >&2
+    echo "Install python3, then re-run: maestro upgrade $dest" >&2
     exit 1
   fi
 
@@ -555,10 +555,10 @@ cmd_upgrade() {
     echo "removed: $dest/scripts/claude-hook.sh (retired)"
   fi
 
-  # The headless builder is global now (`pagani build`); drop the old per-project wrapper.
+  # The headless builder is global now (`maestro build`); drop the old per-project wrapper.
   if [ -f "$dest/scripts/opencode-build" ] && [ ! -L "$dest/scripts/opencode-build" ]; then
     rm -f "$dest/scripts/opencode-build"
-    echo "removed: $dest/scripts/opencode-build (replaced by: pagani build)"
+    echo "removed: $dest/scripts/opencode-build (replaced by: maestro build)"
   fi
 
   local target="$dest/.claude/settings.json" tmp
@@ -578,7 +578,7 @@ if not isinstance(target, dict):
 for k, v in src.items():
     if k != "hooks" and k not in target:
         target[k] = v
-# Drop the retired pagani hooks (claude-hook.sh); keep any other hooks.
+# Drop the retired maestro hooks (claude-hook.sh); keep any other hooks.
 kept = {}
 for event, entries in (target.get("hooks") or {}).items():
     rows = [e for e in entries if "claude-hook.sh" not in json.dumps(e)]
@@ -597,14 +597,14 @@ PY
     echo "unchanged: $target"
   else
     if [ -f "$target" ]; then
-      cp "$target" "$target.pagani-backup-$STAMP"
-      echo "backup: $target -> $target.pagani-backup-$STAMP"
+      cp "$target" "$target.maestro-backup-$STAMP"
+      echo "backup: $target -> $target.maestro-backup-$STAMP"
     fi
     mv "$tmp" "$target"
     echo "updated: $target"
   fi
 
-  exclude_pagani_files "$dest"
+  exclude_maestro_files "$dest"
 
   if [ -e "$dest/.git" ]; then
     install_git_hooks "$dest"
@@ -612,19 +612,19 @@ PY
 }
 
 # ---- Headless builder -------------------------------------------------------
-# `pagani build` runs the Claude Code `builder` agent headless (claude -p) on a
+# `maestro build` runs the Claude Code `builder` agent headless (claude -p) on a
 # third-party model. Claude drives; the builder only implements and reports.
 # Credentials come from per-machine files, never from the repo.
 
 builder_env_file() {
-  printf '%s\n' "${PAGANI_BUILDER_ENV:-${XDG_CONFIG_HOME:-$HOME/.config}/pagani/builder.env}"
+  printf '%s\n' "${BOTTEGA_BUILDER_ENV:-${XDG_CONFIG_HOME:-$HOME/.config}/bottega/builder.env}"
 }
 
 # The key lives in its own mode-600 file and reaches claude through apiKeyHelper
-# (`pagani keyget`), so it is never in the builder's environment or argv. An
+# (`maestro keyget`), so it is never in the builder's environment or argv. An
 # ANTHROPIC_AUTH_TOKEN line in builder.env still works as a fallback.
 builder_key_file() {
-  printf '%s\n' "${PAGANI_BUILDER_KEY:-${XDG_CONFIG_HOME:-$HOME/.config}/pagani/builder.key}"
+  printf '%s\n' "${BOTTEGA_BUILDER_KEY:-${XDG_CONFIG_HOME:-$HOME/.config}/bottega/builder.key}"
 }
 
 cmd_keyget() {
@@ -643,7 +643,7 @@ builder_ready() {
   has_value() { grep -Eq "^(export[[:space:]]+)?($1)=([^[:space:]\"']|[\"'][^\"']+[\"'])" "$file"; }
   command -v claude >/dev/null 2>&1 || { say "builder: claude is not installed"; return 1; }
   command -v python3 >/dev/null 2>&1 || { say "builder: python3 is required"; return 1; }
-  [ -f "$file" ] || { say "builder: not configured (run: pagani build --init)"; return 1; }
+  [ -f "$file" ] || { say "builder: not configured (run: maestro build --init)"; return 1; }
   for var in ANTHROPIC_BASE_URL ANTHROPIC_MODEL; do
     has_value "$var" || missing="$missing $var"
   done
@@ -662,7 +662,7 @@ builder_init() {
   file="$(builder_env_file)"
   keyfile="$(builder_key_file)"
   example="$ROOT/resources/builder.env.example"
-  [ -f "$example" ] || { echo "pagani build --init: $example not found" >&2; exit 1; }
+  [ -f "$example" ] || { echo "maestro build --init: $example not found" >&2; exit 1; }
   mkdir -p "$(dirname "$file")"
   if [ -f "$file" ]; then
     echo "exists: $file"
@@ -688,14 +688,14 @@ builder_init() {
       echo "skipped: no key entered. Add it later: write it to $keyfile (mode 600)."
     fi
   fi
-  echo "Then check with: pagani build --check"
+  echo "Then check with: maestro build --check"
 }
 
-# pagani build <run> <task> [--revise <findings>] [--block | --wait]
-#   default  wait up to PAGANI_BUILD_WAIT seconds (540), then print RUNNING, exit 5
+# maestro build <run> <task> [--revise <findings>] [--block | --wait]
+#   default  wait up to BOTTEGA_BUILD_WAIT seconds (540), then print RUNNING, exit 5
 #   --wait   attach to a running build, same bounded wait
 #   --block  wait until the build ends; for a background Bash task. The builder
-#            itself is capped by PAGANI_BUILD_TIMEOUT (default 1800 s = 30 min).
+#            itself is capped by BOTTEGA_BUILD_TIMEOUT (default 1800 s = 30 min).
 # One status line for a run: done/running/queued counts plus running tasks.
 build_status_line() {
   local rundir="$1" bdir="$1/build" n=0 d=0 r=0 q=0 t f sl="" last
@@ -732,15 +732,15 @@ build_status() {
     case "$1" in
       --every)
         case "${2:-}" in
-          ''|*[!0-9]*) every="${PAGANI_STATUS_EVERY:-180}"; shift ;;
+          ''|*[!0-9]*) every="${BOTTEGA_STATUS_EVERY:-180}"; shift ;;
           *) every="$2"; shift 2 ;;
         esac ;;
-      -*) echo "pagani build --status: unknown flag: $1" >&2; exit 2 ;;
+      -*) echo "maestro build --status: unknown flag: $1" >&2; exit 2 ;;
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo "usage: pagani build --status <run> [--every [seconds]]" >&2; exit 2; }
-  dir="$(run_state_dir "$slug")" || { echo "pagani build --status: not in a git repository" >&2; exit 2; }
+  [ -n "$slug" ] || { echo "usage: maestro build --status <run> [--every [seconds]]" >&2; exit 2; }
+  dir="$(run_state_dir "$slug")" || { echo "maestro build --status: not in a git repository" >&2; exit 2; }
   [ -d "$dir" ] || { echo "no such run: $slug" >&2; exit 2; }
   if [ -z "${every:-}" ]; then build_status_line "$dir"; return 0; fi
   case "$every" in ''|*[!0-9]*) echo "--every needs a number of seconds" >&2; exit 2 ;; esac
@@ -779,9 +779,9 @@ start_build_exec() {
 # own timeout (plus a minute) so a background task ends when the build ends.
 build_wait_limit() {
   if [ "${1:-0}" = "1" ]; then
-    echo $(( ${PAGANI_BUILD_TIMEOUT:-1800} + 60 ))
+    echo $(( ${BOTTEGA_BUILD_TIMEOUT:-1800} + 60 ))
   else
-    echo "${PAGANI_BUILD_WAIT:-540}"
+    echo "${BOTTEGA_BUILD_WAIT:-540}"
   fi
 }
 
@@ -832,7 +832,7 @@ cap_log() {
   tail -c 5242880 "$log" > "$log.tmp" && mv "$log.tmp" "$log"
 }
 
-# `pagani build --here <slug> --task "<text>" [--block|--wait]`: the light path.
+# `maestro build --here <slug> --task "<text>" [--block|--wait]`: the light path.
 # No run, spec, or worktree; the builder works in the current checkout
 # and commits on the current branch. All state lives in the state directory.
 build_here() {
@@ -842,22 +842,22 @@ build_here() {
       --task) text="${2:?--task needs text}"; have_text=1; shift 2 ;;
       --block) block=1; shift ;;
       --wait) shift ;;
-      -*) echo "pagani build --here: unknown flag: $1" >&2; exit 2 ;;
+      -*) echo "maestro build --here: unknown flag: $1" >&2; exit 2 ;;
       *)
-        [ -z "$slug" ] || { echo "pagani build --here: one slug only" >&2; exit 2; }
+        [ -z "$slug" ] || { echo "maestro build --here: one slug only" >&2; exit 2; }
         slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo 'usage: pagani build --here <slug> --task "<text>" [--block|--wait]' >&2; exit 2; }
+  [ -n "$slug" ] || { echo 'usage: maestro build --here <slug> --task "<text>" [--block|--wait]' >&2; exit 2; }
   case "$slug" in
-    *[!a-z0-9-]*|-*|'') echo "pagani build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
+    *[!a-z0-9-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
   esac
 
   local repo branch qdir
-  repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "pagani build --here: not a git repository" >&2; exit 3; }
+  repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --here: not a git repository" >&2; exit 3; }
   branch="$(git -C "$repo" branch --show-current)"
-  [ -n "$branch" ] || { echo "pagani build --here: detached HEAD; switch to a branch first" >&2; exit 3; }
-  qdir="$(light_dir "$slug")" || { echo "pagani build --here: could not create the state directory" >&2; exit 3; }
+  [ -n "$branch" ] || { echo "maestro build --here: detached HEAD; switch to a branch first" >&2; exit 3; }
+  qdir="$(light_dir "$slug")" || { echo "maestro build --here: could not create the state directory" >&2; exit 3; }
 
   local run="$qdir/run" rcfile="$qdir/rc" progress="$qdir/progress"
   local prompt="$qdir/prompt" log="$qdir/builder.log" profile="$qdir/settings.json"
@@ -866,7 +866,7 @@ build_here() {
   if [ -f "$run" ]; then
     base="$(sed -n 's/^base=//p' "$run")"
   elif [ "$have_text" = "0" ]; then
-    echo 'usage: pagani build --here <slug> --task "<text>" [--block|--wait]' >&2
+    echo 'usage: maestro build --here <slug> --task "<text>" [--block|--wait]' >&2
     exit 2
   fi
 
@@ -896,7 +896,7 @@ EOF
 
   build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
-    echo "RUNNING task: $slug (still building; call again: pagani build --here $slug --task \"<text>\" --wait)"
+    echo "RUNNING task: $slug (still building; call again: maestro build --here $slug --task \"<text>\" --wait)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
     [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
     echo "progress: $progress"
@@ -921,7 +921,7 @@ EOF
   [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
 }
 
-# `pagani build --review <run> <task> [--block|--wait]`: a read-only second
+# `maestro build --review <run> <task> [--block|--wait]`: a read-only second
 # opinion from the review-code agent in the task worktree. Its reply lands in
 # the run's build/<task>.review2.md.
 build_review() {
@@ -930,24 +930,24 @@ build_review() {
     case "$1" in
       --block) block=1; shift ;;
       --wait) shift ;;
-      -*) echo "pagani build --review: unknown flag: $1" >&2; exit 2 ;;
+      -*) echo "maestro build --review: unknown flag: $1" >&2; exit 2 ;;
       *)
         if [ -z "$slug" ]; then slug="$1"
         elif [ -z "$task" ]; then task="$1"
-        else echo "pagani build --review: unexpected argument: $1" >&2; exit 2; fi
+        else echo "maestro build --review: unexpected argument: $1" >&2; exit 2; fi
         shift ;;
     esac
   done
-  [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: pagani build --review <run> <task> [--block|--wait]" >&2; exit 2; }
+  [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> [--block|--wait]" >&2; exit 2; }
 
   builder_ready || exit 3
   local repo name dir wt
-  repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "pagani build --review: not a git repository" >&2; exit 3; }
+  repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --review: not a git repository" >&2; exit 3; }
   name="$(basename "$repo")"
-  dir="$(run_state_dir "$slug")" || { echo "pagani build --review: not in a git repository" >&2; exit 3; }
-  wt="$(cd "$repo/.." && pwd)/$name-pagani/$slug/$task"
-  [ -d "$dir" ] || { echo "pagani build --review: no such run: $slug" >&2; exit 3; }
-  [ -d "$wt" ] || { echo "pagani build --review: no worktree $wt (run: pagani worktree create $slug $task)" >&2; exit 3; }
+  dir="$(run_state_dir "$slug")" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
+  wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
+  [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 3; }
+  [ -d "$wt" ] || { echo "maestro build --review: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
 
   local bdir="$dir/build"
   local findings="$bdir/$task.review2.md"
@@ -965,8 +965,8 @@ build_review() {
     fi
   else
     local diff_base
-    if git -C "$wt" rev-parse --verify -q "pagani/$slug" >/dev/null 2>&1; then
-      diff_base="pagani/$slug"
+    if git -C "$wt" rev-parse --verify -q "bottega/$slug" >/dev/null 2>&1; then
+      diff_base="bottega/$slug"
     else
       diff_base="$(git -C "$wt" rev-list --max-parents=0 HEAD | head -1)"
     fi
@@ -991,7 +991,7 @@ EOF
 
   build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
-    echo "RUNNING review: $slug $task (still reviewing; call again: pagani build --review $slug $task --wait)"
+    echo "RUNNING review: $slug $task (still reviewing; call again: maestro build --review $slug $task --wait)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
     [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
     echo "progress: $progress"
@@ -1024,7 +1024,7 @@ cmd_build() {
     --review) shift; build_review "$@"; return ;;
   esac
 
-  local usage="usage: pagani build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run> [--every [seconds]]"
+  local usage="usage: maestro build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run> [--every [seconds]]"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
   local slug="$1" task="$2" findings="" block=0
   shift 2
@@ -1042,8 +1042,8 @@ cmd_build() {
   envfile="$(builder_env_file)"
   repo="$(git rev-parse --show-toplevel)"
   name="$(basename "$repo")"
-  dir="$(run_state_dir "$slug")" || { echo "pagani build: not in a git repository" >&2; exit 3; }
-  wt="$(cd "$repo/.." && pwd)/$name-pagani/$slug/$task"
+  dir="$(run_state_dir "$slug")" || { echo "maestro build: not in a git repository" >&2; exit 3; }
+  wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
   local bdir="$dir/build"
   local report="$bdir/$task.report.md"
   local state="$bdir/$task.builder"
@@ -1055,9 +1055,9 @@ cmd_build() {
   local promptfile="$bdir/$task.prompt"
   local taskfile="$dir/tasks/$task.md"
 
-  [ -d "$dir" ] || { echo "pagani build: no such run: $slug (run: pagani start \"<title>\")" >&2; exit 3; }
-  [ -f "$taskfile" ] || { echo "pagani build: no such task: $task (run: pagani spec $slug)" >&2; exit 3; }
-  [ -d "$wt" ] || { echo "pagani build: no worktree $wt (run: pagani worktree create $slug $task)" >&2; exit 3; }
+  [ -d "$dir" ] || { echo "maestro build: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 3; }
+  [ -f "$taskfile" ] || { echo "maestro build: no such task: $task (run: maestro spec $slug)" >&2; exit 3; }
+  [ -d "$wt" ] || { echo "maestro build: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
   mkdir -p "$bdir"
   local branch rev=0 sid="" findings_text=""
   branch="$(git -C "$wt" branch --show-current)"
@@ -1066,7 +1066,7 @@ cmd_build() {
     if [ "$findings" = "-" ]; then
       findings_text="$(cat)"
     else
-      [ -f "$findings" ] || { echo "pagani build: findings file not found: $findings" >&2; exit 3; }
+      [ -f "$findings" ] || { echo "maestro build: findings file not found: $findings" >&2; exit 3; }
       findings_text="$(cat "$findings")"
     fi
   fi
@@ -1081,11 +1081,11 @@ cmd_build() {
   else
     local msg
     if [ -n "$findings" ]; then
-      [ -f "$state" ] || { echo "pagani build: no session for $task; run a first build" >&2; exit 3; }
+      [ -f "$state" ] || { echo "maestro build: no session for $task; run a first build" >&2; exit 3; }
       sid="$(sed -n 's/^session=//p' "$state")"
       rev="$(sed -n 's/^revisions=//p' "$state")"; rev="${rev:-0}"
       if [ "$rev" -ge "$max_rev" ]; then
-        echo "pagani build: $max_rev revisions used; escalate to the human (workflow rule: max two fix rounds)" >&2
+        echo "maestro build: $max_rev revisions used; escalate to the human (workflow rule: max two fix rounds)" >&2
         exit 4
       fi
       rev=$((rev + 1))
@@ -1118,7 +1118,7 @@ $(cat "$taskfile")"
   # Bounded wait for a foreground caller.
   build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
-    echo "RUNNING task: $task (still building; call again: pagani build $slug $task --wait)"
+    echo "RUNNING task: $task (still building; call again: maestro build $slug $task --wait)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
     [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
     echo "progress: $progress"
@@ -1137,7 +1137,7 @@ $(cat "$taskfile")"
 
   local status="MISSING" commits cost
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
-  commits="$(git -C "$wt" log --oneline "pagani/$slug..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
+  commits="$(git -C "$wt" log --oneline "bottega/$slug..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
   cost="$(build_cost "$log")"
 
   echo "task: $task"
@@ -1148,7 +1148,7 @@ $(cat "$taskfile")"
   [ -n "$cost" ] && echo "cost (estimate): \$$cost"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
-  echo "files changed:"; git -C "$wt" diff --name-only "pagani/$slug...HEAD" 2>/dev/null | sed 's/^/  /'
+  echo "files changed:"; git -C "$wt" diff --name-only "bottega/$slug...HEAD" 2>/dev/null | sed 's/^/  /'
   [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
 }
 
@@ -1180,7 +1180,7 @@ names = ("ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL"
          "CLAUDE_CODE_SUBAGENT_MODEL")
 env = {k: os.environ[k] for k in names if os.environ.get(k)}
 env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] = "1"
-env["PAGANI_HEADLESS"] = "1"
+env["BOTTEGA_HEADLESS"] = "1"
 prof = {"env": env}
 if helper:
     prof["apiKeyHelper"] = helper
@@ -1190,13 +1190,13 @@ with open(path, "w") as f:
     json.dump(prof, f)
 PY
     export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-    export PAGANI_HEADLESS=1
-    cd "$wt" && timeout "${PAGANI_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
+    export BOTTEGA_HEADLESS=1
+    cd "$wt" && timeout "${BOTTEGA_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
       --output-format stream-json --verbose \
       "${resume[@]}" \
       --settings "$profile" \
       --permission-mode acceptEdits \
-      --max-budget-usd "${PAGANI_BUILD_BUDGET:-10}" \
+      --max-budget-usd "${BOTTEGA_BUILD_BUDGET:-10}" \
       --tools "$tools" --strict-mcp-config \
       --allowedTools "$allowed" \
       --disallowedTools "$disallowed"
@@ -1221,19 +1221,19 @@ for line in sys.stdin:
   echo "$rc" > "$rcfile"
 }
 
-# Hooks used by the /pagani command (frontmatter, so they only apply while
-# /pagani runs).
+# Hooks used by the /maestro command (frontmatter, so they only apply while
+# /maestro runs).
 #   guard builder  PreToolUse: deny the Claude-model builder when the headless
 #                  builder is configured; allow it otherwise (fallback).
 #   guard stop     Stop: do not let the master end its turn between steps. It
 #                  blocks only while a run is mid-pipeline with nothing running.
 cmd_guard() {
   # Headless builder/reviewer sessions load the same plugin hooks: stay out of their way.
-  [ -z "${PAGANI_HEADLESS:-}" ] || exit 0
+  [ -z "${BOTTEGA_HEADLESS:-}" ] || exit 0
   case "${1:-}" in
     builder) guard_builder ;;
     stop) guard_stop ;;
-    *) echo "usage: pagani guard builder|stop" >&2; exit 2 ;;
+    *) echo "usage: maestro guard builder|stop" >&2; exit 2 ;;
   esac
 }
 
@@ -1243,7 +1243,7 @@ guard_builder() {
   kind="$(printf '%s' "$input" | tr -d '\n' | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   [ "$kind" = "builder" ] || exit 0
   builder_ready quiet || exit 0
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `pagani worktree create <run> <task>`, then run `pagani build <run> <task> --block` as a background Bash task (see Step 2)."}}'
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `maestro worktree create <run> <task>`, then run `maestro build <run> <task> --block` as a background Bash task (see Step 2)."}}'
 }
 
 # The todo list is the source of truth: the master must keep going while an
@@ -1256,7 +1256,7 @@ guard_stop() {
   command -v python3 >/dev/null 2>&1 || exit 0
   # Never block a stop the harness already blocked once.
   printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
-  # Only act in repos where pagani has a run: the plugin hook is global, and an
+  # Only act in repos where maestro has a run: the plugin hook is global, and an
   # ordinary session with open todos must not be nudged.
   sdir="$(state_dir 2>/dev/null || true)"
   [ -n "$sdir" ] && [ -d "$sdir" ] || exit 0
@@ -1268,7 +1268,7 @@ guard_stop() {
     done
   fi
   # other legitimate async work (background checks, builders without a .run file)
-  if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|pagani check|scripts/check' >/dev/null 2>&1; then
+  if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|maestro check|scripts/check' >/dev/null 2>&1; then
     exit 0
   fi
   printf '%s' "$input" | python3 -c '
@@ -1365,10 +1365,10 @@ cmd_worktree() {
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
       base="$(git branch --show-current)"
-      git worktree add -b "pagani/$slug-$task" "../$name-pagani/$slug/$task" "pagani/$slug" 2>/dev/null \
-        || git worktree add -b "pagani/$slug-$task" "../$name-pagani/$slug/$task" "$base"
-      local path="../$name-pagani/$slug/$task"
-      copy_pagani_files "$repo" "$repo/$path"
+      git worktree add -b "bottega/$slug-$task" "../$name-bottega/$slug/$task" "bottega/$slug" 2>/dev/null \
+        || git worktree add -b "bottega/$slug-$task" "../$name-bottega/$slug/$task" "$base"
+      local path="../$name-bottega/$slug/$task"
+      copy_maestro_files "$repo" "$repo/$path"
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
       echo "worktree: $path"
       echo "port: $port"
@@ -1383,11 +1383,11 @@ cmd_worktree() {
           *) slug="$1"; shift ;;
         esac
       done
-      [ -n "$slug" ] || { echo "usage: pagani worktree prune <run> [--force]" >&2; exit 1; }
+      [ -n "$slug" ] || { echo "usage: maestro worktree prune <run> [--force]" >&2; exit 1; }
       local repo name root wt
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
-      root="../$name-pagani/$slug"
+      root="../$name-bottega/$slug"
       if [ -d "$root" ]; then
         for wt in "$root"/*; do
           [ -d "$wt" ] || continue
@@ -1410,7 +1410,7 @@ cmd_worktree() {
       fi
       ;;
     *)
-      echo "usage: pagani worktree create <run> <task> | prune <run> [--force]" >&2
+      echo "usage: maestro worktree create <run> <task> | prune <run> [--force]" >&2
       exit 1
       ;;
   esac
@@ -1447,29 +1447,29 @@ cmd_report() {
   cmd_status
 }
 
-# `pagani report --finding <run> "<title>"`: record one blocking review finding
+# `maestro report --finding <run> "<title>"`: record one blocking review finding
 # so the retro scan can spot a finding that repeats across runs. The log lives
 # in the state directory root, so closing a run does not remove it.
 cmd_finding() {
   local slug="$1" title="$2" base
   case "$slug" in
-    ''|*[!a-z0-9-]*) echo "pagani report --finding: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!a-z0-9-]*) echo "maestro report --finding: bad run id: $slug" >&2; exit 2 ;;
   esac
   title="$(printf '%s' "$title" | tr '\t\n' '  ')"
-  [ -n "$title" ] || { echo "pagani report --finding: empty title" >&2; exit 2; }
-  base="$(ensure_state_dir)" || { echo "pagani report --finding: not in a git repository" >&2; exit 1; }
+  [ -n "$title" ] || { echo "maestro report --finding: empty title" >&2; exit 2; }
+  base="$(ensure_state_dir)" || { echo "maestro report --finding: not in a git repository" >&2; exit 1; }
   printf '%s\t%s\n' "$slug" "$title" >> "$base/findings.log"
   echo "noted: $title"
 }
 
-# `pagani report --close <run>`: remove the run's state directory. The master
+# `maestro report --close <run>`: remove the run's state directory. The master
 # calls this at close.
 cmd_close() {
   local slug="$1" base dir
   case "$slug" in
-    ''|*[!a-z0-9-]*) echo "pagani report --close: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!a-z0-9-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
   esac
-  base="$(ensure_state_dir)" || { echo "pagani report --close: not in a git repository" >&2; exit 1; }
+  base="$(ensure_state_dir)" || { echo "maestro report --close: not in a git repository" >&2; exit 1; }
   dir="$base/$slug"
   if [ -d "$dir" ]; then
     rm -rf -- "$dir"
@@ -1478,21 +1478,6 @@ cmd_close() {
     echo "no such run: $slug" >&2
     exit 1
   fi
-}
-
-# `pagani job ...` is retired: print the replacement in one line and exit 2.
-cmd_job() {
-  local action="${1:-}" rest=""
-  shift || true
-  rest="$*"
-  case "$action" in
-    new) echo "pagani job is retired: use pagani start \"$rest\"" >&2 ;;
-    check) echo "pagani job is retired: use pagani check $rest" >&2 ;;
-    gate) echo "pagani job is retired: use pagani gate $rest" >&2 ;;
-    report) echo "pagani job is retired: use pagani report $rest" >&2 ;;
-    *) echo "pagani job is retired: use pagani start|spec|check|gate|report" >&2 ;;
-  esac
-  exit 2
 }
 
 cmd_status() {
@@ -1515,10 +1500,10 @@ cmd_status() {
 
 git_dir_for() {
   local repo="$1" gitdir
-  [ -d "$repo" ] || { echo "pagani hooks: no such directory: $repo" >&2; exit 1; }
+  [ -d "$repo" ] || { echo "maestro hooks: no such directory: $repo" >&2; exit 1; }
   repo="$(cd "$repo" && pwd)"
   if ! gitdir="$(git -C "$repo" rev-parse --git-dir 2>/dev/null)"; then
-    echo "pagani hooks: not a git repository: $repo" >&2
+    echo "maestro hooks: not a git repository: $repo" >&2
     exit 1
   fi
   case "$gitdir" in
@@ -1537,9 +1522,9 @@ install_git_hooks() {
   for hook in pre-commit pre-push; do
     src="$ROOT/resources/git-hooks/$hook"
     dest="$hooks/$hook"
-    if [ -e "$dest" ] && ! grep -q 'pagani-managed' "$dest" 2>/dev/null; then
-      cp -p "$dest" "$dest.pagani-backup-$STAMP"
-      echo "backup: $dest -> $dest.pagani-backup-$STAMP"
+    if [ -e "$dest" ] && ! grep -q 'bottega-managed' "$dest" 2>/dev/null; then
+      cp -p "$dest" "$dest.maestro-backup-$STAMP"
+      echo "backup: $dest -> $dest.maestro-backup-$STAMP"
     fi
     cp "$src" "$dest"
     chmod +x "$dest"
@@ -1554,11 +1539,11 @@ uninstall_git_hooks() {
   local hook dest
   for hook in pre-commit pre-push; do
     dest="$hooks/$hook"
-    if [ -f "$dest" ] && grep -q 'pagani-managed' "$dest" 2>/dev/null; then
+    if [ -f "$dest" ] && grep -q 'bottega-managed' "$dest" 2>/dev/null; then
       rm -f "$dest"
       echo "removed: $dest"
     else
-      echo "skipped: $dest (not pagani-managed)"
+      echo "skipped: $dest (not bottega-managed)"
     fi
   done
 }
@@ -1570,7 +1555,7 @@ cmd_hooks() {
     install) install_git_hooks "$path" ;;
     uninstall) uninstall_git_hooks "$path" ;;
     *)
-      echo "usage: pagani hooks install|uninstall [path]" >&2
+      echo "usage: maestro hooks install|uninstall [path]" >&2
       exit 1
       ;;
   esac
@@ -1704,8 +1689,7 @@ case "$cmd" in
   guard) cmd_guard "$@" ;;
   _build-exec) cmd_build_exec "$@" ;;
   keyget) cmd_keyget ;;
-  _files) pagani_files ;;
-  job) cmd_job "$@" ;;
+  _files) maestro_files ;;
   worktree) cmd_worktree "$@" ;;
   hooks) cmd_hooks "$@" ;;
   help|--help|-h|"") usage ;;

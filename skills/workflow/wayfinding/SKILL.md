@@ -1,9 +1,9 @@
 ---
 name: wayfinding
-description: Plan a PaganiStack effort too big for one session as a local map of decision tickets. Use when the destination is foggy and the work needs several rounds of decisions before a spec or implementation can start.
+description: Plan a BottegaStack effort too big for one session as a local map of decision tickets. Use when the destination is foggy and the work needs several rounds of decisions before a spec or implementation can start.
 ---
 
-# Pagani Wayfinder
+# Bottega Wayfinder
 
 Adapted from Matt Pocock's `wayfinder`, with the issue tracker replaced by local
 markdown under `docs/wayfinding/<effort>/map/`.

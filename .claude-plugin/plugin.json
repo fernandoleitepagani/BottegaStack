@@ -1,15 +1,15 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
-  "name": "pagani",
+  "name": "bottega",
   "version": "0.5.0",
   "description": "A personal agentic development workflow: playbooks, builders, reviewers, and project templates for Claude Code.",
   "author": {
-    "name": "PaganiStack"
+    "name": "BottegaStack"
   },
   "license": "MIT",
   "commands": [
-    "./commands/pagani.md",
-    "./commands/claude/pagani-models.md"
+    "./commands/maestro.md",
+    "./commands/claude/maestro-models.md"
   ],
   "skills": [
     "./skills/business-automation",

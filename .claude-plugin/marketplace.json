@@ -1,13 +1,13 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "pagani",
-  "description": "The PaganiStack plugin: playbooks, agents, skills, commands, and the pagani CLI.",
+  "name": "bottega",
+  "description": "The BottegaStack plugin: playbooks, agents, skills, commands, and the bottega CLI.",
   "owner": {
-    "name": "PaganiStack"
+    "name": "BottegaStack"
   },
   "plugins": [
     {
-      "name": "pagani",
+      "name": "bottega",
       "description": "A personal agentic development workflow for Claude Code.",
       "source": "./"
     }

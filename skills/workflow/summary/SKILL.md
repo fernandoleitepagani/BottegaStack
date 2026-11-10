@@ -1,9 +1,9 @@
 ---
 name: summary
-description: Post a short PaganiStack summary in chat after every step and the final summary once. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
+description: Post a short BottegaStack summary in chat after every step and the final summary once. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
 ---
 
-# PaganiStack Summary
+# BottegaStack Summary
 
 The human is in the loop. A summary is not a status line; it is the explanation
 that lets the human decide without reading the whole diff.

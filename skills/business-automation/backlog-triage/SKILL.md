@@ -3,13 +3,13 @@ name: backlog-triage
 description: Move items in a local BACKLOG.md through a small state machine, verify them, grill if needed, and write an agent-ready brief. Use when you want to triage a backlog without an issue tracker.
 ---
 
-# Pagani Triage
+# Bottega Triage
 
 Adapted from Matt Pocock's `triage`, with the issue tracker replaced by a local
 `BACKLOG.md`.
 
 Use this when you keep a backlog file and want to decide what is ready for
-PaganiStack. For a single request, skip this and start `/pagani <feature>`.
+BottegaStack. For a single request, skip this and start `/maestro <feature>`.
 
 ## States
 
@@ -19,7 +19,7 @@ Each item has one category and one state:
 - State: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`,
   `wontfix`.
 
-`ready-for-agent` means the item has a brief and can start `/pagani`.
+`ready-for-agent` means the item has a brief and can start `/maestro`.
 `ready-for-human` means it needs a person before an agent can start.
 `wontfix` means it will not be actioned; record why.
 
@@ -45,7 +45,7 @@ becomes `ready-for-agent`.
 
 ## Show what needs attention
 
-If `BACKLOG.md` is missing, create it with `pagani seed BACKLOG.md`. Then read
+If `BACKLOG.md` is missing, create it with `maestro seed BACKLOG.md`. Then read
 it and list, oldest first:
 
 1. Items with no state.
@@ -65,7 +65,7 @@ Show a one-line summary per item. Let the user pick.
    Update the notes as decisions land.
 5. Apply the outcome:
    - `ready-for-agent`: write a brief under `### Brief` with what to build,
-     acceptance criteria, and verification. Then start `/pagani` with it.
+     acceptance criteria, and verification. Then start `/maestro` with it.
    - `ready-for-human`: same brief, plus why it cannot be delegated.
    - `needs-info`: write the specific questions under `### Triage notes`.
    - `wontfix`: record why and stop.

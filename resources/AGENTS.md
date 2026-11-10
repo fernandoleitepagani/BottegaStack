@@ -23,15 +23,15 @@ not obvious facts the code already shows.
 # browser check
 ```
 
-## PaganiStack commands
+## BottegaStack commands
 
 ```bash
-pagani start "<title>"
-pagani spec <run> [file]
-pagani check <run>
-pagani gate <run> [--allow-dirty]
-pagani report [--retro] [--write] [--exit-code]
-pagani upgrade [path]
+maestro start "<title>"
+maestro spec <run> [file]
+maestro check <run>
+maestro gate <run> [--allow-dirty]
+maestro report [--retro] [--write] [--exit-code]
+maestro upgrade [path]
 ```
 
 ## Verification

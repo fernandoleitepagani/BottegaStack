@@ -55,7 +55,7 @@ APPROVAL: <needed|not needed>
 
 - Adding a dependency for something the stack already does, such as a JSON
   parser when `python3` is already required.
-- Assuming `gh`, `agent-browser`, or `gitleaks` is installed. `pagani doctor`
+- Assuming `gh`, `agent-browser`, or `gitleaks` is installed. `maestro doctor`
   exists because it often is not.
 - Deleting orphaned resources without the dry run and soak period.
 - Writing a token into the repo, a state file, or a log instead of a secret store.

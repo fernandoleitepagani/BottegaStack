@@ -15,7 +15,7 @@
   "theme": "dark",
   "permissions": {
     "allow": [
-      "Bash(pagani build:*)"
+      "Bash(maestro build:*)"
     ]
   }
 }

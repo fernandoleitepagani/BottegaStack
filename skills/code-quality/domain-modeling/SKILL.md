@@ -37,7 +37,7 @@ If a `GLOSSARY-MAP.md` exists at the root, the repo has multiple contexts. The m
 │       └── docs/adr/
 ```
 
-Create files lazily: only when you have something to write. If no `GLOSSARY.md` exists, create one with `pagani seed GLOSSARY.md` when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
+Create files lazily: only when you have something to write. If no `GLOSSARY.md` exists, create one with `maestro seed GLOSSARY.md` when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
 
 ## During the session
 

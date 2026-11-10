@@ -1,6 +1,6 @@
-# How PaganiStack Works
+# How BottegaStack Works
 
-PaganiStack gives an agent a run, a SPEC with a task graph, deterministic checks,
+BottegaStack gives an agent a run, a SPEC with a task graph, deterministic checks,
 one reviewer, and a human decision. The branch is the run's identity and the
 state directory holds its working files; the chat and the PR (or merge commit)
 are the record. There is no database or state machine.
@@ -9,9 +9,9 @@ are the record. There is no database or state machine.
 
 ```
 0. SETUP     playbook, risk, run branch, state directory (or the light path)
-1. SPEC      interview -> SPEC (planner reply, saved by pagani spec) [approve]
+1. SPEC      interview -> SPEC (planner reply, saved by maestro spec) [approve]
 2. BUILD     one builder per ready task              [approve per wave]
-3. CHECKS    pagani check -> checks.result           (fail -> builder)
+3. CHECKS    maestro check -> checks.result           (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
 5. FIX       review findings -> fresh builder -> checks -> re-review
 6. APPROVAL  master -> decision + quiz (feature/refactor/high)
@@ -25,16 +25,16 @@ The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
 `REVIEW.md` (a missing file means no risk paths). It loads `playbooks`, proposes
 a playbook (`trivial`, `bugfix`, `feature`, `refactor`, `pr-babysit`) and a risk
 (`low`, `standard`, `high`), and asks you to confirm or override. It tracks
-playbook and risk as todo items, then runs `pagani start "<title>"`, which creates
-the branch `pagani/<slug>` and the state directory `$STATE/<slug>/` and prints
+playbook and risk as todo items, then runs `maestro start "<title>"`, which creates
+the branch `bottega/<slug>` and the state directory `$STATE/<slug>/` and prints
 `run:`, `branch:`, and `state:`. It auto-inits the project on first use and
 requires a clean tree.
 
 For `trivial` and small `bugfix` work it takes the light path instead: run
-`pagani build --here <slug> --task "<text>" --block` on the current branch. That
+`maestro build --here <slug> --task "<text>" --block` on the current branch. That
 creates no run, SPEC, or worktree; state lives in `$STATE/quick/<slug>/`.
 
-If the project predates the current hooks, run `pagani upgrade` once.
+If the project predates the current hooks, run `maestro upgrade` once.
 
 ### Step 1: SPEC
 
@@ -48,7 +48,7 @@ slice that fits one fresh context. Every task carries `Allowed files`,
 neither covers. If a contract field is empty or `## Sensors` is missing, the
 master sends the SPEC back to the planner before approval. If the SPEC has open
 questions, the master asks you and has it revised. On approval, the master saves
-it with `pagani spec <slug>`, which extracts `tasks/<n>.md` and prints the task
+it with `maestro spec <slug>`, which extracts `tasks/<n>.md` and prints the task
 count. You approve the spec and the first wave.
 
 `trivial` runs skip this step. A `bugfix` still commits a failing test first.
@@ -65,30 +65,30 @@ master cannot end its turn while a todo item is open. It never waits for
 "proceed" between steps.
 
 **Light path.** `trivial` and small `bugfix` runs use the headless builder in the
-current checkout through `pagani build --here <slug> --task "<text>"`, with state
+current checkout through `maestro build --here <slug> --task "<text>"`, with state
 in `$STATE/quick/<slug>/`. They still get the Step 6/7 decision prompt.
 
 **Headless builder (Claude drives, a third-party model implements).** When
-`pagani build --check` passes, the master creates the task worktree and runs
-`pagani build <run> <task>`. It runs the Claude Code `builder` agent headless
-(`claude -p`) on the model configured in `~/.config/pagani/builder.env`, then
+`maestro build --check` passes, the master creates the task worktree and runs
+`maestro build <run> <task>`. It runs the Claude Code `builder` agent headless
+(`claude -p`) on the model configured in `~/.config/bottega/builder.env`, then
 prints the session id, report location, `STATUS`, and changed files. The builder
-ends its final reply with the report; `pagani build` extracts it into
+ends its final reply with the report; `maestro build` extracts it into
 `$STATE/<run>/build/<task>.report.md`. `review-code` reviews the diff; on
 `CHANGES` the master passes the findings inline and runs `--revise <file|->`,
 which resumes the same session. It allows two revisions (exit 4 after that) and
 the master escalates to the human. The builder never plans, decides,
-troubleshoots, or orchestrates. The `/pagani` `PreToolUse` hook denies the
+troubleshoots, or orchestrates. The `/maestro` `PreToolUse` hook denies the
 Claude-model `builder` subagent whenever the headless builder is configured; if
 it is not, the Claude `builder` is the fallback.
 
 The master runs each build itself as a background Bash task
-(`pagani build <run> <task> --block`), so no relay model is involved. It keeps a
+(`maestro build <run> <task> --block`), so no relay model is involved. It keeps a
 `TodoWrite` item per task and, once per wave, runs
-`pagani build --status <run> --every 180` through `Monitor`, posting each line
+`maestro build --status <run> --every 180` through `Monitor`, posting each line
 (`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
 `--status` once per finished build. It moves to checks as soon as the wave has
-joined. A build is capped at 30 minutes (`PAGANI_BUILD_TIMEOUT`).
+joined. A build is capped at 30 minutes (`BOTTEGA_BUILD_TIMEOUT`).
 
 The master reads the task graph from the saved SPEC and inspects the ready set
 before building. It defaults to sequential. If two or more ready tasks touch
@@ -109,14 +109,14 @@ the task pass. A genuine test change needs approval and is recorded under
 
 ### Step 3: Checks
 
-The master runs `pagani check <run>`, which runs `scripts/check`, writes
+The master runs `maestro check <run>`, which runs `scripts/check`, writes
 `checks.result` with `RESULT`, `HEAD`, exit code, and duration and appends one
 line per run plus the output to `checks.log`, both in the state directory. A
 failure goes back to a fresh builder; no reviewer runs on a failing build.
 
 ### Step 4: Review
 
-The master runs `pagani gate <run>` first. A failing, stale, or dirty gate stops
+The master runs `maestro gate <run>` first. A failing, stale, or dirty gate stops
 the review. It then spawns one `review-code` reviewer, which covers code, UI, UX,
 and security in one pass and returns one verdict:
 
@@ -139,7 +139,7 @@ Risks. The master posts the summary in chat; for `feature`, `refactor`, and
 `high` risk it posts the longer summary at this checkpoint.
 
 For `high` risk the master also runs the second-opinion reviewer:
-`pagani build --review <run> <task> --block` runs `review-code` headless on the
+`maestro build --review <run> <task> --block` runs `review-code` headless on the
 third-party model, read-only, and puts the findings in
 `$STATE/<run>/build/<task>.review2.md`.
 
@@ -147,7 +147,7 @@ third-party model, read-only, and puts the findings in
 
 If a review returns `CHANGES`, the master passes the findings — the file and
 line, why it matters, how to fix it, and how to verify it — to a fresh builder,
-or on stdin to `pagani build <run> <task> --revise -` for a headless task. It
+or on stdin to `maestro build <run> <task> --revise -` for a headless task. It
 re-runs checks and re-runs the reviewer on the affected area. Max two fix rounds.
 The master tracks the number of failing checks and blocking findings each round;
 if neither decreased in two consecutive rounds, it stops and escalates instead
@@ -177,11 +177,11 @@ not duplicate a side effect.
 
 ### Step 8: Close
 
-The master runs `pagani report --retro --exit-code` and loads `session-retro` to
+The master runs `maestro report --retro --exit-code` and loads `session-retro` to
 propose one environment change. If the scan exits 1, findings repeat across runs;
 on repeated findings it proposes Gotchas patches. It loads `session-handoff` if
 the run continues elsewhere. Once the PR or merge is confirmed, it runs
-`pagani report --close <slug>` to remove the state directory and stops.
+`maestro report --close <slug>` to remove the state directory and stops.
 
 ### Resume
 
@@ -244,14 +244,14 @@ guessed (principle `prove-it-works`).
 
 There are no tier variants of an agent. The master picks the model per call with
 the Agent tool's `model` parameter; each agent's frontmatter `model:` is the
-default. The routing comes from `~/.claude/rules/pagani-models.md` when present,
-written by `/pagani-models`. Otherwise the defaults are explorer `haiku`, trivial
+default. The routing comes from `~/.claude/rules/bottega-models.md` when present,
+written by `/maestro-models`. Otherwise the defaults are explorer `haiku`, trivial
 `haiku`, reviewer `sonnet`, high-risk reviewer `opus`, and builder `headless`.
 `planner` and `master` keep their own models.
 
 ## Skills
 
-PaganiStack ships 58 skills in the Claude Code categories plus `workflow/`. The
+BottegaStack ships 58 skills in the Claude Code categories plus `workflow/`. The
 core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 `implementation`, `verification`, `review-code`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
@@ -268,7 +268,7 @@ The inventory and the rules for adding a skill are in [SKILLS.md](SKILLS.md). Th
 plugin manifest lists each category directory; Claude Code discovers the skills
 inside `skills/<category>/<name>/`, so they stay grouped by category.
 
-Other skills are invoked directly by name, not through `/pagani`:
+Other skills are invoked directly by name, not through `/maestro`:
 
 ```
 /wizard
@@ -280,42 +280,41 @@ Other skills are invoked directly by name, not through `/pagani`:
 
 ## Commands
 
-PaganiStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
+BottegaStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
 `start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and `hooks`.
-(`guard` and `keyget` are internal hook entry points, not user commands;
-`pagani job ...` prints the replacement and exits 2.)
+(`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
-pagani doctor
-pagani init [path]
-pagani seed <Name>
-pagani upgrade [path]
+maestro doctor
+maestro init [path]
+maestro seed <Name>
+maestro upgrade [path]
 
-pagani start "<title>"
-pagani spec <run> [file]
-pagani check <run>
-pagani gate <run> [--allow-dirty]
-pagani report [--retro] [--write] [--exit-code]
-pagani report --close <run>
+maestro start "<title>"
+maestro spec <run> [file]
+maestro check <run>
+maestro gate <run> [--allow-dirty]
+maestro report [--retro] [--write] [--exit-code]
+maestro report --close <run>
 
-pagani build <run> <task> [--revise <file|->] [--block]
-pagani build --here <slug> --task "<text>" [--block]
-pagani build --review <run> <task> [--block]
-pagani build --status <run> [--every <seconds>]
-pagani build --init | --check
+maestro build <run> <task> [--revise <file|->] [--block]
+maestro build --here <slug> --task "<text>" [--block]
+maestro build --review <run> <task> [--block]
+maestro build --status <run> [--every <seconds>]
+maestro build --init | --check
 
-pagani worktree create <run> <task>
-pagani worktree prune <run> [--force]
-pagani hooks install|uninstall [path]
+maestro worktree create <run> <task>
+maestro worktree prune <run> [--force]
+maestro hooks install|uninstall [path]
 ```
 
-Use `./bin/pagani` instead of `pagani` when running from a clone outside a
+Use `./bin/maestro` instead of `maestro` when running from a clone outside a
 session. Setup and troubleshooting are in [SETUP.md](SETUP.md).
 
 ## Checks, review, and verification
 
-`scripts/check` is the project check script. `pagani check <run>` runs it and
-writes `checks.result` and `checks.log` in the state directory. `pagani gate
+`scripts/check` is the project check script. `maestro check <run>` runs it and
+writes `checks.result` and `checks.log` in the state directory. `maestro gate
 <run>` fails when the latest check failed, is stale, or the working tree is
 dirty, and warns when a branch changes tests and non-tests but no test-only commit
 precedes the first non-test commit.
@@ -352,12 +351,12 @@ $STATE/quick/<slug>/
 ```
 
 The state directory is `<base>/<repo-id>`, where `<base>` is
-`${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}` and `<repo-id>` is the
+`${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}` and `<repo-id>` is the
 repo basename plus the first 8 hex of the sha1 of the realpath of the git common
 dir, so worktrees share it. Nothing is written into the repo or the worktree.
 The branch is the run's identity, the todo list tracks progress, and the chat and
-the PR (or merge commit) are the human-readable record. `pagani report --close
-<slug>` removes the directory. Set `PAGANI_STATE_DIR` to a persistent directory
+the PR (or merge commit) are the human-readable record. `maestro report --close
+<slug>` removes the directory. Set `BOTTEGA_STATE_DIR` to a persistent directory
 if a run must survive a reboot or your `/tmp` has a small quota; the default
 temp directory may be cleared.
 
@@ -376,10 +375,10 @@ NEVER      secrets, raw logs, whole directories, unrelated files
 
 ## Project docs and files
 
-Project files are created on demand. `pagani init` writes only `AGENTS.md`,
+Project files are created on demand. `maestro init` writes only `AGENTS.md`,
 `CLAUDE.md`, `scripts/check`, `.claude/settings.json`, the exclude block, and the
 git hooks. Everything else is seeded only when a skill first needs it, with
-`pagani seed <Name>` (idempotent; prints `created:` or `kept:`):
+`maestro seed <Name>` (idempotent; prints `created:` or `kept:`):
 
 - `SPEC.md` and `PLAN.md` — product and technical requirements, and ordered
   outcomes, dependencies, risks, and validated status.
@@ -393,11 +392,11 @@ git hooks. Everything else is seeded only when a skill first needs it, with
 
 Everything here is optional and local. Nothing starts an agent or a server.
 
-- **Git hooks.** `pagani hooks install [path]` installs a gitleaks pre-commit
-  hook and a pre-push hook that runs `scripts/check`. `pagani init` installs
+- **Git hooks.** `maestro hooks install [path]` installs a gitleaks pre-commit
+  hook and a pre-push hook that runs `scripts/check`. `maestro init` installs
   them when `.git` exists. A missing gitleaks is a clean skip.
 - **CI.** `.github/workflows/ci.yml` runs `./scripts/validate.sh`, checks that
-  the committed `commands/pagani.md` is fresh (`scripts/gen-command.sh
+  the committed `commands/maestro.md` is fresh (`scripts/gen-command.sh
   --check`), and validates the plugin manifests with `claude plugin validate .`
   when `claude` is installed, on Ubuntu and macOS.
 
@@ -409,7 +408,7 @@ Everything here is optional and local. Nothing starts an agent or a server.
   credentials.
 - Do not send repo content to unknown hosts.
 - Worktrees for parallel builders; one port per worker.
-- Permission denies for destructive commands. `pagani init` writes
+- Permission denies for destructive commands. `maestro init` writes
   `.claude/settings.json` with allow/ask/deny rules for Claude Code.
 - No push, merge, or deploy without explicit approval.
 - Builders commit locally; they never push or merge.
@@ -425,7 +424,7 @@ bodies and comments, `BACKLOG.md`, logs, screenshots, and OCR; the
 
 ## Why it is shaped this way
 
-PaganiStack optimizes for a change a human can trust, not for output: a spec
+BottegaStack optimizes for a change a human can trust, not for output: a spec
 before code, vertical tasks that each fit one fresh context, deterministic checks
 before any reviewer, one focused reviewer, and a human decision. A retro turns
 repeated findings into a lint rule, test, skill edit, or `AGENTS.md` line.

@@ -1,8 +1,8 @@
 # Orchestration artifacts
 
-# PaganiStack runtime state lives outside the repo in the state directory
+# BottegaStack runtime state lives outside the repo in the state directory
 # (see docs/SETUP.md), so nothing here needs ignoring.
-.claude/settings.json.pagani-backup-*
+.claude/settings.json.maestro-backup-*
 
 # Secrets
 .env
