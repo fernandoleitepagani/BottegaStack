@@ -8,6 +8,13 @@ directory in the system temp dir, shared by worktrees. The chat and the PR (or
 merge commit) are the human-readable record. There is no database, no cloud
 service, and no state machine.
 
+A playbook chooses the pipeline — `trivial`, `bugfix`, `feature`, `refactor`,
+`investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, and
+`pr-babysit` — and a risk modifier (`low`, `standard`, `high`). At Step 0 the
+master runs `maestro stack`, confirms the detected profile, and records it in
+`AGENTS.md`. Model and effort for each role come from
+`~/.claude/rules/bottega-models.md`, written by `/maestro-models`.
+
 ## Install
 
 BottegaStack ships as the Claude Code plugin `bottega`. Inside a Claude Code
@@ -64,7 +71,9 @@ status` and `/maestro resume` continue a run from the todo list and branch.
 
 Small work skips the spec and worktree: the master takes the light path with
 `maestro build --here <slug> --task "<text>"`; state lives in the state directory
-under `quick/<slug>/`.
+under `quick/<slug>/`. `low` risk runs get a cheap headless first-pass review
+before the Claude reviewer. Headless builds report `tokens: in <n> out <n>` and
+`steps: <n>`; the only stop is the 30-minute builder timeout.
 
 Other skills are invoked directly by name, for example `/wizard`,
 `/backlog-triage`, `/wayfinding`, `/improve-architecture`, and `/review-pr`.
@@ -72,9 +81,9 @@ Other skills are invoked directly by name, for example `/wizard`,
 
 ## Docs
 
-- [docs/WORKFLOW.md](docs/WORKFLOW.md) — the 9 steps, playbooks, risk, agents, run state, and why it is shaped this way.
-- [docs/SKILLS.md](docs/SKILLS.md) — all skills, vendored sources.
-- [docs/SETUP.md](docs/SETUP.md) — plugin install, `doctor`, `init`, `seed`, builder, hooks, troubleshooting.
+- [docs/WORKFLOW.md](docs/WORKFLOW.md) — the 9 steps, playbooks, cheap review, risk, effort routing, agents, run state, and why it is shaped this way.
+- [docs/SKILLS.md](docs/SKILLS.md) — all skills, categories, vendored and adapted sources.
+- [docs/SETUP.md](docs/SETUP.md) — plugin install, `doctor` security checks, `stack`, `init`, `seed`, builder, hooks, troubleshooting.
 
 ## License
 

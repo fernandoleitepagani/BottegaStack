@@ -84,8 +84,17 @@ maestro doctor
 ```
 
 `doctor` prints the runtime and tool versions, the skill count, `AGENTS.md` size, project Claude settings, hook status, config paths, and
-then runs the repo lint when `scripts/lint.sh` sits beside the CLI. It is the
-release gate:
+then runs the repo lint when `scripts/lint.sh` sits beside the CLI. It also
+prints security warnings, one line each:
+
+- `gitleaks` is missing, so secret scanning is unavailable.
+- `.env` is tracked by git.
+- A manifest exists but there is no dependency-update config
+  (`.github/dependabot.yml`, `renovate.json`, or `.renovaterc*`).
+- `.github/workflows` exists but no workflow mentions `codeql`,
+  `dependency-review`, `gitleaks`, `trivy`, or `osv-scanner`.
+
+It is the release gate:
 
 ```bash
 ./scripts/validate.sh
@@ -124,6 +133,27 @@ untracked files are not part of a checkout.
 
 `init` creates no run directory. Run state lives outside the repo; see
 [Run state](#run-state).
+
+## Stack detection
+
+```bash
+maestro stack
+```
+
+`maestro stack` reads the repo-root file names and manifest fields and prints
+stable lines:
+
+```
+language: <name>
+package-manager: <name>
+commands: lint=<cmd> test=<cmd> build=<cmd>
+frameworks: <list>
+```
+
+It reads only file names and manifest fields, never `.env` or secrets. It
+prints `stack: unknown` when nothing is found. At Step 0 the master shows the
+profile, confirms or corrects it with `AskUserQuestion`, and writes it into the
+`## Stack` section of `AGENTS.md`.
 
 ## Project files on demand
 
@@ -199,9 +229,9 @@ The builder runs as `claude -p --agent builder` on a third-party model through
 an Anthropic-compatible endpoint.
 
 ```bash
-maestro build <run> <task> [--revise <file|->] [--block]
-maestro build --here <slug> --task "<text>" [--block]
-maestro build --review <run> <task> [--block]
+maestro build <run> <task> [--revise <file|->] [--block|--wait]
+maestro build --here <slug> --task "<text>" [--block|--wait]
+maestro build --review <run> <task> [--block|--wait]
 maestro build --status <run> [--every <seconds>]
 ```
 
@@ -212,20 +242,27 @@ maestro build --status <run> [--every <seconds>]
 - `--review` runs the read-only `review-code` agent in the task worktree on the
   third-party model and puts the findings in
   `$STATE/<run>/build/<task>.review2.md`. It cannot edit or commit.
-- `--block` waits until the build ends, for a background Bash task. Without it,
-  the call waits up to `BOTTEGA_BUILD_WAIT` seconds and then prints `RUNNING` and
+- `--block` waits until the build ends, for a background Bash task. `--wait`
+  attaches to a running build with the same bounded wait. Without either, the
+  call waits up to `BOTTEGA_BUILD_WAIT` seconds and then prints `RUNNING` and
   exits 5.
 - Each run writes a settings profile (`build/<task>.settings.json`, no secrets)
   and passes it with `--settings`, so it outranks user and project settings. The
   profile blanks `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` in settings
   `env`.
-- Limits: `BOTTEGA_BUILD_BUDGET` (USD, default 10; Claude Code's own estimate for
-  unknown models), `BOTTEGA_BUILD_TIMEOUT` (seconds, default 1800), and
-  `BOTTEGA_BUILD_WAIT` (seconds per call, default 540).
+- Effort routing: when `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rules/bottega-models.md`
+  exists, `build` and `--here` take the `builder` line's effort and `--review`
+  takes the `second-opinion` line's effort, passed as `--effort
+  low|medium|high`. A malformed line is ignored; without the file no `--effort`
+  is passed. The file's contents are never printed.
+- The only stop is the 30-minute builder timeout (`BOTTEGA_BUILD_TIMEOUT`,
+  seconds, default 1800); `BOTTEGA_BUILD_WAIT` defaults to 540 seconds per call.
+  There is no other limit.
 - The builder gets a slim tool set (Bash, Edit, Glob, Grep, Read, Skill, Write,
   TodoWrite) and no MCP servers.
 - `build/<task>.progress` gets one line per builder tool call; `maestro build`
-  prints the last one while the build is still `RUNNING`, and the cost at the end.
+  prints the last one while the build is still `RUNNING`, then prints `tokens: in
+  <n> out <n>` and `steps: <n>` at the end.
 
 ## Hooks and worktrees
 
