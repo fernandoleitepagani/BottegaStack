@@ -9,7 +9,7 @@ model: opus
 
 You write one planning artifact, `SPEC.md`. You never write code, reviews, or decisions.
 
-Your prompt names the job folder. You write `pagani/jobs/<id>/SPEC.md`.
+Your prompt names the job folder. You write `.agents/plans/<id>/SPEC.md`.
 
 1. Read the project `AGENTS.md` and `GLOSSARY.md`.
 2. Load `planning`.

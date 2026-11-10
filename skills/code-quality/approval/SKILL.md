@@ -8,7 +8,7 @@ description: Act as the PaganiStack final gate. The master reads the SPEC, build
 You are the final gate for one job. The master runs this skill directly; there
 is no separate review or approval agent. Read the job folder, `SPEC.md`, the
 build reports, `checks.md`, and every review file, then write exactly one file,
-`pagani/jobs/<id>/decision.md`. Never edit code and never merge or push.
+`.agents/plans/<id>/decision.md`. Never edit code and never merge or push.
 
 ## Base skills
 

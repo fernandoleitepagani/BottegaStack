@@ -5,7 +5,7 @@ description: Implement exactly one PaganiStack task with TDD, run the project ch
 
 # PaganiStack Implementation
 
-Implement exactly one task. Write code on the named branch and exactly one report file, `pagani/jobs/<id>/build/<task>.md`. Load `diagnosis` if a failing check or bug blocks you; build a red-capable feedback loop before changing code.
+Implement exactly one task. Write code on the named branch and exactly one report file, `.agents/plans/<id>/build/<task>.md`. Load `diagnosis` if a failing check or bug blocks you; build a red-capable feedback loop before changing code.
 
 ## TDD rules
 

@@ -10,7 +10,7 @@ the conversation.
 
 ## Where
 
-`pagani/jobs/<id>/handoff.md`. If there is no job, write to the OS temp
+`.agents/plans/<id>/handoff.md`. If there is no job, write to the OS temp
 directory and tell the user the path.
 
 ## Include

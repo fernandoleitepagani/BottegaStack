@@ -113,7 +113,7 @@ set a project up without starting a job.
 - `CLAUDE.md` (imports `AGENTS.md`).
 - `scripts/check`.
 - `.claude/settings.json`.
-- `pagani/jobs/`.
+- `.agents/plans/`.
 - The managed block in `.git/info/exclude` and, when `.git` exists, the git
   hooks.
 
@@ -170,11 +170,11 @@ pagani build --status <job> [--every <seconds>]
 
 - `--here` is the light path: it needs no job, SPEC, or worktree, builds in the
   current checkout on the current branch, and keeps state in
-  `pagani/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
+  `.agents/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
   `builder.log`).
 - `--review` runs the read-only `review-code` agent in the task worktree on the
   third-party model and writes findings to
-  `pagani/jobs/<job>/build/<task>.review2.md`. It cannot edit or commit.
+  `.agents/plans/<job>/build/<task>.review2.md`. It cannot edit or commit.
 - `--block` waits until the build ends, for a background Bash task. Without it,
   the call waits up to `PAGANI_BUILD_WAIT` seconds and then prints `RUNNING` and
   exits 5.

@@ -1,7 +1,7 @@
 # Project SPEC
 
 Keep this short. It is the project-level contract; per-job specs live in
-`pagani/jobs/<id>/SPEC.md`.
+`.agents/plans/<id>/SPEC.md`.
 
 ## Problem
 

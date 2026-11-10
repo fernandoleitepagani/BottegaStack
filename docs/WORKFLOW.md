@@ -27,9 +27,9 @@ a playbook (`trivial`, `bugfix`, `feature`, `refactor`, `pr-babysit`) and a risk
 job folder and branch and writes `Playbook` and `Risk` to `job.md`.
 
 For `trivial` and small `bugfix` work it takes the light path instead: branch
-`pagani/quick-<slug>`, then `pagani build --here <slug> --task "<text>" --block`.
+`.agents/quick-<slug>`, then `pagani build --here <slug> --task "<text>" --block`.
 That creates no job folder, SPEC, or worktree; state lives in
-`pagani/quick/<slug>/`.
+`.agents/quick/<slug>/`.
 
 If the project predates the current hooks, run `pagani upgrade` once.
 
@@ -59,7 +59,7 @@ between steps.
 
 **Light path.** `trivial` and small `bugfix` jobs run the headless builder in the
 current checkout through `pagani build --here <slug> --task "<text>"`, with state
-in `pagani/quick/<slug>/`. They still get the Step 6/7 decision prompt.
+in `.agents/quick/<slug>/`. They still get the Step 6/7 decision prompt.
 
 **Headless builder (Claude drives, a third-party model implements).** When
 `pagani build --check` passes, the master creates the task worktree and runs
@@ -132,7 +132,7 @@ an uncovered area goes under Risks. The master posts the summary in chat; for
 For `high` risk the master also runs the second-opinion reviewer:
 `pagani build --review <job> <task> --block` runs `review-code` headless on the
 third-party model, read-only, and writes findings to
-`pagani/jobs/<job>/build/<task>.review2.md`.
+`.agents/plans/<job>/build/<task>.review2.md`.
 
 ### Step 5: Fix
 
@@ -175,7 +175,7 @@ environment change. On repeated findings it proposes Gotchas patches. It loads
 
 ### Resume
 
-Job state is files in `pagani/jobs/<id>/`, so any new session can continue a job.
+Job state is files in `.agents/plans/<id>/`, so any new session can continue a job.
 The entry rule: a feature request starts at Step 0, `status` reads the newest
 `job.md`, and `resume` continues from `Stage:` without redoing completed steps.
 The master defaults to sequential builds and prefers a parallel wave when the
@@ -320,7 +320,7 @@ human still makes the final decision.
 ## Job folder and state
 
 ```
-pagani/jobs/<id>/
+.agents/plans/<id>/
   job.md              stage, round, playbook, risk, branch, base (state only)
   interview.md
   SPEC.md
@@ -333,7 +333,7 @@ pagani/jobs/<id>/
   decision.md         verdict, explainer, and ## Human decision
   handoff.md
 
-pagani/quick/<slug>/
+.agents/quick/<slug>/
   run, rc, progress, prompt, report.md, builder.log
 ```
 
@@ -356,7 +356,7 @@ NEVER      secrets, raw logs, whole directories, unrelated files
 ## Project docs and files
 
 Project files are created on demand. `pagani init` writes only `AGENTS.md`,
-`CLAUDE.md`, `scripts/check`, `.claude/settings.json`, `pagani/jobs`, the exclude
+`CLAUDE.md`, `scripts/check`, `.claude/settings.json`, `.agents/plans`, the exclude
 block, and the git hooks. Everything else is seeded only when a skill first needs
 it, with `pagani seed <Name>` (idempotent; prints `created:` or `kept:`):
 

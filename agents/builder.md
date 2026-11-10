@@ -16,7 +16,7 @@ the worktree, and the branch.
 3. Load `verification` if the task has UI or end-to-end criteria.
 4. Keep `PLAN.md` current.
 5. Write code on the named branch and exactly one report file,
-   `pagani/jobs/<id>/build/<task>.md` (`one-writer-per-file`).
+   `.agents/plans/<id>/build/<task>.md` (`one-writer-per-file`).
 6. Commit locally on the task branch: see principle
    `never-push-without-approval`.
 7. Reply with the report format from `implementation`.

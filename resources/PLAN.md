@@ -1,7 +1,7 @@
 # Plan
 
 Project-level plan and current work. Keep it short. Per-job task graphs live in
-`pagani/jobs/<id>/SPEC.md`.
+`.agents/plans/<id>/SPEC.md`.
 
 ## Current focus
 

@@ -9,7 +9,7 @@ The user's request is:
 
 $ARGUMENTS
 
-If the request is empty or `status`, read the newest `pagani/jobs/*/job.md` and
+If the request is empty or `status`, read the newest `.agents/plans/*/job.md` and
 show the stage, playbook, risk, next step, and open questions. Do not start a new job.
 
 If the request is `resume`, read the newest `job.md` and continue from its

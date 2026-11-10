@@ -12,7 +12,7 @@ Find the recorded reason. Read-only; never invent history.
 1. `git blame -L <start>,<end> <file>` and `git log -p -- <file>` for the commit
    that introduced or changed the line.
 2. `docs/adr/*.md` for accepted decisions.
-3. `pagani/jobs/<id>/` (`SPEC.md`, `job.md`, `build/`, `decision.md`, reviews) for
+3. `.agents/plans/<id>/` (`SPEC.md`, `job.md`, `build/`, `decision.md`, reviews) for
    intent and trade-offs.
 4. The commit message, linked issue or PR, and tests that pin the behavior.
 

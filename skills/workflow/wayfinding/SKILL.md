@@ -6,7 +6,7 @@ description: Plan a PaganiStack effort too big for one session as a local map of
 # Pagani Wayfinder
 
 Adapted from Matt Pocock's `wayfinder`, with the issue tracker replaced by local
-markdown under `pagani/jobs/<id>/map/`.
+markdown under `.agents/plans/<id>/map/`.
 
 Use this when the work is too big for one plan: the destination is not clear,
 and several decisions must be settled before a spec can be written. For normal
@@ -25,7 +25,7 @@ decide before someone builds it.
 
 ## The map
 
-`pagani/jobs/<id>/map.md` is the low-resolution index:
+`.agents/plans/<id>/map.md` is the low-resolution index:
 
 ```markdown
 # Map: <effort>
@@ -46,7 +46,7 @@ In-scope fog that is not sharp enough to ticket yet.
 Work ruled beyond this destination.
 ```
 
-Each ticket is a file under `pagani/jobs/<id>/map/`:
+Each ticket is a file under `.agents/plans/<id>/map/`:
 
 ```markdown
 # <NN>: <question title>

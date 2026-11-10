@@ -9,7 +9,7 @@ Improve the environment, not just the code.
 
 ## Read
 
-- `pagani/jobs/<id>/job.md` and `decision.md`.
+- `.agents/plans/<id>/job.md` and `decision.md`.
 - The review files and `checks.md`.
 - `AGENTS.md` and `mistakes.md`. If `mistakes.md` is missing, create it with
   `pagani seed mistakes.md`.

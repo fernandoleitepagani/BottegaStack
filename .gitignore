@@ -1,9 +1,10 @@
 # Orchestration artifacts
 
 # PaganiStack runtime state
-pagani/jobs/
-pagani/retro-scan.md
-pagani/handoff.md
+.agents/plans/
+.agents/quick/
+.agents/retro-scan.md
+.agents/handoff.md
 .claude/settings.json.pagani-backup-*
 
 # Secrets

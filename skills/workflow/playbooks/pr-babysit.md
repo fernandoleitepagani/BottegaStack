@@ -1,5 +1,5 @@
 # PR Babysit
-Use when the user gives a PR number and asks you to watch, babysit, or get it green. No job folder: state and reports live in chat and `pagani/quick/<slug>/`.
+Use when the user gives a PR number and asks you to watch, babysit, or get it green. No job folder: state and reports live in chat and `.agents/quick/<slug>/`.
 ## Watch
 Start read-only:
 ```bash

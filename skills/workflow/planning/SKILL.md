@@ -3,7 +3,7 @@ name: planning
 description: Write one PaganiStack job SPEC.md with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
 ---
 # PaganiStack Planning
-Write one artifact: `pagani/jobs/<id>/SPEC.md`. Never code, reviews, or decisions.
+Write one artifact: `.agents/plans/<id>/SPEC.md`. Never code, reviews, or decisions.
 Read `interview.md`, the project `SPEC.md`, `PLAN.md`, `AGENTS.md`, `GLOSSARY.md`,
 and the code the work touches. Do not guess names; seed missing files with
 `pagani seed SPEC.md` and `pagani seed PLAN.md`. Load `codebase-design` for

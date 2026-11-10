@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Job state moved from `pagani/jobs/` to `.agents/plans/<job-id>/` (light path: `.agents/quick/<slug>/`, retro and handoff files in `.agents/`). `.claude/` is a protected directory in Claude Code, so headless builders cannot write there. Only those subpaths are excluded from git, so other `.agents/` content stays visible. Old `pagani/jobs` folders are not migrated.
 - Playbooks rewritten in pstack style: routing table, risk modifier, light path, the `loop` rule for external waits, and a `figure-it-out` fallback. Each playbook is a short numbered checklist copied into `TodoWrite`; every job ends with verbatim before/after evidence and claims labelled measured, inferred, or guessed.
 - `principles` is now a short index; each of the 21 rules is its own `principle-<slug>` skill, so `principle <slug>` citations stay stable.
 - `agents/master.md` shortened to about 130 lines, citing principles and skills instead of restating rules; `commands/pagani.md` regenerated.

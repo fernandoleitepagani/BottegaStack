@@ -7,7 +7,7 @@ description: Review a PaganiStack change for code quality, UI, UX, and security 
 
 Review one job from its folder, `SPEC.md`, the build reports, `checks.md`, and
 the diff command in your prompt. Write exactly one file,
-`pagani/jobs/<id>/round-<N>/review-code.md`; never edit code. One verdict covers
+`.agents/plans/<id>/round-<N>/review-code.md`; never edit code. One verdict covers
 code, UI, UX, and security.
 
 ## Base skills

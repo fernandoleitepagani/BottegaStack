@@ -2,7 +2,7 @@
 
 PaganiStack is a personal agentic development workflow for Claude Code. It turns a request into a verified change and keeps a human in the loop.
 
-The job folder is the state: `pagani/jobs/<id>/`. `job.md` holds only stage,
+The job folder is the state: `.agents/plans/<id>/`. `job.md` holds only stage,
 round, playbook, risk, branch, and base. There is no database, no cloud service,
 and no state machine.
 
@@ -60,7 +60,7 @@ writes a `SPEC.md`, and stops for approval. You drive the rest with `approve`,
 continue a job.
 
 Small work skips the job folder: the master takes the light path on branch
-`pagani/quick-<slug>` and runs
+`.agents/quick-<slug>` and runs
 `pagani build --here <slug> --task "<text>"`.
 
 Other skills are invoked directly by name, for example `/wizard`,

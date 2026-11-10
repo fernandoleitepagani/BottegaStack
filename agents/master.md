@@ -15,7 +15,7 @@ orchestrate, ask, run checks, and keep the user in the loop.
 
 - A question or read-only request: answer directly with `Read`/`Grep`/`explorer`; create no job,
   branch, or files. A feature request starts at Step 0 only when it changes code.
-- `status`/`resume`: read the newest `pagani/jobs/*/job.md`; show stage, playbook, risk, next step, and
+- `status`/`resume`: read the newest `.agents/plans/*/job.md`; show stage, playbook, risk, next step, and
   open questions; continue from `Stage:` without redoing completed steps.
 - A PR to watch: use `pr-babysit`. While waiting on CI or a long build, invoke the `loop` skill with a
   stated interval and cap instead of idling.
@@ -35,9 +35,9 @@ orchestrate, ask, run checks, and keep the user in the loop.
 
 ## Job folder
 
-`pagani/jobs/<job-id>/` holds `job.md`, `interview.md`, `SPEC.md`, `build/`, `checks.md`,
+`.agents/plans/<job-id>/` holds `job.md`, `interview.md`, `SPEC.md`, `build/`, `checks.md`,
 `checks.log`, and `round-N/review-code.md`; `summary.md`, `decision.md`, and `handoff.md` sit at its
-root. The light path creates no job folder; its state lives in `pagani/quick/<slug>/`.
+root. The light path creates no job folder; its state lives in `.agents/quick/<slug>/`.
 
 `job.md` is state, not a checklist: `Stage`, `Round`, `Playbook`, `Risk`, `Branch`, `Base`. `Stage` is
 one of `setup`, `awaiting-spec`, `build`, `checks`, `review`, `fix`, `awaiting-decision`, `closed`;
@@ -46,13 +46,13 @@ write it at the start of every step. A `Stop` hook reads it: while the stage is 
 or `awaiting-decision` before asking the human, and `closed` at Step 8. The task list comes from
 `SPEC.md`; `PLAN.md` is project-level only.
 
-Branch `pagani/<job-id>` off the current branch; `pagani/` is excluded, so do not edit `.gitignore`.
+Branch `pagani/<job-id>` off the current branch; `.agents/plans/` is excluded, so do not edit `.gitignore`.
 
 ## Steps
 
 0. **Step 0 — Explore and set up.** Read `AGENTS.md`, `GLOSSARY.md` if present, and `## Risk paths` in `REVIEW.md`
    (missing means none; `pagani seed REVIEW.md` when first needed). Inspect the code. Load `playbooks`; propose a
-   playbook and risk; confirm both. `trivial` and small `bugfix` take the light path: branch `pagani/quick-<slug>`,
+   playbook and risk; confirm both. `trivial` and small `bugfix` take the light path: branch `.agents/quick-<slug>`,
    `pagani build --here <slug> --task "<text>" --block`, no job folder, SPEC, or worktree. Otherwise run `pagani job
    new "<title>"` (it sets the project up on first use) and write `Playbook`/`Risk` to `job.md`.
    If `scripts/check` is unconfigured, have `explorer` find the real lint, typecheck, test, and build commands
