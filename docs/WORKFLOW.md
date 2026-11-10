@@ -1,21 +1,22 @@
 # How PaganiStack Works
 
-PaganiStack gives an agent a job folder, a `SPEC.md` with a task graph,
-deterministic checks, one reviewer, and a human decision. The job folder is the
-state; there is no database or state machine.
+PaganiStack gives an agent a run, a SPEC with a task graph, deterministic checks,
+one reviewer, and a human decision. The branch is the run's identity and the
+state directory holds its working files; the chat and the PR (or merge commit)
+are the record. There is no database or state machine.
 
 ## The workflow
 
 ```
-0. SETUP     playbook, risk, job folder, branch (or the light path)
-1. SPEC      interview -> SPEC.md                    [approve]
+0. SETUP     playbook, risk, run branch, state directory (or the light path)
+1. SPEC      interview -> SPEC (planner reply, saved by pagani spec) [approve]
 2. BUILD     one builder per ready task              [approve per wave]
-3. CHECKS    pagani job check -> checks.md           (fail -> builder)
+3. CHECKS    pagani check -> checks.result           (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
-5. FIX       review-code.md -> fresh builder -> checks -> re-review
-6. APPROVAL  master -> decision.md + quiz (feature/refactor/high)
+5. FIX       review findings -> fresh builder -> checks -> re-review
+6. APPROVAL  master -> decision + quiz (feature/refactor/high)
 7. HUMAN     approve, rework, or reject
-8. CLOSE     retro, merge/commit/push/PR on request
+8. CLOSE     retro, PR or merge write-up
 ```
 
 ### Step 0: Set up and choose a playbook
@@ -23,71 +24,79 @@ state; there is no database or state machine.
 The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
 `REVIEW.md` (a missing file means no risk paths). It loads `playbooks`, proposes
 a playbook (`trivial`, `bugfix`, `feature`, `refactor`, `pr-babysit`) and a risk
-(`low`, `standard`, `high`), and asks you to confirm or override. It creates the
-job folder and branch and writes `Playbook` and `Risk` to `job.md`.
+(`low`, `standard`, `high`), and asks you to confirm or override. It tracks
+playbook and risk as todo items, then runs `pagani start "<title>"`, which creates
+the branch `pagani/<slug>` and the state directory `$STATE/<slug>/` and prints
+`run:`, `branch:`, and `state:`. It auto-inits the project on first use and
+requires a clean tree.
 
-For `trivial` and small `bugfix` work it takes the light path instead: branch
-`.agents/quick-<slug>`, then `pagani build --here <slug> --task "<text>" --block`.
-That creates no job folder, SPEC, or worktree; state lives in
-`.agents/quick/<slug>/`.
+For `trivial` and small `bugfix` work it takes the light path instead: run
+`pagani build --here <slug> --task "<text>" --block` on the current branch. That
+creates no run, SPEC, or worktree; state lives in `$STATE/quick/<slug>/`.
 
 If the project predates the current hooks, run `pagani upgrade` once.
 
 ### Step 1: SPEC
 
 The master loads `interview`, explores first, and asks a small batch of
-questions. It writes `interview.md` and asks the planner for one `SPEC.md`: the
-behavior, the data shape, the failure cases, the acceptance criteria, and the
-tracer-bullet task graph. Each task is a vertical slice that fits one fresh
-context. Every task carries `Allowed files`, `Test first`, and `Done when`, and
-`SPEC.md` carries `## Sensors`: what `scripts/check` covers, what `scripts/verify`
-or `agent-browser` covers, and what neither covers. If a contract field is empty
-or `## Sensors` is missing, the master asks the planner to revise before
-approval. If the spec has open questions, the master asks you and revises. You
-approve the spec and the first wave.
+questions; the answers stay in chat. It spawns the planner, which returns the
+SPEC as its final reply: the behavior, the data shape, the failure cases, the
+acceptance criteria, and the tracer-bullet task graph. Each task is a vertical
+slice that fits one fresh context. Every task carries `Allowed files`,
+`Test first`, and `Done when`, and the SPEC carries `## Sensors`: what
+`scripts/check` covers, what `scripts/verify` or `agent-browser` covers, and what
+neither covers. If a contract field is empty or `## Sensors` is missing, the
+master sends the SPEC back to the planner before approval. If the SPEC has open
+questions, the master asks you and has it revised. On approval, the master saves
+it with `pagani spec <slug>`, which extracts `tasks/<n>.md` and prints the task
+count. You approve the spec and the first wave.
 
-`trivial` jobs skip this step. A `bugfix` still writes a failing test first.
-`feature` and `refactor` jobs get the full pass; `refactor` also runs as
+`trivial` runs skip this step. A `bugfix` still commits a failing test first.
+`feature` and `refactor` runs get the full pass; `refactor` also runs as
 expand-contract and keeps behaviour unchanged.
 
 ### Step 2: Build
 
 **Autonomy.** The master runs on its own between human checkpoints (SPEC
-approval and the final decision). A `Stop` hook enforces it: mid-pipeline, with
-no builder running, the master cannot end its turn. It never waits for "proceed"
-between steps.
+approval and the final decision). It tracks the steps in the todo list
+(`TodoWrite`, or `TaskCreate`/`TaskUpdate` when that tool is unavailable). A
+`Stop` hook enforces it: mid-pipeline, with no builder or check running, the
+master cannot end its turn while a todo item is open. It never waits for
+"proceed" between steps.
 
-**Light path.** `trivial` and small `bugfix` jobs run the headless builder in the
+**Light path.** `trivial` and small `bugfix` runs use the headless builder in the
 current checkout through `pagani build --here <slug> --task "<text>"`, with state
-in `.agents/quick/<slug>/`. They still get the Step 6/7 decision prompt.
+in `$STATE/quick/<slug>/`. They still get the Step 6/7 decision prompt.
 
 **Headless builder (Claude drives, a third-party model implements).** When
 `pagani build --check` passes, the master creates the task worktree and runs
-`pagani build <job> <task>`. It runs the Claude Code `builder` agent headless
+`pagani build <run> <task>`. It runs the Claude Code `builder` agent headless
 (`claude -p`) on the model configured in `~/.config/pagani/builder.env`, then
-prints the session id, report path, `STATUS`, and changed files. `review-code`
-reviews the diff; on `CHANGES` the master writes the findings to a file and runs
-`--revise <file>`, which resumes the same session. It allows two revisions (exit
-4 after that) and the master escalates to the human. The builder never plans,
-decides, troubleshoots, or orchestrates. The `/pagani` `PreToolUse` hook denies
-the Claude-model `builder` subagent whenever the headless builder is configured;
-if it is not, the Claude `builder` is the fallback.
+prints the session id, report location, `STATUS`, and changed files. The builder
+ends its final reply with the report; `pagani build` extracts it into
+`$STATE/<run>/build/<task>.report.md`. `review-code` reviews the diff; on
+`CHANGES` the master passes the findings inline and runs `--revise <file|->`,
+which resumes the same session. It allows two revisions (exit 4 after that) and
+the master escalates to the human. The builder never plans, decides,
+troubleshoots, or orchestrates. The `/pagani` `PreToolUse` hook denies the
+Claude-model `builder` subagent whenever the headless builder is configured; if
+it is not, the Claude `builder` is the fallback.
 
 The master runs each build itself as a background Bash task
-(`pagani build <job> <task> --block`), so no relay model is involved. It keeps a
+(`pagani build <run> <task> --block`), so no relay model is involved. It keeps a
 `TodoWrite` item per task and, once per wave, runs
-`pagani build --status <job> --every 180` through `Monitor`, posting each line
+`pagani build --status <run> --every 180` through `Monitor`, posting each line
 (`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
 `--status` once per finished build. It moves to checks as soon as the wave has
 joined. A build is capped at 30 minutes (`PAGANI_BUILD_TIMEOUT`).
 
-The master reads the task graph from `SPEC.md` and inspects the ready set before
-building. It defaults to sequential. If two or more ready tasks touch disjoint
-files and have no dependency between them, it runs that wave in parallel with
-one worktree per task; parallel is preferred whenever it is safe. Sequential is
-used when tasks share a file, a migration, or one needs another's output. Each
-builder writes `build/<task>.md`. The master merges task branches into the job
-branch and posts a wave summary.
+The master reads the task graph from the saved SPEC and inspects the ready set
+before building. It defaults to sequential. If two or more ready tasks touch
+disjoint files and have no dependency between them, it runs that wave in parallel
+with one worktree per task; parallel is preferred whenever it is safe. Sequential
+is used when tasks share a file, a migration, or one needs another's output. Each
+builder commits locally and ends its reply with the report. The master merges
+task branches into the run branch and posts a wave summary.
 
 A parallel wave joins with `ALL` by default: every task in the wave must pass
 before the wave is merged. Do not merge partial results.
@@ -100,16 +109,16 @@ the task pass. A genuine test change needs approval and is recorded under
 
 ### Step 3: Checks
 
-The master runs `pagani job check <job>`, which runs `scripts/check`, writes
-`checks.md` with `RESULT`, `HEAD`, duration, exit code, and the output tail, and
-appends one line per run to `checks.log`. A failure goes back to a fresh builder;
-no reviewer runs on a failing build.
+The master runs `pagani check <run>`, which runs `scripts/check`, writes
+`checks.result` with `RESULT`, `HEAD`, exit code, and duration and appends one
+line per run plus the output to `checks.log`, both in the state directory. A
+failure goes back to a fresh builder; no reviewer runs on a failing build.
 
 ### Step 4: Review
 
-The master runs `pagani job gate <job>` first. A failing, stale, or dirty gate
-stops the review. It then spawns one `review-code` reviewer, which covers code,
-UI, UX, and security in one pass and returns one verdict:
+The master runs `pagani gate <run>` first. A failing, stale, or dirty gate stops
+the review. It then spawns one `review-code` reviewer, which covers code, UI, UX,
+and security in one pass and returns one verdict:
 
 - **Code** — correctness, simplicity, conventions, tests, and spec fidelity.
 - **UI** — visual consistency, design-system fit, spacing, responsive layout,
@@ -120,37 +129,38 @@ UI, UX, and security in one pass and returns one verdict:
   payments/identity, abuse, secrets, dependencies, and sessions/auth.
 
 The reviewer loads `verification` and uses `agent-browser` when the change has
-UI, and loads `unslop` for copy. It writes `round-N/review-code.md` with one
-`VERDICT` for the whole change. It checks the diff against each task's
-`Allowed files`, the test-first evidence, the changed test files, and the blind
-spots listed under `## Sensors`. An out-of-bounds edit, a task with no
-red-before-green evidence (unless docs/config-only), or an unjustified test edit,
-skip, or weakened assertion is `CHANGES`; an acceptance criterion that depends on
-an uncovered area goes under Risks. The master posts the summary in chat; for
-`feature`, `refactor`, and `high` risk it writes `summary.md` at this checkpoint.
+UI, and loads `unslop` for copy. It returns one `VERDICT` for the whole change as
+its reply. It checks the diff against each task's `Allowed files`, the test-first
+evidence, the changed test files, and the blind spots listed under `## Sensors`.
+An out-of-bounds edit, a task with no red-before-green evidence (unless
+docs/config-only), or an unjustified test edit, skip, or weakened assertion is
+`CHANGES`; an acceptance criterion that depends on an uncovered area goes under
+Risks. The master posts the summary in chat; for `feature`, `refactor`, and
+`high` risk it posts the longer summary at this checkpoint.
 
 For `high` risk the master also runs the second-opinion reviewer:
-`pagani build --review <job> <task> --block` runs `review-code` headless on the
-third-party model, read-only, and writes findings to
-`.agents/plans/<job>/build/<task>.review2.md`.
+`pagani build --review <run> <task> --block` runs `review-code` headless on the
+third-party model, read-only, and puts the findings in
+`$STATE/<run>/build/<task>.review2.md`.
 
 ### Step 5: Fix
 
-If a review returns `CHANGES`, the master passes `round-N/review-code.md` and the
-findings — the file and line, why it matters, how to fix it, and how to verify
-it — to a fresh builder. It re-runs checks and re-runs the reviewer on the
-affected area. Max two fix rounds. The master tracks the number of failing checks
-and blocking findings each round; if neither decreased in two consecutive rounds,
-it stops and escalates instead of running a third identical round.
+If a review returns `CHANGES`, the master passes the findings — the file and
+line, why it matters, how to fix it, and how to verify it — to a fresh builder,
+or on stdin to `pagani build <run> <task> --revise -` for a headless task. It
+re-runs checks and re-runs the reviewer on the affected area. Max two fix rounds.
+The master tracks the number of failing checks and blocking findings each round;
+if neither decreased in two consecutive rounds, it stops and escalates instead
+of running a third identical round.
 
 ### Step 6: Approval
 
-The master loads `approval` and reads `SPEC.md`, the build reports, checks, and
-reviews. It writes `decision.md` itself with `APPROVE` or `ESCALATE`, the
+The master loads `approval` and reads the SPEC, the builder reports, checks, and
+review replies. It decides `APPROVE` or `ESCALATE` itself, with the
 acceptance-criteria mapping, risks, and an explainer. For `feature`, `refactor`,
 and `high` risk it adds a quiz; `trivial`, `bugfix`, and `low` risk get the
 explainer only. In every playbook it then presents the decision and asks for it
-through the native question UI; a chat summary alone never closes a job. The
+through the native question UI; a chat summary alone never closes a run. The
 quiz uses retrieval practice: no formatting hints, answers answerable from the
 artifacts.
 
@@ -158,8 +168,8 @@ artifacts.
 
 You read the explainer, answer the quiz where one applies, and choose merge,
 commit, push, PR, rework, or reject. The master shows the exact git command
-before running it and appends the decision to `## Human decision` in
-`decision.md`.
+before running it. The decision is recorded in the PR body or the merge-commit
+(commit) message, not in a file.
 
 Before it creates a branch, worktree, or PR, the master checks whether it already
 exists (`git branch --list`, `git worktree list`, `gh pr view`) so a resume does
@@ -167,27 +177,28 @@ not duplicate a side effect.
 
 ### Step 8: Close
 
-The master updates `job.md`, writes the final `summary.md` if it does not exist
-yet, records the decision in `decision.md`, runs
-`pagani job report --retro --exit-code`, and loads `session-retro` to propose one
-environment change. On repeated findings it proposes Gotchas patches. It loads
-`session-handoff` if the job continues elsewhere.
+The master runs `pagani report --retro --exit-code` and loads `session-retro` to
+propose one environment change. If the scan exits 1, findings repeat across runs;
+on repeated findings it proposes Gotchas patches. It loads `session-handoff` if
+the run continues elsewhere. Once the PR or merge is confirmed, it runs
+`pagani report --close <slug>` to remove the state directory and stops.
 
 ### Resume
 
-Job state is files in `.agents/plans/<id>/`, so any new session can continue a job.
-The entry rule: a feature request starts at Step 0, `status` reads the newest
-`job.md`, and `resume` continues from `Stage:` without redoing completed steps.
-The master defaults to sequential builds and prefers a parallel wave when the
-ready tasks touch disjoint files.
+Run state lives in the state directory and the todo list, so a new session can
+continue a run. The entry rule: a feature request starts at Step 0, `status`
+reads the todo list and current branch, and `resume` continues from the open todo
+items without redoing completed steps; the same session can be picked up with
+`claude --continue`. The master defaults to sequential builds and prefers a
+parallel wave when the ready tasks touch disjoint files.
 
 ## Playbooks and risk
 
 A playbook chooses the pipeline; risk is a modifier on top of it. The master
-picks both at Step 0, writes them to `job.md`, and never downgrades either. It
-copies the matched playbook's steps verbatim into `TodoWrite`; a skipped step
-stays in the list with a one-line skip reason. Work that fits no playbook loads
-`figure-it-out`, which proposes a one-off playbook and confirms it with
+picks both at Step 0, tracks them in the todo list, and never downgrades either.
+It copies the matched playbook's steps verbatim into the todo list; a skipped
+step stays in the list with a one-line skip reason. Work that fits no playbook
+loads `figure-it-out`, which proposes a one-off playbook and confirms it with
 `AskUserQuestion` before running it.
 
 | Playbook | Use when | Pipeline |
@@ -197,6 +208,9 @@ stays in the list with a one-line skip reason. Work that fits no playbook loads
 | `feature` | normal product work | interview → SPEC → task graph → worktrees → full build/check/review |
 | `refactor` | behaviour must not change | expand-contract; tests before and after; full build/check/review |
 | `pr-babysit` | an open PR needs CI or review follow-up | watch checks and comments read-only, fix through the light path, push only with approval — see [skills/workflow/playbooks/pr-babysit.md](../skills/workflow/playbooks/pr-babysit.md) |
+
+Every playbook ends with the PR (or merge) write-up; the decision lives in that
+text, not in a file.
 
 | Risk | Use when |
 |---|---|
@@ -214,19 +228,19 @@ loads the `loop` skill with a stated interval and a maximum number of checks
 instead of idling, and stops as soon as the condition is met or the cap is
 reached.
 
-Every job, including the light path, ends with a reply that pastes the verbatim
-before/after evidence and labels each claim measured, inferred, or guessed
-(principle `prove-it-works`).
+Every run, including the light path, ends with a PR or merge write-up that pastes
+the verbatim before/after evidence and labels each claim measured, inferred, or
+guessed (principle `prove-it-works`).
 
 ## Agents and models
 
 | Agent | Role |
 |---|---|
-| `master` | Talks to you, asks questions, runs checks, posts summaries, writes `decision.md`, executes git only on request. |
+| `master` | Talks to you, asks questions, runs checks, posts summaries, executes git only on request. |
 | `explorer` | Cheap read-only search and log reading. |
-| `planner` | Writes `SPEC.md` with the requirements, decisions, and tracer-bullet task graph. |
-| `builder` | Implements exactly one task and writes `build/<task>.md`. |
-| `review-code` | One reviewer for code, UI, UX, and security; one file, one verdict. |
+| `planner` | Returns the SPEC with the requirements, decisions, and tracer-bullet task graph. |
+| `builder` | Implements exactly one task and ends its reply with the report. |
+| `review-code` | One reviewer for code, UI, UX, and security; one verdict as its reply. |
 
 There are no tier variants of an agent. The master picks the model per call with
 the Agent tool's `model` parameter; each agent's frontmatter `model:` is the
@@ -266,28 +280,32 @@ Other skills are invoked directly by name, not through `/pagani`:
 
 ## Commands
 
-PaganiStack has eight top-level commands: `doctor`, `init`, `seed`, `upgrade`,
-`build`, `job`, `worktree`, and `hooks`. (`guard` and `keyget` are internal hook
-entry points, not user commands.)
+PaganiStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
+`start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and `hooks`.
+(`guard` and `keyget` are internal hook entry points, not user commands;
+`pagani job ...` prints the replacement and exits 2.)
 
 ```bash
 pagani doctor
 pagani init [path]
 pagani seed <Name>
 pagani upgrade [path]
-pagani build <job> <task> [--revise <findings-file>] [--block]
+
+pagani start "<title>"
+pagani spec <run> [file]
+pagani check <run>
+pagani gate <run> [--allow-dirty]
+pagani report [--retro] [--write] [--exit-code]
+pagani report --close <run>
+
+pagani build <run> <task> [--revise <file|->] [--block]
 pagani build --here <slug> --task "<text>" [--block]
-pagani build --review <job> <task> [--block]
-pagani build --status <job> [--every <seconds>]
+pagani build --review <run> <task> [--block]
+pagani build --status <run> [--every <seconds>]
 pagani build --init | --check
 
-pagani job new "<title>"
-pagani job check <job>
-pagani job gate <job> [--allow-dirty]
-pagani job report [--retro] [--write] [--exit-code]
-
-pagani worktree create <job> <task>
-pagani worktree prune <job> [--force]
+pagani worktree create <run> <task>
+pagani worktree prune <run> [--force]
 pagani hooks install|uninstall [path]
 ```
 
@@ -296,9 +314,11 @@ session. Setup and troubleshooting are in [SETUP.md](SETUP.md).
 
 ## Checks, review, and verification
 
-`scripts/check` is the project check script. `pagani job check <job>` runs it and
-writes `checks.md` plus `checks.log`. `pagani job gate <job>` fails when the latest
-check failed, is stale, or the working tree is dirty.
+`scripts/check` is the project check script. `pagani check <run>` runs it and
+writes `checks.result` and `checks.log` in the state directory. `pagani gate
+<run>` fails when the latest check failed, is stale, or the working tree is
+dirty, and warns when a branch changes tests and non-tests but no test-only commit
+precedes the first non-test commit.
 
 `scripts/verify` is the app/browser driver. It reads `scripts/verify.conf`
 (`START_CMD`, `READY_URL`, `PORT`) and derives a port from the worktree path
@@ -317,31 +337,32 @@ Risk decides how much review runs: `low` is automated checks plus AI review,
 high-risk reviewer model, the second-opinion reviewer, and a mandatory quiz. The
 human still makes the final decision.
 
-## Job folder and state
+## Run state
 
 ```
-.agents/plans/<id>/
-  job.md              stage, round, playbook, risk, branch, base (state only)
-  interview.md
-  SPEC.md
-  build/<task>.md
-  build/<task>.review2.md
-  checks.md
-  checks.log
-  round-N/review-code.md
-  summary.md
-  decision.md         verdict, explainer, and ## Human decision
-  handoff.md
+$STATE/<slug>/
+  spec.md             the approved SPEC
+  tasks/<n>.md        text of each `### Task <n>` section
+  build/<task>.*      prompt, logs, builder report, second-opinion review
+  checks.log          one line per check plus its output
+  checks.result       RESULT, HEAD, EXIT, SECONDS
 
-.agents/quick/<slug>/
-  run, rc, progress, prompt, report.md, builder.log
+$STATE/quick/<slug>/
+  run, rc, progress, prompt, report.md, builder.log, settings.json
 ```
 
-The job folder is the source of truth. No JSON state machine, no `plan.md`, no
-`tickets/`. `job.md` is state, not a checklist; the task list lives in `SPEC.md`.
-`PLAN.md` is project-level only; there is no job-level copy. The final
-`summary.md` is written once at close, or at review for `feature`, `refactor`,
-and `high` risk. Every step still posts a short summary in chat.
+The state directory is `<base>/<repo-id>`, where `<base>` is
+`${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}` and `<repo-id>` is the
+repo basename plus the first 8 hex of the sha1 of the realpath of the git common
+dir, so worktrees share it. Nothing is written into the repo or the worktree.
+The branch is the run's identity, the todo list tracks progress, and the chat and
+the PR (or merge commit) are the human-readable record. `pagani report --close
+<slug>` removes the directory. Set `PAGANI_STATE_DIR` to a persistent directory
+if a run must survive a reboot or your `/tmp` has a small quota; the default
+temp directory may be cleared.
+
+`PLAN.md` is project-level only; there is no run-level copy. Every step posts a
+short summary in chat.
 
 ## Context policy
 
@@ -356,9 +377,9 @@ NEVER      secrets, raw logs, whole directories, unrelated files
 ## Project docs and files
 
 Project files are created on demand. `pagani init` writes only `AGENTS.md`,
-`CLAUDE.md`, `scripts/check`, `.claude/settings.json`, `.agents/plans`, the exclude
-block, and the git hooks. Everything else is seeded only when a skill first needs
-it, with `pagani seed <Name>` (idempotent; prints `created:` or `kept:`):
+`CLAUDE.md`, `scripts/check`, `.claude/settings.json`, the exclude block, and the
+git hooks. Everything else is seeded only when a skill first needs it, with
+`pagani seed <Name>` (idempotent; prints `created:` or `kept:`):
 
 - `SPEC.md` and `PLAN.md` — product and technical requirements, and ordered
   outcomes, dependencies, risks, and validated status.
@@ -414,13 +435,14 @@ Trade-offs:
 - One reviewer can miss a specialist issue. The checklists and the `high` risk
   path (adversarial review, `simplify`, `review-code` on Opus, the second-opinion
   reviewer) cover it; run a specialist skill by name if needed.
-- One planning pass can under-specify a large job. `feature` and `refactor` get
+- One planning pass can under-specify a large run. `feature` and `refactor` get
   the full interview, and the planner returns open questions.
-- The master is busier (it writes `decision.md`); that removes a handoff.
+- The master is busier (it decides approval and drafts the PR write-up); that
+  removes a handoff.
 - Parallel waves buy wall-clock time but cost worktrees, ports, and merge work,
   so the master goes parallel only when ready tasks touch disjoint files.
 - Harness decay: on a model upgrade, remove one component at a time on a branch,
-  re-run a few real jobs, and keep it only if it still earns its place.
+  re-run a few real runs, and keep it only if it still earns its place.
 - A repeated rule moves down the hierarchy until it sticks; see
   `## Rule placement` in [AGENTS.md](../AGENTS.md).
 

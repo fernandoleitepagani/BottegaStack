@@ -1,10 +1,7 @@
 # Orchestration artifacts
 
-# PaganiStack runtime state
-.agents/plans/
-.agents/quick/
-.agents/retro-scan.md
-.agents/handoff.md
+# PaganiStack runtime state lives outside the repo in the state directory
+# (see docs/SETUP.md), so nothing here needs ignoring.
 .claude/settings.json.pagani-backup-*
 
 # Secrets

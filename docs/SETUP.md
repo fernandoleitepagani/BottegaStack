@@ -49,7 +49,7 @@ A plugin cannot change your global Claude Code config, so set these yourself:
   ```json
   {
     "agent": "master",
-    "permissions": { "allow": ["Bash(pagani build:*)"] }
+    "permissions": { "allow": ["Bash(pagani:*)"] }
   }
   ```
 
@@ -103,9 +103,9 @@ pagani init
 ```
 
 You normally never run this: the first `/pagani` request in a project runs it for
-you (through `pagani job new`) and then asks you for the project's lint, test,
-and build commands to fill in `scripts/check`. Run `pagani init` yourself only to
-set a project up without starting a job.
+you (through `pagani start "<title>"`) and then asks you for the project's lint,
+test, and build commands to fill in `scripts/check`. Run `pagani init` yourself
+only to set a project up without starting a run.
 
 `init` creates only what the workflow needs to start:
 
@@ -113,17 +113,19 @@ set a project up without starting a job.
 - `CLAUDE.md` (imports `AGENTS.md`).
 - `scripts/check`.
 - `.claude/settings.json`.
-- `.agents/plans/`.
 - The managed block in `.git/info/exclude` and, when `.git` exists, the git
   hooks.
 
 **None of these files is ever committed.** `init` lists them in
 `.git/info/exclude` (local, shared by worktrees, never committed), so `git status`
-stays clean, your `.gitignore` is not touched, and `pagani job new` sees a clean
+stays clean, your `.gitignore` is not touched, and `pagani start` sees a clean
 tree. The pre-commit hook also refuses to stage a newly added pagani file. A file
 your project already tracked (say its own `AGENTS.md`) is left alone and stays
 tracked. `pagani worktree create` copies the files into each task worktree, since
 untracked files are not part of a checkout.
+
+`init` creates no run directory. Run state lives outside the repo; see
+[Run state](#run-state).
 
 ## Project files on demand
 
@@ -156,25 +158,63 @@ re-applies the exclude block and git hooks. It no longer creates the on-demand
 project files and never deletes the ones you have. It needs `python3` to merge
 `.claude/settings.json`.
 
+## Run state
+
+A run is one execution of a playbook. Its id is the slug, its branch is
+`pagani/<slug>`, and its state lives outside the repo:
+
+```
+STATE="${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}/<repo-id>"
+```
+
+`<repo-id>` is `<repo basename>-<first 8 hex of sha1 of the realpath of
+$(git rev-parse --git-common-dir)>`, so every worktree of a repo shares one
+state directory. The directory is created mode 700.
+
+```
+$STATE/<slug>/            full run
+  spec.md                 the approved SPEC
+  tasks/<n>.md            text of each `### Task <n>` section
+  build/<task>.*          prompt, run/rc/progress logs, builder report, reviews
+  checks.log              one line per check plus its output
+  checks.result           RESULT, HEAD, EXIT, SECONDS
+$STATE/quick/<slug>/      light path (no run, spec, or worktree)
+  run, rc, progress, prompt, report.md, builder.log, settings.json
+$STATE/retro-scan.md      written by `pagani report --retro --write`
+```
+
+Nothing is written into the repo or a worktree. The chat and the PR (or merge
+commit) carry the human-readable record: interview answers, summaries,
+handoffs, decisions, reviews, and builder reports.
+
+- `PAGANI_STATE_DIR` overrides the base directory. Set it to a persistent
+  location if runs must survive a reboot or if `/tmp` has a small quota: the
+  default sits under `${TMPDIR:-/tmp}`, which the system may clear on reboot or
+  reclaim under pressure, and its size counts against that filesystem's quota.
+  The branch, todo list, and chat/PR record survive regardless; only the spec,
+  extracted tasks, build reports, and check results are lost.
+- `pagani report --close <run>` removes a run's state directory; the master
+  calls it after the closeout is confirmed.
+
 ## Headless builder (`pagani build`)
 
 The builder runs as `claude -p --agent builder` on a third-party model through
 an Anthropic-compatible endpoint.
 
 ```bash
-pagani build <job> <task> [--revise <findings-file>] [--block]
+pagani build <run> <task> [--revise <file|->] [--block]
 pagani build --here <slug> --task "<text>" [--block]
-pagani build --review <job> <task> [--block]
-pagani build --status <job> [--every <seconds>]
+pagani build --review <run> <task> [--block]
+pagani build --status <run> [--every <seconds>]
 ```
 
-- `--here` is the light path: it needs no job, SPEC, or worktree, builds in the
+- `--here` is the light path: it needs no run, SPEC, or worktree, builds in the
   current checkout on the current branch, and keeps state in
-  `.agents/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
-  `builder.log`).
+  `$STATE/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
+  `builder.log`, `settings.json`).
 - `--review` runs the read-only `review-code` agent in the task worktree on the
-  third-party model and writes findings to
-  `.agents/plans/<job>/build/<task>.review2.md`. It cannot edit or commit.
+  third-party model and puts the findings in
+  `$STATE/<run>/build/<task>.review2.md`. It cannot edit or commit.
 - `--block` waits until the build ends, for a background Bash task. Without it,
   the call waits up to `PAGANI_BUILD_WAIT` seconds and then prints `RUNNING` and
   exits 5.
@@ -194,8 +234,8 @@ pagani build --status <job> [--every <seconds>]
 
 ```bash
 pagani hooks install|uninstall [path]
-pagani worktree create <job> <task>
-pagani worktree prune <job> [--force]
+pagani worktree create <run> <task>
+pagani worktree prune <run> [--force]
 ```
 
 - `hooks` installs or removes the gitleaks pre-commit hook and the pre-push hook
@@ -212,8 +252,8 @@ pagani worktree prune <job> [--force]
 | `pagani` not found in a session | The plugin puts `bin/pagani` on `PATH` only inside a session. Start a new session, and remove an old `~/.local/bin/pagani` that shadows it. |
 | Skills not loading | The plugin manifest lists each category directory. Check `skills/<category>/<name>/SKILL.md`. |
 | Checks always fail | Fill `scripts/check`; it exits 1 until configured. |
-| `pagani job gate` says stale | Run `pagani job check <job>` after the latest commit. |
-| `pagani job gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
+| `pagani gate` says stale | Run `pagani check <run>` after the latest commit. |
+| `pagani gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
 | `pagani doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `pagani init`. |
 | Claude settings has no hooks | Run `pagani upgrade` or reinstall the plugin. |
@@ -231,6 +271,7 @@ Run this by hand after installing the plugin.
 2. `pagani --help` resolves inside a session and prints the usage.
 3. `pagani doctor` shows `claude: yes`.
 4. `python3 -m json.tool .claude/settings.json` succeeds in a project.
-5. `/pagani status` loads the generated command and reads the newest job.
-6. `pagani job gate <job>` fails after an uncommitted edit and passes with
+5. `/pagani status` loads the generated command and reads the todo list and
+   current branch.
+6. `pagani gate <run>` fails after an uncommitted edit and passes with
    `--allow-dirty`.

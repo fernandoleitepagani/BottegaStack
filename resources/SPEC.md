@@ -1,7 +1,7 @@
 # Project SPEC
 
-Keep this short. It is the project-level contract; per-job specs live in
-`.agents/plans/<id>/SPEC.md`.
+Keep this short. It is the project-level contract; a run's spec lives in its
+state directory (`$STATE/<slug>/spec.md`), outside the repo.
 
 ## Problem
 
