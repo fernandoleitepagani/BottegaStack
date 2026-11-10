@@ -1,6 +1,7 @@
 ---
 name: principle-model-the-domain
 description: Apply when naming code, data or docs. Use the project's glossary terms and one name per concept.
+user-invocable: false
 ---
 
 # Model the domain

@@ -1,6 +1,7 @@
 ---
 name: principle-subtract-before-you-add
 description: Apply before adding code, text or options. Remove or simplify first; a refactor changes structure, not behaviour.
+user-invocable: false
 ---
 
 # Subtract before you add

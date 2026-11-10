@@ -13,7 +13,7 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | Skill | Purpose |
 |---|---|
 | `adversarial-review` | Fresh-eyes review that tries to break a change before the normal reviewers do. |
-| `approval` | Act as the BottegaStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, and presents the decision, explainer, and (for feature/refactor/high risk) a quiz to the human; the decision is recorded in the PR body or merge commit. |
+| `approval` | Act as the BottegaStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, and presents the decision, explainer, and (for feature/refactor/high risk) a quiz to the human; the quiz stays in chat and the decision is recorded in the PR body or merge commit. |
 | `automate-me` | Draft a personal "mode" skill from your own Claude Code transcripts, after explicit go-ahead and draft approval. |
 | `backlog-triage` | Move items in a local BACKLOG.md through a small state machine, verify them, grill if needed, and write an agent-ready brief. |
 | `bash-scripting` | Create, review, and debug Bash or POSIX sh scripts where portability, quoting, failure handling, or shell validation matters; read-only by default. |

@@ -1,6 +1,7 @@
 ---
 name: diagnosis
 description: Turn failed BottegaStack checks or review findings into a precise fix brief. Use when a review returns CHANGES or a deterministic check fails, before spawning a fresh builder.
+user-invocable: false
 ---
 
 # BottegaStack Diagnosis

@@ -168,7 +168,7 @@ and `high` risk it adds a quiz; `trivial`, `bugfix`, and `low` risk get the
 explainer only. In every playbook it then presents the decision and asks for it
 through the native question UI; a chat summary alone never closes a run. The
 quiz uses retrieval practice: no formatting hints, answers answerable from the
-artifacts.
+artifacts. It stays in chat and is never written to the PR body or a commit message.
 
 ### Step 7: Human decision
 

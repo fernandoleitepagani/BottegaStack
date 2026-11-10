@@ -1,6 +1,7 @@
 ---
 name: approval
 description: Act as the BottegaStack final gate. The master reads the SPEC, builder reports, check output, and reviews, decides APPROVE or ESCALATE, and returns the decision with an explainer and, for feature/refactor or high risk, a quiz, then presents it to the human.
+user-invocable: false
 ---
 
 # BottegaStack Approval

@@ -1,6 +1,7 @@
 ---
 name: principle-fix-root-causes
 description: Apply when fixing a failing check, bug or repeated finding. Reproduce, find the cause and fix it; no symptom patches.
+user-invocable: false
 ---
 
 # Fix root causes

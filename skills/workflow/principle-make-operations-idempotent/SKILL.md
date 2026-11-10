@@ -1,6 +1,7 @@
 ---
 name: principle-make-operations-idempotent
 description: Apply when writing a script, migration, setup step or command. Rerunning it must be safe.
+user-invocable: false
 ---
 
 # Make operations idempotent

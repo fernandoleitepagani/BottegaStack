@@ -1,6 +1,7 @@
 ---
 name: closeout
 description: Handle the BottegaStack human decision and final git actions. Use after the master presents the approval decision, when the human chooses merge, commit, push, PR, rework, or reject.
+user-invocable: false
 ---
 # BottegaStack Closeout
 The master recommends. The human decides. Execute only what the human explicitly asks for.
@@ -14,10 +15,12 @@ Before presenting merge or PR options, run the `ship` checklist against the bran
 - Manual testing noted.
 List each unmet item with its verbatim command output. Unmet items are shown to the user and **block the "Approve and merge" option**: do not offer or run the merge until each is fixed or the user explicitly waives it with `AskUserQuestion`. Record any waiver in the merge-commit message. A fully met checklist is not consent; still ask.
 ## Present
-Draft the write-up first, then present it. Show the master's decision and why, the
-acceptance-criteria mapping, the explainer, the quiz and its answers for `feature`,
-`refactor`, and `high` risk, the drafted PR body, and the exact git command for each
-option. Ask with `AskUserQuestion`:
+Draft the write-up first, then present it. For `feature`, `refactor`, and `high` risk, run
+the quiz in chat first (questions, then answers after the user attempts it) and only then
+show the decision options. The quiz is for the user alone: it never goes into the PR
+body, a merge-commit message, a commit message, or any file. Show the master's decision
+and why, the acceptance-criteria mapping, the explainer, the drafted PR body, and the
+exact git command for each option. Ask with `AskUserQuestion`:
 - **Approve and open PR** (default) — push `<branch>` only and create the PR with the write-up.
 - **Approve and merge** — merge `<branch>` into the base with the same write-up in the merge-commit message.
 - **Approve and commit** — commit remaining changes with the write-up as the message.
@@ -70,7 +73,7 @@ The body is the record; there is no decision or summary file.
 <what could still be wrong, or "None known">
 
 ## Decision
-APPROVE. <one-line why>. Quiz: <questions and answers, or "not applicable">.
+APPROVE. <one-line why>.
 ```
 Keep the prose short, use the project's domain language, and show evidence, not a claim.
 A local merge writes this same text in the merge-commit message. The commit option

@@ -1,6 +1,7 @@
 ---
 name: implementation
 description: Implement exactly one BottegaStack task with TDD, run the project checks, commit locally, and report in your final reply. Use by the builder subagent.
+user-invocable: false
 ---
 
 # BottegaStack Implementation

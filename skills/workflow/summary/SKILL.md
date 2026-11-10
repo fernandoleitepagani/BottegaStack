@@ -1,6 +1,7 @@
 ---
 name: summary
 description: Post a short BottegaStack summary in chat after every step and the final summary once. Use by the master at each checkpoint to explain what changed, how it works, why, evidence, risks, and the next decision.
+user-invocable: false
 ---
 
 # BottegaStack Summary

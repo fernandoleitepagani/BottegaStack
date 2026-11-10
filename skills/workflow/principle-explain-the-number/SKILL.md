@@ -1,6 +1,7 @@
 ---
 name: principle-explain-the-number
 description: Apply when a report, review or plan states a metric or claim. Every number names its source and how it was measured.
+user-invocable: false
 ---
 
 # Explain the number

@@ -1,6 +1,7 @@
 ---
 name: review-code
 description: Review a BottegaStack change for code quality, UI, UX, and security in one pass. Use by the reviewer subagent after deterministic checks pass.
+user-invocable: false
 ---
 
 # BottegaStack Review

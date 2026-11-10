@@ -1,6 +1,7 @@
 ---
 name: principle-minimize-reader-load
 description: Apply when writing a report, skill, doc or commit message. Write so the reader needs the least effort.
+user-invocable: false
 ---
 
 # Minimize reader load

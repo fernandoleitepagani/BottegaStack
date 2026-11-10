@@ -1,6 +1,7 @@
 ---
 name: principle-escalate-after-two-fixes
 description: Apply after repeated fix rounds. After two rounds with no progress, hand the decision to the human.
+user-invocable: false
 ---
 
 # Escalate after two fixes

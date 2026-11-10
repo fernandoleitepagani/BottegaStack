@@ -1,6 +1,7 @@
 ---
 name: principle-laziness-protocol
 description: Apply before writing code or text. Do the smallest thing that fully meets the goal; reuse before writing.
+user-invocable: false
 ---
 
 # Laziness protocol

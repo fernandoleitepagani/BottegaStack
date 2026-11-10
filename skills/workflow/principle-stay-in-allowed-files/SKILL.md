@@ -1,6 +1,7 @@
 ---
 name: principle-stay-in-allowed-files
 description: Apply when starting a task. Touch only its Allowed files; needing another one means report BLOCKED.
+user-invocable: false
 ---
 
 # Stay in allowed files

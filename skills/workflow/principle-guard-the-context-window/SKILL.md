@@ -1,6 +1,7 @@
 ---
 name: principle-guard-the-context-window
 description: Apply when a task needs reading, searching or large output. Read narrowly, delegate wide searches and keep outputs short.
+user-invocable: false
 ---
 
 # Guard the context window

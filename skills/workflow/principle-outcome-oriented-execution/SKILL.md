@@ -1,6 +1,7 @@
 ---
 name: principle-outcome-oriented-execution
 description: Apply when defining or accepting work. Define done as an observable result and verify that result.
+user-invocable: false
 ---
 
 # Outcome-oriented execution

@@ -1,6 +1,7 @@
 ---
 name: principle-experience-first
 description: Apply when changing a UI, CLI or any user-facing flow. Judge it by what the user sees and does first.
+user-invocable: false
 ---
 
 # Experience first

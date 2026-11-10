@@ -1,6 +1,7 @@
 ---
 name: principle-prove-it-works
 description: Apply when reporting that work is done. Nothing is done without real evidence; label claims measured, inferred or guessed.
+user-invocable: false
 ---
 
 # Prove it works

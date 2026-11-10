@@ -1,6 +1,7 @@
 ---
 name: planning
 description: Produce one BottegaStack run SPEC with requirements, decisions, and a tracer-bullet task graph. Use by the planner subagent after the interview.
+user-invocable: false
 ---
 # BottegaStack Planning
 Produce one artifact, the SPEC, and return it as your final reply. Write no files and never write code, reviews, or decisions.

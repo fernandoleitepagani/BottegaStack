@@ -1,6 +1,7 @@
 ---
 name: principle-exhaust-the-design-space
 description: Apply when choosing an approach to a non-trivial problem. List and compare real options before picking one.
+user-invocable: false
 ---
 
 # Exhaust the design space

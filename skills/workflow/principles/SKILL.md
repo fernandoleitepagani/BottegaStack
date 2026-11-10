@@ -1,6 +1,7 @@
 ---
 name: principles
 description: Apply when a task, review or skill cites a `principle <slug>`. Index of the 21 named rules; each is its own skill, so load the named one for the full text.
+user-invocable: false
 ---
 
 # BottegaStack principles

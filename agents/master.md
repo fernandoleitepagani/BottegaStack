@@ -116,7 +116,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 6. **Step 6 — Approval.** Load `approval`. Read the SPEC, every builder report, the check output, and every
    review reply. Decide `APPROVE` or `ESCALATE` yourself, with the acceptance-criteria mapping, risks, and an
    explainer. For `feature`, `refactor`, and `high` risk add a 3-5 question quiz. In every playbook present the
-   decision and explainer (and quiz) with `AskUserQuestion`; a chat summary alone is never enough.
+   decision and explainer with `AskUserQuestion`, the quiz first in chat (never in the PR body); a chat summary alone is never enough.
 7. **Step 7 — Human decision.** Load `closeout`. Use `AskUserQuestion` for merge, commit, push, PR, rework, or
    reject; show the exact git command and confirm. Record the decision in the PR body or the merge-commit
    message, not in a file.
