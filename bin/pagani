@@ -1256,8 +1256,11 @@ guard_stop() {
   command -v python3 >/dev/null 2>&1 || exit 0
   # Never block a stop the harness already blocked once.
   printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
-  # A builder is running in some run: let the turn end while it works.
+  # Only act in repos where pagani has a run: the plugin hook is global, and an
+  # ordinary session with open todos must not be nudged.
   sdir="$(state_dir 2>/dev/null || true)"
+  [ -n "$sdir" ] && [ -d "$sdir" ] || exit 0
+  # A builder is running in some run: let the turn end while it works.
   if [ -n "$sdir" ]; then
     for r in "$sdir"/*/build/*.run; do
       [ -f "$r" ] || continue
