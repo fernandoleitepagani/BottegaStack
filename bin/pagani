@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # PaganiStack runtime CLI (shipped in the plugin's bin/, so it is on PATH).
-# Jobs, worktrees, builds, guard hooks, project init/upgrade/seed.
+# Runs, worktrees, builds, guard hooks, project init/upgrade/seed.
+# Run state lives outside the repo in a per-repo state directory.
 set -euo pipefail
 
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -14,30 +15,37 @@ Usage:
   pagani init [path]
   pagani seed <Name>
   pagani upgrade [path]
-  pagani build <job> <task> [--revise <findings-file>] [--block|--wait]
+  pagani start "<title>"
+  pagani spec <run> [file]
+  pagani check <run>
+  pagani gate <run> [--allow-dirty]
+  pagani report [--retro] [--write] [--exit-code]
+  pagani report --close <run>
+  pagani build <run> <task> [--revise <file|->] [--block|--wait]
   pagani build --here <slug> --task "<text>" [--block|--wait]
-  pagani build --review <job> <task> [--block|--wait]
+  pagani build --review <run> <task> [--block|--wait]
   pagani build --init | --check
-  pagani build --status <job> [--every <seconds>]
-  pagani job new|check|gate|report
-  pagani job new "<title>"
-  pagani job check <job>
-  pagani job gate <job> [--allow-dirty]
-  pagani job report [--retro] [--write] [--exit-code]
-  pagani worktree create <job> <task>
-  pagani worktree prune <job> [--force]
+  pagani build --status <run> [--every [seconds]]
+  pagani worktree create <run> <task>
+  pagani worktree prune <run> [--force]
   pagani hooks install|uninstall [path]
 
 PaganiStack is a Claude Code plugin. The plugin puts `pagani` on PATH and ships
 the agents, commands, skills, hooks, and the `resources/` templates beside it.
 
+A run is one execution of a playbook. Its id is the slug; its branch is
+`pagani/<slug>`. Run state lives outside the repo in
+`${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}/<repo-id>/<slug>/`.
+Nothing is written into the repo or a worktree.
+
 Headless builder:
   `pagani build` runs the Claude Code `builder` agent headless on a third-party
   model. Credentials live in ~/.config/pagani/builder.env (create it with
   `pagani build --init`); they are never stored in the repo.
-  `pagani build --here <slug>` is the light path: no job, SPEC, or worktree; it
-  builds in the current checkout and keeps state in .agents/quick/<slug>/.
-  `pagani build --review <job> <task>` runs the read-only `review-code` agent
+  `pagani build --here <slug>` is the light path: no run, spec, or worktree; it
+  builds in the current checkout and keeps state in the state directory under
+  quick/<slug>/.
+  `pagani build --review <run> <task>` runs the read-only `review-code` agent
   in the task worktree and writes build/<task>.review2.md.
 
 The skills stay organized by category; the plugin manifest points at each
@@ -52,10 +60,69 @@ config_dir() {
   esac
 }
 
-cmd_job_new() {
-  local title="${1:?title required}"
+# ---- State directory --------------------------------------------------------
+# A run's state lives outside the repo. One directory per git common dir, so
+# every worktree of a repo shares it:
+#   <base>/<repo basename>-<first 8 hex of sha1(realpath(git-common-dir))>
+# where <base> is PAGANI_STATE_DIR or ${TMPDIR:-/tmp}/pagani-<uid>.
+state_dir() {
+  local root common real name id base
+  root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  common="$(git -C "$root" rev-parse --git-common-dir 2>/dev/null)" || return 1
+  case "$common" in
+    /*) ;;
+    *) common="$root/$common" ;;
+  esac
+  real="$(cd "$common" 2>/dev/null && pwd -P)" || return 1
+  name="$(basename "$(dirname "$real")")"
+  if command -v sha1sum >/dev/null 2>&1; then
+    id="$(printf '%s' "$real" | sha1sum | cut -c1-8)"
+  elif command -v shasum >/dev/null 2>&1; then
+    id="$(printf '%s' "$real" | shasum -a 1 | cut -c1-8)"
+  else
+    id="$(printf '%s' "$real" | git hash-object --stdin | cut -c1-8)"
+  fi
+  base="${PAGANI_STATE_DIR:-${TMPDIR:-/tmp}/pagani-$(id -u)}"
+  base="${base%/}"
+  printf '%s/%s-%s\n' "$base" "$name" "$id"
+}
+
+# Same as state_dir, but creates it mode 700 (umask 077 covers new directories).
+ensure_state_dir() {
+  local dir
+  dir="$(state_dir)" || return 1
+  (umask 077; mkdir -p "$dir")
+  printf '%s\n' "$dir"
+}
+
+# $STATE/<slug>, creating the state directory (used by `start`).
+run_dir() {
+  printf '%s/%s\n' "$(ensure_state_dir)" "$1"
+}
+
+# $STATE/<slug> without creating anything (commands that read an existing run).
+run_state_dir() {
+  local base
+  base="$(state_dir)" || return 1
+  printf '%s/%s\n' "$base" "$1"
+}
+
+# $STATE/quick/<slug> — the light path. Creates the directory.
+light_dir() {
+  local dir
+  dir="$(ensure_state_dir)" || return 1
+  (umask 077; mkdir -p "$dir/quick/$1")
+  printf '%s/quick/%s\n' "$dir" "$1"
+}
+
+# `pagani start "<title>"`: create the branch, the state directory, and the run
+# id (the slug). Auto-inits the project on first use and requires a clean tree.
+cmd_start() {
+  local title="${1:-}"
+  [ -n "$title" ] || { echo 'usage: pagani start "<title>"' >&2; exit 2; }
+  git rev-parse --show-toplevel >/dev/null 2>&1 || { echo "pagani start: not a git repository" >&2; exit 1; }
   local repo
-  repo="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  repo="$(git rev-parse --show-toplevel)"
   cd "$repo"
   # /pagani is the only command you need: set the project up on first use. init
   # only creates what is missing and everything it creates is excluded from git,
@@ -67,45 +134,75 @@ cmd_job_new() {
     echo "working tree is dirty; commit or stash first" >&2
     exit 1
   fi
-  mkdir -p .agents/plans
-  local next=001
-  local d
-  for d in .agents/plans/*; do
-    [ -d "$d" ] || continue
-    local n
-    n="$(basename "$d" | cut -d- -f1)"
-    if [[ "$n" =~ ^[0-9]+$ ]] && [ "$((10#$n))" -ge "$((10#$next))" ]; then
-      next="$(printf '%03d' "$((10#$n + 1))")"
-    fi
-  done
-  local slug id
-  slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-//; s/-$//' | cut -c1-40)"
-  id="$next-$slug"
-  mkdir ".agents/plans/$id"
-  cat > ".agents/plans/$id/job.md" <<EOF
-# Job $id — $title
 
-Stage: setup
-Round: 0
-Playbook: pending
-Risk: pending
-Branch: pagani/$id
-Base: $(git branch --show-current)
-EOF
-  git switch -c "pagani/$id" >/dev/null 2>&1 || git checkout -b "pagani/$id" >/dev/null 2>&1 || true
-  echo "job: $id"
-  echo "folder: .agents/plans/$id"
-  echo "branch: pagani/$id"
+  local slug base n=1
+  slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-*$//')"
+  [ -n "$slug" ] || slug="run"
+  base="$(git branch --show-current 2>/dev/null || true)"
+  [ -n "$base" ] || base="HEAD"
+  while git show-ref --verify --quiet "refs/heads/pagani/$slug"; do
+    n=$((n + 1))
+    slug="${slug%-$((n - 1))}-$n"
+  done
+
+  git switch -c "pagani/$slug" >/dev/null 2>&1 || git checkout -b "pagani/$slug" >/dev/null 2>&1 || {
+    echo "pagani start: could not create branch pagani/$slug (base: $base)" >&2
+    exit 1
+  }
+  local dir
+  dir="$(run_dir "$slug")" || { echo "pagani start: could not create the state directory" >&2; exit 1; }
+  (umask 077; mkdir -p "$dir/build" "$dir/tasks")
+  echo "run: $slug"
+  echo "branch: pagani/$slug"
+  echo "state: $dir"
 }
 
+# `pagani spec <run> [file]`: save the spec and extract each `### Task <n>`
+# section into tasks/<n>.md. Prints the task count.
+cmd_spec() {
+  local slug="${1:-}" file="${2:-}"
+  [ -n "$slug" ] || { echo "usage: pagani spec <run> [file]" >&2; exit 2; }
+  local dir
+  dir="$(run_state_dir "$slug")" || { echo "pagani spec: not in a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "pagani spec: no such run: $slug (run: pagani start \"<title>\")" >&2; exit 1; }
+  local spec="$dir/spec.md"
+  if [ -n "$file" ]; then
+    [ -f "$file" ] || { echo "pagani spec: no such file: $file" >&2; exit 1; }
+    cat "$file" > "$spec"
+  else
+    cat > "$spec"
+  fi
+  local tasks="$dir/tasks"
+  mkdir -p "$tasks"
+  rm -f "$tasks"/*.md 2>/dev/null || true
+  awk -v dir="$tasks" '
+    /^###[ \t]+Task[ \t]+[0-9]+/ {
+      if (out != "") close(out)
+      line = $0
+      sub(/^###[ \t]+Task[ \t]+/, "", line)
+      sub(/[^0-9].*$/, "", line)
+      out = dir "/" line ".md"
+      print > out
+      next
+    }
+    /^##[ \t]/ { if (out != "") { close(out); out = "" } next }
+    out != "" { print > out }
+  ' "$spec"
+  local count
+  count="$(find "$tasks" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null | wc -l | tr -d ' ')"
+  echo "$count"
+}
 
-
-
-
+# `pagani check <run>`: run scripts/check from the repo root and record the
+# result in the state directory.
 cmd_check() {
-  local job="${1:?job id required}"
-  local dir=".agents/plans/$job"
-  [ -d "$dir" ] || { echo "job not found: $job" >&2; exit 1; }
+  local slug="${1:-}"
+  [ -n "$slug" ] || { echo "usage: pagani check <run>" >&2; exit 2; }
+  local dir repo
+  dir="$(run_state_dir "$slug")" || { echo "pagani check: not in a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "pagani check: no such run: $slug" >&2; exit 1; }
+  repo="$(git rev-parse --show-toplevel)"
+  cd "$repo"
   [ -x scripts/check ] || { echo "scripts/check not found or not executable" >&2; exit 1; }
   local start end duration sha result code output
   start="$(date +%s)"
@@ -117,59 +214,105 @@ cmd_check() {
   duration=$((end - start))
   sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   if [ "$code" -eq 0 ]; then result="PASS"; else result="FAIL"; fi
+  mkdir -p "$dir"
   {
     echo "RESULT: $result"
     echo "HEAD: $sha"
-    echo "DATE: $(date -Iseconds)"
-    echo "DURATION: ${duration}s"
     echo "EXIT: $code"
-    echo
-    echo "## Output"
+    echo "SECONDS: $duration"
+  } > "$dir/checks.result"
+  {
+    printf '%s HEAD %s RESULT %s EXIT %s SECONDS %s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "$duration"
     echo '```'
     echo "$output"
     echo '```'
-  } > "$dir/checks.md"
-  printf '%s\t%s\t%s\t%s\t%s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "${duration}s" >> "$dir/checks.log"
+  } >> "$dir/checks.log"
   echo "check: $result (${duration}s, exit $code)"
   [ "$code" -eq 0 ]
 }
 
+# A repo test file: a test/spec directory, or a conventional test filename.
+is_test_path() {
+  local p="$1" b
+  case "$p" in
+    test/*|tests/*|spec/*|specs/*|__tests__/*) return 0 ;;
+    */test/*|*/tests/*|*/spec/*|*/specs/*|*/__tests__/*) return 0 ;;
+  esac
+  b="$(basename "$p")"
+  case "$b" in
+    test|tests|test.*|tests.*|test_*|*_test|*_test.*|*.test.*|*.spec.*|*_spec.*|*Spec.*|*Test.*|*Tests.*) return 0 ;;
+  esac
+  return 1
+}
+
+# The commit the current branch forked from: the run branch for a task
+# worktree, else main, master, or the root commit.
+branch_base() {
+  local slug="${1:-}" cur b base=""
+  cur="$(git branch --show-current 2>/dev/null || true)"
+  if [ -n "$slug" ] && [ "$cur" != "pagani/$slug" ] && git show-ref --verify --quiet "refs/heads/pagani/$slug"; then
+    base="$(git merge-base HEAD "refs/heads/pagani/$slug" 2>/dev/null || true)"
+    [ -n "$base" ] && { printf '%s\n' "$base"; return 0; }
+  fi
+  for b in main master; do
+    if git show-ref --verify --quiet "refs/heads/$b"; then
+      base="$(git merge-base HEAD "refs/heads/$b" 2>/dev/null || true)"
+      [ -n "$base" ] && { printf '%s\n' "$base"; return 0; }
+    fi
+  done
+  git rev-list --max-parents=0 HEAD 2>/dev/null | head -1
+}
+
+# Warning, never a failure: a branch that changes tests and non-tests must have a
+# test-only commit before the first non-test commit (red before green).
+gate_commit_order_warning() {
+  local slug="${1:-}" base c p touch_test touch_non test_first=0 saw_non=0 saw_test=0 warn=0
+  base="$(branch_base "$slug")"
+  [ -n "$base" ] || return 0
+  while IFS= read -r c; do
+    [ -n "$c" ] || continue
+    touch_test=0; touch_non=0
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      if is_test_path "$p"; then touch_test=1; else touch_non=1; fi
+    done < <(git show --format= --name-only "$c" 2>/dev/null)
+    [ "$touch_test" = "1" ] && saw_test=1
+    if [ "$touch_non" = "1" ]; then
+      if [ "$saw_non" = "0" ]; then
+        [ "$test_first" = "1" ] || warn=1
+        saw_non=1
+      fi
+    elif [ "$touch_test" = "1" ] && [ "$saw_non" = "0" ]; then
+      test_first=1
+    fi
+  done < <(git rev-list --reverse "$base..HEAD" 2>/dev/null)
+  if [ "$warn" = "1" ] && [ "$saw_test" = "1" ] && [ "$saw_non" = "1" ]; then
+    echo "warning: no failing-test commit before the fix"
+  fi
+}
+
 cmd_gate() {
-  local job="" allow_dirty=0
+  local slug="" allow_dirty=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --allow-dirty) allow_dirty=1; shift ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
-      *) job="$1"; shift ;;
+      *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$job" ] || { echo "usage: pagani job gate <job> [--allow-dirty]" >&2; exit 1; }
+  [ -n "$slug" ] || { echo "usage: pagani gate <run> [--allow-dirty]" >&2; exit 1; }
 
   if [ "$allow_dirty" = "0" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    local line status path dirty=0
-    while IFS= read -r line; do
-      [ -n "$line" ] || continue
-      status="${line:0:2}"
-      path="${line:3}"
-      case "$status" in
-        '??')
-          case "$path" in
-            .agents/plans/*|.agents/quick/*|.agents/retro-scan.md|.agents/handoff.md|.opencode/*) ;;
-            *) dirty=1 ;;
-          esac
-          ;;
-        *) dirty=1 ;;
-      esac
-      [ "$dirty" = "0" ] || break
-    done < <(git status --porcelain)
-    if [ "$dirty" = "1" ]; then
+    if [ -n "$(git status --porcelain)" ]; then
       echo "GATE: FAIL (working tree dirty)"
       return 1
     fi
   fi
 
-  local file=".agents/plans/$job/checks.md"
-  [ -f "$file" ] || { echo "GATE: FAIL (no checks.md)"; return 1; }
+  local dir file
+  dir="$(run_state_dir "$slug")" || { echo "GATE: FAIL (not a git repository)"; return 1; }
+  file="$dir/checks.result"
+  [ -f "$file" ] || { echo "GATE: FAIL (no checks.result)"; return 1; }
   local result sha head
   result="$(grep -m1 '^RESULT:' "$file" | sed 's/^RESULT:[[:space:]]*//')"
   sha="$(grep -m1 '^HEAD:' "$file" | sed 's/^HEAD:[[:space:]]*//')"
@@ -182,12 +325,20 @@ cmd_gate() {
     echo "GATE: FAIL (checks stale: $sha != $head)"
     return 1
   fi
+  gate_commit_order_warning "$slug"
   echo "GATE: PASS"
 }
 
 cmd_doctor() {
   echo "PaganiStack doctor"
   echo "root: $ROOT"
+  local sdir
+  if sdir="$(state_dir 2>/dev/null)"; then
+    local runs=0
+    [ -d "$sdir" ] && runs="$(find "$sdir" -mindepth 1 -maxdepth 1 -type d ! -name quick 2>/dev/null | wc -l | tr -d ' ')"
+    echo "state: $sdir"
+    echo "runs: $runs"
+  fi
   if builder_ready quiet; then
     echo "headless builder: ready ($(builder_env_file))"
   else
@@ -288,10 +439,6 @@ scripts/verify
 scripts/verify.conf
 scripts/format
 .claude
-.agents/plans
-.agents/quick
-.agents/retro-scan.md
-.agents/handoff.md
 docs/FEATURE-MAP.md
 docs/adr/0001-record-architecture-decisions.md
 .github/pull_request_template.md
@@ -325,7 +472,6 @@ exclude_pagani_files() {
 copy_pagani_files() {
   local from="$1" to="$2" f
   while IFS= read -r f; do
-    case "$f" in .agents/*) continue ;; esac
     [ -e "$from/$f" ] || continue
     [ -e "$to/$f" ] && continue
     mkdir -p "$(dirname "$to/$f")"
@@ -337,7 +483,7 @@ copy_pagani_files() {
 # needs to start. Skills call `pagani seed <Name>` for the rest.
 cmd_init() {
   local dest="${1:-$PWD}"
-  mkdir -p "$dest/scripts" "$dest/.claude" "$dest/.agents/plans"
+  mkdir -p "$dest/scripts" "$dest/.claude"
   [ -f "$dest/AGENTS.md" ] || cp "$ROOT/resources/AGENTS.md" "$dest/AGENTS.md"
   [ -f "$dest/CLAUDE.md" ] || printf '@AGENTS.md\n' > "$dest/CLAUDE.md"
   [ -f "$dest/scripts/check" ] || cp "$ROOT/resources/checks.sh" "$dest/scripts/check"
@@ -402,7 +548,7 @@ cmd_upgrade() {
 
   local src_settings="$ROOT/resources/claude-settings.json"
 
-  mkdir -p "$dest/scripts" "$dest/.claude" "$dest/.agents/plans"
+  mkdir -p "$dest/scripts" "$dest/.claude"
   # Retired: the format/PreCompact hook script is gone.
   if [ -f "$dest/scripts/claude-hook.sh" ] && [ ! -L "$dest/scripts/claude-hook.sh" ]; then
     rm -f "$dest/scripts/claude-hook.sh"
@@ -545,26 +691,30 @@ builder_init() {
   echo "Then check with: pagani build --check"
 }
 
-# pagani build <job> <task> [--revise <findings>] [--block | --wait]
+# pagani build <run> <task> [--revise <findings>] [--block | --wait]
 #   default  wait up to PAGANI_BUILD_WAIT seconds (540), then print RUNNING, exit 5
 #   --wait   attach to a running build, same bounded wait
 #   --block  wait until the build ends; for a background Bash task. The builder
 #            itself is capped by PAGANI_BUILD_TIMEOUT (default 1800 s = 30 min).
-# One status line for a job: done/running/queued counts plus running tasks.
+# One status line for a run: done/running/queued counts plus running tasks.
 build_status_line() {
-  local jobdir="$1" bdir="$1/build" n=0 d=0 r=0 q t f sl="" last
+  local rundir="$1" bdir="$1/build" n=0 d=0 r=0 q=0 t f sl="" last
   local -A seen=()
-  if [ -f "$jobdir/SPEC.md" ]; then
-    n="$(grep -cE '^#{2,4} +Task\b' "$jobdir/SPEC.md" || true)"
-  fi
-  for f in "$bdir"/*.run "$bdir"/*.md "$bdir"/*.progress; do
-    [ -e "$f" ] || continue
-    t="$(basename "$f")"; t="${t%.*}"
+  n="$(find "$rundir/tasks" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null | wc -l | tr -d ' ')"
+  for f in "$bdir"/*.report.md; do
+    [ -f "$f" ] || continue
+    t="$(basename "$f")"; t="${t%.report.md}"
+    seen[$t]=1
+  done
+  for f in "$bdir"/*.run; do
+    [ -f "$f" ] || continue
+    t="$(basename "$f")"; t="${t%.run}"
+    case "$t" in *.review2) continue ;; esac
     seen[$t]=1
   done
   [ "$n" -gt 0 ] || n="${#seen[@]}"
   for t in "${!seen[@]}"; do
-    if [ -f "$bdir/$t.md" ] && grep -q 'STATUS: DONE' "$bdir/$t.md"; then
+    if [ -f "$bdir/$t.report.md" ] && grep -q 'STATUS: DONE' "$bdir/$t.report.md"; then
       d=$((d + 1))
     elif [ -f "$bdir/$t.run" ] && [ ! -f "$bdir/$t.rc" ]; then
       r=$((r + 1))
@@ -574,11 +724,10 @@ build_status_line() {
   done
   q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
   echo "Builders $d/$n done · $r running · $q queued$sl"
-  BUILD_STATUS_D=$d; BUILD_STATUS_R=$r; BUILD_STATUS_N=$n
 }
 
 build_status() {
-  local job="" every="" repo jobdir line now last_print=0 idle=0
+  local slug="" every="" dir line now last_print=0 idle=0 pd="" pr=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --every)
@@ -586,27 +735,30 @@ build_status() {
           ''|*[!0-9]*) every="${PAGANI_STATUS_EVERY:-180}"; shift ;;
           *) every="$2"; shift 2 ;;
         esac ;;
-      *) job="$1"; shift ;;
+      -*) echo "pagani build --status: unknown flag: $1" >&2; exit 2 ;;
+      *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$job" ] || { echo "usage: pagani build --status <job> [--every <seconds>]" >&2; exit 2; }
-  repo="$(git rev-parse --show-toplevel)"
-  jobdir="$repo/.agents/plans/$job"
-  [ -d "$jobdir" ] || { echo "no such job: $job" >&2; exit 2; }
-  if [ -z "${every:-}" ]; then build_status_line "$jobdir"; return 0; fi
+  [ -n "$slug" ] || { echo "usage: pagani build --status <run> [--every [seconds]]" >&2; exit 2; }
+  dir="$(run_state_dir "$slug")" || { echo "pagani build --status: not in a git repository" >&2; exit 2; }
+  [ -d "$dir" ] || { echo "no such run: $slug" >&2; exit 2; }
+  if [ -z "${every:-}" ]; then build_status_line "$dir"; return 0; fi
   case "$every" in ''|*[!0-9]*) echo "--every needs a number of seconds" >&2; exit 2 ;; esac
-  local pd="" pr=""
   while :; do
-    line="$(build_status_line "$jobdir")"
-    BUILD_STATUS_D="${line#Builders }"; BUILD_STATUS_D="${BUILD_STATUS_D%%/*}"
+    line="$(build_status_line "$dir")"
+    local cur_d cur_r cur_n
+    cur_d="${line#Builders }"; cur_d="${cur_d%%/*}"
+    cur_r="${line#* done · }"; cur_r="${cur_r%% running*}"
+    cur_n="${line#*/}"; cur_n="${cur_n%% done*}"
+    case "$cur_d" in ''|*[!0-9]*) cur_d=0 ;; esac
+    case "$cur_r" in ''|*[!0-9]*) cur_r=0 ;; esac
+    case "$cur_n" in ''|*[!0-9]*) cur_n=0 ;; esac
     now="$(date +%s)"
-    local cur_r="${line#*done · }"; cur_r="${cur_r%% running*}"
-    local cur_n="${line#*/}"; cur_n="${cur_n%% done*}"
-    if [ -z "$pd" ] || [ "$BUILD_STATUS_D" != "$pd" ] || [ "$cur_r" != "$pr" ] || [ $((now - last_print)) -ge "$every" ]; then
-      if [ -n "$pd" ] && [ "$BUILD_STATUS_D" = "$pd" ] && [ "$cur_r" = "$pr" ]; then idle=$((idle + 1)); else idle=0; fi
+    if [ -z "$pd" ] || [ "$cur_d" != "$pd" ] || [ "$cur_r" != "$pr" ] || [ $((now - last_print)) -ge "$every" ]; then
+      if [ -n "$pd" ] && [ "$cur_d" = "$pd" ] && [ "$cur_r" = "$pr" ]; then idle=$((idle + 1)); else idle=0; fi
       echo "$line"
-      last_print=$now; pd="$BUILD_STATUS_D"; pr="$cur_r"
-      [ "$cur_n" -gt 0 ] && [ "$BUILD_STATUS_D" -ge "$cur_n" ] && return 0
+      last_print=$now; pd="$cur_d"; pr="$cur_r"
+      [ "$cur_n" -gt 0 ] && [ "$cur_d" -ge "$cur_n" ] && return 0
       [ "$cur_r" = 0 ] && [ "$idle" -ge 3 ] && return 0
     fi
     sleep 5
@@ -671,9 +823,18 @@ if text:
 PY
 }
 
+# Cap a builder log: over 20 MB, keep only the last 5 MB.
+cap_log() {
+  local log="$1" size
+  [ -f "$log" ] || return 0
+  size="$(wc -c < "$log" | tr -d ' ')"
+  [ "$size" -gt 20971520 ] || return 0
+  tail -c 5242880 "$log" > "$log.tmp" && mv "$log.tmp" "$log"
+}
+
 # `pagani build --here <slug> --task "<text>" [--block|--wait]`: the light path.
-# No job folder, SPEC, or worktree; the builder works in the current checkout
-# and commits on the current branch. All state lives under .agents/quick/<slug>/.
+# No run, spec, or worktree; the builder works in the current checkout
+# and commits on the current branch. All state lives in the state directory.
 build_here() {
   local slug="" text="" block=0 have_text=0
   while [ "$#" -gt 0 ]; do
@@ -696,7 +857,7 @@ build_here() {
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "pagani build --here: not a git repository" >&2; exit 3; }
   branch="$(git -C "$repo" branch --show-current)"
   [ -n "$branch" ] || { echo "pagani build --here: detached HEAD; switch to a branch first" >&2; exit 3; }
-  qdir="$repo/.agents/quick/$slug"
+  qdir="$(light_dir "$slug")" || { echo "pagani build --here: could not create the state directory" >&2; exit 3; }
 
   local run="$qdir/run" rcfile="$qdir/rc" progress="$qdir/progress"
   local prompt="$qdir/prompt" log="$qdir/builder.log" profile="$qdir/settings.json"
@@ -710,7 +871,6 @@ build_here() {
   fi
 
   builder_ready || exit 3
-  mkdir -p "$qdir"
 
   if [ -f "$run" ]; then
     # Already running or finished but not collected: attach.
@@ -723,11 +883,12 @@ build_here() {
 Quick task: $text
 Checkout: $repo
 Branch: $branch
-No job folder and no separate worktree: work in this checkout only.
-Write the report to .agents/quick/$slug/report.md (gitignored; do not commit it).
+No run folder and no separate worktree: work in this checkout only.
+Stay inside the Allowed files for the task.
 Commit locally on $branch. Never push or merge.
+Write no report file: end your final reply with the report in the format of the implementation skill (first line: STATUS: READY|DONE|BLOCKED).
 EOF
-    rm -f "$rcfile"
+    rm -f "$rcfile" "$report"
     : > "$progress"
     printf 'base=%s\nsid=\n' "$base" > "$run"
     start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" ""
@@ -745,6 +906,8 @@ EOF
   local rc status="MISSING" commits=0 cost
   rc="$(cat "$rcfile")"
   rm -f "$rcfile" "$run"
+  cap_log "$log"
+  build_result_text "$log" "$report"
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
   cost="$(build_cost "$log")"
@@ -758,62 +921,63 @@ EOF
   [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
 }
 
-# `pagani build --review <job> <task> [--block|--wait]`: a read-only second
+# `pagani build --review <run> <task> [--block|--wait]`: a read-only second
 # opinion from the review-code agent in the task worktree. Its reply lands in
-# .agents/plans/<job>/build/<task>.review2.md.
+# the run's build/<task>.review2.md.
 build_review() {
-  local job="" task="" block=0
+  local slug="" task="" block=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --block) block=1; shift ;;
       --wait) shift ;;
       -*) echo "pagani build --review: unknown flag: $1" >&2; exit 2 ;;
       *)
-        if [ -z "$job" ]; then job="$1"
+        if [ -z "$slug" ]; then slug="$1"
         elif [ -z "$task" ]; then task="$1"
         else echo "pagani build --review: unexpected argument: $1" >&2; exit 2; fi
         shift ;;
     esac
   done
-  [ -n "$job" ] && [ -n "$task" ] || { echo "usage: pagani build --review <job> <task> [--block|--wait]" >&2; exit 2; }
+  [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: pagani build --review <run> <task> [--block|--wait]" >&2; exit 2; }
 
   builder_ready || exit 3
-  local repo name jobdir wt
+  local repo name dir wt
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "pagani build --review: not a git repository" >&2; exit 3; }
   name="$(basename "$repo")"
-  jobdir="$repo/.agents/plans/$job"
-  wt="$(cd "$repo/.." && pwd)/$name-pagani/$job/$task"
-  [ -d "$jobdir" ] || { echo "pagani build --review: no job folder $jobdir" >&2; exit 3; }
-  [ -d "$wt" ] || { echo "pagani build --review: no worktree $wt (run: pagani worktree create $job $task)" >&2; exit 3; }
+  dir="$(run_state_dir "$slug")" || { echo "pagani build --review: not in a git repository" >&2; exit 3; }
+  wt="$(cd "$repo/.." && pwd)/$name-pagani/$slug/$task"
+  [ -d "$dir" ] || { echo "pagani build --review: no such run: $slug" >&2; exit 3; }
+  [ -d "$wt" ] || { echo "pagani build --review: no worktree $wt (run: pagani worktree create $slug $task)" >&2; exit 3; }
 
-  local rdir="$jobdir/build/review2" findings="$jobdir/build/$task.review2.md"
-  local run="$rdir/$task.run" rcfile="$rdir/$task.rc" progress="$rdir/$task.progress"
-  local prompt="$rdir/$task.prompt" log="$rdir/$task.log" profile="$rdir/$task.settings.json"
-  mkdir -p "$rdir" "$wt/.agents/plans/$job/build"
+  local bdir="$dir/build"
+  local findings="$bdir/$task.review2.md"
+  local run="$bdir/$task.review2.run"
+  local rcfile="$bdir/$task.review2.rc"
+  local progress="$bdir/$task.review2.progress"
+  local prompt="$bdir/$task.review2.prompt"
+  local log="$bdir/$task.review2.log"
+  local profile="$bdir/$task.review2.settings.json"
+  mkdir -p "$bdir"
 
   if [ -f "$run" ]; then
     if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
       echo 1 > "$rcfile"
     fi
   else
-    # Mirror the inputs so the reviewer never needs to read outside the worktree.
-    local f
-    for f in SPEC.md job.md interview.md; do
-      [ -f "$jobdir/$f" ] && cp "$jobdir/$f" "$wt/.agents/plans/$job/$f"
-    done
-    [ -f "$jobdir/checks.md" ] && cp "$jobdir/checks.md" "$wt/.agents/plans/$job/checks.md"
-    [ -f "$jobdir/build/$task.md" ] && cp "$jobdir/build/$task.md" "$wt/.agents/plans/$job/build/$task.md"
-    local base
-    if git -C "$wt" rev-parse --verify -q "pagani/$job" >/dev/null 2>&1; then
-      base="pagani/$job"
+    local diff_base
+    if git -C "$wt" rev-parse --verify -q "pagani/$slug" >/dev/null 2>&1; then
+      diff_base="pagani/$slug"
     else
-      base="$(git -C "$wt" rev-list --max-parents=0 HEAD | head -1)"
+      diff_base="$(git -C "$wt" rev-list --max-parents=0 HEAD | head -1)"
     fi
     cat > "$prompt" <<EOF
-Second opinion for job .agents/plans/$job, task $task.
+Second opinion for run $slug, task $task.
 Worktree: $wt
-Read the job folder, SPEC.md, the build report for $task, checks.md, and the diff.
-Diff: git diff $base...HEAD (in the worktree)
+Run state (outside the repo): $dir
+Spec: $dir/spec.md
+Task text: $dir/tasks/$task.md
+Builder report: $bdir/$task.report.md
+Diff: git diff $diff_base...HEAD (in the worktree)
 Review only: never edit code, never commit, never push.
 Do not write any file. Reply with the full findings as your final message, in markdown.
 EOF
@@ -827,7 +991,7 @@ EOF
 
   build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
-    echo "RUNNING review: $job $task (still reviewing; call again: pagani build --review $job $task --wait)"
+    echo "RUNNING review: $slug $task (still reviewing; call again: pagani build --review $slug $task --wait)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
     [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
     echo "progress: $progress"
@@ -838,9 +1002,10 @@ EOF
   rc="$(cat "$rcfile")"
   rm -f "$rcfile" "$run"
   build_result_text "$log" "$findings"
+  cap_log "$log"
   cost="$(build_cost "$log")"
 
-  echo "review: $job $task"
+  echo "review: $slug $task"
   echo "reviewer exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
   [ -n "$cost" ] && echo "cost (estimate): \$$cost"
   echo "findings: $findings ($([ -s "$findings" ] && echo present || echo missing))"
@@ -859,9 +1024,9 @@ cmd_build() {
     --review) shift; build_review "$@"; return ;;
   esac
 
-  local usage="usage: pagani build <job> <task> [--revise <findings-file>] [--block|--wait] | --here <slug> --task \"<text>\" [--block|--wait] | --review <job> <task> [--block|--wait] | --init | --check | --status <job> [--every <seconds>]"
+  local usage="usage: pagani build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run> [--every [seconds]]"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
-  local job="$1" task="$2" findings="" block=0
+  local slug="$1" task="$2" findings="" block=0
   shift 2
   while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -873,25 +1038,38 @@ cmd_build() {
   done
 
   builder_ready || exit 3
-  local envfile repo name jobdir wt max_rev=2
+  local envfile repo name dir wt max_rev=2
   envfile="$(builder_env_file)"
   repo="$(git rev-parse --show-toplevel)"
   name="$(basename "$repo")"
-  jobdir="$repo/.agents/plans/$job"
-  wt="$(cd "$repo/.." && pwd)/$name-pagani/$job/$task"
-  local report="$jobdir/build/$task.md"
-  local wt_report="$wt/.agents/plans/$job/build/$task.md"
-  local state="$jobdir/build/$task.builder"
-  local log="$jobdir/build/$task.builder.log"
-  local run="$jobdir/build/$task.run" rcfile="$jobdir/build/$task.rc"
-  local progress="$jobdir/build/$task.progress" profile="$jobdir/build/$task.settings.json"
+  dir="$(run_state_dir "$slug")" || { echo "pagani build: not in a git repository" >&2; exit 3; }
+  wt="$(cd "$repo/.." && pwd)/$name-pagani/$slug/$task"
+  local bdir="$dir/build"
+  local report="$bdir/$task.report.md"
+  local state="$bdir/$task.builder"
+  local log="$bdir/$task.builder.log"
+  local run="$bdir/$task.run"
+  local rcfile="$bdir/$task.rc"
+  local progress="$bdir/$task.progress"
+  local profile="$bdir/$task.settings.json"
+  local promptfile="$bdir/$task.prompt"
+  local taskfile="$dir/tasks/$task.md"
 
-  [ -d "$jobdir" ] || { echo "pagani build: no job folder $jobdir" >&2; exit 3; }
-  [ -f "$jobdir/SPEC.md" ] || { echo "pagani build: $jobdir/SPEC.md missing" >&2; exit 3; }
-  [ -d "$wt" ] || { echo "pagani build: no worktree $wt (run: pagani worktree create $job $task)" >&2; exit 3; }
-  mkdir -p "$jobdir/build" "$wt/.agents/plans/$job/build"
-  local branch rev=0 sid=""
+  [ -d "$dir" ] || { echo "pagani build: no such run: $slug (run: pagani start \"<title>\")" >&2; exit 3; }
+  [ -f "$taskfile" ] || { echo "pagani build: no such task: $task (run: pagani spec $slug)" >&2; exit 3; }
+  [ -d "$wt" ] || { echo "pagani build: no worktree $wt (run: pagani worktree create $slug $task)" >&2; exit 3; }
+  mkdir -p "$bdir"
+  local branch rev=0 sid="" findings_text=""
   branch="$(git -C "$wt" branch --show-current)"
+
+  if [ -n "$findings" ]; then
+    if [ "$findings" = "-" ]; then
+      findings_text="$(cat)"
+    else
+      [ -f "$findings" ] || { echo "pagani build: findings file not found: $findings" >&2; exit 3; }
+      findings_text="$(cat "$findings")"
+    fi
+  fi
 
   if [ -f "$run" ]; then
     # A build for this task is running or finished but not collected: attach.
@@ -901,15 +1079,8 @@ cmd_build() {
       echo 1 > "$rcfile"   # stale: the builder died without writing a result
     fi
   else
-    # .agents/plans is gitignored, so the worktree has no job folder: mirror the
-    # job inputs in so the builder never reads or writes outside its worktree.
-    local f msg
-    for f in SPEC.md job.md interview.md; do
-      [ -f "$jobdir/$f" ] && cp "$jobdir/$f" "$wt/.agents/plans/$job/$f"
-    done
+    local msg
     if [ -n "$findings" ]; then
-      [ -f "$findings" ] || { echo "pagani build: findings file not found: $findings" >&2; exit 3; }
-      cp "$findings" "$wt/.agents/plans/$job/build/$task.findings.md"
       [ -f "$state" ] || { echo "pagani build: no session for $task; run a first build" >&2; exit 3; }
       sid="$(sed -n 's/^session=//p' "$state")"
       rev="$(sed -n 's/^revisions=//p' "$state")"; rev="${rev:-0}"
@@ -918,26 +1089,36 @@ cmd_build() {
         exit 4
       fi
       rev=$((rev + 1))
-      msg="Revision $rev for task $task. Fix every finding in .agents/plans/$job/build/$task.findings.md (read it first), nothing else. Same rules as before: stay inside Allowed files, do not edit or weaken tests, commit locally on $branch, never push or merge. Update the report $wt_report and keep its format."
+      msg="Revision $rev for run $slug, task $task.
+Worktree: $wt
+Branch: $branch
+Fix every finding below, nothing else. Stay inside Allowed files. Do not edit or weaken tests. Commit locally on $branch. Never push or merge. Write no report file: end your final reply with the report in the format of the implementation skill (first line: STATUS: READY|DONE|BLOCKED).
+
+## Findings
+$findings_text"
     else
-      msg="Job folder: .agents/plans/$job (inside the worktree)
+      msg="Run: $slug
 Task: $task
 Worktree: $wt
-Everything stays inside the worktree. The job spec is .agents/plans/$job/SPEC.md, not the project SPEC.md at the root.
 Branch: $branch
-Implement exactly this task from .agents/plans/$job/SPEC.md. Follow your builder instructions. Write the report to $wt_report (inside the worktree; it is gitignored, do not commit it). Commit locally on $branch. Never push or merge."
+Work only in the worktree. The run state lives outside the repo: $dir
+Stay inside Allowed files. Commit locally on $branch. Never push or merge.
+Write no report file: end your final reply with the report in the format of the implementation skill (first line: STATUS: READY|DONE|BLOCKED).
+
+## Task $task
+$(cat "$taskfile")"
     fi
-    printf '%s' "$msg" > "$jobdir/build/$task.prompt"
+    printf '%s\n' "$msg" > "$promptfile"
     rm -f "$rcfile"
     : > "$progress"
     printf 'rev=%s\nsid=%s\n' "$rev" "$sid" > "$run"
-    start_build_exec "$wt" "$envfile" "$jobdir/build/$task.prompt" "$log" "$rcfile" "$progress" "$profile" "$sid"
+    start_build_exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
   # Bounded wait for a foreground caller.
   build_wait "$rcfile" "$(build_wait_limit "$block")"
   if [ ! -f "$rcfile" ]; then
-    echo "RUNNING task: $task (still building; call again: pagani build $job $task --wait)"
+    echo "RUNNING task: $task (still building; call again: pagani build $slug $task --wait)"
     echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
     [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
     echo "progress: $progress"
@@ -947,25 +1128,27 @@ Implement exactly this task from .agents/plans/$job/SPEC.md. Follow your builder
   local rc
   rc="$(cat "$rcfile")"
   rm -f "$rcfile" "$run"
-  if [ -s "$wt_report" ]; then cp "$wt_report" "$report"; fi
+  cap_log "$log"
+  build_result_text "$log" "$report"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
-  [ -n "$sid" ] && printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
+  printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
 
   local status="MISSING" commits cost
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
-  commits="$(git -C "$wt" log --oneline "pagani/$job..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
+  commits="$(git -C "$wt" log --oneline "pagani/$slug..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
   cost="$(build_cost "$log")"
 
   echo "task: $task"
+  echo "run: $slug"
   echo "session: ${sid:-none}"
   echo "revisions: $rev/$max_rev"
   echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
   [ -n "$cost" ] && echo "cost (estimate): \$$cost"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
-  echo "files changed:"; git -C "$wt" diff --name-only "pagani/$job...HEAD" 2>/dev/null | sed 's/^/  /'
+  echo "files changed:"; git -C "$wt" diff --name-only "pagani/$slug...HEAD" 2>/dev/null | sed 's/^/  /'
   [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
 }
 
@@ -1043,7 +1226,7 @@ for line in sys.stdin:
 #   guard builder  PreToolUse: deny the Claude-model builder when the headless
 #                  builder is configured; allow it otherwise (fallback).
 #   guard stop     Stop: do not let the master end its turn between steps. It
-#                  blocks only while a job is mid-pipeline with nothing running.
+#                  blocks only while a run is mid-pipeline with nothing running.
 cmd_guard() {
   # Headless builder/reviewer sessions load the same plugin hooks: stay out of their way.
   [ -z "${PAGANI_HEADLESS:-}" ] || exit 0
@@ -1060,21 +1243,23 @@ guard_builder() {
   kind="$(printf '%s' "$input" | tr -d '\n' | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
   [ "$kind" = "builder" ] || exit 0
   builder_ready quiet || exit 0
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `pagani worktree create <job> <task>`, then run `pagani build <job> <task> --block` as a background Bash task (see Step 2)."}}'
+  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `pagani worktree create <run> <task>`, then run `pagani build <run> <task> --block` as a background Bash task (see Step 2)."}}'
 }
 
-# Pipeline stages the master writes to job.md. Only these are "mid-pipeline":
-# the master must keep going. awaiting-spec, awaiting-decision, and closed are
-# human checkpoints or the end.
+# Pipeline stages live in a `stage` file in the run directory. Only these are
+# "mid-pipeline": the master must keep going. awaiting-spec, awaiting-decision,
+# and closed are human checkpoints or the end. (Task 2 rebuilds this hook.)
 guard_stop() {
-  local input job stage dir r
+  local input dir f stage r
   input="$(cat)"
   printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
-  job="$(ls -t .agents/plans/*/job.md 2>/dev/null | head -1 || true)"
-  [ -n "$job" ] || exit 0
-  stage="$(grep -m1 '^Stage:' "$job" | sed 's/^Stage:[[:space:]]*//' | tr -d '[:space:]')"
+  dir="$(ensure_state_dir 2>/dev/null || true)"
+  [ -n "$dir" ] || exit 0
+  f="$(ls -t "$dir"/*/stage 2>/dev/null | head -1 || true)"
+  [ -n "$f" ] || exit 0
+  stage="$(tr -d '[:space:]' < "$f")"
   case "$stage" in build|checks|review|fix) ;; *) exit 0 ;; esac
-  dir="$(dirname "$job")"
+  dir="$(dirname "$f")"
   for r in "$dir"/build/*.run; do
     [ -f "$r" ] || continue
     [ -f "${r%.run}.rc" ] && continue
@@ -1082,44 +1267,44 @@ guard_stop() {
     [ -n "$(find "$r" -mmin +360 2>/dev/null)" ] || exit 0
   done
   # other legitimate async work (background checks, builders without a .run file)
-  if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|pagani job check|scripts/check' >/dev/null 2>&1; then
+  if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|pagani check|scripts/check' >/dev/null 2>&1; then
     exit 0
   fi
-  printf '%s\n' "{\"decision\":\"block\",\"reason\":\"Job $(basename "$dir") is at Stage: $stage and no human checkpoint or running builder is pending. Continue to the next step now; do not stop and do not ask the user to proceed. If you are truly blocked, set Stage to awaiting-decision and ask with AskUserQuestion.\"}"
+  printf '%s\n' "{\"decision\":\"block\",\"reason\":\"Run $(basename "$dir") is at stage $stage and no human checkpoint or running builder is pending. Continue to the next step now; do not stop and do not ask the user to proceed. If you are truly blocked, ask with AskUserQuestion.\"}"
 }
 
 cmd_worktree() {
   local action="${1:-}"
   case "$action" in
     create)
-      local job="${2:?job id required}" task="${3:?task required}"
+      local slug="${2:?run id required}" task="${3:?task required}"
       local repo name base
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
       base="$(git branch --show-current)"
-      git worktree add -b "pagani/$job-$task" "../$name-pagani/$job/$task" "pagani/$job" 2>/dev/null \
-        || git worktree add -b "pagani/$job-$task" "../$name-pagani/$job/$task" "$base"
-      local path="../$name-pagani/$job/$task"
+      git worktree add -b "pagani/$slug-$task" "../$name-pagani/$slug/$task" "pagani/$slug" 2>/dev/null \
+        || git worktree add -b "pagani/$slug-$task" "../$name-pagani/$slug/$task" "$base"
+      local path="../$name-pagani/$slug/$task"
       copy_pagani_files "$repo" "$repo/$path"
       local port=$((5100 + ($(printf '%s' "$path" | cksum | awk '{print $1}') % 400)))
       echo "worktree: $path"
       echo "port: $port"
       ;;
     prune)
-      local job="" force=0
+      local slug="" force=0
       shift || true
       while [ "$#" -gt 0 ]; do
         case "$1" in
           --force) force=1; shift ;;
           -*) echo "unknown flag: $1" >&2; exit 1 ;;
-          *) job="$1"; shift ;;
+          *) slug="$1"; shift ;;
         esac
       done
-      [ -n "$job" ] || { echo "usage: pagani worktree prune <job> [--force]" >&2; exit 1; }
+      [ -n "$slug" ] || { echo "usage: pagani worktree prune <run> [--force]" >&2; exit 1; }
       local repo name root wt
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
-      root="../$name-pagani/$job"
+      root="../$name-pagani/$slug"
       if [ -d "$root" ]; then
         for wt in "$root"/*; do
           [ -d "$wt" ] || continue
@@ -1138,64 +1323,90 @@ cmd_worktree() {
           fi
         done
       else
-        echo "no worktrees for $job"
+        echo "no worktrees for $slug"
       fi
       ;;
     *)
-      echo "usage: pagani worktree create <job> <task> | prune <job> [--force]" >&2
+      echo "usage: pagani worktree create <run> <task> | prune <run> [--force]" >&2
       exit 1
       ;;
   esac
 }
 
 cmd_report() {
-  local retro=0
-  local -a retro_args=()
+  local retro=0 write=0 exit_code=0 close=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --retro) retro=1; shift ;;
-      --write) retro=1; retro_args+=(--write); shift ;;
-      --exit-code) retro=1; retro_args+=(--exit-code); shift ;;
+      --write) retro=1; write=1; shift ;;
+      --exit-code) retro=1; exit_code=1; shift ;;
+      --close) close="${2:?--close needs a run}"; shift 2 ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
   done
+  if [ -n "$close" ]; then
+    cmd_close "$close"
+    return
+  fi
   if [ "$retro" = "1" ]; then
+    local -a retro_args=()
+    [ "$write" = "1" ] && retro_args+=(--write)
+    [ "$exit_code" = "1" ] && retro_args+=(--exit-code)
     cmd_retro_scan "${retro_args[@]}"
     return
   fi
   cmd_status
 }
 
-cmd_job() {
-  local action="${1:-}"
-  [ -n "$action" ] || { echo "usage: pagani job new|check|gate|report"; exit 0; }
-  shift || true
-  case "$action" in
-    new) cmd_job_new "$@" ;;
-    check) cmd_check "$@" ;;
-    gate) cmd_gate "$@" ;;
-    report) cmd_report "$@" ;;
-    *) echo "usage: pagani job new|check|gate|report" >&2; exit 1 ;;
+# `pagani report --close <run>`: remove the run's state directory. The master
+# calls this at close.
+cmd_close() {
+  local slug="$1" base dir
+  case "$slug" in
+    ''|*[!a-z0-9-]*) echo "pagani report --close: bad run id: $slug" >&2; exit 2 ;;
   esac
+  base="$(ensure_state_dir)" || { echo "pagani report --close: not in a git repository" >&2; exit 1; }
+  dir="$base/$slug"
+  if [ -d "$dir" ]; then
+    rm -rf -- "$dir"
+    echo "closed: $dir"
+  else
+    echo "no such run: $slug" >&2
+    exit 1
+  fi
+}
+
+# `pagani job ...` is retired: print the replacement in one line and exit 2.
+cmd_job() {
+  local action="${1:-}" rest=""
+  shift || true
+  rest="$*"
+  case "$action" in
+    new) echo "pagani job is retired: use pagani start \"$rest\"" >&2 ;;
+    check) echo "pagani job is retired: use pagani check $rest" >&2 ;;
+    gate) echo "pagani job is retired: use pagani gate $rest" >&2 ;;
+    report) echo "pagani job is retired: use pagani report $rest" >&2 ;;
+    *) echo "pagani job is retired: use pagani start|spec|check|gate|report" >&2 ;;
+  esac
+  exit 2
 }
 
 cmd_status() {
-  local found=0
-  for job in .agents/plans/*/job.md; do
-    [ -f "$job" ] || continue
+  local base d name found=0 ntasks ndone checks
+  base="$(ensure_state_dir)" || { echo "not in a git repository" >&2; return 1; }
+  for d in "$base"/*/; do
+    [ -d "$d" ] || continue
+    name="$(basename "$d")"
+    [ "$name" = quick ] && continue
     found=1
-    local id stage round playbook risk
-    id="$(basename "$(dirname "$job")")"
-    stage="$(grep -m1 '^Stage:' "$job" | sed 's/^Stage:[[:space:]]*//')"
-    round="$(grep -m1 '^Round:' "$job" | sed 's/^Round:[[:space:]]*//')"
-    playbook="$(grep -m1 '^Playbook:' "$job" | sed 's/^Playbook:[[:space:]]*//' || true)"
-    # Deliberate compatibility: old jobs stored `Lane:`; read it for display only.
-    [ -n "$playbook" ] || playbook="$(grep -m1 '^Lane:' "$job" | sed 's/^Lane:[[:space:]]*//' || true)"
-    risk="$(grep -m1 '^Risk:' "$job" | sed 's/^Risk:[[:space:]]*//' || true)"
-    printf '%-32s playbook=%-10s risk=%-9s stage=%-12s round=%s\n' "$id" "${playbook:-?}" "${risk:-?}" "${stage:-?}" "${round:-0}"
+    ntasks="$(find "$d/tasks" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null | wc -l | tr -d ' ')"
+    ndone="$(grep -l 'STATUS: DONE' "$d"/build/*.report.md 2>/dev/null | wc -l | tr -d ' ' || true)"
+    checks="none"
+    [ -f "$d/checks.result" ] && checks="$(sed -n 's/^RESULT:[[:space:]]*//p' "$d/checks.result" | head -1)"
+    printf '%-32s tasks=%s done=%s checks=%s\n' "$name" "${ntasks:-0}" "${ndone:-0}" "${checks:-none}"
   done
-  [ "$found" = "1" ] || echo "no jobs"
+  [ "$found" = "1" ] || echo "no runs"
 }
 
 
@@ -1289,36 +1500,38 @@ cmd_retro_scan() {
     esac
   done
 
-  local -A job_count=() files_for=() seen=()
-  local file rel job raw title key
+  local state
+  state="$(ensure_state_dir)" || { echo "retro-scan: not in a git repository" >&2; exit 1; }
+  local -A run_count=() files_for=() seen=()
+  local file rel run raw title key
   shopt -s nullglob
-  local files=(.agents/plans/*/round-*/review-code.md)
+  local files=("$state"/*/build/*.review2.md)
   shopt -u nullglob
   for file in "${files[@]}"; do
     [ -f "$file" ] || continue
-    rel="${file#.agents/plans/}"
-    job="${rel%%/*}"
+    rel="${file#"$state"/}"
+    run="${rel%%/*}"
     while IFS= read -r raw; do
       [ -n "$raw" ] || continue
       title="$(retro_title "$raw")"
       [ -n "$title" ] || continue
       retro_generic "$title" && continue
-      key="$title"$'\t'"$job"
+      key="$title"$'\t'"$run"
       [ -n "${seen[$key]:-}" ] && continue
       seen[$key]=1
-      job_count[$title]=$(( ${job_count[$title]:-0} + 1 ))
+      run_count[$title]=$(( ${run_count[$title]:-0} + 1 ))
       files_for[$title]+="$file"$'\n'
     done < <(grep -E '^(##|###) |^PROBLEM: |^- PROBLEM: ' "$file" 2>/dev/null || true)
   done
 
   local repeats=0
   local -a report=()
-  if [ "${#job_count[@]}" -gt 0 ]; then
+  if [ "${#run_count[@]}" -gt 0 ]; then
     while IFS= read -r title; do
       [ -n "$title" ] || continue
-      [ "${job_count[$title]}" -ge 2 ] || continue
+      [ "${run_count[$title]}" -ge 2 ] || continue
       repeats=1
-      report+=("${job_count[$title]} jobs: $title")
+      report+=("${run_count[$title]} runs: $title")
       local shown=0 f
       while IFS= read -r f; do
         [ -n "$f" ] || continue
@@ -1326,7 +1539,7 @@ cmd_retro_scan() {
         report+=("  $f")
         shown=$((shown + 1))
       done <<< "${files_for[$title]}"
-    done < <(printf '%s\n' "${!job_count[@]}" | sort)
+    done < <(printf '%s\n' "${!run_count[@]}" | sort)
   fi
 
   if [ "$repeats" = "0" ]; then
@@ -1337,15 +1550,14 @@ cmd_retro_scan() {
   fi
 
   if [ "$write" = "1" ]; then
-    mkdir -p .agents
     {
       echo "# Retro scan"
       echo
       echo "Generated: $(date -Iseconds)"
       echo
       printf '%s\n' "${report[@]}"
-    } > .agents/retro-scan.md
-    echo "wrote: .agents/retro-scan.md"
+    } > "$state/retro-scan.md"
+    echo "wrote: $state/retro-scan.md"
   fi
 
   if [ "$exit_code" = "1" ] && [ "$repeats" = "1" ]; then
@@ -1365,6 +1577,11 @@ case "$cmd" in
   init) cmd_init "${1:-$PWD}" ;;
   seed) cmd_seed "$@" ;;
   upgrade) cmd_upgrade "${1:-$PWD}" ;;
+  start) cmd_start "$@" ;;
+  spec) cmd_spec "$@" ;;
+  check) cmd_check "$@" ;;
+  gate) cmd_gate "$@" ;;
+  report) cmd_report "$@" ;;
   build) cmd_build "$@" ;;
   guard) cmd_guard "$@" ;;
   _build-exec) cmd_build_exec "$@" ;;
