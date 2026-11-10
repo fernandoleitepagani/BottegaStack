@@ -22,10 +22,10 @@ are the record. There is no database or state machine.
 ### Step 0: Set up and choose a playbook
 
 The master reads `AGENTS.md`, `GLOSSARY.md` if present, and the risk paths in
-`REVIEW.md` (a missing file means no risk paths). It runs `maestro stack`, shows
-the detected profile (`language:`, `package-manager:`, `commands:`, `frameworks:`),
-confirms or corrects it with `AskUserQuestion`, and writes it into the `## Stack`
-section of `AGENTS.md`. It loads `playbooks`, proposes a playbook and a risk
+`REVIEW.md` (a missing file means no risk paths). When `AGENTS.md` has no `## Stack`
+section, the `explorer` reads the repo-root manifests and reports the language,
+package manager, commands, and frameworks; the master confirms them with
+`AskUserQuestion` and writes that section (and `scripts/check` if unconfigured). It loads `playbooks`, proposes a playbook and a risk
 (`low`, `standard`, `high`), and asks you to confirm or override. It tracks
 playbook and risk as todo items, then runs `maestro start "<title>"`, which uses your
 current branch (or creates the one you name with `--branch <name>`) and the state directory `$STATE/<slug>/` and prints
@@ -302,7 +302,7 @@ skill; the other playbooks are files beside it at
 
 The 15 principles are reference files under `principles/references/`; `principles` is
 the index that keeps the citations stable. Agents and skills cite a principle
-instead of restating a rule, which keeps `agents/master.md` at about 130 lines.
+instead of restating a rule, which keeps `agents/master.md` at about 150 lines.
 
 The inventory and the rules for adding a skill are in [SKILLS.md](SKILLS.md). The
 plugin manifest lists each category directory; Claude Code discovers the skills
@@ -320,13 +320,12 @@ Other skills are invoked directly by name, not through `/maestro`:
 
 ## Commands
 
-BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
+BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 `upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
 maestro doctor
-maestro stack
 maestro init [path]
 maestro seed <Name>
 maestro upgrade [path]
@@ -339,7 +338,7 @@ maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence 
 maestro verify waive <run> <AC> "<reason>"
 maestro verify list <run>
 maestro log <run> [<phase> <decision> <why> <evidence> <result>]
-maestro report [--retro] [--write] [--exit-code]
+maestro report [--retro] [--exit-code]
 maestro report --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>]
 maestro report --trust [n]
 maestro report --finding <run> "<title>"

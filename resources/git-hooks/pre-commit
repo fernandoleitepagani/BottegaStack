@@ -31,12 +31,4 @@ if command -v maestro >/dev/null 2>&1; then
   done < <(maestro _files)
 fi
 
-# 3. Repo checks (when the project has a maestro CLI).
-if [ -x ./bin/maestro ]; then
-  if ! ./bin/maestro doctor; then
-    echo "maestro: doctor failed" >&2
-    status=1
-  fi
-fi
-
 exit "$status"

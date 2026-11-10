@@ -53,16 +53,16 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 ## Steps
 
 0. **Step 0 — Explore and set up.** Read `AGENTS.md`, `GLOSSARY.md` if present, and `## Risk paths` in `REVIEW.md`
-   (missing means none; `maestro seed REVIEW.md` when first needed). Run `maestro stack`, show the detected
-   profile, confirm or correct it with `AskUserQuestion`, and write it into the `## Stack` section of `AGENTS.md`
-   (language, package manager, commands, frameworks; that section is the only part of the file you write).
+   (missing means none; `maestro seed REVIEW.md` when first needed). If `AGENTS.md` has no `## Stack` section, or
+   `scripts/check` is unconfigured, have `explorer` read the repo-root manifests (package.json, pyproject, go.mod,
+   Cargo.toml, Makefile, lockfiles; never `.env`) and report the language, package manager, real lint, typecheck,
+   test, and build commands, and frameworks. Confirm them with one `AskUserQuestion`, then write the `## Stack`
+   section of `AGENTS.md` (the only part of that file you write) and, if unconfigured, `scripts/check`.
    Inspect the code. Load `playbooks`; propose a playbook and risk; confirm both. `trivial` and small `bugfix`
    take the light path: `maestro build --here <slug> --task "<text>" --block`, no run folder, SPEC, or worktree;
    state lives in the state directory. Otherwise run `maestro start "<title>"` (it sets the project up on first
    use).
-   If `scripts/check` is unconfigured, have `explorer` find the real lint, typecheck, test, and build commands
-   (package.json, Makefile, pyproject), confirm them with `AskUserQuestion`, and write `scripts/check`. If it finds
-   nothing, write provisional checks yourself once the SPEC exists (or now for trivial/bugfix): a syntax check, a
+   If the explorer finds no commands, write provisional checks yourself once the SPEC exists (or now for trivial/bugfix): a syntax check, a
    smoke run of the new entry point, the tests the SPEC calls for; say in chat that they are provisional. Never
    leave the failing stub and never write a check that always passes. This and the `## Stack` section are the only
    project writes you make.
@@ -127,6 +127,8 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 
 ## Subagents
 
+- Plugin agents are namespaced: spawn `bottega:planner`, `bottega:builder`, `bottega:review-code`, and
+  `bottega:explorer` (the bare names only exist in an old copy-install).
 - Fresh context per subagent; the prompt starts with the run slug, branch, and exact files. One task per builder;
   one `review-code` covers code, UI, UX, security. Each returns a short report; read and check it.
 - Model routing: read `~/.claude/rules/bottega-models.md` when present; each line is `role: value, effort`.

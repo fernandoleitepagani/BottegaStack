@@ -1,6 +1,12 @@
 # Changelog
 
 ## Unreleased
+- Fixes: the Stop hook acts only while a run or light-path folder is open (logs in the state root no longer keep it on) and no longer uses a machine-wide `pgrep`; `maestro report --close` also closes light-path runs; the builder guard and the headless runner use the namespaced plugin agents (`bottega:builder`, `bottega:review-code`), so builds keep working without an old copy-install; `simplify` replies instead of writing `simplify.md`; CI installs the Claude CLI so `claude plugin validate` actually runs.
+- Simpler: removed `maestro stack` (about 330 lines); at Step 0 the explorer reads the manifests once for both the `## Stack` section and `scripts/check`. The retro scan is a short awk over `findings.log` (`--write` removed). The three build paths share their wait, collect, and report helpers.
+- The project pre-commit hook no longer runs `maestro doctor` (pre-push runs the checks); the project settings template allows `Bash(maestro:*)`. Plugin version 0.6.0.
+
+## 0.6.0 — 2026-11-10
+- `maestro doctor` prints whether the optional `rtk` is installed; `docs/SETUP.md` gains a Token savings section (install, license, caveats).
 - `orchestrate` (from pstack, rewritten, user-invoked only): coordinate a program of PR-sized units with a `PLAN.md` ledger, one owner and one reviewer-verifier per unit, `maestro gate --proof` per unit, live supervision, at most 3 builds in flight, and the user merging every PR. `maestro worktree create <run> <task> --branch <name> [--base <ref>]` creates a worktree on a user-named branch that `prune` never deletes.
 - `autonomous-run` (from pstack, rewritten, user-invoked only): one task to a command-checkable exit condition, one verified change per iteration, reverted with `git revert` when it did not help, a `maestro log` row each time, an iteration and time cap, ends on a local branch.
 - `architect` and `arena` (from pstack, rewritten, user-invoked only with `disable-model-invocation: true`): design twice before the SPEC, and compare 2 or 3 headless-builder candidates with a blind judge.

@@ -25,9 +25,5 @@ jobs:
 
       - name: Validate plugin manifests
         run: |
-          set -euo pipefail
-          if command -v claude >/dev/null 2>&1; then
-            claude plugin validate .
-          else
-            echo "claude not installed; skipping plugin validate"
-          fi
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate .

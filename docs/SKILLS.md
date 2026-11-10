@@ -12,10 +12,12 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 
 | Skill | Purpose |
 |---|---|
-| `architect` | Sketch types, signatures, and module structure twice before any code; the chosen shape goes into the SPEC as the contract. User-invoked only. |
 | `adversarial-review` | Fresh-eyes review that tries to break a change before the normal reviewers do. |
 | `approval` | Act as the BottegaStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, and presents the decision, explainer, and (for feature/refactor/high risk) a quiz to the human; the quiz stays in chat and the decision is recorded in the PR body or merge commit. |
+| `architect` | Sketch types, signatures, and module structure twice before any code; the chosen shape goes into the SPEC as the contract. User-invoked only. |
+| `arena` | Give one task to 2 or 3 headless builders in separate worktrees, judge them blind against a hidden rubric, pick a base, and graft. User-invoked only. |
 | `automate-me` | Draft a personal "mode" skill from your own Claude Code transcripts, after explicit go-ahead and draft approval. |
+| `autonomous-run` | Drive one task to a checkable exit condition without supervision: one verified change per iteration, reverted if it did not help, logged per iteration, capped. User-invoked only. |
 | `backlog-triage` | Move items in a local BACKLOG.md through a small state machine, verify them, grill if needed, and write an agent-ready brief. |
 | `bash-scripting` | Create, review, and debug Bash or POSIX sh scripts where portability, quoting, failure handling, or shell validation matters; read-only by default. |
 | `blast-radius` | Find what a change could break outside the diff: map dependents, name the key safety fact, and prove or disprove it with a real run; report-only. |
@@ -23,7 +25,6 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `codebase-design` | Shared vocabulary for designing deep modules. |
 | `correct` | Find mistakes agents repeat and make each impossible: architecture, types, a lint that names the fix, a test, docs last; keeps a rule table. |
 | `create-verification-skill` | Interview the repo, then write a project `.claude/skills/verify-<project>/` skill (Launch, Doctor, Drive, Evidence, Cleanup) and a per-feature map after the user approves the draft. |
-| `maintain-verification-skill` | Keep a project's verification skill and feature map honest: read the source per feature, drive every feature live, propose proven corrections. |
 | `data-analysis` | Answer a data question from logs, CSVs, SQL, metrics, or analytics. |
 | `diagnosis` | Turn failed BottegaStack checks or review findings into a precise fix brief. |
 | `domain-modeling` | Build and sharpen a project's domain model. |
@@ -34,8 +35,11 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `infra-ops` | Review dependencies, resource use, access, and orphaned resources. |
 | `interrogate` | Report-only stress test of a high-risk change: independent adversaries attack inputs, concurrency, security, and integration; only claims that reproduce twice survive. |
 | `interview` | Conduct the BottegaStack plan interview. |
+| `ketchup` | Catch the user up on what changed since their last message and list every decision waiting on them. |
 | `library-reference` | Document how to use a project's internal library, CLI, SDK, or API correctly. |
 | `linux-sysadmin` | Diagnose and operate Linux hosts, services, packages, permissions, SELinux, firewalls, and SSH; read-only by default. |
+| `maintain-verification-skill` | Keep a project's verification skill and feature map honest: read the source per feature, drive every feature live, propose proven corrections. |
+| `orchestrate` | Coordinate a program of many PR-sized units from one session: an owner and an independent verifier per unit, a `PLAN.md` ledger, live supervision, the user merging every PR. User-invoked only. |
 | `planning` | Produce one BottegaStack run SPEC with requirements, decisions, and a tracer-bullet task graph, returned as the reply. |
 | `playbooks` | Choose a playbook (trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, pr-babysit) and a risk modifier (low, standard, high) at Step 0, take the light path for small work, and escalate when the diff grows or touches a risk path. |
 | `podman-operator` | Build and operate Podman containers and Quadlet services, rootless or rootful, including networking, volumes, systemd integration, and troubleshooting; read-only by default. |
@@ -45,12 +49,8 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `runbook` | Investigate an incident, alert, or "why is this broken" symptom with a structured runbook. |
 | `scaffold` | Create a new component, service, route, migration, or test fixture that matches the project's existing conventions. |
 | `session-handoff` | Compact a BottegaStack session into a handoff reply for a fresh agent. |
-| `show-me-your-work` | Keep a one-row-per-decision log (`maestro log`) for unattended or long runs, audit it against the transcript, and end with a cross-model Attention section. |
-| `autonomous-run` | Drive one task to a checkable exit condition without supervision: one verified change per iteration, reverted if it did not help, logged per iteration, capped. User-invoked only. |
-| `orchestrate` | Coordinate a program of many PR-sized units from one session: an owner and an independent verifier per unit, a `PLAN.md` ledger, live supervision, the user merging every PR. User-invoked only. |
-| `arena` | Give one task to 2 or 3 headless builders in separate worktrees, judge them blind against a hidden rubric, pick a base, and graft. User-invoked only. |
-| `ketchup` | Catch the user up on what changed since their last message and list every decision waiting on them. |
 | `session-retro` | Retrospective on a BottegaStack run. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. |
+| `show-me-your-work` | Keep a one-row-per-decision log (`maestro log`) for unattended or long runs, audit it against the transcript, and end with a cross-model Attention section. |
 | `simplify` | Remove unnecessary complexity from a change before review, including a comment pass: delete narration and workaround comments, encode claimed constraints. |
 | `summary` | Post a short BottegaStack summary in chat after every step and draft the final summary for the PR body or merge commit. |
 | `unslop` | Cut AI tells from BottegaStack summaries, review copy, and docs. |

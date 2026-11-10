@@ -83,7 +83,7 @@ Without these files, `/maestro` falls back to the Claude `builder` subagent.
 maestro doctor
 ```
 
-`doctor` prints the runtime and tool versions, the skill count, `AGENTS.md` size, project Claude settings, hook status, config paths, and
+`doctor` prints the runtime and tool versions (including whether the optional `rtk` is installed), the skill count, `AGENTS.md` size, project Claude settings, hook status, config paths, and
 then runs the repo lint when `scripts/lint.sh` sits beside the CLI. It also
 prints security warnings, one line each:
 
@@ -101,6 +101,43 @@ It is the release gate:
 ```
 
 `scripts/validate.sh` runs `./bin/maestro doctor`.
+
+## Token savings (optional)
+
+[rtk](https://github.com/rtk-ai/rtk) is a separate tool, not part of the stack, that
+compresses command output before the agent reads it: failing tests only, compact git
+output, grouped `ls` and `grep`. Its hook rewrites shell commands (`git status` runs
+as `rtk git status`); `Read`, `Grep`, and `Glob` pass through. The project claims
+60-90% less command output, which is less than that off total tokens, and its
+counts are estimates. `maestro doctor` prints `rtk: yes` or `rtk: no`.
+
+Install it on each machine, outside the stack:
+
+```bash
+brew install rtk                 # or read, then run, the project's install.sh
+rtk init -g                      # adds the hook to the global Claude Code config
+rtk gain                         # after a session: shows what it saved
+rtk bypass <command>             # run one command unfiltered
+```
+
+Restart Claude Code after `rtk init -g`. Another crate named `rtk` exists on
+crates.io, so do not `cargo install rtk` blindly.
+
+- **License:** the CLI is Apache-2.0; its pipeline engine and the optional proxy
+  are BUSL-1.1 (source-available). `rtk-oss` ships only the Apache-2.0 code.
+  Telemetry is off unless you run `rtk telemetry enable`. Leave the proxy and
+  pipelines off: the proxy can route API calls and pipelines can send content
+  to other models.
+- **Headless builders** run `claude -p` with your user settings, so the global
+  hook likely applies to them too. Confirm with `rtk gain` before and after one
+  build.
+- **Lost failure detail:** compressed test output can hide what a builder needs
+  to fix a failure. If a builder starts guessing, run that command with
+  `rtk bypass`.
+- **Permission prompts:** a rewritten `rtk git status` may not match an allow rule
+  such as `Bash(git status:*)`. Watch the first session for new prompts.
+- **`maestro` output:** rtk rewrites only commands it knows, so `maestro check` and
+  `maestro gate` should pass through unchanged. Check it once.
 
 ## Init a project
 
@@ -133,27 +170,6 @@ untracked files are not part of a checkout.
 
 `init` creates no run directory. Run state lives outside the repo; see
 [Run state](#run-state).
-
-## Stack detection
-
-```bash
-maestro stack
-```
-
-`maestro stack` reads the repo-root file names and manifest fields and prints
-stable lines:
-
-```
-language: <name>
-package-manager: <name>
-commands: lint=<cmd> test=<cmd> build=<cmd>
-frameworks: <list>
-```
-
-It reads only file names and manifest fields, never `.env` or secrets. It
-prints `stack: unknown` when nothing is found. At Step 0 the master shows the
-profile, confirms or corrects it with `AskUserQuestion`, and writes it into the
-`## Stack` section of `AGENTS.md`.
 
 ## Project files on demand
 
@@ -207,7 +223,6 @@ $STATE/<slug>/            full run
   checks.result           RESULT, HEAD, EXIT, SECONDS
 $STATE/quick/<slug>/      light path (no run, spec, or worktree)
   run, rc, progress, prompt, report.md, builder.log, settings.json
-$STATE/retro-scan.md      written by `maestro report --retro --write`
 ```
 
 Nothing is written into the repo or a worktree. The chat and the PR (or merge
@@ -228,7 +243,7 @@ handoffs, decisions, reviews, and builder reports.
 
 ## Headless builder (`maestro build`)
 
-The builder runs as `claude -p --agent builder` on a third-party model through
+The builder runs as `claude -p --agent bottega:builder` on a third-party model through
 an Anthropic-compatible endpoint.
 
 ```bash

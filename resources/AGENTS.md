@@ -33,7 +33,7 @@ maestro start "<title>"
 maestro spec <run> [file]
 maestro check <run>
 maestro gate <run> [--allow-dirty]
-maestro report [--retro] [--write] [--exit-code]
+maestro report [--retro] [--exit-code]
 maestro upgrade [path]
 ```
 

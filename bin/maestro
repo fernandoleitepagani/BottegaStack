@@ -12,7 +12,6 @@ usage() {
   cat <<'EOF'
 Usage:
   maestro doctor
-  maestro stack
   maestro init [path]
   maestro seed <Name>
   maestro upgrade [path]
@@ -23,7 +22,7 @@ Usage:
   maestro log <run> [<phase> <decision> <why> <evidence> <result>]
   maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>] [--note <text>]
   maestro verify waive <run> <AC> "<reason>" | list <run>
-  maestro report [--retro] [--write] [--exit-code] | --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>] | --finding <run> "<title>" | --trust [n]
+  maestro report [--retro] [--exit-code] | --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>] | --finding <run> "<title>" | --trust [n]
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
   maestro build --here <slug> --task "<text>" [--block|--wait]
   maestro build --review <run> <task> | --here <slug> [--block|--wait]
@@ -497,337 +496,6 @@ cmd_verify() {
   esac
 }
 
-# ---- Stack detection --------------------------------------------------------
-# `maestro stack` reads root-level file names and manifest fields only. It never
-# opens .env or any other file that could hold secrets.
-stack_add() {
-  local list="$1" item="$2"
-  case ",$list," in
-    *",$item,"*) printf '%s' "$list" ;;
-    *) if [ -n "$list" ]; then printf '%s,%s' "$list" "$item"; else printf '%s' "$item"; fi ;;
-  esac
-}
-
-stack_has_files() {
-  local f
-  for f in package.json tsconfig.json pnpm-lock.yaml yarn.lock package-lock.json \
-           pyproject.toml requirements.txt uv.lock poetry.lock go.mod Cargo.toml \
-           Gemfile pom.xml build.gradle build.gradle.kts composer.json mix.exs \
-           Makefile Dockerfile docker-compose.yml compose.yml compose.yaml; do
-    [ -f "$f" ] && return 0
-  done
-  for f in ./*.tf ./*.sh; do
-    [ -f "$f" ] && return 0
-  done
-  return 1
-}
-
-has_dependency_manifest() {
-  local f
-  for f in package.json pyproject.toml requirements.txt uv.lock poetry.lock go.mod \
-           Cargo.toml Gemfile pom.xml build.gradle build.gradle.kts composer.json \
-           mix.exs; do
-    [ -f "$f" ] && return 0
-  done
-  return 1
-}
-
-stack_package_manager() {
-  if [ -f pnpm-lock.yaml ]; then echo pnpm
-  elif [ -f yarn.lock ]; then echo yarn
-  elif [ -f package-lock.json ]; then echo npm
-  elif [ -f package.json ]; then echo npm
-  elif [ -f uv.lock ]; then echo uv
-  elif [ -f poetry.lock ]; then echo poetry
-  elif [ -f pyproject.toml ] || [ -f requirements.txt ]; then echo pip
-  elif [ -f go.mod ]; then echo go
-  elif [ -f Cargo.toml ]; then echo cargo
-  elif [ -f Gemfile ]; then echo bundler
-  elif [ -f pom.xml ]; then echo maven
-  elif [ -f build.gradle ] || [ -f build.gradle.kts ]; then echo gradle
-  elif [ -f composer.json ]; then echo composer
-  elif [ -f mix.exs ]; then echo mix
-  else echo unknown
-  fi
-}
-
-# Script names present in package.json (`lint`, `test`, `build`), one per line.
-stack_pkg_scripts() {
-  local file="$1"
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$file" <<'PY'
-import json
-import sys
-
-try:
-    with open(sys.argv[1], encoding="utf-8") as fh:
-        data = json.load(fh)
-except Exception:
-    sys.exit(0)
-scripts = data.get("scripts")
-if not isinstance(scripts, dict):
-    sys.exit(0)
-for name in ("lint", "test", "build"):
-    if isinstance(scripts.get(name), str):
-        print(name)
-PY
-  else
-    local name
-    for name in lint test build; do
-      if grep -qE "\"$name\"[[:space:]]*:" "$file"; then
-        echo "$name"
-      fi
-    done
-  fi
-}
-
-# Readable lint/test/build commands from pyproject task tables, one `name<TAB>cmd`
-# per line. Entry-point tables are rendered as `python -m <module>`.
-stack_pyproject_scripts() {
-  command -v python3 >/dev/null 2>&1 || return 0
-  python3 - "$1" <<'PY'
-import sys
-
-try:
-    import tomllib
-except Exception:
-    sys.exit(0)
-try:
-    with open(sys.argv[1], "rb") as fh:
-        data = tomllib.load(fh)
-except Exception:
-    sys.exit(0)
-
-def emit(name, cmd):
-    if isinstance(cmd, str):
-        print("%s\t%s" % (name, cmd))
-    elif isinstance(cmd, dict) and isinstance(cmd.get("cmd"), str):
-        print("%s\t%s" % (name, cmd["cmd"]))
-
-tool = data.get("tool", {})
-tool = tool if isinstance(tool, dict) else {}
-tasks = []
-for key in ("poe", "pdm"):
-    sub = tool.get(key, {})
-    if not isinstance(sub, dict):
-        continue
-    table = sub.get("tasks") if key == "poe" else sub.get("scripts")
-    if isinstance(table, dict):
-        tasks.append(table)
-for table in tasks:
-    for name in ("lint", "test", "build"):
-        if name in table:
-            emit(name, table[name])
-
-entry = []
-project = data.get("project", {})
-if isinstance(project, dict) and isinstance(project.get("scripts"), dict):
-    entry.append(project["scripts"])
-poetry = tool.get("poetry", {})
-if isinstance(poetry, dict) and isinstance(poetry.get("scripts"), dict):
-    entry.append(poetry["scripts"])
-for table in entry:
-    for name in ("lint", "test", "build"):
-        value = table.get(name)
-        if isinstance(value, str):
-            print("%s\tpython -m %s" % (name, value.split(":", 1)[0]))
-PY
-}
-
-# Framework names declared in package.json dependencies, one per line.
-stack_node_frameworks() {
-  local file="$1" pair pkg name
-  [ -f "$file" ] || return 0
-  if command -v python3 >/dev/null 2>&1; then
-    python3 - "$file" <<'PY'
-import json
-import sys
-
-try:
-    with open(sys.argv[1], encoding="utf-8") as fh:
-        data = json.load(fh)
-except Exception:
-    sys.exit(0)
-deps = {}
-for key in ("dependencies", "devDependencies", "peerDependencies"):
-    table = data.get(key)
-    if isinstance(table, dict):
-        deps.update(table)
-order = [
-    ("react", "react"),
-    ("next", "nextjs"),
-    ("vue", "vue"),
-    ("nuxt", "nuxt"),
-    ("svelte", "svelte"),
-    ("@angular/core", "angular"),
-    ("astro", "astro"),
-    ("express", "express"),
-    ("fastify", "fastify"),
-    ("@nestjs/core", "nestjs"),
-    ("electron", "electron"),
-    ("jest", "jest"),
-    ("vitest", "vitest"),
-    ("@playwright/test", "playwright"),
-    ("prisma", "prisma"),
-    ("tailwindcss", "tailwind"),
-]
-for package, name in order:
-    if package in deps:
-        print(name)
-PY
-  else
-    for pair in 'react:react' 'next:nextjs' 'vue:vue' 'nuxt:nuxt' 'svelte:svelte' 'express:express'; do
-      pkg="${pair%%:*}"
-      name="${pair#*:}"
-      if grep -qiE "\"$pkg\"[[:space:]]*:" "$file"; then
-        echo "$name"
-      fi
-    done
-  fi
-}
-
-cmd_stack() {
-  local root
-  root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-  (
-    cd "$root" || exit 1
-
-    if ! stack_has_files; then
-      echo "stack: unknown"
-      exit 0
-    fi
-
-    local langs="" fws="" pm
-    local lint=unknown test=unknown build=unknown
-    local f name fw target
-
-    # Languages.
-    if [ -f package.json ] || [ -f tsconfig.json ]; then
-      langs="$(stack_add "$langs" javascript/typescript)"
-    fi
-    if [ -f pyproject.toml ] || [ -f requirements.txt ] || [ -f uv.lock ]; then
-      langs="$(stack_add "$langs" python)"
-    fi
-    if [ -f go.mod ]; then langs="$(stack_add "$langs" go)"; fi
-    if [ -f Cargo.toml ]; then langs="$(stack_add "$langs" rust)"; fi
-    if [ -f Gemfile ]; then langs="$(stack_add "$langs" ruby)"; fi
-    if [ -f pom.xml ] || [ -f build.gradle ] || [ -f build.gradle.kts ]; then
-      langs="$(stack_add "$langs" java)"
-    fi
-    if [ -f composer.json ]; then langs="$(stack_add "$langs" php)"; fi
-    if [ -f mix.exs ]; then langs="$(stack_add "$langs" elixir)"; fi
-    for f in ./*.tf; do
-      if [ -f "$f" ]; then
-        langs="$(stack_add "$langs" hcl)"
-        break
-      fi
-    done
-    for f in ./*.sh; do
-      if [ -f "$f" ]; then
-        langs="$(stack_add "$langs" shell)"
-        break
-      fi
-    done
-
-    pm="$(stack_package_manager)"
-
-    # Commands: package.json scripts, then Makefile targets, then pyproject.
-    if [ -f package.json ]; then
-      while IFS= read -r name; do
-        case "$name" in
-          lint) if [ "$lint" = unknown ]; then lint="${pm:-npm} run lint"; fi ;;
-          test) if [ "$test" = unknown ]; then test="${pm:-npm} run test"; fi ;;
-          build) if [ "$build" = unknown ]; then build="${pm:-npm} run build"; fi ;;
-        esac
-      done < <(stack_pkg_scripts package.json)
-    fi
-    if [ -f Makefile ]; then
-      for target in lint test build; do
-        if grep -qE "^$target[[:space:]]*:" Makefile; then
-          case "$target" in
-            lint) if [ "$lint" = unknown ]; then lint="make lint"; fi ;;
-            test) if [ "$test" = unknown ]; then test="make test"; fi ;;
-            build) if [ "$build" = unknown ]; then build="make build"; fi ;;
-          esac
-        fi
-      done
-    fi
-    if [ -f pyproject.toml ]; then
-      while IFS=$'\t' read -r name fw; do
-        [ -n "$name" ] || continue
-        case "$name" in
-          lint) if [ "$lint" = unknown ]; then lint="$fw"; fi ;;
-          test) if [ "$test" = unknown ]; then test="$fw"; fi ;;
-          build) if [ "$build" = unknown ]; then build="$fw"; fi ;;
-        esac
-      done < <(stack_pyproject_scripts pyproject.toml)
-    fi
-
-    # Frameworks.
-    if [ -f package.json ]; then
-      while IFS= read -r fw; do
-        [ -n "$fw" ] && fws="$(stack_add "$fws" "$fw")"
-      done < <(stack_node_frameworks package.json)
-    fi
-    if [ -f pyproject.toml ] || [ -f requirements.txt ]; then
-      for f in pyproject.toml requirements.txt; do
-        [ -f "$f" ] || continue
-        for fw in django flask fastapi; do
-          if grep -qiE "(^|[^a-z0-9_-])$fw([^a-z0-9_-]|$)" "$f"; then
-            fws="$(stack_add "$fws" "$fw")"
-          fi
-        done
-      done
-    fi
-    if [ -f go.mod ]; then
-      if grep -q 'gin-gonic/gin' go.mod; then fws="$(stack_add "$fws" gin)"; fi
-      if grep -q 'labstack/echo' go.mod; then fws="$(stack_add "$fws" echo)"; fi
-      if grep -q 'gofiber/fiber' go.mod; then fws="$(stack_add "$fws" fiber)"; fi
-    fi
-    if [ -f Cargo.toml ]; then
-      if grep -q 'actix-web' Cargo.toml; then fws="$(stack_add "$fws" actix)"; fi
-      if grep -q 'axum' Cargo.toml; then fws="$(stack_add "$fws" axum)"; fi
-      if grep -q 'rocket' Cargo.toml; then fws="$(stack_add "$fws" rocket)"; fi
-    fi
-    if [ -f Gemfile ]; then
-      if grep -qE "^[[:space:]]*gem[[:space:]]+['\"]rails['\"]" Gemfile; then
-        fws="$(stack_add "$fws" rails)"
-      fi
-      if grep -qE "^[[:space:]]*gem[[:space:]]+['\"]sinatra['\"]" Gemfile; then
-        fws="$(stack_add "$fws" sinatra)"
-      fi
-    fi
-    if [ -f pom.xml ] || [ -f build.gradle ] || [ -f build.gradle.kts ]; then
-      for f in pom.xml build.gradle build.gradle.kts; do
-        if [ -f "$f" ] && grep -q 'spring-boot' "$f"; then
-          fws="$(stack_add "$fws" spring)"
-        fi
-      done
-    fi
-    if [ -f composer.json ]; then
-      if grep -qE 'laravel/framework' composer.json; then fws="$(stack_add "$fws" laravel)"; fi
-      if grep -qE 'symfony/' composer.json; then fws="$(stack_add "$fws" symfony)"; fi
-    fi
-    if [ -f mix.exs ] && grep -q ':phoenix' mix.exs; then
-      fws="$(stack_add "$fws" phoenix)"
-    fi
-    if [ -f Dockerfile ] || [ -f docker-compose.yml ] || [ -f compose.yml ] || [ -f compose.yaml ]; then
-      fws="$(stack_add "$fws" docker)"
-    fi
-    for f in ./*.tf; do
-      if [ -f "$f" ]; then
-        fws="$(stack_add "$fws" terraform)"
-        break
-      fi
-    done
-
-    echo "language: ${langs:-unknown}"
-    echo "package-manager: $pm"
-    echo "commands: lint=$lint test=$test build=$build"
-    echo "frameworks: ${fws:-unknown}"
-  )
-}
-
 cmd_doctor() {
   echo "BottegaStack doctor"
   echo "root: $ROOT"
@@ -853,6 +521,7 @@ cmd_doctor() {
     echo "gitleaks: no"
     echo "warning: gitleaks is not installed; secret scanning is unavailable"
   fi
+  command -v rtk >/dev/null 2>&1 && echo "rtk: yes (optional)" || echo "rtk: no (optional; see Token savings in docs/SETUP.md)"
 
   local skills
   skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
@@ -1276,6 +945,42 @@ build_wait_limit() {
   fi
 }
 
+# Shared by every build flavour: mark a build whose process died (no .rc after
+# six hours) as failed, wait (bounded), and collect the result.
+build_mark_stale() {
+  [ -f "$2" ] || [ -z "$(find "$1" -mmin +360 2>/dev/null)" ] || echo 1 > "$2"
+}
+
+# build_wait_or_exit <rcfile> <block> <progress> <what> <again>: wait; if the
+# build is still going, print where it stands and exit 5.
+build_wait_or_exit() {
+  build_wait "$1" "$(build_wait_limit "$2")"
+  [ -f "$1" ] && return 0
+  echo "RUNNING $4 (still going; call again: $5)"
+  echo "steps so far: $(wc -l < "$3" 2>/dev/null | tr -d ' ')"
+  [ -s "$3" ] && echo "last step: $(tail -1 "$3")"
+  echo "progress: $3"
+  exit 5
+}
+
+# build_collect <rcfile> <run> <log> <out>: print the exit code and turn the log
+# into the final reply at <out>.
+build_collect() {
+  local rc
+  rc="$(cat "$1")"
+  rm -f "$1" "$2"
+  cap_log "$3"
+  build_result_text "$3" "$4"
+  printf '%s\n' "$rc"
+}
+
+# build_usage_lines <who> <rc> <log> <progress>
+build_usage_lines() {
+  echo "$1 exit: $2$([ "$2" = 124 ] && echo " (timed out)")"
+  echo "tokens: $(build_tokens "$3")"
+  echo "steps: $(build_steps "$4")"
+}
+
 build_wait() {
   local rcfile="$1" limit="$2" waited=0
   while [ ! -f "$rcfile" ] && [ "$waited" -lt "$limit" ]; do
@@ -1437,9 +1142,7 @@ build_here() {
 
   if [ -f "$run" ]; then
     # Already running or finished but not collected: attach.
-    if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
-      echo 1 > "$rcfile"
-    fi
+    build_mark_stale "$run" "$rcfile"
   else
     base="$(git -C "$repo" rev-parse HEAD)"
     cat > "$prompt" <<EOF
@@ -1457,27 +1160,15 @@ EOF
     start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" ""
   fi
 
-  build_wait "$rcfile" "$(build_wait_limit "$block")"
-  if [ ! -f "$rcfile" ]; then
-    echo "RUNNING task: $slug (still building; call again: maestro build --here $slug --task \"<text>\" --wait)"
-    echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
-    [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
-    echo "progress: $progress"
-    exit 5
-  fi
+  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait"
 
   local rc status="MISSING" commits=0
-  rc="$(cat "$rcfile")"
-  rm -f "$rcfile" "$run"
-  cap_log "$log"
-  build_result_text "$log" "$report"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
 
   echo "task: $slug"
-  echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
-  echo "tokens: $(build_tokens "$log")"
-  echo "steps: $(build_steps "$progress")"
+  build_usage_lines builder "$rc" "$log" "$progress"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$repo" diff --name-only "$base"...HEAD 2>/dev/null | sed 's/^/  /'
@@ -1548,9 +1239,7 @@ build_review() {
   mkdir -p "$bdir"
 
   if [ -f "$run" ]; then
-    if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
-      echo 1 > "$rcfile"
-    fi
+    build_mark_stale "$run" "$rcfile"
   else
     local diff_base
     if [ "$here" = "1" ]; then
@@ -1585,29 +1274,17 @@ EOF
     : > "$progress"
     printf 'sid=\n' > "$run"
     start_build_exec "$wt" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "" \
-      "review-code" "Read,Grep,Glob,Bash" "Read,Grep,Glob,Bash" \
+      "bottega:review-code" "Read,Grep,Glob,Bash" "Read,Grep,Glob,Bash" \
       "Edit,Write,NotebookEdit,Bash(git commit:*),Bash(git add:*),Bash(git push:*),Bash(git merge:*),Bash(git reset:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
   fi
 
-  build_wait "$rcfile" "$(build_wait_limit "$block")"
-  if [ ! -f "$rcfile" ]; then
-    echo "RUNNING review: $slug $task (still reviewing; call again: $again)"
-    echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
-    [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
-    echo "progress: $progress"
-    exit 5
-  fi
+  build_wait_or_exit "$rcfile" "$block" "$progress" "review: $slug $task" "$again"
 
   local rc
-  rc="$(cat "$rcfile")"
-  rm -f "$rcfile" "$run"
-  build_result_text "$log" "$findings"
-  cap_log "$log"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$findings")"
 
   echo "review: $slug $task"
-  echo "reviewer exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
-  echo "tokens: $(build_tokens "$log")"
-  echo "steps: $(build_steps "$progress")"
+  build_usage_lines reviewer "$rc" "$log" "$progress"
   echo "findings: $findings ($([ -s "$findings" ] && echo present || echo missing))"
   [ "$rc" -eq 0 ] && [ -s "$findings" ] || exit 1
 }
@@ -1675,9 +1352,7 @@ cmd_build() {
     # A build for this task is running or finished but not collected: attach.
     rev="$(sed -n 's/^rev=//p' "$run")"; rev="${rev:-0}"
     sid="$(sed -n 's/^sid=//p' "$run")"
-    if [ ! -f "$rcfile" ] && [ -n "$(find "$run" -mmin +360 2>/dev/null)" ]; then
-      echo 1 > "$rcfile"   # stale: the builder died without writing a result
-    fi
+    build_mark_stale "$run" "$rcfile"
   else
     local msg
     if [ -n "$findings" ]; then
@@ -1715,21 +1390,10 @@ $(cat "$taskfile")"
     start_build_exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
-  # Bounded wait for a foreground caller.
-  build_wait "$rcfile" "$(build_wait_limit "$block")"
-  if [ ! -f "$rcfile" ]; then
-    echo "RUNNING task: $task (still building; call again: maestro build $slug $task --wait)"
-    echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
-    [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
-    echo "progress: $progress"
-    exit 5
-  fi
+  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $task" "maestro build $slug $task --wait"
 
   local rc
-  rc="$(cat "$rcfile")"
-  rm -f "$rcfile" "$run"
-  cap_log "$log"
-  build_result_text "$log" "$report"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
@@ -1743,9 +1407,7 @@ $(cat "$taskfile")"
   echo "run: $slug"
   echo "session: ${sid:-none}"
   echo "revisions: $rev/$max_rev"
-  echo "builder exit: $rc$([ "$rc" = 124 ] && echo " (timed out)")"
-  echo "tokens: $(build_tokens "$log")"
-  echo "steps: $(build_steps "$progress")"
+  build_usage_lines builder "$rc" "$log" "$progress"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "$(run_branch "$slug")...HEAD" 2>/dev/null | sed 's/^/  /'
@@ -1760,7 +1422,8 @@ $(cat "$taskfile")"
 # echoed. Stream events are logged and summarised into the progress file.
 cmd_build_exec() {
   local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}" rc helper=""
-  local agent="${9:-builder}"
+  # Plugin agents are namespaced; a bare name only exists in an old copy-install.
+  local agent="${9:-bottega:builder}"
   local tools="${10:-Bash,Edit,Glob,Grep,Read,Skill,Write,TodoWrite}"
   local allowed="${11:-Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite}"
   local disallowed="${12:-Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)}"
@@ -1769,7 +1432,7 @@ cmd_build_exec() {
   # The headless runner's effort comes from the routing file: the builder line
   # for implementations, the second-opinion line for reviews.
   local role="builder" effort
-  [ "$agent" = "review-code" ] && role="second-opinion"
+  case "$agent" in *review-code) role="second-opinion" ;; esac
   effort="$(model_effort "$role")"
   local -a effort_arg=()
   [ -n "$effort" ] && effort_arg=(--effort "$effort")
@@ -1851,7 +1514,8 @@ guard_builder() {
   local input kind
   input="$(cat)"
   kind="$(printf '%s' "$input" | tr -d '\n' | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
-  [ "$kind" = "builder" ] || exit 0
+  # Plugin agents are namespaced (bottega:builder); accept either form.
+  case "$kind" in builder|*:builder) ;; *) exit 0 ;; esac
   builder_ready quiet || exit 0
   printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `maestro worktree create <run> <task>`, then run `maestro build <run> <task> --block` as a background Bash task (see Step 2)."}}'
 }
@@ -1866,21 +1530,24 @@ guard_stop() {
   command -v python3 >/dev/null 2>&1 || exit 0
   # Never block a stop the harness already blocked once.
   printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
-  # Only act in repos where maestro has a run: the plugin hook is global, and an
-  # ordinary session with open todos must not be nudged.
+  # Only act while this repo has an open run (a run or light-path folder that
+  # `maestro report --close` has not removed): the plugin hook is global, and an
+  # ordinary session with open todos must not be nudged. The logs kept in the
+  # state root (trust.log, findings.log, decisions/) do not count.
   sdir="$(state_dir 2>/dev/null || true)"
   [ -n "$sdir" ] && [ -d "$sdir" ] || exit 0
-  # A builder is running in some run: let the turn end while it works.
-  if [ -n "$sdir" ]; then
-    for r in "$sdir"/*/build/*.run; do
-      [ -f "$r" ] || continue
-      [ -f "${r%.run}.rc" ] || exit 0
-    done
-  fi
-  # other legitimate async work (background checks, builders without a .run file)
-  if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|maestro check|scripts/check' >/dev/null 2>&1; then
-    exit 0
-  fi
+  local open=0
+  for r in "$sdir"/*/ "$sdir"/quick/*/; do
+    [ -d "$r" ] || continue
+    case "$r" in "$sdir"/decisions/|"$sdir"/quick/) continue ;; esac
+    open=1; break
+  done
+  [ "$open" = "1" ] || exit 0
+  # A builder is running (a .run with no .rc yet): let the turn end while it works.
+  for r in "$sdir"/*/build/*.run "$sdir"/quick/*/*.run; do
+    [ -f "$r" ] || continue
+    [ -f "${r%.run}.rc" ] || exit 0
+  done
   printf '%s' "$input" | python3 -c '
 import json, sys
 
@@ -2053,12 +1720,11 @@ cmd_worktree() {
 }
 
 cmd_report() {
-  local retro=0 write=0 exit_code=0 close="" finding_run="" finding_title="" trust=0 trust_n=10
+  local retro=0 exit_code=0 close="" finding_run="" finding_title="" trust=0 trust_n=10
   local t_playbook="" t_risk="" t_outcome=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --retro) retro=1; shift ;;
-      --write) retro=1; write=1; shift ;;
       --exit-code) retro=1; exit_code=1; shift ;;
       --close) close="${2:?--close needs a run}"; shift 2 ;;
       --playbook) t_playbook="${2:?--playbook needs a value}"; shift 2 ;;
@@ -2084,7 +1750,6 @@ cmd_report() {
   fi
   if [ "$retro" = "1" ]; then
     local -a retro_args=()
-    [ "$write" = "1" ] && retro_args+=(--write)
     [ "$exit_code" = "1" ] && retro_args+=(--exit-code)
     cmd_retro_scan "${retro_args[@]}"
     return
@@ -2117,9 +1782,11 @@ cmd_close() {
   esac
   base="$(ensure_state_dir)" || { echo "maestro report --close: not in a git repository" >&2; exit 1; }
   dir="$base/$slug"
+  # A light-path run lives in quick/<slug>; close it the same way.
+  [ -d "$dir" ] || dir="$base/quick/$slug"
   if [ -d "$dir" ]; then
     local rounds=0 r f checks
-    for f in "$dir"/build/*.builder; do
+    for f in "$dir"/build/*.builder "$dir"/*.builder; do
       [ -f "$f" ] || continue
       r="$(sed -n 's/^revisions=//p' "$f")"; rounds=$((rounds + ${r:-0}))
     done
@@ -2230,111 +1897,24 @@ cmd_hooks() {
   esac
 }
 
-retro_title() {
-  local line="$1"
-  line="$(printf '%s\n' "$line" \
-    | sed -E 's/^(##|###) //; s/^PROBLEM: //; s/^- PROBLEM: //' \
-    | sed -E 's/[[:space:]]*→.*$//' \
-    | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-  printf '%s\n' "$line"
-}
 
-retro_generic() {
-  case "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')" in
-    summary|findings|notes|evidence|verdict|blocking|non-blocking|what|why|how|where|output|tests|test|decision)
-      return 0 ;;
-    *) return 1 ;;
-  esac
-}
 
 cmd_retro_scan() {
-  local write=0 exit_code=0
-  while [ "$#" -gt 0 ]; do
-    case "$1" in
-      --write) write=1; shift ;;
-      --exit-code) exit_code=1; shift ;;
-      *) echo "unknown flag: $1" >&2; exit 1 ;;
-    esac
-  done
-
-  local state
+  local exit_code=0 state
+  [ "${1:-}" = "--exit-code" ] && exit_code=1
   state="$(ensure_state_dir)" || { echo "retro-scan: not in a git repository" >&2; exit 1; }
-  local -A run_count=() files_for=() seen=()
-  local file rel run raw title key
-  shopt -s nullglob
-  local files=("$state"/*/build/*.review2.md)
-  shopt -u nullglob
-  for file in "${files[@]}"; do
-    [ -f "$file" ] || continue
-    rel="${file#"$state"/}"
-    run="${rel%%/*}"
-    while IFS= read -r raw; do
-      [ -n "$raw" ] || continue
-      title="$(retro_title "$raw")"
-      [ -n "$title" ] || continue
-      retro_generic "$title" && continue
-      key="$title"$'\t'"$run"
-      [ -n "${seen[$key]:-}" ] && continue
-      seen[$key]=1
-      run_count[$title]=$(( ${run_count[$title]:-0} + 1 ))
-      files_for[$title]+="$file"$'\n'
-    done < <(grep -E '^(##|###) |^PROBLEM: |^- PROBLEM: ' "$file" 2>/dev/null || true)
-  done
-
-  if [ -f "$state/findings.log" ]; then
-    local frun ftitle
-    while IFS=$'\t' read -r frun ftitle; do
-      [ -n "$frun" ] && [ -n "$ftitle" ] || continue
-      title="$(retro_title "$ftitle")"
-      [ -n "$title" ] || continue
-      retro_generic "$title" && continue
-      key="$title"$'\t'"$frun"
-      [ -n "${seen[$key]:-}" ] && continue
-      seen[$key]=1
-      run_count[$title]=$(( ${run_count[$title]:-0} + 1 ))
-      files_for[$title]+="findings.log ($frun)"$'\n'
-    done < "$state/findings.log"
-  fi
-
-  local repeats=0
-  local -a report=()
-  if [ "${#run_count[@]}" -gt 0 ]; then
-    while IFS= read -r title; do
-      [ -n "$title" ] || continue
-      [ "${run_count[$title]}" -ge 2 ] || continue
-      repeats=1
-      report+=("${run_count[$title]} runs: $title")
-      local shown=0 f
-      while IFS= read -r f; do
-        [ -n "$f" ] || continue
-        [ "$shown" -lt 3 ] || break
-        report+=("  $f")
-        shown=$((shown + 1))
-      done <<< "${files_for[$title]}"
-    done < <(printf '%s\n' "${!run_count[@]}" | sort)
-  fi
-
-  if [ "$repeats" = "0" ]; then
+  # findings.log holds one "<run>\t<title>" line per blocking finding; a title
+  # (case-insensitive) recorded in two or more runs is a repeat.
+  [ -s "$state/findings.log" ] || { echo "retro-scan: no repeated findings"; return 0; }
+  local out
+  out="$(awk -F'\t' 'NF >= 2 && $2 != "" { t = tolower($2); if (!seen[t SUBSEP $1]++) { n[t]++; title[t] = $2; runs[t] = runs[t] " " $1 } }
+    END { for (t in n) if (n[t] >= 2) printf "%d runs: %s (runs:%s)\n", n[t], title[t], runs[t] }' "$state/findings.log" 2>/dev/null | sort -rn)"
+  if [ -z "$out" ]; then
     echo "retro-scan: no repeated findings"
-    report=("retro-scan: no repeated findings")
-  else
-    printf '%s\n' "${report[@]}"
+    return 0
   fi
-
-  if [ "$write" = "1" ]; then
-    {
-      echo "# Retro scan"
-      echo
-      echo "Generated: $(date -Iseconds)"
-      echo
-      printf '%s\n' "${report[@]}"
-    } > "$state/retro-scan.md"
-    echo "wrote: $state/retro-scan.md"
-  fi
-
-  if [ "$exit_code" = "1" ] && [ "$repeats" = "1" ]; then
-    return 1
-  fi
+  printf '%s\n' "$out"
+  [ "$exit_code" = "1" ] && return 1
   return 0
 }
 
@@ -2346,7 +1926,6 @@ cmd="${1:-}"
 shift || true
 case "$cmd" in
   doctor) cmd_doctor ;;
-  stack) cmd_stack ;;
   init) cmd_init "${1:-$PWD}" ;;
   seed) cmd_seed "$@" ;;
   upgrade) cmd_upgrade "${1:-$PWD}" ;;

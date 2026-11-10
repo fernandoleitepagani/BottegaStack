@@ -32,8 +32,8 @@ A personal agentic development workflow, shipped as the Claude Code plugin
   `role: value, effort` (`value` a Claude alias or `headless`, `effort`
   `low|medium|high`) and each agent's frontmatter is the default. The headless
   runner reads the `builder` and `second-opinion` lines for `--effort`.
-- At Step 0 the master runs `maestro stack`, confirms the detected profile, and
-  writes it into the `## Stack` section of `AGENTS.md`.
+- At Step 0, when `AGENTS.md` has no `## Stack` section, the `explorer` reads the
+  manifests, the master confirms the profile and writes that section.
 - Builds report `tokens: in <n> out <n>` and `steps: <n>`; the 30-minute
   `BOTTEGA_BUILD_TIMEOUT` is the only stop.
 - Claude Code is the only supported runtime. Do not add OpenCode files back.
@@ -69,13 +69,12 @@ Prefer the highest item that actually prevents recurrence.
 
 ## Commands
 
-BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
+BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 `upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
 ./bin/maestro doctor
-./bin/maestro stack
 ./scripts/validate.sh
 ./bin/maestro init /tmp/example
 ./bin/maestro seed GLOSSARY.md
@@ -88,7 +87,7 @@ BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
 ./bin/maestro verify waive <run> <AC> "<reason>"
 ./bin/maestro verify list <run>
 ./bin/maestro log <run> [<phase> <decision> <why> <evidence> <result>]
-./bin/maestro report [--retro] [--write] [--exit-code]
+./bin/maestro report [--retro] [--exit-code]
 ./bin/maestro report --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>]
 ./bin/maestro report --trust [n]
 ./bin/maestro report --finding <run> "<title>"

@@ -44,15 +44,8 @@ A comment pass runs with the simplification (adapted from pstack's `no-comments`
 
 ## Output
 
-`simplify.md`:
-
-```markdown
-# Simplify
-
-## Removed
-## Kept
-## Checks
-```
+Return as your reply, never as a file: **Removed** (what and why), **Kept** (risky
+simplifications left alone, with the reason), **Checks** (the check output).
 
 ## Report
 
