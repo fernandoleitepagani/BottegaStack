@@ -1246,31 +1246,111 @@ guard_builder() {
   printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `pagani worktree create <run> <task>`, then run `pagani build <run> <task> --block` as a background Bash task (see Step 2)."}}'
 }
 
-# Pipeline stages live in a `stage` file in the run directory. Only these are
-# "mid-pipeline": the master must keep going. awaiting-spec, awaiting-decision,
-# and closed are human checkpoints or the end. (Task 2 rebuilds this hook.)
+# The todo list is the source of truth: the master must keep going while an
+# item is pending or in_progress. The list comes from the transcript (TodoWrite,
+# or TaskCreate/TaskUpdate when TodoWrite is unavailable). Anything unexpected
+# fails open: a silent hook is harmless, a hook that blocks forever is not.
 guard_stop() {
-  local input dir f stage r
+  local input sdir r
   input="$(cat)"
+  command -v python3 >/dev/null 2>&1 || exit 0
+  # Never block a stop the harness already blocked once.
   printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
-  dir="$(ensure_state_dir 2>/dev/null || true)"
-  [ -n "$dir" ] || exit 0
-  f="$(ls -t "$dir"/*/stage 2>/dev/null | head -1 || true)"
-  [ -n "$f" ] || exit 0
-  stage="$(tr -d '[:space:]' < "$f")"
-  case "$stage" in build|checks|review|fix) ;; *) exit 0 ;; esac
-  dir="$(dirname "$f")"
-  for r in "$dir"/build/*.run; do
-    [ -f "$r" ] || continue
-    [ -f "${r%.run}.rc" ] && continue
-    # a builder is still running: idle is correct (a .run older than 360 min is stale)
-    [ -n "$(find "$r" -mmin +360 2>/dev/null)" ] || exit 0
-  done
+  # A builder is running in some run: let the turn end while it works.
+  sdir="$(state_dir 2>/dev/null || true)"
+  if [ -n "$sdir" ]; then
+    for r in "$sdir"/*/build/*.run; do
+      [ -f "$r" ] || continue
+      [ -f "${r%.run}.rc" ] || exit 0
+    done
+  fi
   # other legitimate async work (background checks, builders without a .run file)
   if command -v pgrep >/dev/null 2>&1 && pgrep -f '_build-exec|pagani check|scripts/check' >/dev/null 2>&1; then
     exit 0
   fi
-  printf '%s\n' "{\"decision\":\"block\",\"reason\":\"Run $(basename "$dir") is at stage $stage and no human checkpoint or running builder is pending. Continue to the next step now; do not stop and do not ask the user to proceed. If you are truly blocked, ask with AskUserQuestion.\"}"
+  printf '%s' "$input" | python3 -c '
+import json, sys
+
+try:
+    hook = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+if not isinstance(hook, dict):
+    sys.exit(0)
+if hook.get("stop_hook_active") is True:
+    sys.exit(0)
+background = hook.get("background_tasks")
+if isinstance(background, list) and background:
+    sys.exit(0)
+path = hook.get("transcript_path")
+if not isinstance(path, str) or not path:
+    sys.exit(0)
+
+items = []
+next_id = 1
+try:
+    with open(path, "r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(ev, dict) or ev.get("type") != "assistant":
+                continue
+            content = (ev.get("message") or {}).get("content") or []
+            if not isinstance(content, list):
+                continue
+            for b in content:
+                if not isinstance(b, dict) or b.get("type") != "tool_use":
+                    continue
+                name = b.get("name")
+                inp = b.get("input") or {}
+                if not isinstance(inp, dict):
+                    continue
+                if name == "TodoWrite":
+                    todos = inp.get("todos")
+                    if not isinstance(todos, list):
+                        continue
+                    items = []
+                    for t in todos:
+                        if not isinstance(t, dict):
+                            continue
+                        items.append({
+                            "id": None,
+                            "subject": str(t.get("content", "")),
+                            "status": str(t.get("status", "")),
+                        })
+                elif name == "TaskCreate":
+                    items.append({
+                        "id": next_id,
+                        "subject": str(inp.get("subject", "")),
+                        "status": str(inp.get("status", "pending")),
+                    })
+                    next_id += 1
+                elif name == "TaskUpdate":
+                    tid = inp.get("taskId")
+                    status = inp.get("status")
+                    for it in items:
+                        if it["id"] is not None and str(it["id"]) == str(tid):
+                            if status:
+                                it["status"] = str(status)
+                            break
+except Exception:
+    sys.exit(0)
+
+for it in items:
+    if it["status"] in ("pending", "in_progress"):
+        subject = it["subject"] or "an open todo item"
+        print(json.dumps({
+            "decision": "block",
+            "reason": "Todo item %s is still open. Continue to the next step now without asking the user to proceed; if you are truly blocked, ask with AskUserQuestion." % json.dumps(subject),
+        }))
+        sys.exit(0)
+sys.exit(0)
+'
 }
 
 cmd_worktree() {
