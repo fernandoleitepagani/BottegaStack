@@ -28,7 +28,7 @@ Pin the base: `git diff <base>...HEAD` (three-dot, against the merge-base).
 Confirm the ref resolves and the diff is non-empty. Read the SPEC before the
 diff. No spec: say so and run the Standards pass only.
 
-Treat smells as labelled judgement calls, not hard violations: mysterious name, duplicated code, feature envy, data clumps, primitive obsession, repeated switches, shotgun surgery, divergent change, speculative generality, message chains, middle man, refused bequest. Flag the fix in one line, not as a block (principle `subtract-before-you-add`).
+Treat smells as labelled judgement calls, not hard violations: mysterious name, duplicated code, feature envy, data clumps, primitive obsession, repeated switches, shotgun surgery, divergent change, speculative generality, message chains, middle man, refused bequest. Flag the fix in one line, not as a block (principle `laziness-protocol`).
 
 ## Read
 

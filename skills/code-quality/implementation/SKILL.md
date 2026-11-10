@@ -21,7 +21,7 @@ Implement exactly one task. Write code on the named branch, commit locally, and 
 2. On fix rounds the review findings in your prompt; the neighbouring code; load `verification` if the task has UI or browser criteria.
 3. Work in the named worktree or use absolute paths; `git branch --show-current` must match your prompt, else report `STATUS: BLOCKED`.
 4. If the code already satisfies the task, report that with evidence instead of inventing work.
-5. `Allowed files` is a hard boundary (principle `stay-in-allowed-files`); needing another file means `STATUS: BLOCKED` with the path and reason.
+5. `Allowed files` is a hard boundary (stage explicit paths, never `git add -A`); needing another file means `STATUS: BLOCKED` with the path and reason.
 
 ## Build
 

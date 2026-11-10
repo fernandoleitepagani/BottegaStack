@@ -24,7 +24,7 @@ Before you start, run `maestro gate <slug>`. If it exits non-zero, stop and repo
 7. Never edit code (`one-writer-per-file`). After round 1, review only the new
    diff and do not repeat findings already posted.
 
-Check the diff against `Allowed files` (`stay-in-allowed-files`), test-first
+Check the diff against `Allowed files` (a file outside it is a finding), test-first
 evidence (`test-first`), the changed test files (`protect-existing-tests`), and
 the sensor blind spots. The skill spells out what is `CHANGES`.
 

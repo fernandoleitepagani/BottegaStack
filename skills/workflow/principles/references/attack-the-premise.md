@@ -1,9 +1,3 @@
----
-name: principle-attack-the-premise
-description: Apply when a request, plan or design looks obviously right. Question whether the request is the right problem before building anything.
-user-invocable: false
----
-
 # Attack the premise
 Restate the request as an outcome, not a solution.
 

@@ -1,9 +1,3 @@
----
-name: principle-sequence-verifiable-units
-description: Apply when planning multi-step work. Break it into steps that each can be checked alone.
-user-invocable: false
----
-
 # Sequence verifiable units
 Small steps you can verify beat one big leap.
 

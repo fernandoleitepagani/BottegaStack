@@ -1,9 +1,3 @@
----
-name: principle-encode-lessons-in-structure
-description: Apply when the same mistake or correction happens twice. Turn the lesson into a hook, lint, test or script instead of more prose.
-user-invocable: false
----
-
 # Encode lessons in structure
 
 A repeated lesson belongs in code that enforces it.

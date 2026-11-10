@@ -2,6 +2,8 @@
 
 ## Unreleased
 - Branches are yours: `maestro start` works on the branch you are on and only creates one with `--branch <name>`; task branches are `<branch>-<task>`, stay local and are never pushed; `worktree prune` deletes the merged ones (`git branch -d`, never forced) and keeps unmerged ones. The run branch and remotes are never touched.
+- Principles trimmed from 21 to 15: `prove-it-works` absorbs `outcome-oriented-execution`, `laziness-protocol` absorbs `subtract-before-you-add`; `model-the-domain`, `escalate-after-two-fixes`, `stay-in-allowed-files`, and `no-secrets` are dropped (their rules live in `domain-modeling`, the master Step 5 text, the builder contract, and `untrusted-content`). `untrusted-content` gains the secrets rule.
+- The 21 principles are now reference files inside the `principles` skill (`references/<slug>.md`) instead of 21 separate skills; citations keep the same slugs. Skills: 63 to 42.
 - The quiz is shown in chat before the decision prompt and is never written to the PR body, a commit message, or a file.
 - README banner and "what makes it different" section; `resources/verify.sh` temp names renamed to `bottega-verify`.
 - New playbooks: `investigate`, `perf`, `prototype`, `ship`, `autopilot`, and `pause` (covers pause and resume); `closeout` gains a merge-readiness gate that blocks merge until unmet items are fixed or waived.

@@ -1,9 +1,3 @@
----
-name: principle-test-behavior-not-implementation
-description: Apply when writing or changing tests. Assert external behaviour, write the failing test first, and never weaken existing tests.
-user-invocable: false
----
-
 # Test behavior, not implementation
 Tests describe what the system does, not how it does it.
 

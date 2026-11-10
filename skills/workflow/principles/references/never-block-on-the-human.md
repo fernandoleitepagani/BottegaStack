@@ -1,9 +1,3 @@
----
-name: principle-never-block-on-the-human
-description: Apply when a task needs a decision. Act on reversible work and report; ask only for irreversible or external actions.
-user-invocable: false
----
-
 # Never block on the human
 Keep moving; stop only when the human must decide.
 

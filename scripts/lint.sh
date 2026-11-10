@@ -60,7 +60,7 @@ done < <(grep -rhoE '([Ll]oad|loads)( the)? `[a-z0-9][a-z0-9-]*`' "$ROOT/agents"
 
 while IFS= read -r slug; do
   [ -n "$slug" ] || continue
-  if [ ! -d "$ROOT/skills/workflow/principle-$slug" ]; then
+  if [ ! -f "$ROOT/skills/workflow/principles/references/$slug.md" ]; then
     echo "FAIL unresolved principle citation: $slug"
     fail=1
   fi

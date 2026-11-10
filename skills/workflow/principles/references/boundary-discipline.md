@@ -1,9 +1,3 @@
----
-name: principle-boundary-discipline
-description: Apply when adding validation, parsing or a module seam. Validate at system edges, trust internal code, and keep boundaries clean.
-user-invocable: false
----
-
 # Boundary discipline
 Check input where it enters; trust it once inside.
 

@@ -1,6 +1,6 @@
 # Skills
 
-BottegaStack ships 63 skills. A skill is a folder with a `SKILL.md`. The plugin
+BottegaStack ships 42 skills. A skill is a folder with a `SKILL.md`. The plugin
 manifest lists each category directory (`skills/<category>`), and Claude Code
 discovers the skills inside it, so skills stay grouped by category. The
 categories include `sysadmin`, `containers`, and `devops` for host, container,
@@ -36,8 +36,7 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `planning` | Produce one BottegaStack run SPEC with requirements, decisions, and a tracer-bullet task graph, returned as the reply. |
 | `playbooks` | Choose a playbook (trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, pr-babysit) and a risk modifier (low, standard, high) at Step 0, take the light path for small work, and escalate when the diff grows or touches a risk path. |
 | `podman-operator` | Build and operate Podman containers and Quadlet services, rootless or rootful, including networking, volumes, systemd integration, and troubleshooting; read-only by default. |
-| `principle-*` | The 21 named rules, one skill each; the grouped list is below the table. |
-| `principles` | Index of the named rules; cite `principle <slug>` instead of restating a rule. |
+| `principles` | Index of the 15 named rules, each in `references/<slug>.md`; cite `principle <slug>` instead of restating a rule. |
 | `review-code` | Review a BottegaStack change for code quality, UI, UX, and security in one pass. |
 | `review-pr` | Review a pull request as a merge decision: intent, diff, CI, risk, tests, security, and revert plan. |
 | `runbook` | Investigate an incident, alert, or "why is this broken" symptom with a structured runbook. |
@@ -56,18 +55,7 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `wizard` | Generate an interactive bash wizard that walks a human through steps only they can perform. |
 | `writing-for-agents` | Writing documents for agents. |
 
-The principle skills, each `skills/workflow/principle-<slug>/SKILL.md`:
-`principle-attack-the-premise`, `principle-boundary-discipline`,
-`principle-encode-lessons-in-structure`, `principle-escalate-after-two-fixes`,
-`principle-exhaust-the-design-space`, `principle-experience-first`,
-`principle-explain-the-number`, `principle-fix-root-causes`,
-`principle-guard-the-context-window`, `principle-laziness-protocol`,
-`principle-make-operations-idempotent`, `principle-minimize-reader-load`,
-`principle-model-the-domain`, `principle-never-block-on-the-human`,
-`principle-no-secrets`, `principle-outcome-oriented-execution`,
-`principle-prove-it-works`, `principle-sequence-verifiable-units`,
-`principle-stay-in-allowed-files`, `principle-subtract-before-you-add`,
-`principle-test-behavior-not-implementation`.
+The principle rules live in `skills/workflow/principles/references/<slug>.md`; the `principles` skill indexes them.
 
 `trivial`, `bugfix`, `feature`, and `refactor` are sections in the `playbooks`
 skill. The other playbooks are files beside it at

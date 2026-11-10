@@ -283,7 +283,7 @@ and the `second-opinion` line for `--review`, passing only the effort as
 
 ## Skills
 
-BottegaStack ships 63 skills in the Claude Code categories plus `workflow/`. The
+BottegaStack ships 42 skills in the Claude Code categories plus `workflow/`. The
 core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 `implementation`, `verification`, `review-code`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
@@ -299,7 +299,7 @@ break outside the diff; both are report-only. `linux-sysadmin`,
 skill; the other playbooks are files beside it at
 `skills/workflow/playbooks/<name>.md`.
 
-Each of the 21 principles is its own `principle-<slug>` skill; `principles` is
+The 15 principles are reference files under `principles/references/`; `principles` is
 the index that keeps the citations stable. Agents and skills cite a principle
 instead of restating a rule, which keeps `agents/master.md` at about 130 lines.
 

@@ -21,7 +21,7 @@ the full task text, the worktree, and the branch.
    `never-push-without-approval`.
 7. Reply with the report format from `implementation`.
 
-See principles `protect-existing-tests` and `stay-in-allowed-files`: never edit,
-delete, skip, or weaken an existing test, and never take a file outside `Allowed
+Never edit, delete, skip, or weaken an existing test (principle
+`test-behavior-not-implementation`), and never take a file outside `Allowed
 files`. If you cannot meet the task, report `STATUS: BLOCKED` with the exact
 blocker. Do not paper over it.
