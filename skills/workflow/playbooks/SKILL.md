@@ -1,6 +1,6 @@
 ---
 name: playbooks
-description: Pick a BottegaStack playbook (trivial, bugfix, feature, refactor, pr-babysit) and a risk modifier (low, standard, high) at Step 0. Use before planning, again after the first builder commit, and whenever a run's scope changes.
+description: Pick a BottegaStack playbook (trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, pr-babysit) and a risk modifier (low, standard, high) at Step 0. Use before planning, again after the first builder commit, and whenever a run's scope changes.
 ---
 
 # Playbooks
@@ -12,6 +12,12 @@ Pick a playbook and risk at Step 0 and track the chosen steps in the todo list. 
 | a reproducible symptom | `bugfix` |
 | normal product work | `feature` |
 | behaviour must not change | `refactor` |
+| a symptom with no clear fix; find the root cause first | `investigate` (see `investigate.md`; read-only) |
+| a metric must improve against a target | `perf` (see `perf.md`) |
+| a question needs a working answer; throwaway code is fine | `prototype` (see `prototype.md`; scratch branch, never merged) |
+| an existing PR or branch needs merge-readiness checks | `ship` (see `ship.md`) |
+| a list of work items to run end to end without supervision | `autopilot` (see `autopilot.md`; stops at a local branch) |
+| stop a run and resume it later with its state intact | `pause` (see `pause.md`; covers pause and resume) |
 | an open PR needs CI or review follow-up | `pr-babysit` |
 Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first. If the user passes `--playbook <playbook>`, use it; `quick` means `trivial` or a small `bugfix`. Work that fits none: use `figure-it-out`.
 ## Risk
@@ -38,9 +44,7 @@ Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first
 4. **Step 4 — Review.** Load `review-code`; review the diff.
 6. **Step 6 — Approval.** Load `approval`; post the decision and explainer and ask with `AskUserQuestion`.
 7. **Step 7 — Closeout.** Load `closeout`; end with the PR body or the merge-commit write-up (Done / Evidence / Claims).
-`Done: <what changed>`
-`Evidence: <verbatim before/after output>`
-`Claims: measured | inferred | guessed`
+`Done: <what changed>` · `Evidence: <verbatim before/after output>` · `Claims: measured | inferred | guessed`
 ## bugfix
 0. **Step 0 — Route and diagnose.** Load `diagnosis`; reproduce the symptom. A small fix takes the light path; otherwise run `maestro start "<title>"` and track the steps in the todo list.
 1. **Step 1 — SPEC.** For a run, spawn `planner`; it returns the SPEC as its final reply. Save it with `maestro spec <slug> [file]`.
@@ -51,9 +55,7 @@ Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first
 6. **Step 6 — Approval.** Load `approval`; present the decision, not a file.
 7. **Step 7 — Closeout.** Load `closeout`; default is a PR whose body carries the write-up.
 8. **Step 8 — Close.** Show the failing test passing, verbatim. For a run, run `maestro report --retro --exit-code`; load `session-retro` if it exits 1.
-`Done: <fix>`
-`Evidence: <failing then passing output>`
-`Claims: measured | inferred | guessed`
+`Done: <fix>` · `Evidence: <failing then passing output>` · `Claims: measured | inferred | guessed`
 ## feature
 0. **Step 0 — Route and set up.** Confirm the playbook and risk. Run `maestro start "<title>"`; it prints the run, branch, and state directory. Track the steps in the todo list.
 1. **Step 1 — SPEC.** Load `interview`; ask with `AskUserQuestion` (answers live in chat and the PR body). Spawn `planner`; it returns the SPEC as its final reply. Save it with `maestro spec <slug> [file]`; check the task graph and confirm the printed task count.
@@ -64,9 +66,7 @@ Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first
 6. **Step 6 — Approval.** Load `approval`; read the SPEC, the checks, and the review replies, and present the decision and explainer with `AskUserQuestion`.
 7. **Step 7 — Closeout.** Load `closeout`; default is a PR whose body carries Done / Evidence / Claims and the acceptance mapping; a merge commit carries the same text.
 8. **Step 8 — Close.** Run `maestro report --retro --exit-code`; load `session-retro` if it exits 1.
-`Done: <feature>`
-`Evidence: <check and review output>`
-`Claims: measured | inferred | guessed`
+`Done: <feature>` · `Evidence: <check and review output>` · `Claims: measured | inferred | guessed`
 ## refactor
 0. **Step 0 — Route and set up.** Run `maestro start "<title>"`. State the behaviour that must not change and capture tests for it. Track the steps in the todo list.
 1. **Step 1 — SPEC.** Spawn `planner`; it returns the SPEC as its final reply. Save it with `maestro spec <slug> [file]`.
@@ -77,11 +77,7 @@ Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first
 6. **Step 6 — Approval.** Load `approval`; present the decision, not a file.
 7. **Step 7 — Closeout.** Load `closeout`; default is a PR whose body carries the write-up.
 8. **Step 8 — Close.** Show before/after test output proving behaviour is unchanged; run `maestro report --retro --exit-code`.
-`Done: <refactor>`
-`Evidence: <green tests before and after>`
-`Claims: measured | inferred | guessed`
+`Done: <refactor>` · `Evidence: <green tests before and after>` · `Claims: measured | inferred | guessed`
 ## pr-babysit
 Use `pr-babysit.md`: watch read-only, triage, fix through the light path (`$STATE/quick/<slug>/`), track the steps in the todo list, and push only after `AskUserQuestion` approval. End with the PR write-up.
-`Done: <PR state>`
-`Evidence: <verbatim gh output>`
-`Claims: measured | inferred | guessed`
+`Done: <PR state>` · `Evidence: <verbatim gh output>` · `Claims: measured | inferred | guessed`
