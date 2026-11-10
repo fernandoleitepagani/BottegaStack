@@ -43,7 +43,7 @@ Never weaken, skip, or delete a test to move the condition. Treat that as a fail
 
 ## 4. Reply
 
-The goal, the condition and its final state, iterations run, what was kept and what was reverted, the branch and commits, the cap used, and `maestro log <slug>` output. Close the loop todo item, load `ketchup` if the user was away, and end on a ready local branch.
+The goal, the condition and its final state, iterations run, what was kept and what was reverted, the branch and commits, the cap used, and `maestro log <slug>` output. Close the loop todo item, run `maestro report --close <slug> --playbook autonomous-run --risk <r> --outcome <done|capped|stopped>`, load `ketchup` if the user was away, and end on a ready local branch.
 
 ## Gotchas
 
