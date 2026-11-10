@@ -5,7 +5,7 @@ description: Use when a project has no `.claude/skills/verify-*` skill, or when 
 
 # Create a verification skill
 
-Turn a project's real start, drive, and proof path into a project skill that `verification` loads. The next agent reads it cold, mid-task, having never seen the project. The approach follows pstack's `create-verification-skill` (Cursor, Lauren Tan), adapted to BottegaStack.
+Turn a project's real start, drive, and proof path into a project skill that `verification` loads. The next agent reads it cold, mid-task, having never seen the project. The approach follows pstack's `create-verification-skill` (Lauren Tan, MIT), adapted to BottegaStack.
 
 ## 1. Interview the repo, not the user
 

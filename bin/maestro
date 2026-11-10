@@ -835,7 +835,7 @@ builder_init() {
     echo "exists: $keyfile"
   else
     if [ -t 0 ]; then
-      read -rsp "OpenCode Go API key (hidden; Enter to skip): " k || true
+      read -rsp "Builder API key (hidden; Enter to skip): " k || true
       echo
     else
       read -r k || true
@@ -848,7 +848,7 @@ builder_init() {
       echo "skipped: no key entered. Add it later: write it to $keyfile (mode 600)."
     fi
   fi
-  echo "Then check with: maestro build --check"
+  echo "Set ANTHROPIC_BASE_URL and the model names in $file, then check with: maestro build --check"
 }
 
 # maestro build <run> <task> [--revise <findings>] [--block | --wait]
@@ -927,10 +927,23 @@ build_status() {
 
 # Start a detached headless run, so a timeout or kill of the caller cannot stop
 # it. The optional agent and tool arguments default to the builder's.
+# with_timeout <seconds> <cmd...>: GNU timeout, Homebrew gtimeout, or a perl
+# alarm on a stock macOS (exit 142 there instead of 124).
+with_timeout() {
+  if command -v timeout >/dev/null 2>&1; then timeout "$@"
+  elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$@"
+  else perl -e 'alarm shift; exec @ARGV' "$@"
+  fi
+}
+
 start_build_exec() {
   local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}"
   # Empty strings fall back to the builder defaults in cmd_build_exec.
-  setsid "$SELF" _build-exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid" \
+  # setsid detaches the builder from the caller's session; macOS has no setsid,
+  # so fall back to nohup there.
+  local detach=nohup
+  command -v setsid >/dev/null 2>&1 && detach=setsid
+  "$detach" "$SELF" _build-exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid" \
     "${9:-}" "${10:-}" "${11:-}" "${12:-}" \
     </dev/null >/dev/null 2>&1 &
 }
@@ -976,7 +989,7 @@ build_collect() {
 
 # build_usage_lines <who> <rc> <log> <progress>
 build_usage_lines() {
-  echo "$1 exit: $2$([ "$2" = 124 ] && echo " (timed out)")"
+  echo "$1 exit: $2$(case "$2" in 124|142) echo " (timed out)" ;; esac)"
   echo "tokens: $(build_tokens "$3")"
   echo "steps: $(build_steps "$4")"
 }
@@ -1464,7 +1477,7 @@ with open(path, "w") as f:
 PY
     export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
     export BOTTEGA_HEADLESS=1
-    cd "$wt" && timeout "${BOTTEGA_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
+    cd "$wt" && with_timeout "${BOTTEGA_BUILD_TIMEOUT:-1800}" claude -p "$(cat "$promptfile")" --agent "$agent" \
       "${effort_arg[@]}" "${plugin_arg[@]}" \
       --output-format stream-json --verbose \
       "${resume[@]}" \

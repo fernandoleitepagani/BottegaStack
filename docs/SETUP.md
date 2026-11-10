@@ -69,7 +69,8 @@ maestro build --check    # verifies both without printing them
 ```
 
 - `~/.config/bottega/builder.env` (mode 600) holds the endpoint and model names
-  only. The defaults target OpenCode Go and `deepseek-v4.1-flash`.
+  only. Set `ANTHROPIC_BASE_URL` to any Anthropic-compatible endpoint and the
+  model names to the model it serves; `maestro build --check` reports what is missing.
 - `~/.config/bottega/builder.key` (mode 600) holds the API key. It reaches
   `claude` through an `apiKeyHelper` (`maestro keyget`), so it is never in the
   builder's environment or argv. An `ANTHROPIC_AUTH_TOKEN=` line in
@@ -100,7 +101,10 @@ It is the release gate:
 ./scripts/validate.sh
 ```
 
-`scripts/validate.sh` runs `./bin/maestro doctor`.
+`scripts/validate.sh` runs `./bin/maestro doctor`, then `scripts/e2e.sh`: a
+throwaway repo, a stub `claude` that logs its arguments, and about 37 checks over
+runs, specs, checks, gates and proofs, every build path, the hooks, logs, close,
+and worktrees. It prints `ok <step>` or `FAIL <step>`; `KEEP=1` keeps the temp dir.
 
 ## Token savings (optional)
 

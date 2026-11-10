@@ -7,7 +7,7 @@ BottegaStack is a personal agentic development workflow for Claude Code. It turn
 ## What makes it different
 
 - **A master, not a prompt pile.** One agent talks to you. It plans, delegates, checks, and asks; it never writes code itself.
-- **Cheap hands, careful eyes.** Builders run headless on a low-cost model (for example DeepSeek through OpenCode Go), in parallel git worktrees. Claude reviews only when the risk or a finding calls for it.
+- **Cheap hands, careful eyes.** Builders run headless on a low-cost model (any model behind an Anthropic-compatible endpoint, such as DeepSeek), in parallel git worktrees. Claude reviews only when the risk or a finding calls for it.
 - **Your repo stays clean.** Run state lives in the system temp dir. The record is the chat and the PR or merge commit. No stage files, no database, nothing committed.
 - **Hooks enforce it, not hope.** A todo-driven Stop hook keeps a run going; a guard blocks the wrong builder; checks must pass before any review.
 - **Human gates only where they matter.** SPEC approval and the final decision; merge, push, and PR are never automatic.

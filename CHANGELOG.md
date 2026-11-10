@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- `scripts/e2e.sh` (run by `scripts/validate.sh`, so by pre-push and CI) tests every `maestro` command in a throwaway repo with a stub `claude`. Builds now work on macOS: `nohup` when `setsid` is missing, and `gtimeout` or a perl alarm when `timeout` is missing.
+- Claude Code only: removed the Codex `agents/openai.yaml` files and the OpenCode, Cursor, and Codex references; `builder.env.example` is endpoint-neutral (set any Anthropic-compatible `ANTHROPIC_BASE_URL` and model).
 - Fixes: the Stop hook acts only while a run or light-path folder is open (logs in the state root no longer keep it on) and no longer uses a machine-wide `pgrep`; `maestro report --close` also closes light-path runs; the builder guard and the headless runner use the namespaced plugin agents (`bottega:builder`, `bottega:review-code`), so builds keep working without an old copy-install; `simplify` replies instead of writing `simplify.md`; CI installs the Claude CLI so `claude plugin validate` actually runs.
 - Simpler: removed `maestro stack` (about 330 lines); at Step 0 the explorer reads the manifests once for both the `## Stack` section and `scripts/check`. The retro scan is a short awk over `findings.log` (`--write` removed). The three build paths share their wait, collect, and report helpers.
 - The project pre-commit hook no longer runs `maestro doctor` (pre-push runs the checks); the project settings template allows `Bash(maestro:*)`. Plugin version 0.6.0.
@@ -43,7 +45,7 @@
 - `principles` skill with the named shared rules, and `/pagani-models`, which writes `~/.claude/rules/pagani-models.md`.
 - `pr-babysit` playbook and a `loop`-based rule for waiting on external events instead of idling.
 - CI (`.github/workflows/ci.yml`) runs the lint on Ubuntu and macOS, checks that the generated command is fresh, and validates the plugin manifests when `claude` is available.
-- Claude Code is the only runtime (OpenCode, model variants, evals, network allowlist removed).
+- Claude Code is the only runtime (other platforms, model variants, evals, network allowlist removed).
 - Headless builder: `pagani build <run> <task>` runs the builder in the background with a budget, timeout, and slim tool set; `pagani build --status <run> [--every <s>]` prints one progress line, which the master posts via `Monitor`.
 - The master runs as the main agent (`claude --agent master`) and answers pure questions without a run; the plugin's hooks carry the builder guard and Stop behaviour.
 - Guards and hooks: builder guard, `Stop` hook (no ending a turn mid-pipeline unless a builder or check is running), pre-commit refusal of project files.

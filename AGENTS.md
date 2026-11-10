@@ -36,9 +36,12 @@ A personal agentic development workflow, shipped as the Claude Code plugin
   manifests, the master confirms the profile and writes that section.
 - Builds report `tokens: in <n> out <n>` and `steps: <n>`; the 30-minute
   `BOTTEGA_BUILD_TIMEOUT` is the only stop.
-- Claude Code is the only supported runtime. Do not add OpenCode files back.
+- Claude Code is the only supported runtime. Do not add files or references for
+  other agent platforms.
 - `./scripts/validate.sh` is the release gate. It runs `./bin/maestro doctor`,
-  which runs `scripts/lint.sh` when it is present. `doctor` also warns on a
+  which runs `scripts/lint.sh` when it is present, then `scripts/e2e.sh`, which
+  drives every `maestro` command in a throwaway repo with a stub `claude` (no
+  model, no network). `doctor` also warns on a
   missing gitleaks, a tracked `.env`, no dependency-update config, and no CI
   security job.
 - Skills are folders grouped by category; the plugin manifest lists each
