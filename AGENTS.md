@@ -12,17 +12,32 @@ A personal agentic development workflow, shipped as the Claude Code plugin
 ## Rules
 
 - Keep skill names standalone. Do not use a `bottega-` prefix.
-- Keep the Claude Code categories plus `workflow/`.
+- Keep the Claude Code categories plus `workflow/`; `sysadmin`, `containers`, and
+  `devops` cover host, container, and shell work.
 - Do not add paid skills or skills that require paid assets.
 - Do not add cloud-session workflows.
 - Playbooks are the pipeline router; keep `skills/workflow/playbooks/SKILL.md`
-  and the master consistent.
-- Agents have no tier variants. The master picks a tier per call with the Agent
-  tool's `model` parameter, routed by `~/.claude/rules/bottega-models.md` when it
-  exists; each agent's frontmatter `model:` is the default.
+  and the master consistent. `trivial`, `bugfix`, `feature`, and `refactor` are
+  sections there; `investigate`, `perf`, `prototype`, `ship`, `autopilot`,
+  `pause`, and `pr-babysit` are files beside it.
+- Cheap first-pass review: for `low` risk the master runs `maestro build --review
+  <run> <task> --block` (headless) first; no findings means no Claude reviewer,
+  any finding means `review-code` runs. `standard` and `high` are unchanged.
+- Agents have no tier variants. The master picks the model and effort per call
+  with the Agent tool's `model` and `effort` parameters, routed by
+  `~/.claude/rules/bottega-models.md` when it exists; each line is
+  `role: value, effort` (`value` a Claude alias or `headless`, `effort`
+  `low|medium|high`) and each agent's frontmatter is the default. The headless
+  runner reads the `builder` and `second-opinion` lines for `--effort`.
+- At Step 0 the master runs `maestro stack`, confirms the detected profile, and
+  writes it into the `## Stack` section of `AGENTS.md`.
+- Builds report `tokens: in <n> out <n>` and `steps: <n>`; the 30-minute
+  `BOTTEGA_BUILD_TIMEOUT` is the only stop.
 - Claude Code is the only supported runtime. Do not add OpenCode files back.
 - `./scripts/validate.sh` is the release gate. It runs `./bin/maestro doctor`,
-  which runs `scripts/lint.sh` when it is present.
+  which runs `scripts/lint.sh` when it is present. `doctor` also warns on a
+  missing gitleaks, a tracked `.env`, no dependency-update config, and no CI
+  security job.
 - Skills are folders grouped by category; the plugin manifest lists each
   category directory. Prefer references, scripts, and assets over one long file.
 - Every skill has a trigger-rich description and a Gotchas section where useful.
@@ -51,12 +66,13 @@ Prefer the highest item that actually prevents recurrence.
 
 ## Commands
 
-BottegaStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
-`start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and `hooks`.
-(`guard` and `keyget` are internal hook entry points, not user commands.)
+BottegaStack has these top-level commands: `doctor`, `stack`, `init`, `seed`,
+`upgrade`, `start`, `spec`, `check`, `gate`, `report`, `build`, `worktree`, and
+`hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
 ./bin/maestro doctor
+./bin/maestro stack
 ./scripts/validate.sh
 ./bin/maestro init /tmp/example
 ./bin/maestro seed GLOSSARY.md
@@ -66,10 +82,14 @@ BottegaStack has these top-level commands: `doctor`, `init`, `seed`, `upgrade`,
 ./bin/maestro check <run>
 ./bin/maestro gate <run> [--allow-dirty]
 ./bin/maestro report [--retro] [--write] [--exit-code]
-./bin/maestro build <run> <task> [--revise <file|->]
-./bin/maestro build --here <slug> --task "<text>"
-./bin/maestro build --review <run> <task>
+./bin/maestro report --close <run>
+./bin/maestro report --finding <run> "<title>"
+./bin/maestro build <run> <task> [--revise <file|->] [--block|--wait]
+./bin/maestro build --here <slug> --task "<text>" [--block|--wait]
+./bin/maestro build --review <run> <task> [--block|--wait]
+./bin/maestro build --review --here <slug> [--block|--wait]
 ./bin/maestro build --status <run> [--every <seconds>]
 ./bin/maestro worktree create <run> <task>
+./bin/maestro worktree prune <run> [--force]
 ./bin/maestro hooks install [path]
 ```

@@ -5,6 +5,14 @@ description: Handle the BottegaStack human decision and final git actions. Use a
 # BottegaStack Closeout
 The master recommends. The human decides. Execute only what the human explicitly asks for.
 The default closeout is a pull request whose body is the run's written record.
+## Merge-readiness gate
+Before presenting merge or PR options, run the `ship` checklist against the branch or PR and show every item:
+- CI checks all green via `gh pr checks <n>` when a PR exists (`./scripts/check` for a branch only).
+- Security checks passed.
+- An independent `review-code` of the latest commit (`git rev-parse HEAD`), by a reviewer who did not write it.
+- Review threads resolved.
+- Manual testing noted.
+List each unmet item with its verbatim command output. Unmet items are shown to the user and **block the "Approve and merge" option**: do not offer or run the merge until each is fixed or the user explicitly waives it with `AskUserQuestion`. Record any waiver in the merge-commit message. A fully met checklist is not consent; still ask.
 ## Present
 Draft the write-up first, then present it. Show the master's decision and why, the
 acceptance-criteria mapping, the explainer, the quiz and its answers for `feature`,

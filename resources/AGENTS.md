@@ -9,7 +9,10 @@ not obvious facts the code already shows.
 
 ## Stack
 
-<framework, language, package manager, database, hosting>
+- Language: <language>
+- Package manager: <package manager>
+- Commands: `lint=<command>` `test=<command>` `build=<command>`
+- Conventions: <naming, layout, imports>
 
 ## Commands
 

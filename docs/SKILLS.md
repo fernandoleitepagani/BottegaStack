@@ -1,8 +1,10 @@
 # Skills
 
-BottegaStack ships 58 skills. A skill is a folder with a `SKILL.md`. The plugin
+BottegaStack ships 63 skills. A skill is a folder with a `SKILL.md`. The plugin
 manifest lists each category directory (`skills/<category>`), and Claude Code
-discovers the skills inside it, so skills stay grouped by category.
+discovers the skills inside it, so skills stay grouped by category. The
+categories include `sysadmin`, `containers`, and `devops` for host, container,
+and shell work.
 
 `/maestro` only starts, shows status, and resumes a run. Every other skill is
 invoked by name (`/wizard`, `/review-pr`, ...). Inside a run the master loads the
@@ -14,6 +16,8 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `approval` | Act as the BottegaStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, and presents the decision, explainer, and (for feature/refactor/high risk) a quiz to the human; the decision is recorded in the PR body or merge commit. |
 | `automate-me` | Draft a personal "mode" skill from your own Claude Code transcripts, after explicit go-ahead and draft approval. |
 | `backlog-triage` | Move items in a local BACKLOG.md through a small state machine, verify them, grill if needed, and write an agent-ready brief. |
+| `bash-scripting` | Create, review, and debug Bash or POSIX sh scripts where portability, quoting, failure handling, or shell validation matters; read-only by default. |
+| `blast-radius` | Find what a change could break outside the diff: map dependents, name the key safety fact, and prove or disprove it with a real run; report-only. |
 | `closeout` | Handle the BottegaStack human decision and final git actions; the default is a PR whose body carries the write-up, and a merge commit carries the same text. |
 | `codebase-design` | Shared vocabulary for designing deep modules. |
 | `create-verification-skill` | Discover how to start a project and prove changes work, then write a project `.claude/skills/verify-<project>/` skill after the user approves the draft. |
@@ -24,11 +28,14 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `how` | Explain how code, a module, or a flow works from file:line evidence; read-only, short answer first. |
 | `implementation` | Implement exactly one BottegaStack task with TDD, run the project checks, commit locally, and end the final reply with the report. |
 | `improve-architecture` | Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick. |
-| `infra-ops` | Review dependencies, cost, access, and orphaned resources. |
+| `infra-ops` | Review dependencies, resource use, access, and orphaned resources. |
+| `interrogate` | Report-only stress test of a high-risk change: independent adversaries attack inputs, concurrency, security, and integration; only claims that reproduce twice survive. |
 | `interview` | Conduct the BottegaStack plan interview. |
 | `library-reference` | Document how to use a project's internal library, CLI, SDK, or API correctly. |
+| `linux-sysadmin` | Diagnose and operate Linux hosts, services, packages, permissions, SELinux, firewalls, and SSH; read-only by default. |
 | `planning` | Produce one BottegaStack run SPEC with requirements, decisions, and a tracer-bullet task graph, returned as the reply. |
-| `playbooks` | Choose a playbook (trivial, bugfix, feature, refactor, pr-babysit) and a risk modifier (low, standard, high) at Step 0, take the light path for small work, and escalate when the diff grows or touches a risk path. |
+| `playbooks` | Choose a playbook (trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, pr-babysit) and a risk modifier (low, standard, high) at Step 0, take the light path for small work, and escalate when the diff grows or touches a risk path. |
+| `podman-operator` | Build and operate Podman containers and Quadlet services, rootless or rootful, including networking, volumes, systemd integration, and troubleshooting; read-only by default. |
 | `principle-*` | The 21 named rules, one skill each; the grouped list is below the table. |
 | `principles` | Index of the named rules; cite `principle <slug>` instead of restating a rule. |
 | `review-code` | Review a BottegaStack change for code quality, UI, UX, and security in one pass. |
@@ -62,14 +69,19 @@ The principle skills, each `skills/workflow/principle-<slug>/SKILL.md`:
 `principle-stay-in-allowed-files`, `principle-subtract-before-you-add`,
 `principle-test-behavior-not-implementation`.
 
-The `pr-babysit` playbook lives as a file beside the `playbooks` skill, at
-`skills/workflow/playbooks/pr-babysit.md`.
+`trivial`, `bugfix`, `feature`, and `refactor` are sections in the `playbooks`
+skill. The other playbooks are files beside it at
+`skills/workflow/playbooks/<name>.md`: `investigate`, `perf`, `prototype`,
+`ship`, `autopilot`, `pause`, and `pr-babysit`.
 
 ## Vendored skills
 
 Copied from upstream, with their own licenses (see the license file in each skill folder):
 `wizard`, `writing-for-agents`, `codebase-design`, `domain-modeling` (mattpocock/skills) and
 `web-design-guidelines` (vercel-labs/agent-skills). Other skills are original or adapted.
+
+`linux-sysadmin`, `podman-operator`, and `bash-scripting` are adapted from
+ChrisTitusTech/titstack (MIT); each ends with the credit line.
 
 ## Add a skill
 

@@ -1,6 +1,13 @@
 # Changelog
 
 ## Unreleased
+- New playbooks: `investigate`, `perf`, `prototype`, `ship`, `autopilot`, and `pause` (covers pause and resume); `closeout` gains a merge-readiness gate that blocks merge until unmet items are fixed or waived.
+- Cheap first-pass review: for `low` risk the master runs the headless `maestro build --review` first; only findings escalate to the Claude reviewer.
+- Effort routing: `~/.claude/rules/bottega-models.md` holds `role: value, effort` per role; the master passes both per Agent call and headless builds pass `--effort`.
+- `maestro stack` detects the repo's language, package manager, commands, and frameworks; the master confirms it and records the profile in `AGENTS.md`.
+- `maestro doctor` warns on missing gitleaks, a tracked `.env`, no dependency-update config, and no CI security job.
+- New skills: `interrogate` and `blast-radius` (report-only), plus `linux-sysadmin`, `podman-operator`, and `bash-scripting` in the new `sysadmin`, `containers`, and `devops` categories, adapted from ChrisTitusTech/titstack (MIT).
+- Builds report `tokens: in <n> out <n>` and `steps: <n>`; the USD cap and every cost figure are gone, and the 30-minute timeout is the only stop.
 - Cleanup: removed the dead `claude/global/` snippets, `VERSION` (the plugin manifest is the source), the unused ADR template, the legacy-migration code in `maestro upgrade`, the stale `doctor` upstream-skills check, the local-settings comparison in the lint, and duplicated run-state and project-file docs. Deleted all merged `pagani/*` branches and builder worktrees.
 - Renamed the stack to Bottega: repository and docs `BottegaStack`, plugin `bottega`, CLI and slash command `maestro`, env vars `BOTTEGA_*`, config `~/.config/bottega`, branches `bottega/<slug>`. No compatibility aliases; the `prototype/` research folder is removed.
 - Run state moved out of the repo to a per-repo state directory in the system temp dir (`PAGANI_STATE_DIR` overrides it), shared by worktrees. `pagani start` creates the branch `pagani/<slug>` and the state directory; `pagani spec|check|gate|report` replace `pagani job`, which prints the replacement and exits 2. Nothing is written into the repo or a worktree.
