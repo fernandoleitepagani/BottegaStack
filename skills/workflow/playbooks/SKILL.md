@@ -1,10 +1,10 @@
 ---
 name: playbooks
-description: Pick a PaganiStack playbook (trivial, bugfix, feature, refactor, pr-babysit) and a risk modifier (low, standard, high) at Step 0. Use before planning, again after the first builder commit, and whenever a job's scope changes.
+description: Pick a PaganiStack playbook (trivial, bugfix, feature, refactor, pr-babysit) and a risk modifier (low, standard, high) at Step 0. Use before planning, again after the first builder commit, and whenever a run's scope changes.
 ---
 
 # Playbooks
-Pick a playbook and risk at Step 0, write both to `job.md`, and run only the steps you need. Risk only escalates.
+Pick a playbook and risk at Step 0 and track the chosen steps in the todo list. Run only the steps you need. Risk only escalates.
 ## Route
 | Request | Playbook |
 |---|---|
@@ -16,55 +16,72 @@ Pick a playbook and risk at Step 0, write both to `job.md`, and run only the ste
 Read the request, `AGENTS.md`, `GLOSSARY.md` if it exists, and `REVIEW.md` first. If the user passes `--playbook <playbook>`, use it; `quick` means `trivial` or a small `bugfix`. Work that fits none: use `figure-it-out`.
 ## Risk
 `low` internal and reversible; `standard` the default; `high` for auth, payments, data/schema/migrations, deploy/CI config, installers, dependency changes, secrets handling, or any glob under `## Risk paths` in `REVIEW.md` (a missing file means none; defaults in `resources/REVIEW.md`).
-`high` adds `adversarial-review`, `simplify`, `review-code` (`model: opus`), and `pagani build --review <job> <task> [--block]`, which writes `.agents/plans/<job>/build/<task>.review2.md`. After the first builder commit run `git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD`; escalate if a risk glob is touched, ~300 lines change, or the scope grows. Never downgrade.
+`high` adds `adversarial-review`, `simplify`, `review-code` (`model: opus`), and `pagani build --review <slug> <task> [--block]`; findings come back as the reviewer's reply, copied to `build/<task>.review2.md` in the state directory. After the first builder commit run `git diff --stat <base>...HEAD` and `git diff --name-only <base>...HEAD`; escalate if a risk glob is touched, ~300 lines change, or the scope grows. Never downgrade.
+## Runs and state
+- A **run** is one execution of a playbook. Its id is the slug; its branch is `pagani/<slug>`; its state is `$STATE/<slug>/`. `STATE` is the per-repo state directory in the system temp dir (`PAGANI_STATE_DIR` overrides it), shared by worktrees. Nothing is written inside the repo or the worktree.
+- `pagani start "<title>"` creates the branch and state directory and prints `run:`, `branch:`, and `state:`. It auto-inits the project and requires a clean tree.
+- The planner returns the SPEC as its final reply; save it with `pagani spec <slug> [file]`, which extracts `tasks/<n>.md` and prints the task count.
+- Human-readable records live in chat and the PR or merge commit: interview answers, summaries, handoffs, decisions, per-round reviews, builder reports, and check output. Reviewers and builders return their report as the reply; there is no report file to write.
+- Track steps with the todo list: `TodoWrite`, or `TaskCreate`/`TaskUpdate`/`TaskList`/`TaskGet` when `TodoWrite` is unavailable. One item per task; mark it `in_progress` at build start and `completed` at the end. Keep a skipped step with a one-line skip reason.
 ## Common rules
-- **Light path:** `trivial` and small `bugfix` use branch `.agents/quick-<slug>` and `pagani build --here <slug> --task "<text>" [--block]`; no job folder, SPEC, or worktree. State lives in `.agents/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`, `builder.log`).
+- **Light path:** `trivial` and small `bugfix` use `pagani build --here <slug> --task "<text>" [--block]`; no SPEC or worktree; state lives in `$STATE/quick/<slug>/` and commits land on the current branch.
+- **Checks:** `pagani check <slug>` runs `./scripts/check` and writes `checks.log` and `checks.result` in the state directory. `pagani gate <slug>` fails on a dirty tree, a failed check, or stale checks; run it before approval and before a merge.
+- **Commit order:** in `bugfix` and `feature` commit the failing test first (a commit that changes only test files), then the fix. `pagani gate` prints `warning: no failing-test commit before the fix` when the first non-test commit comes first.
 - **Waiting on external events:** do not sleep-poll. Invoke the `loop` skill with a stated interval (120s for CI, 300s for a long build) and cap (for example 20 checks); stop when the condition is met or the cap is reached, and report the last state.
-- **Every playbook ends with Steps 6 and 7:** the decision goes through `AskUserQuestion`, even on the light path (no job files).
-- **Every job:** at start copy the matched playbook's steps verbatim into `TodoWrite`, and keep a skipped step with a one-line skip reason; at the end reply with verbatim before/after evidence and label each claim measured, inferred, or guessed (see principle `prove-it-works`).
+- **Every playbook ends with Steps 6 and 7:** load `approval` and `closeout`; the decision goes through `AskUserQuestion`, even on the light path. The default closeout is a PR whose body carries the write-up; a local merge writes the same text in the merge-commit message.
+- **Every run:** at start copy the matched playbook's steps verbatim into the todo list; at the end reply with verbatim before/after evidence and label each claim measured, inferred, or guessed (see principle `prove-it-works`).
 - **Gotchas:** classify by risk path, not file count; re-run the diff check after the first builder commit; one `review-code` covers UI, UX, and security; the project check still runs on `trivial`.
 ## trivial
-1. Create branch `.agents/quick-<slug>`.
-2. Run `pagani build --here <slug> --task "<text>" --block`.
-3. Run `./scripts/check` and fix any failure.
-4. Run `review-code` on the diff.
-5. Post the before/after evidence.
-6. Ask the decision with `AskUserQuestion` (Steps 6-7); a chat summary alone is never enough.
+0. **Step 0 — Route and set up.** Docs, copy, comments, or config only; no behaviour change. Record the plan in the todo list.
+2. **Step 2 — Build.** Run `pagani build --here <slug> --task "<text>" --block`; commits land on the current branch and state is `$STATE/quick/<slug>/`.
+3. **Step 3 — Checks.** Run `./scripts/check` and fix any failure; post the output.
+4. **Step 4 — Review.** Load `review-code`; review the diff.
+6. **Step 6 — Approval.** Load `approval`; post the decision and explainer and ask with `AskUserQuestion`.
+7. **Step 7 — Closeout.** Load `closeout`; end with the PR body or the merge-commit write-up (Done / Evidence / Claims).
 `Done: <what changed>`
 `Evidence: <verbatim before/after output>`
 `Claims: measured | inferred | guessed`
 ## bugfix
-1. Load `diagnosis`; reproduce the symptom.
-2. Write a failing test first.
-3. If the change is small use the light path (`pagani build --here <slug> --task "<text>" --block`); otherwise `pagani job new` and a SPEC.
-4. Run `./scripts/check`.
-5. Run `review-code`.
-6. Show the failing test passing.
+0. **Step 0 — Route and diagnose.** Load `diagnosis`; reproduce the symptom. A small fix takes the light path; otherwise run `pagani start "<title>"` and track the steps in the todo list.
+1. **Step 1 — SPEC.** For a run, spawn `planner`; it returns the SPEC as its final reply. Save it with `pagani spec <slug> [file]`.
+2. **Step 2 — Build.** Commit the failing test first (test files only), then the fix; `pagani gate` warns if the first non-test commit comes first. Light path: `pagani build --here <slug> --task "<text>" --block`. Run: `pagani worktree create <slug> <task>`, then `pagani build <slug> <task> --block`.
+3. **Step 3 — Checks.** Light path: `./scripts/check`. Run: `pagani check <slug>`, then `pagani gate <slug>`.
+4. **Step 4 — Review.** Load `review-code`; findings return as the reply.
+5. **Step 5 — Fix.** Pass findings back with `pagani build <slug> <task> --revise <file|->`; max two rounds.
+6. **Step 6 — Approval.** Load `approval`; present the decision, not a file.
+7. **Step 7 — Closeout.** Load `closeout`; default is a PR whose body carries the write-up.
+8. **Step 8 — Close.** Show the failing test passing, verbatim. For a run, run `pagani report --retro --exit-code`; load `session-retro` if it exits 1.
 `Done: <fix>`
 `Evidence: <failing then passing output>`
 `Claims: measured | inferred | guessed`
 ## feature
-1. Load `interview`; ask with `AskUserQuestion` and write `interview.md`.
-2. Spawn `planner` to write `SPEC.md`; run `pagani seed SPEC.md` if it is missing.
-3. Run `pagani job new "<title>"`; write `Playbook`/`Risk` to `job.md`.
-4. For each ready task run `pagani worktree create <job> <task>`, then `pagani build <job> <task> --block`; when `pagani build --check` passes builders run headless on the model in `builder.env`.
-5. Run `pagani job check`, then `review-code`; write `summary.md` at this checkpoint.
-6. Load `approval`, write `decision.md`, load `closeout`, then run `pagani job report --retro --exit-code`.
+0. **Step 0 — Route and set up.** Confirm the playbook and risk. Run `pagani start "<title>"`; it prints the run, branch, and state directory. Track the steps in the todo list.
+1. **Step 1 — SPEC.** Load `interview`; ask with `AskUserQuestion` (answers live in chat and the PR body). Spawn `planner`; it returns the SPEC as its final reply. Save it with `pagani spec <slug> [file]`; check the task graph and confirm the printed task count.
+2. **Step 2 — Build.** Track one todo item per task. For each ready task run `pagani worktree create <slug> <task>`, then `pagani build <slug> <task> --block`; when `pagani build --check` passes builders run headless on the model in `builder.env`. Commit the failing test first, then the fix; `pagani gate` warns when the order is wrong.
+3. **Step 3 — Checks.** `pagani check <slug>`, then `pagani gate <slug>`; on failure load `diagnosis` and pass the findings to a fresh builder.
+4. **Step 4 — Review.** Spawn `review-code`; findings return as the reply. `high` adds `adversarial-review` and `simplify`. Post the summary in chat.
+5. **Step 5 — Fix.** Pass findings back with `pagani build <slug> <task> --revise <file|->`; max two rounds, then escalate.
+6. **Step 6 — Approval.** Load `approval`; read the SPEC, the checks, and the review replies, and present the decision and explainer with `AskUserQuestion`.
+7. **Step 7 — Closeout.** Load `closeout`; default is a PR whose body carries Done / Evidence / Claims and the acceptance mapping; a merge commit carries the same text.
+8. **Step 8 — Close.** Run `pagani report --retro --exit-code`; load `session-retro` if it exits 1.
 `Done: <feature>`
 `Evidence: <check and review output>`
 `Claims: measured | inferred | guessed`
 ## refactor
-1. State the behaviour that must not change and capture tests for it.
-2. Expand: add the new seam beside the old one.
-3. Migrate callers and run `./scripts/check` after each step.
-4. Contract: delete the old path; keep tests green.
-5. For each unit run `pagani build <job> <task> --block`, then `review-code`.
-6. Show before/after test output proving behaviour is unchanged.
+0. **Step 0 — Route and set up.** Run `pagani start "<title>"`. State the behaviour that must not change and capture tests for it. Track the steps in the todo list.
+1. **Step 1 — SPEC.** Spawn `planner`; it returns the SPEC as its final reply. Save it with `pagani spec <slug> [file]`.
+2. **Step 2 — Build.** Expand: add the new seam beside the old one. Migrate callers and run `pagani check <slug>` after each step. Contract: delete the old path; keep tests green. For each unit run `pagani worktree create <slug> <task>`, then `pagani build <slug> <task> --block`; use the light path for small units.
+3. **Step 3 — Checks.** `pagani check <slug>`, then `pagani gate <slug>`.
+4. **Step 4 — Review.** Load `review-code`; findings return as the reply.
+5. **Step 5 — Fix.** Pass findings back with `pagani build <slug> <task> --revise <file|->`; max two rounds.
+6. **Step 6 — Approval.** Load `approval`; present the decision, not a file.
+7. **Step 7 — Closeout.** Load `closeout`; default is a PR whose body carries the write-up.
+8. **Step 8 — Close.** Show before/after test output proving behaviour is unchanged; run `pagani report --retro --exit-code`.
 `Done: <refactor>`
 `Evidence: <green tests before and after>`
 `Claims: measured | inferred | guessed`
 ## pr-babysit
-Use `pr-babysit.md`: watch read-only, triage, fix through the light path, and push only after `AskUserQuestion` approval.
+Use `pr-babysit.md`: watch read-only, triage, fix through the light path (`$STATE/quick/<slug>/`), track the steps in the todo list, and push only after `AskUserQuestion` approval. End with the PR write-up.
 `Done: <PR state>`
 `Evidence: <verbatim gh output>`
 `Claims: measured | inferred | guessed`
