@@ -51,12 +51,12 @@ After installing:
 
 ```json
 {
-  "agent": "master",
+  "agent": "bottega:master",
   "permissions": { "allow": ["Bash(maestro:*)"] }
 }
 ```
 
-Then run `claude --agent master` (the `agent` setting also does this). Details,
+Then run `claude --agent bottega:master` (the `agent` setting also does this). Details,
 including the manual steps a plugin cannot do: [docs/SETUP.md](docs/SETUP.md).
 
 In a project there is nothing to set up: open Claude Code there and run

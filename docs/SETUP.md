@@ -48,12 +48,12 @@ A plugin cannot change your global Claude Code config, so set these yourself:
 
   ```json
   {
-    "agent": "master",
+    "agent": "bottega:master",
     "permissions": { "allow": ["Bash(maestro:*)"] }
   }
   ```
 
-  `claude --agent master` works without the `agent` key.
+  `claude --agent bottega:master` works without the `agent` key.
 - The plugin does not write `~/.claude/CLAUDE.md`. Put global instructions
   there yourself.
 - The plugin does not install a launcher into `~/.local/bin`. `maestro` is on
