@@ -900,17 +900,22 @@ builder_init() {
 #            itself is capped by BOTTEGA_BUILD_TIMEOUT (default 1800 s = 30 min).
 # One status line for a run: done/running/queued counts plus running tasks.
 build_status_line() {
-  local rundir="$1" bdir="$1/build" n=0 d=0 r=0 q=0 t f sl="" last
+  local rundir="$1" bdir="$1/build" n=0 d=0 r=0 q=0 t f sl="" last status=""
   local seen="" cnt
   if [ -f "$rundir/run" ] || [ -f "$rundir/report.md" ] || [ -f "$rundir/progress" ]; then
-    # Light path: one builder, state sits beside the slug.
+    # Light path: one builder, state sits beside the slug. A collected build
+    # (no run file) is always finished, so a light builder is never queued.
     n=1
-    if [ -f "$rundir/report.md" ] && grep -q 'STATUS: DONE' "$rundir/report.md"; then
-      d=1
-    elif [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then
+    if [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then
       r=1
       last="$(tail -n 1 "$rundir/progress" 2>/dev/null | cut -c1-60 || true)"
       sl=" │ $(basename "$rundir"): $(wc -l < "$rundir/progress" 2>/dev/null | tr -d ' ' || echo 0) steps, last ${last:--}"
+    else
+      d=1
+      if [ -f "$rundir/report.md" ]; then
+        status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$rundir/report.md" 2>/dev/null || echo 'STATUS: UNKNOWN')"
+        sl=" │ $(basename "$rundir"): $status"
+      fi
     fi
     q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
     echo "Builders $d/$n done · $r running · $q queued$sl"
