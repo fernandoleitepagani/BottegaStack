@@ -11,7 +11,8 @@ BottegaStack is a personal agentic development workflow for Claude Code. It turn
 - **Your repo stays clean.** Run state lives in the system temp dir. The record is the chat and the PR or merge commit. No stage files, no database, nothing committed.
 - **Hooks enforce it, not hope.** A todo-driven Stop hook keeps a run going; a guard blocks the wrong builder; checks must pass before any review.
 - **Human gates only where they matter.** SPEC approval and the final decision; merge, push, and PR are never automatic.
-- **Playbooks for real work.** `bugfix`, `feature`, `refactor`, `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, `eval`, `pr-babysit`, plus 50 skills including sysadmin, containers, and shell.
+- **Playbooks for real work.** `bugfix`, `feature`, `refactor`, `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `pause`, `eval`, `pr-babysit`, plus 62 skills including design and UI, sysadmin, containers, and shell.
+- **UI that does not look generated.** A `design` skill set (`frontend-design`, `animation`, `better-ui` and its `better-*` siblings, `web-design-guidelines`, `interface-review`, `agentation`). Builders use `frontend-design`, `animation`, and `better-ui` whenever they create, change, or polish UI.
 
 A run is one execution of a playbook. Its id is the branch slug, its branch is
 the one you are on, and its state lives outside the checkout in a per-repo state
@@ -109,9 +110,13 @@ Other skills are invoked directly by name, for example `/wizard`,
 
 ### Skills
 
+UI skills live in `skills/design/`; the rest are grouped by category under `skills/`.
+
 | Skill | What it does |
 |---|---|
 | `adversarial-review` | Tries to break a risky change before the normal review. |
+| `agentation` | Adds a visual feedback toolbar so you can point at UI for the agent. |
+| `animation` | Motion and transition patterns for React UIs. |
 | `approval` | Decides approve or escalate, with an explainer, before you choose. |
 | `architect` | Designs the shape twice before any code (you start it). |
 | `arena` | Has 2-3 builders try the same task and keeps the best (you start it). |
@@ -119,6 +124,13 @@ Other skills are invoked directly by name, for example `/wizard`,
 | `autonomous-run` | Works toward a checkable goal on its own, one change at a time (you start it). |
 | `backlog-triage` | Sorts a local backlog into ready-to-build briefs. |
 | `bash-scripting` | Writes and fixes safe shell scripts. |
+| `better-accessibility` | Checks keyboard, focus, ARIA, forms, and motion against WCAG 2.2. |
+| `better-colors` | Builds color palettes and tokens and checks contrast. |
+| `better-interface` | Reviews a whole screen or flow across all the design skills in one report. |
+| `better-layout` | Sets grouping, alignment, and responsive structure. |
+| `better-typography` | Sets type scale, spacing, font features, and wrapping. |
+| `better-ui` | Exact polish values for surfaces, icons, and motion. |
+| `better-writing` | Writes and reviews interface copy: labels, errors, empty states. |
 | `blast-radius` | Finds what a change could break elsewhere. |
 | `closeout` | Runs your final choice: merge, PR, push, rework, or reject. |
 | `codebase-design` | Vocabulary for designing simple, deep modules. |
@@ -128,10 +140,12 @@ Other skills are invoked directly by name, for example `/wizard`,
 | `diagnosis` | Turns a failure into a precise fix brief. |
 | `domain-modeling` | Keeps the project's terms and decisions consistent. |
 | `figure-it-out` | Builds a one-off plan when no playbook fits. |
+| `frontend-design` | Distinctive visual design instead of template defaults. |
 | `how` | Explains how some code works. |
 | `implementation` | The builder's procedure: test first, build, check, commit. |
 | `improve-architecture` | Finds places to simplify the design, as a visual report. |
 | `infra-ops` | Reviews dependencies, cost, access, and leftover resources. |
+| `interface-review` | Reviews a branch or PR for the UI problems it introduced (you start it). |
 | `interrogate` | Stress-tests a change; keeps only problems it can reproduce. |
 | `interview` | Asks the questions needed before planning. |
 | `ketchup` | Catches you up and lists what is waiting on you. |
@@ -152,6 +166,7 @@ Other skills are invoked directly by name, for example `/wizard`,
 | `show-me-your-work` | Keeps a log of each decision for later review. |
 | `simplify` | Removes extra code and useless comments before review. |
 | `summary` | Posts a short update after each step. |
+| `teach` | Teaches you a topic or part of the code, step by step, with checks (you start it). |
 | `unslop` | Removes AI-sounding phrasing from text. |
 | `untrusted-content` | Treats outside text as data, never as instructions. |
 | `verification` | Proves each requirement with a real command and records it. |

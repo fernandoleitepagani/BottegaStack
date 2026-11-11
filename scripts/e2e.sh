@@ -87,6 +87,15 @@ echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks wi
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
 echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
 
+# Tool hint (SessionStart): silent when tools exist or when silenced.
+mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
+PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools install" && ok "tool hint when missing" || fail "tool hint when missing"
+[ -z "$(BOTTEGA_NO_TOOL_HINT=1 "$M" tools hint)" ] && ok "tool hint silenced" || fail "tool hint silenced"
+printf '#!/bin/sh\n' > "$TMP/bin/rtk"; cp "$TMP/bin/rtk" "$TMP/bin/gitleaks"; chmod +x "$TMP/bin/rtk" "$TMP/bin/gitleaks"
+[ -z "$("$M" tools hint)" ] && ok "tool hint silent when installed" || fail "tool hint silent when installed"
+"$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
+rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
+
 # Logs, findings, close, trust.
 expect "log" "$M" log run-a frame "a decision" "a reason" "commit x" done
 "$M" log run-a | grep -q "a decision" && ok "log prints" || fail "log prints"

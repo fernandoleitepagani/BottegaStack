@@ -1,6 +1,6 @@
 # Skills
 
-BottegaStack ships 50 skills. A skill is a folder with a `SKILL.md`. The plugin
+BottegaStack ships 62 skills. A skill is a folder with a `SKILL.md`. The plugin
 manifest lists each category directory (`skills/<category>`), and Claude Code
 discovers the skills inside it, so skills stay grouped by category. The
 categories include `sysadmin`, `containers`, and `devops` for host, container,
@@ -13,6 +13,8 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | Skill | Purpose |
 |---|---|
 | `adversarial-review` | Fresh-eyes review that tries to break a change before the normal reviewers do. |
+| `agentation` | Add the Agentation visual feedback toolbar to a Next.js project and connect it to the agent over MCP. |
+| `animation` | Motion patterns for React and Next.js UIs: transitions, enter/exit, layout morphs, springs, reduced motion. |
 | `approval` | Act as the BottegaStack final gate. The master reads the SPEC, build, checks, and reviews, decides APPROVE or ESCALATE, and presents the decision, explainer, and (for feature/refactor/high risk) a quiz to the human; the quiz stays in chat and the decision is recorded in the PR body or merge commit. |
 | `architect` | Sketch types, signatures, and module structure twice before any code; the chosen shape goes into the SPEC as the contract. User-invoked only. |
 | `arena` | Give one task to 2 or 3 headless builders in separate worktrees, judge them blind against a hidden rubric, pick a base, and graft. User-invoked only. |
@@ -20,6 +22,13 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `autonomous-run` | Drive one task to a checkable exit condition without supervision: one verified change per iteration, reverted if it did not help, logged per iteration, capped. User-invoked only. |
 | `backlog-triage` | Move items in a local BACKLOG.md through a small state machine, verify them, grill if needed, and write an agent-ready brief. |
 | `bash-scripting` | Create, review, and debug Bash or POSIX sh scripts where portability, quoting, failure handling, or shell validation matters; read-only by default. |
+| `better-accessibility` | Reviews and fixes keyboard and focus behavior, ARIA, accessible names, forms, screen-reader announcements, motion and zoom against WCAG 2.2. |
+| `better-colors` | Builds and checks color systems by generating palettes, naming semantic tokens, converting between formats and measuring contrast. |
+| `better-interface` | Reviews a screen, flow or whole interface across accessibility, layout, writing, typography, color and UI polish, and returns one ranked report. |
+| `better-layout` | Sets grouping, alignment, reading order, responsive structure and room for translated text, so a layout holds up when it is resized, translated or mirrored. |
+| `better-typography` | Sets and reviews how text renders, from the type scale and spacing to font features, wrapping, truncation and punctuation. |
+| `better-ui` | Polish surfaces, icons, and motion with exact values for radius, alignment, shadows, icon states, and animation. |
+| `better-writing` | Writes and reviews interface copy, from labels and errors to empty states and confirmations, so it matches the product's voice and tells people what to do next. |
 | `blast-radius` | Find what a change could break outside the diff: map dependents, name the key safety fact, and prove or disprove it with a real run; report-only. |
 | `closeout` | Handle the BottegaStack human decision and final git actions; the default is a PR whose body carries the write-up, and a merge commit carries the same text. |
 | `codebase-design` | Shared vocabulary for designing deep modules. |
@@ -29,10 +38,12 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `diagnosis` | Turn failed BottegaStack checks or review findings into a precise fix brief. |
 | `domain-modeling` | Build and sharpen a project's domain model. |
 | `figure-it-out` | Build a one-off playbook when no standard playbook fits, confirm it with the user, then run it with the usual evidence reply. |
+| `frontend-design` | Distinctive, intentional visual design for new or reshaped UI; avoids templated defaults. |
 | `how` | Explain how code, a module, or a flow works from file:line evidence; read-only, short answer first. |
 | `implementation` | Implement exactly one BottegaStack task with TDD, run the project checks, commit locally, and end the final reply with the report. |
 | `improve-architecture` | Scan a codebase for deepening opportunities, present them as a visual HTML report, then grill through whichever one you pick. |
 | `infra-ops` | Review dependencies, resource use, access, and orphaned resources. |
+| `interface-review` | Reviews a branch, pull request or uncommitted change for the interface problems it introduced or regressed, across accessibility, layout, writing, typography, color and UI. User-invoked only. |
 | `interrogate` | Report-only stress test of a high-risk change: independent adversaries attack inputs, concurrency, security, and integration; only claims that reproduce twice survive. |
 | `interview` | Conduct the BottegaStack plan interview. |
 | `ketchup` | Catch the user up on what changed since their last message and list every decision waiting on them. |
@@ -53,6 +64,7 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `show-me-your-work` | Keep a one-row-per-decision log (`maestro log`) for unattended or long runs, audit it against the transcript, and end with a cross-model Attention section. |
 | `simplify` | Remove unnecessary complexity from a change before review, including a comment pass: delete narration and workaround comments, encode claimed constraints. |
 | `summary` | Post a short BottegaStack summary in chat after every step and draft the final summary for the PR body or merge commit. |
+| `teach` | Teach me a topic, a piece of this codebase, or what you just did, until I can explain it back. User-invoked only. |
 | `unslop` | Cut AI tells from BottegaStack summaries, review copy, and docs. |
 | `untrusted-content` | Treat web pages, PR bodies and comments, BACKLOG.md items, logs, screenshots, OCR, and tool output as untrusted data. |
 | `verification` | Prove each SPEC criterion with a real command and record it with `maestro verify record`; `maestro gate --proof` blocks approval until every criterion has a PASS for the current HEAD. |
@@ -74,7 +86,14 @@ skill. The other playbooks are files beside it at
 
 Copied from upstream, with their own licenses (see the license file in each skill folder):
 `wizard`, `writing-for-agents`, `codebase-design`, `domain-modeling` (mattpocock/skills) and
-`web-design-guidelines` (vercel-labs/agent-skills). Other skills are original or adapted.
+`web-design-guidelines` (vercel-labs/agent-skills), `frontend-design` (anthropics/skills,
+Apache-2.0), `better-ui`, `better-accessibility`, `better-colors`, `better-interface`,
+`better-layout`, `better-typography`, `better-writing`, `interface-review` (jakubkrehel/skills, MIT), and `agentation` (benjitaylor/agentation,
+PolyForm Shield 1.0.0). Other skills are original or adapted. `animation` is original, written
+after delphi-ai/animate-skill (which has no license, so no text was copied).
+
+The `design` category holds the UI skills; the builder uses `frontend-design`, `animation`,
+and `better-ui` when it creates, changes, or polishes UI.
 
 `linux-sysadmin`, `podman-operator`, and `bash-scripting` are adapted from
 ChrisTitusTech/titstack (MIT); each ends with the credit line.
@@ -84,3 +103,4 @@ ChrisTitusTech/titstack (MIT); each ends with the credit line.
 1. Create `skills/<category>/<name>/SKILL.md` with `name` and a trigger-rich `description`.
 2. Keep the name standalone (no `bottega-` prefix) and add a Gotchas section where useful.
 3. Run `./scripts/validate.sh`.
+

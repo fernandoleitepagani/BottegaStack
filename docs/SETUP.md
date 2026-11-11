@@ -115,7 +115,12 @@ as `rtk git status`); `Read`, `Grep`, and `Glob` pass through. The project claim
 60-90% less command output, which is less than that off total tokens, and its
 counts are estimates. `maestro doctor` prints `rtk: yes` or `rtk: no`.
 
-Install it on each machine, outside the stack:
+Install it on each machine, outside the stack. `maestro tools install` does this
+for you: it installs whatever is missing of rtk and gitleaks with brew, dnf, apt,
+go, or cargo (rtk falls back to its downloaded installer, which you read first),
+asks before each install, and offers `rtk init -g`. A SessionStart hook prints one
+line when either tool is missing and never installs anything; set
+`BOTTEGA_NO_TOOL_HINT=1` to silence it. By hand:
 
 ```bash
 brew install rtk                 # or read, then run, the project's install.sh

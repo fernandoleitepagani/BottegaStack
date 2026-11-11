@@ -20,6 +20,16 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "maestro tools hint"
+          }
+        ]
+      }
     ]
   }
 }

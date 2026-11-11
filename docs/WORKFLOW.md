@@ -284,7 +284,7 @@ and the `second-opinion` line for `--review`, passing only the effort as
 
 ## Skills
 
-BottegaStack ships 50 skills in the Claude Code categories plus `workflow/`. The
+BottegaStack ships 62 skills in the Claude Code categories plus `workflow/`. The
 core workflow skills are `playbooks`, `principles`, `interview`, `planning`,
 `implementation`, `verification`, `review-code`, `approval`, `summary`,
 `closeout`, `session-handoff`, `session-retro`, `diagnosis`, and
@@ -353,6 +353,7 @@ maestro build --init | --check
 maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 maestro worktree prune <run> [--force]
 maestro hooks install|uninstall [path]
+maestro tools install [--yes] | hint
 ```
 
 Use `./bin/maestro` instead of `maestro` when running from a clone outside a

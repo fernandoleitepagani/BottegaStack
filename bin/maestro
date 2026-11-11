@@ -31,6 +31,7 @@ Usage:
   maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
+  maestro tools install [--yes] | hint
 
 BottegaStack is a Claude Code plugin. The plugin puts `maestro` on PATH and ships
 the agents, commands, skills, hooks, and the `resources/` templates beside it.
@@ -519,7 +520,7 @@ cmd_doctor() {
     echo "gitleaks: yes"
   else
     echo "gitleaks: no"
-    echo "warning: gitleaks is not installed; secret scanning is unavailable"
+    echo "warning: gitleaks is not installed; secret scanning is unavailable (maestro tools install)"
   fi
   command -v rtk >/dev/null 2>&1 && echo "rtk: yes (optional)" || echo "rtk: no (optional; see Token savings in docs/SETUP.md)"
 
@@ -1931,6 +1932,82 @@ cmd_retro_scan() {
   return 0
 }
 
+# Optional tools: rtk (token savings) and gitleaks (pre-commit secret scan).
+tools_missing() {
+  local t out=""
+  for t in rtk gitleaks; do command -v "$t" >/dev/null 2>&1 || out="$out $t"; done
+  printf '%s\n' "${out# }"
+}
+
+tools_ask() {
+  [ "${TOOLS_YES:-0}" = "1" ] && return 0
+  local ans
+  printf '%s [y/N] ' "$1" >&2
+  read -r ans 2>/dev/null </dev/tty || return 1
+  case "$ans" in y|Y|yes) return 0 ;; *) return 1 ;; esac
+}
+
+tools_install_cmd() {
+  case "$1" in
+    gitleaks)
+      if command -v brew >/dev/null 2>&1; then echo "brew install gitleaks"
+      elif command -v dnf >/dev/null 2>&1; then echo "sudo dnf install -y gitleaks"
+      elif command -v apt-get >/dev/null 2>&1; then echo "sudo apt-get install -y gitleaks"
+      elif command -v go >/dev/null 2>&1; then echo "go install github.com/zricethezav/gitleaks/v8@latest"
+      fi ;;
+    rtk)
+      if command -v brew >/dev/null 2>&1; then echo "brew install rtk"
+      elif command -v cargo >/dev/null 2>&1; then echo "cargo install --locked --git https://github.com/rtk-ai/rtk"
+      elif command -v curl >/dev/null 2>&1; then echo "installer"
+      fi ;;
+  esac
+}
+
+tools_install_rtk_script() {
+  local f
+  f="$(mktemp "${TMPDIR:-/tmp}/rtk-install.XXXXXX")"
+  curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/install.sh -o "$f" || { rm -f "$f"; return 1; }
+  echo "Downloaded the rtk installer to $f. Read it before running it." >&2
+  if tools_ask "Run $f with sh?"; then sh "$f"; local rc=$?; rm -f "$f"; return $rc; fi
+  rm -f "$f"; return 1
+}
+
+cmd_tools() {
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    install)
+      [ "${1:-}" = "--yes" ] && TOOLS_YES=1
+      local missing t c
+      missing="$(tools_missing)"
+      [ -n "$missing" ] || { echo "tools: rtk and gitleaks already installed"; return 0; }
+      for t in $missing; do
+        c="$(tools_install_cmd "$t")"
+        if [ -z "$c" ]; then
+          echo "$t: no supported installer found (brew, dnf, apt, go, cargo, curl); install it by hand"
+          continue
+        fi
+        if [ "$c" = "installer" ]; then
+          tools_install_rtk_script || { echo "rtk: skipped"; continue; }
+        elif tools_ask "Install $t with: $c ?"; then
+          sh -c "$c" || { echo "$t: install failed"; continue; }
+        else
+          echo "$t: skipped"; continue
+        fi
+        if [ "$t" = rtk ] && command -v rtk >/dev/null 2>&1; then
+          if tools_ask "Run 'rtk init -g' to enable rtk in every Claude Code session?"; then rtk init -g; fi
+        fi
+        command -v "$t" >/dev/null 2>&1 && echo "$t: installed" || echo "$t: installed but not on PATH yet (check ~/.local/bin, ~/go/bin, ~/.cargo/bin)"
+      done ;;
+    hint)
+      # SessionStart hook: one line when a tool is missing. Never installs.
+      [ -n "${BOTTEGA_NO_TOOL_HINT:-}" ] && return 0
+      local missing
+      missing="$(tools_missing)"
+      [ -n "$missing" ] || return 0
+      printf '{"systemMessage":"bottega: %s not installed; run maestro tools install (silence: BOTTEGA_NO_TOOL_HINT=1)"}\n' "$(echo "$missing" | sed 's/ /, /g')" ;;
+    *) echo "usage: maestro tools install [--yes] | hint" >&2; return 1 ;;
+  esac
+}
 
 
 
@@ -1956,6 +2033,7 @@ case "$cmd" in
   _files) maestro_files ;;
   worktree) cmd_worktree "$@" ;;
   hooks) cmd_hooks "$@" ;;
+  tools) cmd_tools "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

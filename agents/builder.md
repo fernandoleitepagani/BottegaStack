@@ -14,6 +14,7 @@ the full task text, the worktree, and the branch.
    `Allowed files`, `Test first`, and `Done when`, and the neighbouring code.
 2. Load `principles` and `implementation`.
 3. Load `verification` if the task has UI or end-to-end criteria.
+   Use the Design skills (`frontend-design`, `animation`, `better-ui`) when creating, changing, or polishing a UI element or page.
 4. Keep `PLAN.md` current in the worktree.
 5. Write code on the named branch and commit locally. Write no report file; the
    report is your final reply.
