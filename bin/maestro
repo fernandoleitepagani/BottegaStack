@@ -1335,6 +1335,8 @@ Write no report file: end your final reply with the report in the format of the 
   [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
 
   echo "task: $slug"
+  echo "session: ${sid:-none}"
+  echo "revisions: $rev/$max_rev"
   build_usage_lines builder "$rc" "$log" "$progress"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
