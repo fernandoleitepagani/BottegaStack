@@ -995,17 +995,11 @@ build_wait_or_exit() {
   exit 5
 }
 
-# A failed run that spent no tokens was rejected before it did any work (model,
-# endpoint, or key). Print the first plain error line on stderr so the API error
-# is on the console instead of only in the log or report file.
-build_failure_note() {
-  local rc="$1" log="$2" report="$3" first
-  [ "$rc" -ne 0 ] || return 0
-  case "$(build_tokens "$log")" in
-    "in 0 out 0"|unknown) ;;
-    *) return 0 ;;
-  esac
-  first="$(python3 - "$log" "$report" <<'PY'
+# Print the first error line from a log or its report file. Called via $( ), so
+# it must not be a heredoc: bash 3.2 (macOS) cannot parse a heredoc inside a
+# command substitution. A single-quoted `python3 -c` string is portable.
+build_first_error() {
+  python3 -c '
 import json, os, sys
 log_path, report_path = sys.argv[1:3]
 
@@ -1020,7 +1014,7 @@ def first_log_line():
             try:
                 ev = json.loads(line)
             except Exception:
-                return line  # plain stderr output: the endpoint's error
+                return line  # plain stderr output: the endpoint error
             if isinstance(ev, dict) and ev.get("type") == "result":
                 for key in ("error", "result"):
                     msg = ev.get(key)
@@ -1037,8 +1031,20 @@ if not line and os.path.isfile(report_path):
                 break
 if line:
     print(line)
-PY
-)"
+' "$1" "$2"
+}
+
+# A failed run that spent no tokens was rejected before it did any work (model,
+# endpoint, or key). Print the first plain error line on stderr so the API error
+# is on the console instead of only in the log or report file.
+build_failure_note() {
+  local rc="$1" log="$2" report="$3" first
+  [ "$rc" -ne 0 ] || return 0
+  case "$(build_tokens "$log")" in
+    "in 0 out 0"|unknown) ;;
+    *) return 0 ;;
+  esac
+  first="$(build_first_error "$log" "$report")"
   [ -n "$first" ] && printf 'error: %s\n' "$first" >&2
   return 0
 }
