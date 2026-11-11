@@ -25,7 +25,7 @@ Usage:
   maestro verify waive <run> <AC> "<reason>" | list <run>
   maestro report [--retro] [--exit-code] | --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>] | --finding <run> "<title>" | --trust [n]
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
-  maestro build --here <slug> --task "<text>" [--block|--wait]
+  maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
   maestro build --review <run> <task> | --here <slug> [--block|--wait]
   maestro build --init | --check
   maestro build --status <run> [--every [seconds]]
@@ -126,6 +126,20 @@ light_dir() {
   dir="$(ensure_state_dir)" || return 1
   (umask 077; mkdir -p "$dir/quick/$1")
   printf '%s/quick/%s\n' "$dir" "$1"
+}
+
+# Resolve a slug to its state directory wherever a run or a light-path slug is
+# accepted: $STATE/<slug> for a run, else $STATE/quick/<slug> for the light
+# path. Prints the directory; returns 1 when neither exists and 2 outside a git
+# repository.
+resolve_run_dir() {
+  local base dir
+  base="$(state_dir)" || return 2
+  dir="$base/$1"
+  if [ -d "$dir" ]; then printf '%s\n' "$dir"; return 0; fi
+  dir="$base/quick/$1"
+  if [ -d "$dir" ]; then printf '%s\n' "$dir"; return 0; fi
+  return 1
 }
 
 # `maestro start "<title>" [--branch <name>]`: create the state directory and the
@@ -232,9 +246,12 @@ cmd_spec() {
 cmd_check() {
   local slug="${1:-}"
   [ -n "$slug" ] || { echo "usage: maestro check <run>" >&2; exit 2; }
-  local dir repo
-  dir="$(run_state_dir "$slug")" || { echo "maestro check: not in a git repository" >&2; exit 1; }
-  [ -d "$dir" ] || { echo "maestro check: no such run: $slug" >&2; exit 1; }
+  local dir repo rc
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "maestro check: not in a git repository" >&2; else echo "maestro check: no such run: $slug" >&2; fi
+    exit 1
+  }
   repo="$(git rev-parse --show-toplevel)"
   cd "$repo"
   [ -x scripts/check ] || { echo "scripts/check not found or not executable" >&2; exit 1; }
@@ -345,8 +362,12 @@ cmd_gate() {
     fi
   fi
 
-  local dir file
-  dir="$(run_state_dir "$slug")" || { echo "GATE: FAIL (not a git repository)"; return 1; }
+  local dir file rc
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "GATE: FAIL (not a git repository)"; else echo "GATE: FAIL (no checks.result)"; fi
+    return 1
+  }
   file="$dir/checks.result"
   [ -f "$file" ] || { echo "GATE: FAIL (no checks.result)"; return 1; }
   local result sha head
@@ -387,7 +408,7 @@ verify_required_acs() {
 # $2 (or a WAIVED row); otherwise print the first problem and return 1.
 verify_unmet() {
   local slug="$1" head="$2" dir idx ac row result rhead
-  dir="$(run_state_dir "$slug")" || { echo "not a git repository"; return 1; }
+  dir="$(resolve_run_dir "$slug")" || dir="$(run_state_dir "$slug")" || { echo "not a git repository"; return 1; }
   idx="$dir/verify/index.tsv"
   [ -f "$idx" ] || idx=/dev/null
   while IFS= read -r ac; do
@@ -438,11 +459,14 @@ cmd_log() {
 cmd_verify() {
   local action="${1:-}"
   shift || true
-  local slug="${1:-}" dir idx head
+  local slug="${1:-}" dir idx head rc
   [ -n "$slug" ] || { echo "usage: maestro verify record|waive|list <run> ..." >&2; exit 2; }
   shift || true
-  dir="$(run_state_dir "$slug")" || { echo "maestro verify: not a git repository" >&2; exit 1; }
-  [ -d "$dir" ] || { echo "maestro verify: no such run: $slug" >&2; exit 1; }
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "maestro verify: not a git repository" >&2; else echo "maestro verify: no such run: $slug" >&2; fi
+    exit 1
+  }
   idx="$dir/verify/index.tsv"
   head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   case "$action" in
@@ -878,6 +902,20 @@ builder_init() {
 build_status_line() {
   local rundir="$1" bdir="$1/build" n=0 d=0 r=0 q=0 t f sl="" last
   local seen="" cnt
+  if [ -f "$rundir/run" ] || [ -f "$rundir/report.md" ] || [ -f "$rundir/progress" ]; then
+    # Light path: one builder, state sits beside the slug.
+    n=1
+    if [ -f "$rundir/report.md" ] && grep -q 'STATUS: DONE' "$rundir/report.md"; then
+      d=1
+    elif [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then
+      r=1
+      last="$(tail -n 1 "$rundir/progress" 2>/dev/null | cut -c1-60 || true)"
+      sl=" │ $(basename "$rundir"): $(wc -l < "$rundir/progress" 2>/dev/null | tr -d ' ' || echo 0) steps, last ${last:--}"
+    fi
+    q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
+    echo "Builders $d/$n done · $r running · $q queued$sl"
+    return 0
+  fi
   n="$(find "$rundir/tasks" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null | wc -l | tr -d ' ')"
   for f in "$bdir"/*.report.md; do
     [ -f "$f" ] || continue
@@ -906,7 +944,7 @@ build_status_line() {
 }
 
 build_status() {
-  local slug="" every="" dir line now last_print=0 idle=0 pd="" pr=""
+  local slug="" every="" dir line now last_print=0 idle=0 pd="" pr="" rc
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --every)
@@ -919,8 +957,11 @@ build_status() {
     esac
   done
   [ -n "$slug" ] || { echo "usage: maestro build --status <run> [--every [seconds]]" >&2; exit 2; }
-  dir="$(run_state_dir "$slug")" || { echo "maestro build --status: not in a git repository" >&2; exit 2; }
-  [ -d "$dir" ] || { echo "no such run: $slug" >&2; exit 2; }
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "maestro build --status: not in a git repository" >&2; else echo "no such run: $slug" >&2; fi
+    exit 2
+  }
   if [ -z "${every:-}" ]; then build_status_line "$dir"; return 0; fi
   case "$every" in ''|*[!0-9]*) echo "--every needs a number of seconds" >&2; exit 2 ;; esac
   while :; do
@@ -1189,14 +1230,16 @@ cap_log() {
   tail -c 5242880 "$log" > "$log.tmp" && mv "$log.tmp" "$log"
 }
 
-# `maestro build --here <slug> --task "<text>" [--block|--wait]`: the light path.
-# No run, spec, or worktree; the builder works in the current checkout
-# and commits on the current branch. All state lives in the state directory.
+# `maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]`:
+# the light path. No run, spec, or worktree; the builder works in the current
+# checkout and commits on the current branch. All state lives in the state
+# directory. A revision resumes the first build's session (max two).
 build_here() {
-  local slug="" text="" block=0 have_text=0
+  local slug="" text="" findings="" block=0 have_text=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --task) text="${2:?--task needs text}"; have_text=1; shift 2 ;;
+      --revise) findings="${2:?findings file required}"; shift 2 ;;
       --block) block=1; shift ;;
       --wait) shift ;;
       -*) echo "maestro build --here: unknown flag: $1" >&2; exit 2 ;;
@@ -1205,7 +1248,7 @@ build_here() {
         slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo 'usage: maestro build --here <slug> --task "<text>" [--block|--wait]' >&2; exit 2; }
+  [ -n "$slug" ] || { echo 'usage: maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]' >&2; exit 2; }
   case "$slug" in
     *[!a-z0-9-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
   esac
@@ -1218,13 +1261,25 @@ build_here() {
 
   local run="$qdir/run" rcfile="$qdir/rc" progress="$qdir/progress"
   local prompt="$qdir/prompt" log="$qdir/builder.log" profile="$qdir/settings.json"
-  local report="$qdir/report.md" base=""
+  local report="$qdir/report.md" base="" state="$qdir/light.builder"
+  local max_rev=2 rev=0 sid="" findings_text=""
 
   if [ -f "$run" ]; then
     base="$(sed -n 's/^base=//p' "$run")"
-  elif [ "$have_text" = "0" ]; then
-    echo 'usage: maestro build --here <slug> --task "<text>" [--block|--wait]' >&2
+    rev="$(sed -n 's/^rev=//p' "$run")"; rev="${rev:-0}"
+    sid="$(sed -n 's/^sid=//p' "$run")"
+  elif [ "$have_text" = "0" ] && [ -z "$findings" ]; then
+    echo 'usage: maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]' >&2
     exit 2
+  fi
+
+  if [ -n "$findings" ]; then
+    if [ "$findings" = "-" ]; then
+      findings_text="$(cat)"
+    else
+      [ -f "$findings" ] || { echo "maestro build --here: findings file not found: $findings" >&2; exit 3; }
+      findings_text="$(cat "$findings")"
+    fi
   fi
 
   builder_ready || exit 3
@@ -1233,26 +1288,49 @@ build_here() {
     # Already running or finished but not collected: attach.
     build_mark_stale "$run" "$rcfile"
   else
-    base="$(git -C "$repo" rev-parse HEAD)"
-    cat > "$prompt" <<EOF
-Quick task: $text
+    local msg
+    if [ -n "$findings" ]; then
+      [ -f "$state" ] || { echo "maestro build --here: no session for $slug; run a first build" >&2; exit 3; }
+      sid="$(sed -n 's/^session=//p' "$state")"
+      rev="$(sed -n 's/^revisions=//p' "$state")"; rev="${rev:-0}"
+      base="$(sed -n 's/^base=//p' "$state")"
+      if [ "$rev" -ge "$max_rev" ]; then
+        echo "maestro build --here: $max_rev revisions used; escalate to the human (workflow rule: max two fix rounds)" >&2
+        exit 4
+      fi
+      rev=$((rev + 1))
+      msg="Revision $rev for light-path run $slug.
+Checkout: $repo
+Branch: $branch
+Fix every finding below, nothing else. Stay inside Allowed files. Do not edit or weaken tests. Commit locally on $branch. Never push or merge. Write no report file: end your final reply with the report in the format of the implementation skill (first line: STATUS: READY|DONE|BLOCKED).
+
+## Findings
+$findings_text"
+    else
+      base="$(git -C "$repo" rev-parse HEAD)"
+      msg="Quick task: $text
 Checkout: $repo
 Branch: $branch
 No run folder and no separate worktree: work in this checkout only.
 Stay inside the Allowed files for the task.
 Commit locally on $branch. Never push or merge.
-Write no report file: end your final reply with the report in the format of the implementation skill (first line: STATUS: READY|DONE|BLOCKED).
-EOF
+Write no report file: end your final reply with the report in the format of the implementation skill (first line: STATUS: READY|DONE|BLOCKED)."
+    fi
+    printf '%s\n' "$msg" > "$prompt"
     rm -f "$rcfile" "$report"
     : > "$progress"
-    printf 'base=%s\nsid=\n' "$base" > "$run"
-    start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" ""
+    printf 'base=%s\nrev=%s\nsid=%s\n' "$base" "$rev" "$sid" > "$run"
+    start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
   build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait"
 
   local rc status="MISSING" commits=0
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
+  if [ -z "$sid" ]; then
+    sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
+  fi
+  printf 'session=%s\nrevisions=%s\nagent=builder\nbase=%s\n' "$sid" "$rev" "$base" > "$state"
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
 
@@ -1390,7 +1468,7 @@ cmd_build() {
     --review) shift; build_review "$@"; return ;;
   esac
 
-  local usage="usage: maestro build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run> [--every [seconds]]"
+  local usage="usage: maestro build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--revise <file|->] [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run> [--every [seconds]]"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
   local slug="$1" task="$2" findings="" block=0
   shift 2
