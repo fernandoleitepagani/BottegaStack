@@ -160,6 +160,65 @@ echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks wi
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
 echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
 
+# The git hooks resolve maestro without the plugin bin/ on PATH (issue #3):
+# PATH, then the install-time record, then the newest plugin cache copy.
+HK="$TMP/hookbox"
+mkdir -p "$HK/repo" "$HK/home" "$HK/minbin" "$HK/pathbin" "$HK/log" \
+  "$HK/claude/plugins/cache/local/bottega/0.6.0/bin" \
+  "$HK/claude/plugins/cache/local/bottega/0.10.0/bin" "$HK/emptyclaude"
+for t in bash git grep sort tail; do
+  ln -sf "$(command -v "$t")" "$HK/minbin/$t"
+done
+write_maestro_stub() {
+  cat > "$2" <<EOF
+#!/usr/bin/env bash
+printf '%s\n' "$1" >> "\${HOOKLOG:-/dev/null}"
+if [ "\${1:-}" = "_files" ]; then printf 'AGENTS.md\nPLAN.md\n'; fi
+exit 0
+EOF
+  chmod +x "$2"
+}
+write_maestro_stub 0.6.0 "$HK/claude/plugins/cache/local/bottega/0.6.0/bin/maestro"
+write_maestro_stub 0.10.0 "$HK/claude/plugins/cache/local/bottega/0.10.0/bin/maestro"
+write_maestro_stub path "$HK/pathbin/maestro"
+( cd "$HK/repo" && git init -q -b main && git commit -q --allow-empty -m init )
+"$M" hooks install "$HK/repo" >/dev/null
+hook="$HK/repo/.git/hooks/pre-commit"
+grep -Eq '^MAESTRO_BIN=".+"' "$hook" && ok "hooks install records MAESTRO_BIN" || fail "hooks install records MAESTRO_BIN"
+# Simulate a plugin update: the recorded path is gone.
+tmp_hook="$hook.hookbox"
+sed -e "s|^MAESTRO_BIN=.*|MAESTRO_BIN=\"$HK/gone/bin/maestro\"|" "$hook" > "$tmp_hook"
+mv "$tmp_hook" "$hook"
+chmod +x "$hook"
+printf 'local\n' > "$HK/repo/AGENTS.md"
+( cd "$HK/repo" && git add AGENTS.md )
+run_hook() {
+  ( cd "$HK/repo" && env -i HOME="$HK/home" CLAUDE_CONFIG_DIR="$1" PATH="$2" \
+    HOOKLOG="$HK/log/version" "$hook" 2>"$HK/log/stderr" )
+}
+: > "$HK/log/version"
+run_hook "$HK/claude" "$HK/minbin"; rc=$?
+if [ "$rc" -ne 0 ] && grep -q 'refusing to commit AGENTS.md' "$HK/log/stderr"; then
+  ok "pre-commit finds maestro in the plugin cache"
+else
+  fail "pre-commit finds maestro in the plugin cache"
+fi
+[ "$(cat "$HK/log/version")" = "0.10.0" ] && ok "pre-commit picks the newest cached version" || fail "pre-commit picks the newest cached version"
+: > "$HK/log/version"
+run_hook "$HK/emptyclaude" "$HK/minbin"; rc=$?
+if [ "$rc" -eq 0 ] && grep -q 'maestro: not found; skipping Bottega file check' "$HK/log/stderr"; then
+  ok "pre-commit warns when maestro is not found"
+else
+  fail "pre-commit warns when maestro is not found"
+fi
+: > "$HK/log/version"
+run_hook "$HK/claude" "$HK/pathbin:$HK/minbin"; rc=$?
+if [ "$rc" -ne 0 ] && [ "$(cat "$HK/log/version")" = "path" ]; then
+  ok "pre-commit prefers maestro on PATH"
+else
+  fail "pre-commit prefers maestro on PATH"
+fi
+
 # Lint reads hooks.json as JSON, so a hook command that reaches maestro any
 # other way is rejected too (issue #6).
 LB="$TMP/lintbox"
