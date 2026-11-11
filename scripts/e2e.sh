@@ -37,7 +37,7 @@ if [ "${STUB_FAIL:-}" = "1" ]; then
   exit 1
 fi
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
-echo '{"type":"result","result":"STATUS: DONE\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}'
+printf '{"type":"result","result":"STATUS: %s\\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}\n' "${STUB_STATUS:-DONE}"
 EOF
 chmod +x "$TMP/bin/claude"
 export PATH="$TMP/bin:$PATH" STUBLOG="$TMP/stub.log" STUBENV="$TMP/stub.env"
@@ -93,6 +93,16 @@ expect "build --here" "$M" build --here q1 --task "small fix" --block
 out="$("$M" build --here qsum --task "summary" --block 2>&1)"
 printf '%s\n' "$out" | grep -qx 'session: s1' && ok "light summary prints session" || fail "light summary prints session"
 printf '%s\n' "$out" | grep -qx 'revisions: 0/2' && ok "light summary prints revisions" || fail "light summary prints revisions"
+# A collected light build is finished, never queued: a READY report and a failed
+# (empty) report both count as 1/1 done, and READY shows the report status.
+STUB_STATUS=READY "$M" build --here stat-ready --task "ready" --block >/dev/null 2>&1
+out="$("$M" build --status stat-ready)"
+printf '%s\n' "$out" | grep -q 'Builders 1/1 done' && ok "light status READY is done" || fail "light status READY is done"
+printf '%s\n' "$out" | grep -q 'STATUS: READY' && ok "light status shows READY" || fail "light status shows READY"
+STUB_FAIL=1 "$M" build --here stat-fail --task "fail" --block >/dev/null 2>&1
+out="$("$M" build --status stat-fail)"
+printf '%s\n' "$out" | grep -q 'Builders 1/1 done' && ok "light status failed is done" || fail "light status failed is done"
+printf '%s\n' "$out" | grep -q '0 queued' && ok "light status failed is never queued" || fail "light status failed is never queued"
 expect "build --review --here" "$M" build --review --here q1 --block
 "$M" build --status run-a | grep -q "done" && ok "build --status" || fail "build --status"
 grep -q -- "--agent bottega:builder" "$STUBLOG" && ok "runner uses bottega:builder" || fail "runner uses bottega:builder"
@@ -187,7 +197,7 @@ if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream re
 else
   fail "0-token review failure prints the error"
 fi
-for s in tiers tiers2 fail1 fail2; do "$M" report --close "$s" >/dev/null 2>&1; done
+for s in tiers tiers2 fail1 fail2 stat-ready stat-fail; do "$M" report --close "$s" >/dev/null 2>&1; done
 
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
