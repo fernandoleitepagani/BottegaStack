@@ -101,6 +101,23 @@ if command -v python3 >/dev/null 2>&1; then
   done
 fi
 
+# Plugin hooks run in a shell without the plugin's bin/ on PATH, so they must
+# call maestro through CLAUDE_PLUGIN_ROOT. A bare command fails with
+# "maestro: command not found".
+if [ -f "$ROOT/hooks/hooks.json" ]; then
+  while IFS= read -r line; do
+    case "$line" in
+      *'"command"'*) ;;
+      *) continue ;;
+    esac
+    stripped="$(printf '%s\n' "$line" | sed -E 's#\$\{CLAUDE_PLUGIN_ROOT\}/bin/maestro##g')"
+    if printf '%s\n' "$stripped" | grep -Eq '(^|[^[:alnum:]_./-])maestro([^[:alnum:]_-]|$)'; then
+      echo "FAIL hooks/hooks.json runs bare maestro (hook shells have no plugin bin on PATH; use \"\${CLAUDE_PLUGIN_ROOT}/bin/maestro\"): $line"
+      fail=1
+    fi
+  done < "$ROOT/hooks/hooks.json"
+fi
+
 for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md; do
   if [ ! -f "$ROOT/$f" ]; then
     echo "FAIL missing doc: $f"
