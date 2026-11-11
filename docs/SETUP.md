@@ -33,7 +33,9 @@ The plugin provides:
   `/<plugin>:<command>`).
 - Every skill from the category directories listed in the plugin manifest.
 - The hooks in `hooks/hooks.json`: PreToolUse `Agent|Task` runs
-  `maestro guard builder`, and Stop runs `maestro guard stop`.
+  `"${CLAUDE_PLUGIN_ROOT}/bin/maestro" guard builder`, Stop runs it with
+  `guard stop`, and SessionStart runs it with `tools hint`. They use the plugin
+  root because a hook shell has no plugin `bin/` on `PATH`.
 
 Update with `/plugin` or `claude plugin update bottega@bottega`. Uninstall with
 `claude plugin uninstall bottega`; remove the marketplace with

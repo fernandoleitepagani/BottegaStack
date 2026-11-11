@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "maestro guard builder"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/maestro\" guard builder"
           }
         ]
       }
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "maestro guard stop"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/maestro\" guard stop"
           }
         ]
       }
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "maestro tools hint"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/maestro\" tools hint"
           }
         ]
       }
