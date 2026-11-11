@@ -1,6 +1,9 @@
 # Changelog
 
 ## Unreleased
+
+## 0.6.1 — 2026-11-11
+
 - Fixes: the git pre-commit hook resolves `maestro` from `PATH`, the path recorded by `maestro hooks install`, then the newest plugin cache copy (portable version sort), and prints a warning instead of silently skipping the Bottega-file check when none is found (issue #3).
 - Fixes: the headless builder defaults an empty `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`, `ANTHROPIC_DEFAULT_HAIKU_MODEL`, or `CLAUDE_CODE_SUBAGENT_MODEL` to `ANTHROPIC_MODEL` (explicit values win), so the builder's Claude tier alias reaches the served model; `build --check` names an empty `ANTHROPIC_MODEL` and a space after `=`; a non-zero 0-token build or review prints the endpoint error on the console; the error-note helper uses `python3 -c` instead of a heredoc inside `$()`, so macOS bash 3.2 parses `bin/maestro`, and lint rejects that pattern (issue #4).
 - `scripts/e2e.sh` (run by `scripts/validate.sh`, so by pre-push and CI) tests every `maestro` command in a throwaway repo with a stub `claude`. Builds now work on macOS: `nohup` when `setsid` is missing, and `gtimeout` or a perl alarm when `timeout` is missing.
