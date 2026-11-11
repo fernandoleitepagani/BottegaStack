@@ -272,7 +272,7 @@ an Anthropic-compatible endpoint.
 
 ```bash
 maestro build <run> <task> [--revise <file|->] [--block|--wait]
-maestro build --here <slug> --task "<text>" [--block|--wait]
+maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run> [--every <seconds>]

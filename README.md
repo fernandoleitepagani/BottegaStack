@@ -83,7 +83,9 @@ status` and `/maestro resume` continue a run from the todo list and branch.
 
 Small work skips the spec and worktree: the master takes the light path with
 `maestro build --here <slug> --task "<text>"`; state lives in the state directory
-under `quick/<slug>/`. `low` risk runs get a cheap headless first-pass review
+under `quick/<slug>/`. Pass findings back with
+`maestro build --here <slug> --revise <file|->`; `maestro build --status <slug>`
+reports progress. `low` risk runs get a cheap headless first-pass review
 before the Claude reviewer. Headless builds report `tokens: in <n> out <n>` and
 `steps: <n>`; the only stop is the 30-minute builder timeout.
 

@@ -34,7 +34,9 @@ requires a clean tree.
 
 For `trivial` and small `bugfix` work it takes the light path instead: run
 `maestro build --here <slug> --task "<text>" --block` on the current branch. That
-creates no run, SPEC, or worktree; state lives in `$STATE/quick/<slug>/`.
+creates no run, SPEC, or worktree; state lives in `$STATE/quick/<slug>/`. Pass
+review findings back with `maestro build --here <slug> --revise <file|->` and
+follow progress with `maestro build --status <slug>`.
 
 
 ### Step 1: SPEC
@@ -114,7 +116,8 @@ the task pass. A genuine test change needs approval and is recorded under
 
 The master runs `maestro check <run>`, which runs `scripts/check`, writes
 `checks.result` with `RESULT`, `HEAD`, exit code, and duration and appends one
-line per run plus the output to `checks.log`, both in the state directory. A
+line per run plus the output to `checks.log`, both in the state directory. The
+light path uses the same `maestro check <slug>` and `maestro gate <slug>`. A
 failure goes back to a fresh builder; no reviewer runs on a failing build.
 
 ### Step 4: Review
@@ -344,7 +347,7 @@ maestro report --trust [n]
 maestro report --finding <run> "<title>"
 
 maestro build <run> <task> [--revise <file|->] [--block|--wait]
-maestro build --here <slug> --task "<text>" [--block|--wait]
+maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run> [--every <seconds>]
