@@ -9,6 +9,8 @@
 
 ## 0.6.0 — 2026-11-10
 
+- CI fixes: bash 3.2 (macOS) compatibility (no `$(case)`, no associative arrays, safe empty-array expansion under `set -u`), restored `has_dependency_manifest` for `doctor`, e2e pins `XDG_CONFIG_HOME`.
+
 - New user-invoked `teach` skill: teaches a topic or part of the codebase one idea at a time, with checks and small exercises.
 
 - `maestro tools install [--yes]` installs missing rtk and gitleaks after asking; a SessionStart hook prints a one-line hint when they are missing (`BOTTEGA_NO_TOOL_HINT=1` silences it).

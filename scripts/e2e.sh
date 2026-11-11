@@ -15,8 +15,9 @@ fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 expect() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$name"; else fail "$name"; fi; }
 expect_not() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then fail "$name"; else ok "$name"; fi; }
 
-# Isolated environment.
-export HOME="$TMP/home" CLAUDE_CONFIG_DIR="$TMP/home/.claude" BOTTEGA_STATE_DIR="$TMP/state"
+# Isolated environment (CI runners set XDG_CONFIG_HOME, so pin it too).
+unset BOTTEGA_BUILDER_ENV BOTTEGA_BUILDER_KEY BOTTEGA_PLUGIN_DIR BOTTEGA_NO_TOOL_HINT
+export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" CLAUDE_CONFIG_DIR="$TMP/home/.claude" BOTTEGA_STATE_DIR="$TMP/state"
 export GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@example.invalid GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@example.invalid
 mkdir -p "$TMP/bin" "$CLAUDE_CONFIG_DIR/rules" "$HOME/.config/bottega"
 cat > "$TMP/bin/claude" <<'EOF'
@@ -74,6 +75,7 @@ expect "build --revise" sh -c "echo 'fix it' | '$M' build run-a 1 --revise - --b
 expect "build --review" "$M" build --review run-a 1 --block
 expect "build --here" "$M" build --here q1 --task "small fix" --block
 expect "build --review --here" "$M" build --review --here q1 --block
+"$M" build --status run-a | grep -q "done" && ok "build --status" || fail "build --status"
 grep -q -- "--agent bottega:builder" "$STUBLOG" && ok "runner uses bottega:builder" || fail "runner uses bottega:builder"
 grep -q -- "--agent bottega:review-code" "$STUBLOG" && ok "runner uses bottega:review-code" || fail "runner uses bottega:review-code"
 grep -q -- "--effort low" "$STUBLOG" && grep -q -- "--effort high" "$STUBLOG" && ok "effort routing" || fail "effort routing"
