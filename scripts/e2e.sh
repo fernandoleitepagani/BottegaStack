@@ -90,6 +90,9 @@ expect "build" "$M" build run-a 1 --block
 expect "build --revise" sh -c "echo 'fix it' | '$M' build run-a 1 --revise - --block"
 expect "build --review" "$M" build --review run-a 1 --block
 expect "build --here" "$M" build --here q1 --task "small fix" --block
+out="$("$M" build --here qsum --task "summary" --block 2>&1)"
+printf '%s\n' "$out" | grep -qx 'session: s1' && ok "light summary prints session" || fail "light summary prints session"
+printf '%s\n' "$out" | grep -qx 'revisions: 0/2' && ok "light summary prints revisions" || fail "light summary prints revisions"
 expect "build --review --here" "$M" build --review --here q1 --block
 "$M" build --status run-a | grep -q "done" && ok "build --status" || fail "build --status"
 grep -q -- "--agent bottega:builder" "$STUBLOG" && ok "runner uses bottega:builder" || fail "runner uses bottega:builder"
@@ -121,7 +124,10 @@ rc=$?
 expect_not "build --status unknown slug" "$M" build --status no-such-light
 expect_not "check unknown slug" "$M" check no-such-light
 expect_not "gate unknown slug" "$M" gate no-such-light
-expect_not "gate --proof unknown slug" "$M" gate no-such-light --proof
+# Regression guard only: cmd_gate rejects an unknown slug at the checks.result
+# guard before verify_unmet runs, so this is not a red-first proof of any
+# verify_unmet change.
+expect_not "gate --proof unknown slug (regression guard)" "$M" gate no-such-light --proof
 "$M" log q1 frame "light decision" why evidence done >/dev/null && ok "log light" || fail "log light"
 "$M" log q1 | grep -q 'light decision' && ok "log light prints" || fail "log light prints"
 expect "verify record light" "$M" verify record q1 AC1 INCONCLUSIVE --by reviewer
@@ -389,6 +395,7 @@ expect_not "retro finds a repeat" "$M" report --retro --exit-code
 expect "close run" "$M" report --close run-a --playbook feature --risk standard --outcome merged
 expect "close light run" "$M" report --close q1
 expect "close light run 2" "$M" report --close q2
+expect "close light summary run" "$M" report --close qsum
 "$M" report --trust | grep -q "run-a" && ok "trust log" || fail "trust log"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent after close" || ok "stop hook silent after close"
 
