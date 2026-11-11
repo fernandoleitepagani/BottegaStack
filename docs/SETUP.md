@@ -326,8 +326,7 @@ maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 maestro worktree prune <run> [--force]
 ```
 
-- `hooks` installs or removes the gitleaks pre-commit hook and the pre-push hook
-  that runs `scripts/check`.
+- `hooks` installs or removes the gitleaks pre-commit hook and the pre-push hook that runs `scripts/check`; the pre-commit hook resolves `maestro` from `PATH`, the install-time path, then the newest plugin cache copy, and warns instead of silently skipping the Bottega-file check.
 - `worktree create` creates one worktree per task for parallel builders and
   prints a port. `worktree prune` removes them and deletes their merged local task branches; `--force` discards uncommitted
   changes.

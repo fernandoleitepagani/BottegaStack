@@ -1957,7 +1957,10 @@ install_git_hooks() {
   gitdir="$(git_dir_for "$repo")"
   hooks="$gitdir/hooks"
   mkdir -p "$hooks"
-  local hook src dest
+  # Record this binary so the hook has a fallback outside a Claude session. The
+  # cache path is versioned, so the hook also checks the cache at run time.
+  local hook src dest tmp path
+  path="$(printf '%s\n' "$SELF" | sed 's/[\\&|]/\\&/g')"
   for hook in pre-commit pre-push; do
     src="$ROOT/resources/git-hooks/$hook"
     dest="$hooks/$hook"
@@ -1965,7 +1968,9 @@ install_git_hooks() {
       cp -p "$dest" "$dest.maestro-backup-$STAMP"
       echo "backup: $dest -> $dest.maestro-backup-$STAMP"
     fi
-    cp "$src" "$dest"
+    tmp="$dest.maestro-tmp-$STAMP"
+    sed -e "s|^MAESTRO_BIN=.*|MAESTRO_BIN=\"$path\"|" "$src" > "$tmp"
+    mv "$tmp" "$dest"
     chmod +x "$dest"
     echo "installed: $dest"
   done
