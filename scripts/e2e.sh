@@ -121,6 +121,7 @@ rc=$?
 expect_not "build --status unknown slug" "$M" build --status no-such-light
 expect_not "check unknown slug" "$M" check no-such-light
 expect_not "gate unknown slug" "$M" gate no-such-light
+expect_not "gate --proof unknown slug" "$M" gate no-such-light --proof
 "$M" log q1 frame "light decision" why evidence done >/dev/null && ok "log light" || fail "log light"
 "$M" log q1 | grep -q 'light decision' && ok "log light prints" || fail "log light prints"
 expect "verify record light" "$M" verify record q1 AC1 INCONCLUSIVE --by reviewer
