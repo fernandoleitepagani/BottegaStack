@@ -434,6 +434,21 @@ printf '%s\n' "$out" | grep -q 'maestro tools install' && ok "tool hint keeps th
 out="$(PATH="$MP/one/bin:$MPNO" "$M" doctor 2>&1)"
 printf '%s\n' "$out" | grep -q 'maestro copies' && fail "doctor silent with one copy" || ok "doctor silent with one copy"
 [ -z "$(PATH="$MP/one/bin:$MP/tools:$MPSAFE" "$M" tools hint 2>&1)" ] && ok "tool hint silent with one copy" || fail "tool hint silent with one copy"
+# A symlinked `maestro` and its target file are one copy, and the version comes
+# from the target's plugin, not the symlink's directory.
+mkdir -p "$MP/link/bin" "$MP/via/bin"
+ln -s "$MP/old/bin/maestro" "$MP/link/bin/maestro"
+ln -s "$MP/new/bin/maestro" "$MP/via/bin/maestro"
+out="$(PATH="$MP/link/bin:$MP/old/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'maestro copies' && fail "symlinked copy and target count once" || ok "symlinked copy and target count once"
+[ -z "$(PATH="$MP/link/bin:$MP/old/bin:$MP/tools:$MPSAFE" "$M" tools hint 2>&1)" ] && ok "symlinked copy hint silent" || fail "symlinked copy hint silent"
+out="$(PATH="$MP/via/bin:$MP/old/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'via/bin (0.0.2) \[wins\], .*old/bin (0.0.1)' && ok "symlinked copy reads the target version" || fail "symlinked copy reads the target version"
+# Empty PATH entries are skipped and never counted as a copy.
+out="$(PATH="::$MP/one/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'maestro copies' && fail "empty PATH entry is skipped" || ok "empty PATH entry is skipped"
+out="$(PATH="::$MP/old/bin::$MP/new/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'warning: 2 maestro copies on PATH' && ok "empty PATH entry does not count" || fail "empty PATH entry does not count"
 [ -z "$(PATH="$MPTWO" BOTTEGA_NO_TOOL_HINT=1 "$M" tools hint 2>&1)" ] && ok "BOTTEGA_NO_TOOL_HINT silences the copy hint" || fail "BOTTEGA_NO_TOOL_HINT silences the copy hint"
 out="$(PATH="$MPTWO" "$M" doctor --help 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^Usage:' && ! printf '%s\n' "$out" | grep -q 'maestro copies'; then
