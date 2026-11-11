@@ -23,11 +23,27 @@ mkdir -p "$TMP/bin" "$CLAUDE_CONFIG_DIR/rules" "$HOME/.config/bottega"
 cat > "$TMP/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 echo "ARGS: $*" >> "$STUBLOG"
+{
+  printf 'MODEL=%s\n' "${ANTHROPIC_MODEL:-}"
+  printf 'OPUS=%s\n' "${ANTHROPIC_DEFAULT_OPUS_MODEL:-}"
+  printf 'SONNET=%s\n' "${ANTHROPIC_DEFAULT_SONNET_MODEL:-}"
+  printf 'HAIKU=%s\n' "${ANTHROPIC_DEFAULT_HAIKU_MODEL:-}"
+  printf 'SUBAGENT=%s\n' "${CLAUDE_CODE_SUBAGENT_MODEL:-}"
+  echo '---'
+} >> "$STUBENV"
+if [ "${STUB_FAIL:-}" = "1" ]; then
+  echo 'API Error: 400 Upstream request failed: Model is unavailable.' >&2
+  echo '{"type":"result","result":"","usage":{"input_tokens":0,"output_tokens":0}}'
+  exit 1
+fi
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
 echo '{"type":"result","result":"STATUS: DONE\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}'
 EOF
 chmod +x "$TMP/bin/claude"
-export PATH="$TMP/bin:$PATH" STUBLOG="$TMP/stub.log"
+export PATH="$TMP/bin:$PATH" STUBLOG="$TMP/stub.log" STUBENV="$TMP/stub.env"
+
+# The env the last stub invocation received (the stub logs five lines, then ---).
+stub_env_has() { tail -n 6 "$STUBENV" | grep -qx "$1"; }
 printf 'ANTHROPIC_BASE_URL=http://stub.invalid\nANTHROPIC_MODEL=stub\n' > "$HOME/.config/bottega/builder.env"
 printf 'stub-key\n' > "$HOME/.config/bottega/builder.key"
 chmod 600 "$HOME/.config/bottega/builder.env" "$HOME/.config/bottega/builder.key"
@@ -81,6 +97,61 @@ grep -q -- "--agent bottega:review-code" "$STUBLOG" && ok "runner uses bottega:r
 grep -q -- "--effort low" "$STUBLOG" && grep -q -- "--effort high" "$STUBLOG" && ok "effort routing" || fail "effort routing"
 BOTTEGA_PLUGIN_DIR=/some/checkout "$M" build --here q2 --task x --block >/dev/null 2>&1
 grep -q -- "--plugin-dir /some/checkout" "$STUBLOG" && ok "BOTTEGA_PLUGIN_DIR" || fail "BOTTEGA_PLUGIN_DIR"
+
+# Model tiers: an empty tier var takes ANTHROPIC_MODEL; an explicit one wins.
+"$M" build --here tiers --task "tier defaults" --block >/dev/null 2>&1
+if stub_env_has "MODEL=stub" && stub_env_has "OPUS=stub" && stub_env_has "SONNET=stub" \
+  && stub_env_has "HAIKU=stub" && stub_env_has "SUBAGENT=stub"; then
+  ok "tier vars default to ANTHROPIC_MODEL"
+else
+  fail "tier vars default to ANTHROPIC_MODEL"
+fi
+cat > "$TMP/explicit.env" <<'EOF'
+ANTHROPIC_BASE_URL=http://stub.invalid
+ANTHROPIC_MODEL=stub
+ANTHROPIC_DEFAULT_OPUS_MODEL=opus-x
+ANTHROPIC_DEFAULT_SONNET_MODEL=sonnet-x
+ANTHROPIC_DEFAULT_HAIKU_MODEL=haiku-x
+CLAUDE_CODE_SUBAGENT_MODEL=sub-x
+EOF
+BOTTEGA_BUILDER_ENV="$TMP/explicit.env" "$M" build --here tiers2 --task "explicit tiers" --block >/dev/null 2>&1
+if stub_env_has "OPUS=opus-x" && stub_env_has "SONNET=sonnet-x" \
+  && stub_env_has "HAIKU=haiku-x" && stub_env_has "SUBAGENT=sub-x"; then
+  ok "explicit tier vars win"
+else
+  fail "explicit tier vars win"
+fi
+
+# --check names an empty model and a space after `=` instead of a missing value.
+printf 'ANTHROPIC_BASE_URL=http://stub.invalid\nANTHROPIC_MODEL=\n' > "$TMP/empty-model.env"
+out="$(BOTTEGA_BUILDER_ENV="$TMP/empty-model.env" "$M" build --check 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'no ANTHROPIC_MODEL value'; then
+  ok "build --check names an empty ANTHROPIC_MODEL"
+else
+  fail "build --check names an empty ANTHROPIC_MODEL"
+fi
+printf 'ANTHROPIC_BASE_URL= "http://stub.invalid"\nANTHROPIC_MODEL=stub\n' > "$TMP/space.env"
+out="$(BOTTEGA_BUILDER_ENV="$TMP/space.env" "$M" build --check 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q "space after '='"; then
+  ok "build --check reports a space after ="
+else
+  fail "build --check reports a space after ="
+fi
+
+# A 0-token failure prints the endpoint error on the console, not only in the log.
+out="$(STUB_FAIL=1 "$M" build --here fail1 --task "api failure" --block 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream request failed'; then
+  ok "0-token build failure prints the error"
+else
+  fail "0-token build failure prints the error"
+fi
+out="$(STUB_FAIL=1 "$M" build --review --here fail2 --block 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream request failed'; then
+  ok "0-token review failure prints the error"
+else
+  fail "0-token review failure prints the error"
+fi
+for s in tiers tiers2 fail1 fail2; do "$M" report --close "$s" >/dev/null 2>&1; done
 
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"

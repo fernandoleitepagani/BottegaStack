@@ -144,6 +144,15 @@ PY
   fi
 fi
 
+# macOS ships bash 3.2, which cannot parse a heredoc inside a command
+# substitution (bash 5 can, so Linux CI misses it). Keep heredocs outside
+# `$( ... )`; run a function with `python3 -c '...'` instead.
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  echo "FAIL heredoc inside a command substitution in bin/maestro (bash 3.2 syntax error): $hit"
+  fail=1
+done < <(grep -nE '\$\(.*<<' "$ROOT/bin/maestro" || true)
+
 for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md; do
   if [ ! -f "$ROOT/$f" ]; then
     echo "FAIL missing doc: $f"
