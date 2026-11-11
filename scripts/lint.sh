@@ -107,6 +107,7 @@ fi
 if command -v python3 >/dev/null 2>&1 && [ -f "$ROOT/hooks/hooks.json" ]; then
   if ! python3 - "$ROOT/hooks/hooks.json" <<'PY'
 import json
+import re
 import sys
 
 prefix = '"${CLAUDE_PLUGIN_ROOT}/bin/maestro" '
@@ -127,6 +128,14 @@ for groups in data.get("hooks", {}).values():
                 print("FAIL hooks/hooks.json hook command must start with "
                       '"${CLAUDE_PLUGIN_ROOT}/bin/maestro" '
                       "(hook shells have no plugin bin on PATH): " + command)
+                bad = 1
+                continue
+            # A valid prefix is not enough: a compound command can still reach
+            # a bare maestro later in the line.
+            rest = command[len(prefix):]
+            if re.search(r"(?<![A-Za-z0-9_./-])maestro(?![A-Za-z0-9_-])", rest):
+                print("FAIL hooks/hooks.json hook command runs bare maestro "
+                      '(use "${CLAUDE_PLUGIN_ROOT}/bin/maestro"): ' + command)
                 bad = 1
 sys.exit(bad)
 PY
