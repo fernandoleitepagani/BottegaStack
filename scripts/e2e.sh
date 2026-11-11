@@ -98,6 +98,35 @@ grep -q -- "--effort low" "$STUBLOG" && grep -q -- "--effort high" "$STUBLOG" &&
 BOTTEGA_PLUGIN_DIR=/some/checkout "$M" build --here q2 --task x --block >/dev/null 2>&1
 grep -q -- "--plugin-dir /some/checkout" "$STUBLOG" && ok "BOTTEGA_PLUGIN_DIR" || fail "BOTTEGA_PLUGIN_DIR"
 
+# A light-path slug resolves where a run slug does (issue #8): status, check,
+# gate, revisions, verify, and log all work against $STATE/quick/<slug>/.
+"$M" build --status q1 | grep -q 'Builders 1/1 done' && ok "build --status light" || fail "build --status light"
+"$M" build --status run-a | grep -q 'Builders 1/2 done' && ok "build --status run unchanged" || fail "build --status run unchanged"
+expect "check light" "$M" check q1
+find "$BOTTEGA_STATE_DIR" -path '*/quick/q1/checks.result' -type f | grep -q . && ok "check light records in the quick dir" || fail "check light records in the quick dir"
+expect "gate light" "$M" gate q1
+"$M" build --status q1 --every 1 | grep -q 'Builders 1/1 done' && ok "build --status light --every" || fail "build --status light --every"
+git commit -q --allow-empty -m light-next
+expect_not "gate light stale" "$M" gate q1
+expect "check light again" "$M" check q1
+expect "gate light after check" "$M" gate q1
+expect "build --review --here after gate" "$M" build --review --here q1 --block
+: > "$STUBLOG"
+expect "build --here --revise" sh -c "echo 'fix it' | '$M' build --here q1 --revise - --block"
+grep -q -- '--resume s1' "$STUBLOG" && ok "light revision resumes the session" || fail "light revision resumes the session"
+expect "build --here --revise 2" sh -c "echo 'again' | '$M' build --here q1 --revise - --block"
+sh -c "echo 'third' | '$M' build --here q1 --revise - --block" >/dev/null 2>&1
+rc=$?
+[ "$rc" -eq 4 ] && ok "light revision exits 4 on the third" || fail "light revision exits 4 on the third"
+expect_not "build --status unknown slug" "$M" build --status no-such-light
+expect_not "check unknown slug" "$M" check no-such-light
+expect_not "gate unknown slug" "$M" gate no-such-light
+"$M" log q1 frame "light decision" why evidence done >/dev/null && ok "log light" || fail "log light"
+"$M" log q1 | grep -q 'light decision' && ok "log light prints" || fail "log light prints"
+expect "verify record light" "$M" verify record q1 AC1 INCONCLUSIVE --by reviewer
+"$M" verify list q1 >/dev/null 2>&1 && ok "verify list light" || fail "verify list light"
+expect "verify waive light" "$M" verify waive q1 AC1 "user approved"
+
 # Model tiers: an empty tier var takes ANTHROPIC_MODEL; an explicit one wins.
 "$M" build --here tiers --task "tier defaults" --block >/dev/null 2>&1
 if stub_env_has "MODEL=stub" && stub_env_has "OPUS=stub" && stub_env_has "SONNET=stub" \
