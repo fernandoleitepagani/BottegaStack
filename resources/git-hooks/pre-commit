@@ -2,6 +2,11 @@
 # bottega-managed
 set -euo pipefail
 
+# `maestro hooks install` records the absolute path of the binary here. It goes
+# stale when the plugin updates (the cache path is versioned), hence the lookup
+# below.
+MAESTRO_BIN=""
+
 status=0
 
 # 1. Secret scan (when gitleaks is available).
@@ -18,9 +23,37 @@ else
   echo "maestro: gitleaks not installed; skipping secret scan" >&2
 fi
 
+# Find maestro. A hook shell outside a Claude session has no plugin bin/ on
+# PATH: try PATH, the install-time path, then the newest plugin cache copy.
+# Sorting by dotted version fields keeps this working on macOS sort/bashes.
+maestro_lookup() {
+  local c v cache best tab
+  if command -v maestro >/dev/null 2>&1; then
+    command -v maestro
+    return 0
+  fi
+  if [ -n "${MAESTRO_BIN:-}" ] && [ -x "$MAESTRO_BIN" ]; then
+    printf '%s\n' "$MAESTRO_BIN"
+    return 0
+  fi
+  cache="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/cache"
+  best="$(
+    for c in "$cache"/*/bottega/*/bin/maestro; do
+      [ -x "$c" ] || continue
+      v="${c%/bin/maestro}"
+      v="${v##*/bottega/}"
+      printf '%s\t%s\n' "$v" "$c"
+    done | sort -t. -k1,1n -k2,2n -k3,3n | tail -n 1
+  )"
+  [ -n "$best" ] || return 0
+  tab="$(printf '\t')"
+  printf '%s\n' "${best#*$tab}"
+}
+
 # 2. Files maestro created must never be committed. Only newly added files are
 # checked, so a project that already tracked its own AGENTS.md can keep editing it.
-if command -v maestro >/dev/null 2>&1; then
+maestro="$(maestro_lookup)"
+if [ -n "$maestro" ]; then
   added="$(git diff --cached --name-only --diff-filter=A 2>/dev/null || true)"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
@@ -28,7 +61,9 @@ if command -v maestro >/dev/null 2>&1; then
       echo "maestro: refusing to commit $f (a Bottega file, local only). Unstage: git restore --staged $f" >&2
       status=1
     fi
-  done < <(maestro _files)
+  done < <("$maestro" _files)
+else
+  echo "maestro: not found; skipping Bottega file check" >&2
 fi
 
 exit "$status"
