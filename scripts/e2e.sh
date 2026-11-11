@@ -89,6 +89,53 @@ echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks wi
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
 echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
 
+# Lint reads hooks.json as JSON, so a hook command that reaches maestro any
+# other way is rejected too (issue #6).
+LB="$TMP/lintbox"
+mkdir -p "$LB/scripts" "$LB/hooks" "$TMP/hookvariants"
+cp "$ROOT/scripts/lint.sh" "$LB/scripts/lint.sh"
+if python3 - "$ROOT/hooks/hooks.json" "$TMP/hookvariants" <<'PY'
+import json, os, sys
+src, out = sys.argv[1], sys.argv[2]
+data = json.load(open(src))
+variants = {
+    "bare": "maestro guard builder",
+    "absolute": "/usr/local/bin/maestro guard builder",
+    "unbraced": '"$CLAUDE_PLUGIN_ROOT/bin/maestro" guard builder',
+    "compound": '"${CLAUDE_PLUGIN_ROOT}/bin/maestro" guard builder; maestro evil',
+}
+for name, command in variants.items():
+    d = json.loads(json.dumps(data))
+    d["hooks"]["PreToolUse"][0]["hooks"][0]["command"] = command
+    with open(os.path.join(out, name + ".json"), "w") as f:
+        json.dump(d, f, indent=2)
+        f.write("\n")
+# The value on its own line: the old line scan never saw "command" and
+# "maestro" together.
+with open(os.path.join(out, "bare.json")) as f:
+    original = f.read()
+text = original.replace('"command": "maestro guard builder"',
+                        '"command":\n            "maestro guard builder"')
+if text == original:
+    sys.exit("multiline variant did not change the file")
+with open(os.path.join(out, "multiline.json"), "w") as f:
+    f.write(text)
+PY
+then
+  ok "lint variants generated"
+else
+  fail "lint variants generated"
+fi
+lint_rejects_hooks() {
+  ( cd "$LB" && bash scripts/lint.sh 2>&1 ) | grep -q '^FAIL hooks/hooks.json'
+}
+for v in bare absolute unbraced compound multiline; do
+  cp "$TMP/hookvariants/$v.json" "$LB/hooks/hooks.json"
+  if lint_rejects_hooks; then ok "lint rejects $v hook command"; else fail "lint rejects $v hook command"; fi
+done
+cp "$ROOT/hooks/hooks.json" "$LB/hooks/hooks.json"
+if lint_rejects_hooks; then fail "lint accepts plugin-root hook commands"; else ok "lint accepts plugin-root hook commands"; fi
+
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
 PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools install" && ok "tool hint when missing" || fail "tool hint when missing"

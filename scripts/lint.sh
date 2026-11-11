@@ -101,21 +101,47 @@ if command -v python3 >/dev/null 2>&1; then
   done
 fi
 
-# Plugin hooks run in a shell without the plugin's bin/ on PATH, so they must
-# call maestro through CLAUDE_PLUGIN_ROOT. A bare command fails with
-# "maestro: command not found".
-if [ -f "$ROOT/hooks/hooks.json" ]; then
-  while IFS= read -r line; do
-    case "$line" in
-      *'"command"'*) ;;
-      *) continue ;;
-    esac
-    stripped="$(printf '%s\n' "$line" | sed -E 's#\$\{CLAUDE_PLUGIN_ROOT\}/bin/maestro##g')"
-    if printf '%s\n' "$stripped" | grep -Eq '(^|[^[:alnum:]_./-])maestro([^[:alnum:]_-]|$)'; then
-      echo "FAIL hooks/hooks.json runs bare maestro (hook shells have no plugin bin on PATH; use \"\${CLAUDE_PLUGIN_ROOT}/bin/maestro\"): $line"
-      fail=1
-    fi
-  done < "$ROOT/hooks/hooks.json"
+# Plugin hooks run in a shell without the plugin's bin/ on PATH, so every hook
+# command must call maestro through CLAUDE_PLUGIN_ROOT. A bare command fails
+# with "maestro: command not found".
+if command -v python3 >/dev/null 2>&1 && [ -f "$ROOT/hooks/hooks.json" ]; then
+  if ! python3 - "$ROOT/hooks/hooks.json" <<'PY'
+import json
+import re
+import sys
+
+prefix = '"${CLAUDE_PLUGIN_ROOT}/bin/maestro" '
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+except (OSError, ValueError):
+    sys.exit(0)  # the JSON check above reports an invalid file
+
+bad = 0
+for groups in data.get("hooks", {}).values():
+    for group in groups:
+        for hook in group.get("hooks", []):
+            if "command" not in hook:
+                continue
+            command = hook["command"]
+            if not command.startswith(prefix):
+                print("FAIL hooks/hooks.json hook command must start with "
+                      '"${CLAUDE_PLUGIN_ROOT}/bin/maestro" '
+                      "(hook shells have no plugin bin on PATH): " + command)
+                bad = 1
+                continue
+            # A valid prefix is not enough: a compound command can still reach
+            # a bare maestro later in the line.
+            rest = command[len(prefix):]
+            if re.search(r"(?<![A-Za-z0-9_./-])maestro(?![A-Za-z0-9_-])", rest):
+                print("FAIL hooks/hooks.json hook command runs bare maestro "
+                      '(use "${CLAUDE_PLUGIN_ROOT}/bin/maestro"): ' + command)
+                bad = 1
+sys.exit(bad)
+PY
+  then
+    fail=1
+  fi
 fi
 
 for f in docs/WORKFLOW.md docs/SKILLS.md docs/SETUP.md; do
