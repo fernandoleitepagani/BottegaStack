@@ -524,22 +524,41 @@ cmd_verify() {
   esac
 }
 
+# Resolve a file path without `readlink -f` (absent on BSD/macOS): follow
+# symlinks with a portable loop, then normalise the directory. Prints the path.
+maestro_real_file() {
+  local p="$1" dir target n=0
+  while [ -L "$p" ] && [ "$n" -lt 40 ]; do
+    dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || break
+    target="$(readlink "$p")" || break
+    case "$target" in
+      /*) p="$target" ;;
+      *) p="$dir/$target" ;;
+    esac
+    n=$((n + 1))
+  done
+  dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || { printf '%s\n' "$p"; return 0; }
+  printf '%s/%s\n' "$dir" "$(basename "$p")"
+}
+
 # Warn when more than one `maestro` is on PATH: after a plugin update an older
 # copy can still come first and win. Scans PATH in order, skipping empty entries
-# and duplicates (same realpath); names each distinct copy with the version from
-# <dir>/../.claude-plugin/plugin.json, or `unknown`.
+# and duplicates (same resolved file); names each distinct copy with the version
+# from the file's plugin manifest (<dir>/../.claude-plugin/plugin.json), or
+# `unknown`. The displayed path stays the PATH entry.
 maestro_path_warning() {
-  local entry real seen=" " ver list="" n=0
+  local entry real dir seen=" " ver list="" n=0
   local IFS=:
   for entry in $PATH; do
     [ -n "$entry" ] || continue
     [ -f "$entry/maestro" ] && [ -x "$entry/maestro" ] || continue
-    real="$(cd "$entry" 2>/dev/null && pwd -P)" || continue
+    real="$(maestro_real_file "$entry/maestro")"
     case "$seen" in *" $real "*) continue ;; esac
     seen="$seen$real "
+    dir="$(dirname "$real")"
     ver="unknown"
-    if [ -f "$entry/../.claude-plugin/plugin.json" ]; then
-      ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$entry/../.claude-plugin/plugin.json" | head -1)"
+    if [ -f "$dir/../.claude-plugin/plugin.json" ]; then
+      ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$dir/../.claude-plugin/plugin.json" | head -1)"
       [ -n "$ver" ] || ver="unknown"
     fi
     if [ "$n" -eq 0 ]; then
