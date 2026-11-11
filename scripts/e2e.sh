@@ -16,7 +16,7 @@ expect() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$name"; els
 expect_not() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then fail "$name"; else ok "$name"; fi; }
 
 # Isolated environment (CI runners set XDG_CONFIG_HOME, so pin it too).
-unset BOTTEGA_BUILDER_ENV BOTTEGA_BUILDER_KEY BOTTEGA_PLUGIN_DIR BOTTEGA_NO_TOOL_HINT
+unset BOTTEGA_BUILDER_ENV BOTTEGA_BUILDER_KEY BOTTEGA_PLUGIN_DIR BOTTEGA_NO_TOOL_HINT BOTTEGA_HEADLESS
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" CLAUDE_CONFIG_DIR="$TMP/home/.claude" BOTTEGA_STATE_DIR="$TMP/state"
 export GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@example.invalid GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@example.invalid
 mkdir -p "$TMP/bin" "$CLAUDE_CONFIG_DIR/rules" "$HOME/.config/bottega"
@@ -97,6 +97,81 @@ printf '#!/bin/sh\n' > "$TMP/bin/rtk"; cp "$TMP/bin/rtk" "$TMP/bin/gitleaks"; ch
 [ -z "$("$M" tools hint)" ] && ok "tool hint silent when installed" || fail "tool hint silent when installed"
 "$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
 rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
+
+# --help/-h: usage only. Every user-facing form runs from a fresh sandbox with
+# its own HOME, state, temp, and repo, and stubs for the optional tools.
+HB="$TMP/helpbox"
+mkdir -p "$HB/home/.config/bottega" "$HB/state" "$HB/tmp" "$HB/repo" "$HB/bin"
+printf '#!/bin/sh\n' > "$HB/bin/rtk"
+cp "$HB/bin/rtk" "$HB/bin/gitleaks"
+chmod +x "$HB/bin/rtk" "$HB/bin/gitleaks"
+printf 'stub-key\n' > "$HB/home/.config/bottega/builder.key"
+( cd "$HB/repo" && git init -q -b main && git commit -q --allow-empty -m init )
+( cd "$HB" && find . | LC_ALL=C sort ) > "$TMP/help.before"
+while IFS= read -r form; do
+  [ -n "$form" ] || continue
+  for flag in --help -h; do
+    out="$( cd "$HB/repo" && env -i HOME="$HB/home" XDG_CONFIG_HOME="$HB/home/.config" \
+      CLAUDE_CONFIG_DIR="$HB/home/.claude" BOTTEGA_STATE_DIR="$HB/state" TMPDIR="$HB/tmp" \
+      PATH="$HB/bin:/usr/bin:/bin" "$M" $form "$flag" </dev/null 2>/dev/null )"
+    rc=$?
+    if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^Usage:'; then
+      ok "$flag $form"
+    else
+      fail "$flag $form"
+    fi
+  done
+done <<'EOF'
+doctor
+init
+seed
+upgrade
+start
+spec
+check
+gate
+verify
+verify record
+log
+log run-x
+report
+report --close run-x
+report --trust
+build
+build --init
+build --check
+build --status
+build --here q
+build --review
+worktree
+worktree create
+worktree prune
+hooks
+hooks install
+hooks uninstall
+tools
+tools install
+tools hint
+guard
+guard stop
+guard builder
+keyget
+EOF
+out="$( cd "$HB/repo" && env -i HOME="$HB/home" XDG_CONFIG_HOME="$HB/home/.config" \
+  CLAUDE_CONFIG_DIR="$HB/home/.claude" BOTTEGA_STATE_DIR="$HB/state" TMPDIR="$HB/tmp" \
+  PATH="$HB/bin:/usr/bin:/bin" "$M" keyget --help </dev/null 2>/dev/null )"
+rc=$?
+if [ "$rc" -eq 0 ] && ! printf '%s\n' "$out" | grep -q 'stub-key'; then
+  ok "keyget --help hides the key"
+else
+  fail "keyget --help hides the key"
+fi
+( cd "$HB" && find . | LC_ALL=C sort ) > "$TMP/help.after"
+if cmp -s "$TMP/help.before" "$TMP/help.after"; then
+  ok "--help writes nothing"
+else
+  fail "--help writes nothing"
+fi
 
 # Logs, findings, close, trust.
 expect "log" "$M" log run-a frame "a decision" "a reason" "commit x" done
