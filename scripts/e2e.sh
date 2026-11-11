@@ -396,6 +396,67 @@ else
   fail "--help writes nothing"
 fi
 
+# A plugin update can leave an older `maestro` first on PATH (issue #20):
+# doctor and the SessionStart hint warn and name every copy, first one wins.
+MP="$TMP/maestro-path"
+mkdir -p "$MP/old/bin" "$MP/old/.claude-plugin" "$MP/new/bin" "$MP/new/.claude-plugin" \
+  "$MP/one/bin" "$MP/one/.claude-plugin" "$MP/tools"
+printf '{"version":"0.0.1"}\n' > "$MP/old/.claude-plugin/plugin.json"
+printf '{"version":"0.0.2"}\n' > "$MP/new/.claude-plugin/plugin.json"
+printf '{"version":"0.0.1"}\n' > "$MP/one/.claude-plugin/plugin.json"
+for d in old new one; do
+  printf '#!/bin/sh\nexit 0\n' > "$MP/$d/bin/maestro"
+  chmod +x "$MP/$d/bin/maestro"
+done
+printf '#!/bin/sh\n' > "$MP/tools/rtk"
+cp "$MP/tools/rtk" "$MP/tools/gitleaks"
+chmod +x "$MP/tools/rtk" "$MP/tools/gitleaks"
+# Keep the PATH entries the other commands need, but drop any other maestro
+# copy so the tests see exactly the copies they create. MPNO also drops rtk
+# providers, so the hint still has a missing tool to report.
+MPSAFE=""; MPNO=""
+old_ifs="$IFS"; IFS=:
+for d in $PATH; do
+  [ -n "$d" ] || continue
+  [ -x "$d/maestro" ] && continue
+  MPSAFE="${MPSAFE:+$MPSAFE:}$d"
+  if [ ! -x "$d/rtk" ]; then MPNO="${MPNO:+$MPNO:}$d"; fi
+done
+IFS="$old_ifs"
+MPTWO="$MP/old/bin:$MP/new/bin:$MPNO"
+out="$(PATH="$MPTWO" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'warning: 2 maestro copies on PATH' && ok "doctor warns about two copies" || fail "doctor warns about two copies"
+printf '%s\n' "$out" | grep -q 'old/bin (0.0.1) \[wins\], .*new/bin (0.0.2)' && ok "doctor names both copies and the winner" || fail "doctor names both copies and the winner"
+out="$(PATH="$MPTWO" "$M" tools hint 2>&1)"
+printf '%s\n' "$out" | grep -q '^{"systemMessage":' && ok "copy warning is a systemMessage" || fail "copy warning is a systemMessage"
+printf '%s\n' "$out" | grep -q 'old/bin (0.0.1) \[wins\], .*new/bin (0.0.2)' && ok "tool hint names both copies and the winner" || fail "tool hint names both copies and the winner"
+printf '%s\n' "$out" | grep -q 'maestro tools install' && ok "tool hint keeps the missing-tools message" || fail "tool hint keeps the missing-tools message"
+out="$(PATH="$MP/one/bin:$MPNO" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'maestro copies' && fail "doctor silent with one copy" || ok "doctor silent with one copy"
+[ -z "$(PATH="$MP/one/bin:$MP/tools:$MPSAFE" "$M" tools hint 2>&1)" ] && ok "tool hint silent with one copy" || fail "tool hint silent with one copy"
+# A symlinked `maestro` and its target file are one copy, and the version comes
+# from the target's plugin, not the symlink's directory.
+mkdir -p "$MP/link/bin" "$MP/via/bin"
+ln -s "$MP/old/bin/maestro" "$MP/link/bin/maestro"
+ln -s "$MP/new/bin/maestro" "$MP/via/bin/maestro"
+out="$(PATH="$MP/link/bin:$MP/old/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'maestro copies' && fail "symlinked copy and target count once" || ok "symlinked copy and target count once"
+[ -z "$(PATH="$MP/link/bin:$MP/old/bin:$MP/tools:$MPSAFE" "$M" tools hint 2>&1)" ] && ok "symlinked copy hint silent" || fail "symlinked copy hint silent"
+out="$(PATH="$MP/via/bin:$MP/old/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'via/bin (0.0.2) \[wins\], .*old/bin (0.0.1)' && ok "symlinked copy reads the target version" || fail "symlinked copy reads the target version"
+# Empty PATH entries are skipped and never counted as a copy.
+out="$(PATH="::$MP/one/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'maestro copies' && fail "empty PATH entry is skipped" || ok "empty PATH entry is skipped"
+out="$(PATH="::$MP/old/bin::$MP/new/bin:$MP/tools:$MPSAFE" "$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -q 'warning: 2 maestro copies on PATH' && ok "empty PATH entry does not count" || fail "empty PATH entry does not count"
+[ -z "$(PATH="$MPTWO" BOTTEGA_NO_TOOL_HINT=1 "$M" tools hint 2>&1)" ] && ok "BOTTEGA_NO_TOOL_HINT silences the copy hint" || fail "BOTTEGA_NO_TOOL_HINT silences the copy hint"
+out="$(PATH="$MPTWO" "$M" doctor --help 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^Usage:' && ! printf '%s\n' "$out" | grep -q 'maestro copies'; then
+  ok "doctor --help stays usage only with two copies"
+else
+  fail "doctor --help stays usage only with two copies"
+fi
+
 # Logs, findings, close, trust.
 expect "log" "$M" log run-a frame "a decision" "a reason" "commit x" done
 "$M" log run-a | grep -q "a decision" && ok "log prints" || fail "log prints"

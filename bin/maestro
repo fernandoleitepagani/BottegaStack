@@ -524,9 +524,58 @@ cmd_verify() {
   esac
 }
 
+# Resolve a file path without `readlink -f` (absent on BSD/macOS): follow
+# symlinks with a portable loop, then normalise the directory. Prints the path.
+maestro_real_file() {
+  local p="$1" dir target n=0
+  while [ -L "$p" ] && [ "$n" -lt 40 ]; do
+    dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || break
+    target="$(readlink "$p")" || break
+    case "$target" in
+      /*) p="$target" ;;
+      *) p="$dir/$target" ;;
+    esac
+    n=$((n + 1))
+  done
+  dir="$(cd "$(dirname "$p")" 2>/dev/null && pwd -P)" || { printf '%s\n' "$p"; return 0; }
+  printf '%s/%s\n' "$dir" "$(basename "$p")"
+}
+
+# Warn when more than one `maestro` is on PATH: after a plugin update an older
+# copy can still come first and win. Scans PATH in order, skipping empty entries
+# and duplicates (same resolved file); names each distinct copy with the version
+# from the file's plugin manifest (<dir>/../.claude-plugin/plugin.json), or
+# `unknown`. The displayed path stays the PATH entry.
+maestro_path_warning() {
+  local entry real dir seen=" " ver list="" n=0
+  local IFS=:
+  for entry in $PATH; do
+    [ -n "$entry" ] || continue
+    [ -f "$entry/maestro" ] && [ -x "$entry/maestro" ] || continue
+    real="$(maestro_real_file "$entry/maestro")"
+    case "$seen" in *" $real "*) continue ;; esac
+    seen="$seen$real "
+    dir="$(dirname "$real")"
+    ver="unknown"
+    if [ -f "$dir/../.claude-plugin/plugin.json" ]; then
+      ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$dir/../.claude-plugin/plugin.json" | head -1)"
+      [ -n "$ver" ] || ver="unknown"
+    fi
+    if [ "$n" -eq 0 ]; then
+      list="$entry ($ver) [wins]"
+    else
+      list="$list, $entry ($ver)"
+    fi
+    n=$((n + 1))
+  done
+  [ "$n" -gt 1 ] || return 0
+  printf 'warning: %s maestro copies on PATH; the first one wins: %s\n' "$n" "$list"
+}
+
 cmd_doctor() {
   echo "BottegaStack doctor"
   echo "root: $ROOT"
+  maestro_path_warning
   local sdir
   if sdir="$(state_dir 2>/dev/null)"; then
     local runs=0
@@ -2187,12 +2236,20 @@ cmd_tools() {
         command -v "$t" >/dev/null 2>&1 && echo "$t: installed" || echo "$t: installed but not on PATH yet (check ~/.local/bin, ~/go/bin, ~/.cargo/bin)"
       done ;;
     hint)
-      # SessionStart hook: one line when a tool is missing. Never installs.
+      # SessionStart hook: one line when a tool is missing or an older maestro
+      # copy shadows the plugin. Never installs.
       [ -n "${BOTTEGA_NO_TOOL_HINT:-}" ] && return 0
-      local missing
+      local missing warn msg tool_msg
       missing="$(tools_missing)"
-      [ -n "$missing" ] || return 0
-      printf '{"systemMessage":"bottega: %s not installed; run maestro tools install (silence: BOTTEGA_NO_TOOL_HINT=1)"}\n' "$(echo "$missing" | sed 's/ /, /g')" ;;
+      warn="$(maestro_path_warning)"
+      [ -n "$missing" ] || [ -n "$warn" ] || return 0
+      msg="$warn"
+      if [ -n "$missing" ]; then
+        tool_msg="$(printf 'bottega: %s not installed; run maestro tools install (silence: BOTTEGA_NO_TOOL_HINT=1)' "$(echo "$missing" | sed 's/ /, /g')")"
+        if [ -n "$msg" ]; then msg="$msg; $tool_msg"; else msg="$tool_msg"; fi
+      fi
+      msg="$(printf '%s' "$msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+      printf '{"systemMessage":"%s"}\n' "$msg" ;;
     *) echo "usage: maestro tools install [--yes] | hint" >&2; return 1 ;;
   esac
 }
