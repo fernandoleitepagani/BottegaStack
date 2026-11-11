@@ -94,7 +94,7 @@ echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder 
 LB="$TMP/lintbox"
 mkdir -p "$LB/scripts" "$LB/hooks" "$TMP/hookvariants"
 cp "$ROOT/scripts/lint.sh" "$LB/scripts/lint.sh"
-python3 - "$ROOT/hooks/hooks.json" "$TMP/hookvariants" <<'PY'
+if python3 - "$ROOT/hooks/hooks.json" "$TMP/hookvariants" <<'PY'
 import json, os, sys
 src, out = sys.argv[1], sys.argv[2]
 data = json.load(open(src))
@@ -102,6 +102,7 @@ variants = {
     "bare": "maestro guard builder",
     "absolute": "/usr/local/bin/maestro guard builder",
     "unbraced": '"$CLAUDE_PLUGIN_ROOT/bin/maestro" guard builder',
+    "compound": '"${CLAUDE_PLUGIN_ROOT}/bin/maestro" guard builder; maestro evil',
 }
 for name, command in variants.items():
     d = json.loads(json.dumps(data))
@@ -112,16 +113,23 @@ for name, command in variants.items():
 # The value on its own line: the old line scan never saw "command" and
 # "maestro" together.
 with open(os.path.join(out, "bare.json")) as f:
-    text = f.read()
-text = text.replace('"command": "maestro guard builder"',
-                    '"command":\n            "maestro guard builder"')
+    original = f.read()
+text = original.replace('"command": "maestro guard builder"',
+                        '"command":\n            "maestro guard builder"')
+if text == original:
+    sys.exit("multiline variant did not change the file")
 with open(os.path.join(out, "multiline.json"), "w") as f:
     f.write(text)
 PY
+then
+  ok "lint variants generated"
+else
+  fail "lint variants generated"
+fi
 lint_rejects_hooks() {
   ( cd "$LB" && bash scripts/lint.sh 2>&1 ) | grep -q '^FAIL hooks/hooks.json'
 }
-for v in bare absolute unbraced multiline; do
+for v in bare absolute unbraced compound multiline; do
   cp "$TMP/hookvariants/$v.json" "$LB/hooks/hooks.json"
   if lint_rejects_hooks; then ok "lint rejects $v hook command"; else fail "lint rejects $v hook command"; fi
 done
