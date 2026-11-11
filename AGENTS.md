@@ -95,7 +95,7 @@ BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 ./bin/maestro report --trust [n]
 ./bin/maestro report --finding <run> "<title>"
 ./bin/maestro build <run> <task> [--revise <file|->] [--block|--wait]
-./bin/maestro build --here <slug> --task "<text>" [--block|--wait]
+./bin/maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 ./bin/maestro build --review <run> <task> [--block|--wait]
 ./bin/maestro build --review --here <slug> [--block|--wait]
 ./bin/maestro build --status <run> [--every <seconds>]
