@@ -801,16 +801,30 @@ cmd_keyget() {
 # Succeeds when the headless builder can run. Prints why not on stderr unless
 # quiet. Never prints values from the env or key file.
 builder_ready() {
-  local quiet="${1:-}" file var missing=""
+  local quiet="${1:-}" file var missing="" bad=""
   say() { [ "$quiet" = "quiet" ] || echo "$1" >&2; }
   file="$(builder_env_file)"
   has_value() { grep -Eq "^(export[[:space:]]+)?($1)=([^[:space:]\"']|[\"'][^\"']+[\"'])" "$file"; }
+  # `KEY= value` is not valid shell: name the line instead of reporting the
+  # value as missing.
+  space_after_eq() {
+    grep -nE "^(export[[:space:]]+)?($1)=[[:space:]]" "$file" 2>/dev/null | head -1 || true
+  }
   command -v claude >/dev/null 2>&1 || { say "builder: claude is not installed"; return 1; }
   command -v python3 >/dev/null 2>&1 || { say "builder: python3 is required"; return 1; }
   [ -f "$file" ] || { say "builder: not configured (run: maestro build --init)"; return 1; }
   for var in ANTHROPIC_BASE_URL ANTHROPIC_MODEL; do
-    has_value "$var" || missing="$missing $var"
+    bad="$(space_after_eq "$var")"
+    if [ -n "$bad" ]; then
+      say "builder: $file:${bad%%:*}: remove the space after '=' in $var (write $var=value)"
+      return 1
+    fi
   done
+  if ! has_value "ANTHROPIC_MODEL"; then
+    say "builder: $file has no ANTHROPIC_MODEL value; set it to the model your endpoint serves (see docs/SETUP.md)"
+    return 1
+  fi
+  has_value "ANTHROPIC_BASE_URL" || missing="$missing ANTHROPIC_BASE_URL"
   if [ ! -s "$(builder_key_file)" ] && ! has_value "ANTHROPIC_AUTH_TOKEN|ANTHROPIC_API_KEY"; then
     missing="$missing key($(builder_key_file))"
   fi
@@ -981,6 +995,54 @@ build_wait_or_exit() {
   exit 5
 }
 
+# A failed run that spent no tokens was rejected before it did any work (model,
+# endpoint, or key). Print the first plain error line on stderr so the API error
+# is on the console instead of only in the log or report file.
+build_failure_note() {
+  local rc="$1" log="$2" report="$3" first
+  [ "$rc" -ne 0 ] || return 0
+  case "$(build_tokens "$log")" in
+    "in 0 out 0"|unknown) ;;
+    *) return 0 ;;
+  esac
+  first="$(python3 - "$log" "$report" <<'PY'
+import json, os, sys
+log_path, report_path = sys.argv[1:3]
+
+def first_log_line():
+    if not os.path.isfile(log_path):
+        return ""
+    with open(log_path, errors="replace") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                ev = json.loads(line)
+            except Exception:
+                return line  # plain stderr output: the endpoint's error
+            if isinstance(ev, dict) and ev.get("type") == "result":
+                for key in ("error", "result"):
+                    msg = ev.get(key)
+                    if isinstance(msg, str) and msg.strip():
+                        return msg.strip().splitlines()[0].strip()
+    return ""
+
+line = first_log_line()
+if not line and os.path.isfile(report_path):
+    with open(report_path, errors="replace") as f:
+        for raw in f:
+            if raw.strip():
+                line = raw.strip()
+                break
+if line:
+    print(line)
+PY
+)"
+  [ -n "$first" ] && printf 'error: %s\n' "$first" >&2
+  return 0
+}
+
 # build_collect <rcfile> <run> <log> <out>: print the exit code and turn the log
 # into the final reply at <out>.
 build_collect() {
@@ -989,6 +1051,7 @@ build_collect() {
   rm -f "$1" "$2"
   cap_log "$3"
   build_result_text "$3" "$4"
+  build_failure_note "$rc" "$3" "$4"
   printf '%s\n' "$rc"
 }
 
@@ -1464,7 +1527,21 @@ cmd_build_exec() {
   set +e
   (
     unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
+    # builder.env is the source for the tier aliases too: a Claude Code session's
+    # ambient aliases must not leak into a third-party build.
+    unset ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL \
+      ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL
     set -a; . "$envfile"; set +a
+    # The builder agent asks for a Claude tier alias; on a third-party endpoint
+    # every alias must name the served model. Explicit values still win.
+    if [ -n "${ANTHROPIC_MODEL:-}" ]; then
+      : "${ANTHROPIC_DEFAULT_OPUS_MODEL:=$ANTHROPIC_MODEL}"
+      : "${ANTHROPIC_DEFAULT_SONNET_MODEL:=$ANTHROPIC_MODEL}"
+      : "${ANTHROPIC_DEFAULT_HAIKU_MODEL:=$ANTHROPIC_MODEL}"
+      : "${CLAUDE_CODE_SUBAGENT_MODEL:=$ANTHROPIC_MODEL}"
+      export ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL \
+        ANTHROPIC_DEFAULT_HAIKU_MODEL CLAUDE_CODE_SUBAGENT_MODEL
+    fi
     python3 - "$profile" "$helper" <<'PY'
 import json, os, sys
 path, helper = sys.argv[1:3]

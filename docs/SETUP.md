@@ -71,8 +71,21 @@ maestro build --check    # verifies both without printing them
 ```
 
 - `~/.config/bottega/builder.env` (mode 600) holds the endpoint and model names
-  only. Set `ANTHROPIC_BASE_URL` to any Anthropic-compatible endpoint and the
-  model names to the model it serves; `maestro build --check` reports what is missing.
+  only. Set `ANTHROPIC_BASE_URL` to any Anthropic-compatible endpoint and
+  `ANTHROPIC_MODEL` to the model it serves. For OpenCode Go:
+
+  ```bash
+  ANTHROPIC_BASE_URL=https://opencode.ai/inference/go/anthropic
+  ANTHROPIC_MODEL=<the model OpenCode Go serves>
+  ```
+
+  Use the base URL exactly as given, with no `/v1/messages` suffix. Any empty
+  `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`,
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL`, or `CLAUDE_CODE_SUBAGENT_MODEL` defaults to
+  `ANTHROPIC_MODEL` at build time, so the builder's Claude tier aliases reach
+  the served model; an explicit value in `builder.env` wins. `maestro build
+  --check` reports what is missing and any malformed line (such as a space
+  after `=`).
 - `~/.config/bottega/builder.key` (mode 600) holds the API key. It reaches
   `claude` through an `apiKeyHelper` (`maestro keyget`), so it is never in the
   builder's environment or argv. An `ANTHROPIC_AUTH_TOKEN=` line in
@@ -282,6 +295,13 @@ maestro build --status <run> [--every <seconds>]
   and passes it with `--settings`, so it outranks user and project settings. The
   profile blanks `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` in settings
   `env`.
+- The profile pins `ANTHROPIC_MODEL` and maps every empty tier alias
+  (`ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`,
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL`, `CLAUDE_CODE_SUBAGENT_MODEL`) to it, so the
+  builder's Claude tier alias resolves to the served model. An explicit value in
+  `builder.env` wins.
+- A build or review that exits non-zero without spending tokens prints the first
+  endpoint error line on the console; the full stream stays in `builder.log`.
 - Effort routing: when `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/rules/bottega-models.md`
   exists, `build` and `--here` take the `builder` line's effort and `--review`
   takes the `second-opinion` line's effort, passed as `--effort
