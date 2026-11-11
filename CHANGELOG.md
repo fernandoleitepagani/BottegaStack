@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.2 — 2026-11-11
+
 - Fixes: a light-path slug (`maestro build --here`) resolves everywhere a run slug is accepted: `build --status`, `check`, `gate`, `build --here --revise` (resumes the same session, max two revisions, exit 4 on the third), and `verify record|waive|list`, with state staying in `$STATE/quick/<slug>/`; the headless `build --review --here` gate no longer reports `BLOCKED: checks stale or failing` for it; the light build summary prints `session` and `revisions`; and the playbooks and docs point light runs at `maestro check`/`maestro gate`, `maestro build --here --revise`, and `maestro build --status` (issue #8).
 
 ## 0.6.1 — 2026-11-11
