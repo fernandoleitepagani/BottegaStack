@@ -154,7 +154,7 @@ cmd_start() {
   fi
 
   local slug base n=1
-  slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-*$//')"
+  slug="$(printf '%s' "$title" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g; s/^-//; s/-$//' | cut -c1-40 | sed 's/-*$//')"
   [ -n "$slug" ] || slug="run"
   base="$(git branch --show-current 2>/dev/null || true)"
   [ -n "$base" ] || base="HEAD"
