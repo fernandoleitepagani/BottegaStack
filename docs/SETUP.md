@@ -60,6 +60,13 @@ A plugin cannot change your global Claude Code config, so set these yourself:
   ```
 
   `claude --agent bottega:master` works without the `agent` key.
+- `/maestro` runs on the session model: the command sets no `model` of its own.
+  To start the master on a chosen model, run
+  `claude --agent bottega:master --model <model>`, or set `"model": "<model>"`
+  beside `"agent": "bottega:master"` in `~/.claude/settings.json`. Per-role model
+  and effort routing for the agents the master delegates to is written by
+  `/maestro-models` to `~/.claude/rules/bottega-models.md`; it does not change
+  the session's own model.
 - The plugin does not write `~/.claude/CLAUDE.md`. Put global instructions
   there yourself.
 - The plugin does not install a launcher into `~/.local/bin`. `maestro` is on
