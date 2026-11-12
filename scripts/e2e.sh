@@ -88,6 +88,36 @@ else
   fail "start refused on a dirty tree writes nothing"
 fi
 
+# Untracked files never enter a run (builds use a worktree from HEAD), so
+# `start` ignores them; modified or staged tracked files still refuse (issue #22).
+UNTRACKED="$TMP/fresh-untracked"
+mkdir -p "$UNTRACKED" && ( cd "$UNTRACKED" && git init -q -b feat && git commit -q --allow-empty -m init )
+mkdir -p "$UNTRACKED/__pycache__" && printf 'bytecode\n' > "$UNTRACKED/__pycache__/left.pyc"
+out="$( cd "$UNTRACKED" && "$M" start "Untracked files" 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'run: untracked-files'; then
+  ok "start ignores untracked files"
+else
+  fail "start ignores untracked files"
+fi
+MODIFIED="$TMP/fresh-modified"
+mkdir -p "$MODIFIED" && ( cd "$MODIFIED" && git init -q -b feat && git commit -q --allow-empty -m init )
+printf 'base\n' > "$MODIFIED/tracked.txt"
+( cd "$MODIFIED" && git add tracked.txt && git commit -q -m tracked )
+printf 'changed\n' > "$MODIFIED/tracked.txt"
+out="$( cd "$MODIFIED" && "$M" start "Modified tracked" 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'working tree is dirty; commit or stash first'; then
+  ok "start refuses a modified tracked file"
+else
+  fail "start refuses a modified tracked file"
+fi
+( cd "$MODIFIED" && git add tracked.txt )
+out="$( cd "$MODIFIED" && "$M" start "Staged tracked" 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'working tree is dirty; commit or stash first'; then
+  ok "start refuses a staged tracked file"
+else
+  fail "start refuses a staged tracked file"
+fi
+
 # Runs and branches.
 expect_not "start refused on main" "$M" start "On main"
 git switch -q -c feat/e2e
@@ -112,6 +142,15 @@ else
 fi
 expect "check" "$M" check run-a
 expect "gate" "$M" gate run-a
+# `start` ignores untracked files, but `gate` keeps the strict check (issue #22).
+printf 'leftover\n' > "$REPO/untracked-gate.txt"
+out="$("$M" gate run-a 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (working tree dirty)'; then
+  ok "gate still fails on an untracked file"
+else
+  fail "gate still fails on an untracked file"
+fi
+rm -f "$REPO/untracked-gate.txt"
 expect_not "gate --proof without proof" "$M" gate run-a --proof
 printf 'cmd: true\nexit 0\n' > "$TMP/ev.txt"
 expect_not "verify refuses the builder" "$M" verify record run-a AC1 PASS --by builder --evidence "$TMP/ev.txt"
