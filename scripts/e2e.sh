@@ -15,6 +15,17 @@ fail() { echo "FAIL $1"; fails=$((fails + 1)); }
 expect() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then ok "$name"; else fail "$name"; fi; }
 expect_not() { local name="$1"; shift; if "$@" >/dev/null 2>&1; then fail "$name"; else ok "$name"; fi; }
 
+# A Bash 3.2 [a-z] range can match uppercase under a UTF-8 collation, so the
+# name validators must not depend on locale. Run them under en_US.UTF-8 when
+# the host has it; without it the uppercase case still runs (issue #27 CI).
+utf8_locale=""
+if locale -a 2>/dev/null | grep -Eqi '^en_US\.utf-?8$'; then
+  utf8_locale=en_US.UTF-8
+fi
+locale_run() {
+  if [ -n "$utf8_locale" ]; then LC_ALL="$utf8_locale" "$@"; else "$@"; fi
+}
+
 # Isolated environment (CI runners set XDG_CONFIG_HOME, so pin it too).
 unset BOTTEGA_BUILDER_ENV BOTTEGA_BUILDER_KEY BOTTEGA_PLUGIN_DIR BOTTEGA_NO_TOOL_HINT BOTTEGA_HEADLESS
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" CLAUDE_CONFIG_DIR="$TMP/home/.claude" BOTTEGA_STATE_DIR="$TMP/state"
@@ -400,6 +411,37 @@ BOTTEGA_STATE_DIR="$HSTATE" "$M" resume .. >/dev/null 2>&1; rc=$?
 after="$(find "$HSTATE" | LC_ALL=C sort)"
 [ "$before" = "$after" ] && ok "bad slugs write nothing outside the run dir" || fail "bad slugs write nothing outside the run dir"
 
+# Uppercase run ids are invalid under any collation; a Bash 3.2 [a-z] range
+# can match them, so hold, resume, and build --here are checked under a UTF-8
+# locale too. A rejected slug writes no state (issue #27 CI).
+LOCSTATE="$TMP/locale-hold-state"
+out="$(BOTTEGA_STATE_DIR="$LOCSTATE" locale_run "$M" hold Foo r 2>"$TMP/locale-hold.err")"; rc=$?
+if [ "$rc" -eq 2 ] && [ -z "$out" ] \
+  && grep -qxF 'maestro hold: bad run id: Foo' "$TMP/locale-hold.err" \
+  && [ ! -e "$LOCSTATE" ]; then
+  ok "hold rejects an uppercase run id under a UTF-8 locale"
+else
+  fail "hold rejects an uppercase run id under a UTF-8 locale"
+fi
+LOCSTATE2="$TMP/locale-resume-state"
+out="$(BOTTEGA_STATE_DIR="$LOCSTATE2" locale_run "$M" resume Foo 2>"$TMP/locale-resume.err")"; rc=$?
+if [ "$rc" -eq 2 ] && [ -z "$out" ] \
+  && grep -qxF 'maestro resume: bad run id: Foo' "$TMP/locale-resume.err" \
+  && [ ! -e "$LOCSTATE2" ]; then
+  ok "resume rejects an uppercase run id under a UTF-8 locale"
+else
+  fail "resume rejects an uppercase run id under a UTF-8 locale"
+fi
+LBSTATE="$TMP/locale-build-state"
+out="$(BOTTEGA_STATE_DIR="$LBSTATE" locale_run "$M" build --here Foo --task x 2>"$TMP/locale-build.err")"; rc=$?
+if [ "$rc" -eq 2 ] && [ -z "$out" ] \
+  && grep -qxF 'maestro build --here: slug must be lowercase letters, digits, and hyphens: Foo' "$TMP/locale-build.err" \
+  && [ ! -e "$LBSTATE" ]; then
+  ok "build --here rejects an uppercase slug under a UTF-8 locale"
+else
+  fail "build --here rejects an uppercase slug under a UTF-8 locale"
+fi
+
 # Two open runs, only one on hold: the Stop hook still blocks.
 HSTATE2="$TMP/hold-state-two"
 BOTTEGA_STATE_DIR="$HSTATE2" "$M" start "Hold two a" >/dev/null 2>&1
@@ -774,6 +816,15 @@ skill_reject no-such-skill "unknown skill: no-such-skill"
 skill_reject playbooks "playbooks uses the BottegaStack stack and is not standalone"
 skill_reject ../x "invalid skill name: ../x"
 skill_reject Teach "invalid skill name: Teach"
+# The same uppercase name under a locale-sensitive collation (issue #27 CI).
+rm -rf "$SKILLS/skills"
+locale_run skill_cmd install Teach >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] && grep -qxF 'maestro skills: invalid skill name: Teach' "$TMP/skills.err" \
+  && [ -z "$(ls -A "$SKILLS")" ]; then
+  ok "skills install rejects uppercase under a UTF-8 locale"
+else
+  fail "skills install rejects uppercase under a UTF-8 locale"
+fi
 rm -rf "$SKILLS/skills"
 skill_cmd install teach ../x >/dev/null 2>"$TMP/skills.err"; rc=$?
 if [ "$rc" -eq 1 ] && grep -qxF 'maestro skills: invalid skill name: ../x' "$TMP/skills.err" \
@@ -959,6 +1010,17 @@ if [ "$uninstall_bad" -eq 1 ]; then
   ok "skills uninstall rejects an invalid name"
 else
   fail "skills uninstall rejects an invalid name"
+fi
+# The same uppercase name under a locale-sensitive collation: it is refused
+# before any managed copy is removed (issue #27 CI).
+rm -rf "$SKILLS/skills"
+skill_cmd install how >/dev/null 2>&1
+locale_run skill_cmd uninstall Teach >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] && grep -qxF 'maestro skills: invalid skill name: Teach' "$TMP/skills.err" \
+  && [ -f "$SKILLS/skills/how/.bottega-managed" ]; then
+  ok "skills uninstall rejects uppercase under a UTF-8 locale"
+else
+  fail "skills uninstall rejects uppercase under a UTF-8 locale"
 fi
 skill_cmd uninstall -x >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 2 ] && ok "skills uninstall option is a usage error" || fail "skills uninstall option is a usage error"
