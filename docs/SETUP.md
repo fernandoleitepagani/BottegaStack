@@ -411,6 +411,37 @@ maestro watch --line
   revisions add nothing. The file sits in the state root, so it outlives
   `report --close`.
 
+## Lab
+
+`maestro lab` is an opt-in end-to-end rehearsal of the real master. It never
+runs from `scripts/check`, `scripts/validate.sh`, or CI: those drive every
+command with a fake master and a stub builder, so they spend no model and use no
+network. Run the lab by hand when you changed the master prompt, the playbooks,
+or the workflow hooks.
+
+```bash
+maestro lab [trivial|bugfix|feature-fix|pause-resume] [--keep]
+```
+
+- The master runs on `sonnet` with `low` effort. It needs
+  `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` in the environment; the lab
+  passes it through unread and exits 3 when neither is set.
+- The builder is stubbed (`lab/stub-claude`), so only the master calls a model.
+  The scratch `builder.env` points at `http://stub.invalid`, so an unstubbed
+  builder call fails fast instead of reaching a real endpoint.
+- Everything is isolated: `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`,
+  `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `BOTTEGA_STATE_DIR`, and `TMPDIR` move
+  under one scratch directory, and the stub `claude` is first on `PATH`.
+- With no scenario it runs all four. Each scenario has a fixture, a master
+  prompt, a stub-builder side effect, and an `expect` assertion; a failed
+  scenario stops the run with a non-zero exit.
+- `--keep` prints the scratch path and keeps it for inspection. Without it the
+  scratch directory is removed on exit.
+- The master gets `--plugin-dir <checkout>` and `--strict-mcp-config`, plus an
+  allow list (`Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite,Task,Agent`) and a
+  deny list for push, merge, hard reset, clean, sudo, recursive remove, and
+  `gh`.
+
 ## Hooks and worktrees
 
 ```bash

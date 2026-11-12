@@ -36,6 +36,8 @@ A personal agentic development workflow, shipped as the Claude Code plugin
   manifests, the master confirms the profile and writes that section.
 - Builds report `tokens: in <n> out <n>` and `steps: <n>`; the 30-minute
   `BOTTEGA_BUILD_TIMEOUT` is the only stop.
+- `maestro lab` is opt-in and runs the real master on a paid model. Never put it
+  in `scripts/check`, `scripts/validate.sh`, or CI; those use a fake master.
 - Claude Code is the only supported runtime. Do not add files or references for
   other agent platforms.
 - `./scripts/validate.sh` is the release gate. It runs `./bin/maestro doctor`,
@@ -75,7 +77,7 @@ Prefer the highest item that actually prevents recurrence.
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `watch`, `worktree`, `skills`, and
+`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `watch`, `lab`, `worktree`, `skills`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -103,6 +105,7 @@ BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 ./bin/maestro build --status <run>
 ./bin/maestro watch <run>
 ./bin/maestro watch --line
+./bin/maestro lab [trivial|bugfix|feature-fix|pause-resume] [--keep]
 ./bin/maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 ./bin/maestro worktree prune <run> [--force]
 ./bin/maestro hooks install [path]
