@@ -1435,24 +1435,28 @@ build_review() {
     [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
   fi
 
-  builder_ready || exit 3
-  local repo name dir wt bdir pre findings again
+  local repo name dir wt bdir pre findings again base
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --review: not a git repository" >&2; exit 3; }
   if [ "$here" = "1" ]; then
     # Light path: review the current checkout; state sits beside the quick run.
+    # Resolve the state read-only: an unknown slug must fail before the builder
+    # starts (so before any model call), not create a directory and run.
+    base="$(state_dir)" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
+    dir="$base/quick/$slug"
+    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 1; }
     wt="$repo"
-    dir="$(light_dir "$slug")" || { echo "maestro build --review: could not create the state directory" >&2; exit 3; }
     bdir="$dir"; pre="review"; findings="$dir/review.md"
     again="maestro build --review --here $slug --wait"
   else
     name="$(basename "$repo")"
     dir="$(run_state_dir "$slug")" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
     wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
-    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 3; }
+    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 1; }
     [ -d "$wt" ] || { echo "maestro build --review: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
     bdir="$dir/build"; pre="$task.review2"; findings="$bdir/$task.review2.md"
     again="maestro build --review $slug $task --wait"
   fi
+  builder_ready || exit 3
   local run="$bdir/$pre.run"
   local rcfile="$bdir/$pre.rc"
   local progress="$bdir/$pre.progress"

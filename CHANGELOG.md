@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixes: `maestro build --review --here <slug>` with no light-path state fails before any model call with `maestro build --review: no such run: <slug>` and exit 1; `maestro build --review <run> <task>` fails the same way for an unknown run (issue #15).
 - Fixes: when more than one `maestro` is on `PATH` (a plugin update can leave an older copy first), `maestro doctor` and the SessionStart `maestro tools hint` warn in PATH order, name every distinct copy with its plugin version, and mark the first as winning; a symlinked copy and its target count once and report the target's version, empty PATH entries are skipped, one copy prints nothing new, and `BOTTEGA_NO_TOOL_HINT=1` still silences the hint (issue #20).
 
 ## 0.6.2 — 2026-11-11
