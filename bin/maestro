@@ -144,7 +144,8 @@ resolve_run_dir() {
 
 # `maestro start "<title>" [--branch <name>]`: create the state directory and the
 # run id (the slug). The run works on the branch you are on; only `--branch`
-# creates one. Auto-inits the project on first use and requires a clean tree.
+# creates one. Auto-inits the project on first use and requires no changes to
+# tracked files; untracked files are ignored because a run builds from HEAD.
 cmd_start() {
   local title="" newbranch=""
   while [ "$#" -gt 0 ]; do
@@ -159,13 +160,9 @@ cmd_start() {
   local repo
   repo="$(git rev-parse --show-toplevel)"
   cd "$repo"
-  # /maestro is the only command you need: set the project up on first use. init
-  # only creates what is missing and everything it creates is excluded from git,
-  # so the clean-tree check below is unaffected.
-  if [ ! -f AGENTS.md ] || [ ! -x scripts/check ] || [ ! -f .claude/settings.json ]; then
-    cmd_init "$repo" | tail -1
-  fi
-  if [ -n "$(git status --porcelain)" ]; then
+  # Validate every rule before writing anything: a refused start must leave the
+  # repo byte-for-byte unchanged, so no auto-init happens until all of them pass.
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "working tree is dirty; commit or stash first" >&2
     exit 1
   fi
@@ -192,6 +189,11 @@ cmd_start() {
         echo "maestro start: you are on '${branch:-detached HEAD}'. Switch to your working branch, or pass --branch <name> to create one." >&2
         exit 1 ;;
     esac
+  fi
+  # /maestro is the only command you need: set the project up on first use, now
+  # that every rule has passed. init only creates what is missing.
+  if [ ! -f AGENTS.md ] || [ ! -x scripts/check ] || [ ! -f .claude/settings.json ]; then
+    cmd_init "$repo" | tail -1
   fi
   local dir
   while [ -d "$(state_dir)/$slug" ]; do
@@ -365,7 +367,7 @@ cmd_gate() {
   local dir file rc
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
-    if [ "$rc" -eq 2 ]; then echo "GATE: FAIL (not a git repository)"; else echo "GATE: FAIL (no checks.result)"; fi
+    if [ "$rc" -eq 2 ]; then echo "maestro gate: not in a git repository" >&2; else echo "maestro gate: no such run: $slug" >&2; fi
     return 1
   }
   file="$dir/checks.result"
@@ -1078,15 +1080,23 @@ build_mark_stale() {
   [ -f "$2" ] || [ -z "$(find "$1" -mmin +360 2>/dev/null)" ] || echo 1 > "$2"
 }
 
-# build_wait_or_exit <rcfile> <block> <progress> <what> <again>: wait; if the
-# build is still going, print where it stands and exit 5.
+# build_wait_or_exit <rcfile> <block> <progress> <what> <again> [run-marker] [report]:
+# wait; if another caller collected the result, say so and exit 0; if the build
+# is still going, print where it stands and exit 5.
 build_wait_or_exit() {
-  build_wait "$1" "$(build_wait_limit "$2")"
-  [ -f "$1" ] && return 0
-  echo "RUNNING $4 (still going; call again: $5)"
-  echo "steps so far: $(wc -l < "$3" 2>/dev/null | tr -d ' ')"
-  [ -s "$3" ] && echo "last step: $(tail -1 "$3")"
-  echo "progress: $3"
+  local rcfile="$1" block="$2" progress="$3" what="$4" again="$5" marker="${6:-}" report="${7:-}"
+  build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker"
+  [ -f "$rcfile" ] && return 0
+  if [ -n "$marker" ] && [ ! -f "$marker" ]; then
+    echo "$what"
+    echo "already collected by another caller"
+    [ -n "$report" ] && [ -f "$report" ] && echo "report: $report"
+    exit 0
+  fi
+  echo "RUNNING $what (still going; call again: $again)"
+  echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
+  [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
+  echo "progress: $progress"
   exit 5
 }
 
@@ -1165,9 +1175,12 @@ build_usage_lines() {
   echo "steps: $(build_steps "$4")"
 }
 
+# Wait for the rc file. When a run marker is given, stop early if it disappears:
+# another caller collected the result and removed both files.
 build_wait() {
-  local rcfile="$1" limit="$2" waited=0
-  while [ ! -f "$rcfile" ] && [ "$waited" -lt "$limit" ]; do
+  local rcfile="$1" limit="$2" marker="${3:-}" waited=0
+  while [ ! -f "$rcfile" ] && { [ -z "$marker" ] || [ -f "$marker" ]; } \
+    && [ "$waited" -lt "$limit" ]; do
     sleep 2
     waited=$((waited + 2))
   done
@@ -1377,7 +1390,7 @@ Write no report file: end your final reply with the report in the format of the 
     start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait"
+  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait" "$run" "$report"
 
   local rc status="MISSING" commits=0
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
@@ -1435,24 +1448,28 @@ build_review() {
     [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
   fi
 
-  builder_ready || exit 3
-  local repo name dir wt bdir pre findings again
+  local repo name dir wt bdir pre findings again base
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --review: not a git repository" >&2; exit 3; }
   if [ "$here" = "1" ]; then
     # Light path: review the current checkout; state sits beside the quick run.
+    # Resolve the state read-only: an unknown slug must fail before the builder
+    # starts (so before any model call), not create a directory and run.
+    base="$(state_dir)" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
+    dir="$base/quick/$slug"
+    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 1; }
     wt="$repo"
-    dir="$(light_dir "$slug")" || { echo "maestro build --review: could not create the state directory" >&2; exit 3; }
     bdir="$dir"; pre="review"; findings="$dir/review.md"
     again="maestro build --review --here $slug --wait"
   else
     name="$(basename "$repo")"
     dir="$(run_state_dir "$slug")" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
     wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
-    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 3; }
+    [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 1; }
     [ -d "$wt" ] || { echo "maestro build --review: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
     bdir="$dir/build"; pre="$task.review2"; findings="$bdir/$task.review2.md"
     again="maestro build --review $slug $task --wait"
   fi
+  builder_ready || exit 3
   local run="$bdir/$pre.run"
   local rcfile="$bdir/$pre.rc"
   local progress="$bdir/$pre.progress"
@@ -1613,7 +1630,7 @@ $(cat "$taskfile")"
     start_build_exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $task" "maestro build $slug $task --wait"
+  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $task" "maestro build $slug $task --wait" "$run" "$report"
 
   local rc
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"

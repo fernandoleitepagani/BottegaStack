@@ -36,6 +36,7 @@ if [ "${STUB_FAIL:-}" = "1" ]; then
   echo '{"type":"result","result":"","usage":{"input_tokens":0,"output_tokens":0}}'
   exit 1
 fi
+[ -n "${STUB_SLEEP:-}" ] && sleep "$STUB_SLEEP"
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
 printf '{"type":"result","result":"STATUS: %s\\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}\n' "${STUB_STATUS:-DONE}"
 EOF
@@ -59,6 +60,65 @@ printf '#!/usr/bin/env bash\necho ok\n' > scripts/check && chmod +x scripts/chec
 f=$(grep -oE '@\$\{CLAUDE_PLUGIN_ROOT\}/[^ ]+' "$ROOT/commands/maestro.md" | sed 's#@${CLAUDE_PLUGIN_ROOT}/##')
 [ -n "$f" ] && [ -f "$ROOT/$f" ] && ok "/maestro includes $f" || fail "/maestro includes the master"
 
+# `start` validates before it writes (issue #16): a refused start leaves the
+# repo byte-for-byte unchanged in a fresh repo, since auto-init would otherwise
+# run before the branch and cleanliness rules.
+fresh_snapshot() {
+  ( cd "$1" && git status --short --ignored --untracked-files=all \
+    && find . -path ./.git -prune -o -print | LC_ALL=C sort )
+}
+FRESH="$TMP/fresh-start"
+mkdir -p "$FRESH" && ( cd "$FRESH" && git init -q -b main && git commit -q --allow-empty -m init )
+before="$(fresh_snapshot "$FRESH")"
+( cd "$FRESH" && "$M" start "On main" ) >/dev/null 2>&1; rc=$?
+after="$(fresh_snapshot "$FRESH")"
+if [ "$rc" -eq 1 ] && [ "$before" = "$after" ]; then
+  ok "start refused on main writes nothing"
+else
+  fail "start refused on main writes nothing"
+fi
+DIRTY="$TMP/fresh-dirty"
+mkdir -p "$DIRTY" && ( cd "$DIRTY" && git init -q -b main && git commit -q --allow-empty -m init )
+printf 'work in progress\n' > "$DIRTY/dirty.txt"
+before="$(fresh_snapshot "$DIRTY")"
+( cd "$DIRTY" && "$M" start "Dirty tree" ) >/dev/null 2>&1; rc=$?
+after="$(fresh_snapshot "$DIRTY")"
+if [ "$rc" -eq 1 ] && [ "$before" = "$after" ]; then
+  ok "start refused on a dirty tree writes nothing"
+else
+  fail "start refused on a dirty tree writes nothing"
+fi
+
+# Untracked files never enter a run (builds use a worktree from HEAD), so
+# `start` ignores them; modified or staged tracked files still refuse (issue #22).
+UNTRACKED="$TMP/fresh-untracked"
+mkdir -p "$UNTRACKED" && ( cd "$UNTRACKED" && git init -q -b feat && git commit -q --allow-empty -m init )
+mkdir -p "$UNTRACKED/__pycache__" && printf 'bytecode\n' > "$UNTRACKED/__pycache__/left.pyc"
+out="$( cd "$UNTRACKED" && "$M" start "Untracked files" 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'run: untracked-files'; then
+  ok "start ignores untracked files"
+else
+  fail "start ignores untracked files"
+fi
+MODIFIED="$TMP/fresh-modified"
+mkdir -p "$MODIFIED" && ( cd "$MODIFIED" && git init -q -b feat && git commit -q --allow-empty -m init )
+printf 'base\n' > "$MODIFIED/tracked.txt"
+( cd "$MODIFIED" && git add tracked.txt && git commit -q -m tracked )
+printf 'changed\n' > "$MODIFIED/tracked.txt"
+out="$( cd "$MODIFIED" && "$M" start "Modified tracked" 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'working tree is dirty; commit or stash first'; then
+  ok "start refuses a modified tracked file"
+else
+  fail "start refuses a modified tracked file"
+fi
+( cd "$MODIFIED" && git add tracked.txt )
+out="$( cd "$MODIFIED" && "$M" start "Staged tracked" 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'working tree is dirty; commit or stash first'; then
+  ok "start refuses a staged tracked file"
+else
+  fail "start refuses a staged tracked file"
+fi
+
 # Runs and branches.
 expect_not "start refused on main" "$M" start "On main"
 git switch -q -c feat/e2e
@@ -67,8 +127,31 @@ printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n-
 [ "$("$M" spec run-a "$TMP/spec.md")" = "2" ] && ok "spec counts tasks" || fail "spec counts tasks"
 
 # Checks and gates.
+# An unknown run is named the way `check` names it, on stderr; a known run with
+# no check result still reports the missing result (issue #17).
+out="$("$M" gate no-such-gate 2>"$TMP/gate.err")"; rc=$?
+if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qx 'maestro gate: no such run: no-such-gate' "$TMP/gate.err"; then
+  ok "gate unknown run names the run on stderr"
+else
+  fail "gate unknown run names the run on stderr"
+fi
+out="$("$M" gate run-a 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (no checks.result)'; then
+  ok "gate known run without a result says no checks.result"
+else
+  fail "gate known run without a result says no checks.result"
+fi
 expect "check" "$M" check run-a
 expect "gate" "$M" gate run-a
+# `start` ignores untracked files, but `gate` keeps the strict check (issue #22).
+printf 'leftover\n' > "$REPO/untracked-gate.txt"
+out="$("$M" gate run-a 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (working tree dirty)'; then
+  ok "gate still fails on an untracked file"
+else
+  fail "gate still fails on an untracked file"
+fi
+rm -f "$REPO/untracked-gate.txt"
 expect_not "gate --proof without proof" "$M" gate run-a --proof
 printf 'cmd: true\nexit 0\n' > "$TMP/ev.txt"
 expect_not "verify refuses the builder" "$M" verify record run-a AC1 PASS --by builder --evidence "$TMP/ev.txt"
@@ -93,6 +176,37 @@ expect "build --here" "$M" build --here q1 --task "small fix" --block
 out="$("$M" build --here qsum --task "summary" --block 2>&1)"
 printf '%s\n' "$out" | grep -qx 'session: s1' && ok "light summary prints session" || fail "light summary prints session"
 printf '%s\n' "$out" | grep -qx 'revisions: 0/2' && ok "light summary prints revisions" || fail "light summary prints revisions"
+# Two concurrent callers for one light slug (issue #18): the first collects the
+# result, the second must stop when the run marker disappears instead of waiting
+# the full BOTTEGA_BUILD_WAIT. The wait limit is 20 s; both calls must return a
+# few seconds after the build ends (the stub sleeps 4).
+STUB_SLEEP=4 BOTTEGA_BUILD_WAIT=20 "$M" build --here race --task "race" >"$TMP/race-a.out" 2>&1 &
+race_a=$!
+i=0
+while [ "$i" -lt 50 ] && ! find "$BOTTEGA_STATE_DIR" -path '*/quick/race/run' -type f | grep -q .; do
+  sleep 0.1
+  i=$((i + 1))
+done
+race_start="$(date +%s)"
+STUB_SLEEP=4 BOTTEGA_BUILD_WAIT=20 "$M" build --here race --task "race" >"$TMP/race-b.out" 2>&1 &
+race_b=$!
+wait "$race_a"; race_ra=$?
+wait "$race_b"; race_rb=$?
+race_elapsed=$(( $(date +%s) - race_start ))
+if [ "$race_ra" -eq 0 ] && [ "$race_rb" -eq 0 ] && [ "$race_elapsed" -lt 12 ]; then
+  ok "concurrent light builds both return after the build"
+else
+  fail "concurrent light builds both return after the build"
+fi
+race_ok=0
+for f in "$TMP/race-a.out" "$TMP/race-b.out"; do
+  if grep -qx 'already collected by another caller' "$f" \
+    && grep -qx 'task: race' "$f" \
+    && grep -q '^report: .*report\.md' "$f"; then
+    race_ok=1
+  fi
+done
+[ "$race_ok" -eq 1 ] && ok "concurrent light build names the collected task" || fail "concurrent light build names the collected task"
 # A collected light build is finished, never queued: a READY report and a failed
 # (empty) report both count as 1/1 done, and READY shows the report status.
 STUB_STATUS=READY "$M" build --here stat-ready --task "ready" --block >/dev/null 2>&1
@@ -191,13 +305,14 @@ if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream re
 else
   fail "0-token build failure prints the error"
 fi
+"$M" build --here fail2 --task "seed" --block >/dev/null 2>&1
 out="$(STUB_FAIL=1 "$M" build --review --here fail2 --block 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream request failed'; then
   ok "0-token review failure prints the error"
 else
   fail "0-token review failure prints the error"
 fi
-for s in tiers tiers2 fail1 fail2 stat-ready stat-fail; do "$M" report --close "$s" >/dev/null 2>&1; done
+for s in tiers tiers2 fail1 fail2 stat-ready stat-fail race; do "$M" report --close "$s" >/dev/null 2>&1; done
 
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
@@ -469,6 +584,21 @@ expect "close light run 2" "$M" report --close q2
 expect "close light summary run" "$M" report --close qsum
 "$M" report --trust | grep -q "run-a" && ok "trust log" || fail "trust log"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent after close" || ok "stop hook silent after close"
+
+# An unknown review slug fails before the model runs (issue #15).
+: > "$STUBLOG"
+out="$("$M" build --review --here no-such-review 2>&1 >/dev/null)"; rc=$?
+if [ "$rc" -eq 1 ] && [ "$out" = "maestro build --review: no such run: no-such-review" ] && [ ! -s "$STUBLOG" ]; then
+  ok "review --here unknown slug fails before the model"
+else
+  fail "review --here unknown slug fails before the model"
+fi
+out="$("$M" build --review no-such-review 1 2>&1 >/dev/null)"; rc=$?
+if [ "$rc" -eq 1 ] && [ "$out" = "maestro build --review: no such run: no-such-review" ] && [ ! -s "$STUBLOG" ]; then
+  ok "review unknown run fails before the model"
+else
+  fail "review unknown run fails before the model"
+fi
 
 # Worktrees: named branches survive prune; merged task branches go.
 expect "worktree create --branch" "$M" worktree create prog u1 --branch feat/unit-1
