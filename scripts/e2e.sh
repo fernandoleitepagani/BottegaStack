@@ -191,6 +191,7 @@ if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream re
 else
   fail "0-token build failure prints the error"
 fi
+"$M" build --here fail2 --task "seed" --block >/dev/null 2>&1
 out="$(STUB_FAIL=1 "$M" build --review --here fail2 --block 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream request failed'; then
   ok "0-token review failure prints the error"
@@ -469,6 +470,21 @@ expect "close light run 2" "$M" report --close q2
 expect "close light summary run" "$M" report --close qsum
 "$M" report --trust | grep -q "run-a" && ok "trust log" || fail "trust log"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent after close" || ok "stop hook silent after close"
+
+# An unknown review slug fails before the model runs (issue #15).
+: > "$STUBLOG"
+out="$("$M" build --review --here no-such-review 2>&1 >/dev/null)"; rc=$?
+if [ "$rc" -eq 1 ] && [ "$out" = "maestro build --review: no such run: no-such-review" ] && [ ! -s "$STUBLOG" ]; then
+  ok "review --here unknown slug fails before the model"
+else
+  fail "review --here unknown slug fails before the model"
+fi
+out="$("$M" build --review no-such-review 1 2>&1 >/dev/null)"; rc=$?
+if [ "$rc" -eq 1 ] && [ "$out" = "maestro build --review: no such run: no-such-review" ] && [ ! -s "$STUBLOG" ]; then
+  ok "review unknown run fails before the model"
+else
+  fail "review unknown run fails before the model"
+fi
 
 # Worktrees: named branches survive prune; merged task branches go.
 expect "worktree create --branch" "$M" worktree create prog u1 --branch feat/unit-1
