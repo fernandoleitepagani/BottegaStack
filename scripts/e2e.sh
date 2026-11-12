@@ -772,6 +772,76 @@ fi
 skill_cmd install -x >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 2 ] && ok "skills install option is a usage error" || fail "skills install option is a usage error"
 
+# `maestro skills install` dependency closure and --all (issue #27, task 3): a
+# fixture plugin root whose skills Load one another, alpha -> beta -> gamma, and
+# a skill delta that its standalone list leaves out.
+SKPLUG="$TMP/skplug"
+SKD="$TMP/skplug-dest"
+mkdir -p "$SKPLUG/bin" "$SKPLUG/.claude-plugin" "$SKPLUG/skills/cat" "$SKD"
+cp "$M" "$SKPLUG/bin/maestro" && chmod +x "$SKPLUG/bin/maestro"
+printf '{\n  "name": "fixture",\n  "version": "9.9.9"\n}\n' > "$SKPLUG/.claude-plugin/plugin.json"
+fixture_skill() {
+  mkdir -p "$SKPLUG/skills/cat/$1"
+  printf -- '---\nname: %s\ndescription: fixture\n---\n%s\n' "$1" "$2" > "$SKPLUG/skills/cat/$1/SKILL.md"
+}
+fixture_skill alpha 'Load `beta` before you start.'
+fixture_skill beta 'Load the `gamma` skill.'
+fixture_skill gamma 'A leaf with no Loads.'
+fixture_skill delta 'Not on the fixture standalone list.'
+printf 'alpha\nbeta\ngamma\n' > "$SKPLUG/skills/standalone.txt"
+skplug() { CLAUDE_CONFIG_DIR="$SKD" "$SKPLUG/bin/maestro" skills "$@"; }
+
+out="$(skplug install alpha 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qxF "installed alpha -> $SKD/skills/alpha" \
+  && [ -f "$SKD/skills/beta/.bottega-managed" ] \
+  && [ -f "$SKD/skills/gamma/.bottega-managed" ] \
+  && [ "$(cat "$SKD/skills/gamma/.bottega-managed" 2>/dev/null)" = "bottega 9.9.9" ] \
+  && [ ! -e "$SKD/skills/delta" ]; then
+  ok "skills install pulls in loaded skills"
+else
+  fail "skills install pulls in loaded skills"
+fi
+if printf '%s\n' "$out" | grep -qxF 'also installing beta (loaded by alpha)' \
+  && printf '%s\n' "$out" | grep -qxF 'also installing gamma (loaded by beta)'; then
+  ok "skills install names the dependency"
+else
+  fail "skills install names the dependency"
+fi
+
+rm -rf "$SKD/skills"
+mkdir -p "$SKD/skills/gamma"
+printf 'mine\n' > "$SKD/skills/gamma/SKILL.md"
+skplug install alpha >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && grep -qxF "maestro skills: $SKD/skills/gamma exists and is not managed by BottegaStack; move it away first" "$TMP/skills.err" \
+  && [ ! -e "$SKD/skills/alpha" ] && [ ! -e "$SKD/skills/beta" ] \
+  && [ "$(cat "$SKD/skills/gamma/SKILL.md")" = "mine" ]; then
+  ok "skills install refuses when a dependency is an unmanaged dir"
+else
+  fail "skills install refuses when a dependency is an unmanaged dir"
+fi
+
+rm -rf "$SKD/skills"
+out="$(skplug install --all 2>&1)"; rc=$?
+expected_all="$(cat "$SKPLUG/skills/standalone.txt")"
+installed_all="$( cd "$SKD/skills" 2>/dev/null && ls -A | LC_ALL=C sort )"
+if [ "$rc" -eq 0 ] && [ "$installed_all" = "$expected_all" ] \
+  && [ ! -e "$SKD/skills/delta" ] \
+  && [ "$(cat "$SKD/skills/alpha/.bottega-managed" 2>/dev/null)" = "bottega 9.9.9" ]; then
+  ok "skills install --all installs exactly standalone.txt"
+else
+  fail "skills install --all installs exactly standalone.txt"
+fi
+
+rm -rf "$SKD/skills"
+skplug install --all alpha >/dev/null 2>&1; rc=$?
+if [ "$rc" -eq 2 ] && [ ! -e "$SKD/skills" ]; then
+  ok "skills install --all with a name is a usage error"
+else
+  fail "skills install --all with a name is a usage error"
+fi
+
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
 PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools install" && ok "tool hint when missing" || fail "tool hint when missing"
@@ -840,6 +910,7 @@ skills
 skills list
 skills install
 skills install teach
+skills install --all
 tools
 tools install
 tools hint
