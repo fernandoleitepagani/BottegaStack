@@ -652,6 +652,126 @@ else
 fi
 cp "$allow_backup" "$SL/skills/standalone-allow.txt"
 
+# `maestro skills` (issue #27, task 2): list the checked-in standalone set and
+# copy named skills into the config dir with a marker. No --all or dependency
+# expansion yet. Every call uses a scratch CLAUDE_CONFIG_DIR.
+SKILLS="$TMP/skills-dest"
+mkdir -p "$SKILLS"
+skill_cmd() { CLAUDE_CONFIG_DIR="$SKILLS" "$M" skills "$@"; }
+# same_tree A B: same relative file set and contents, ignoring the marker.
+same_tree() {
+  local a="$TMP/same-tree-a" b="$TMP/same-tree-b"
+  ( cd "$1" && find . -type f ! -name .bottega-managed -exec cksum {} + | LC_ALL=C sort ) > "$a"
+  ( cd "$2" && find . -type f ! -name .bottega-managed -exec cksum {} + | LC_ALL=C sort ) > "$b"
+  cmp -s "$a" "$b"
+}
+
+out="$(skill_cmd list 2>&1)"; rc=$?
+names_out="$(printf '%s\n' "$out" | awk '{print $1}')"
+expected_names="$(cat "$ROOT/skills/standalone.txt")"
+if [ "$rc" -eq 0 ] && [ "$names_out" = "$expected_names" ] \
+  && [ "$(printf '%s\n' "$out" | grep -c 'not installed$')" -eq "$(printf '%s\n' "$expected_names" | grep -c .)" ]; then
+  ok "skills list shows every standalone skill"
+else
+  fail "skills list shows every standalone skill"
+fi
+[ -z "$(ls -A "$SKILLS")" ] && ok "skills list writes nothing" || fail "skills list writes nothing"
+
+out="$(skill_cmd install 2>&1)"; rc=$?
+last="$(printf '%s\n' "$out" | tail -1)"
+if [ "$rc" -eq 0 ] \
+  && [ "$last" = 'Nothing installed. Run: maestro skills install <name>... | --all' ] \
+  && [ "$(printf '%s\n' "$out" | sed '$d' | awk '{print $1}')" = "$expected_names" ] \
+  && [ -z "$(ls -A "$SKILLS")" ]; then
+  ok "skills install with no args installs nothing"
+else
+  fail "skills install with no args installs nothing"
+fi
+
+out="$(skill_cmd install teach 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qxF "installed teach -> $SKILLS/skills/teach" \
+  && same_tree "$ROOT/skills/workflow/teach" "$SKILLS/skills/teach" \
+  && [ "$(cat "$SKILLS/skills/teach/.bottega-managed" 2>/dev/null)" = "bottega $plugin_version" ]; then
+  ok "skills install copies the folder and marker"
+else
+  fail "skills install copies the folder and marker"
+fi
+out="$(skill_cmd list 2>&1)"
+if printf '%s\n' "$out" | awk -v v="$plugin_version" '$1 == "teach" && $2 == "installed" && $3 == v { found = 1 } END { exit !found }'; then
+  ok "skills list shows a managed install"
+else
+  fail "skills list shows a managed install"
+fi
+
+rm -rf "$SKILLS/skills/teach"
+mkdir -p "$SKILLS/skills/teach"
+printf 'mine\n' > "$SKILLS/skills/teach/SKILL.md"
+skill_cmd install teach >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && grep -qxF "maestro skills: $SKILLS/skills/teach exists and is not managed by BottegaStack; move it away first" "$TMP/skills.err" \
+  && [ "$(cat "$SKILLS/skills/teach/SKILL.md")" = "mine" ]; then
+  ok "skills install refuses an unmanaged dir"
+else
+  fail "skills install refuses an unmanaged dir"
+fi
+out="$(skill_cmd list 2>&1)"
+printf '%s\n' "$out" | grep -q '^teach *unmanaged copy$' && ok "skills list shows an unmanaged copy" || fail "skills list shows an unmanaged copy"
+
+rm -rf "$SKILLS/skills"
+mkdir -p "$SKILLS/skills/how"
+printf 'mine\n' > "$SKILLS/skills/how/SKILL.md"
+skill_cmd install teach how >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && grep -qxF "maestro skills: $SKILLS/skills/how exists and is not managed by BottegaStack; move it away first" "$TMP/skills.err" \
+  && [ ! -e "$SKILLS/skills/teach" ]; then
+  ok "skills install is all-or-nothing"
+else
+  fail "skills install is all-or-nothing"
+fi
+
+rm -rf "$SKILLS/skills"
+skill_cmd install teach >/dev/null 2>&1
+printf 'local edit\n' >> "$SKILLS/skills/teach/SKILL.md"
+printf 'extra\n' > "$SKILLS/skills/teach/extra.txt"
+skill_cmd install teach >"$TMP/skills.out" 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && grep -qxF "refreshed teach -> $SKILLS/skills/teach" "$TMP/skills.out" \
+  && same_tree "$ROOT/skills/workflow/teach" "$SKILLS/skills/teach" \
+  && [ ! -e "$SKILLS/skills/teach/extra.txt" ] \
+  && [ "$(cat "$SKILLS/skills/teach/.bottega-managed" 2>/dev/null)" = "bottega $plugin_version" ]; then
+  ok "skills install refreshes a managed copy"
+else
+  fail "skills install refreshes a managed copy"
+fi
+
+# A bad name fails before anything is written, even beside a valid name.
+skill_reject() {
+  local name="$1" msg="$2" rc
+  rm -rf "$SKILLS/skills"
+  skill_cmd install "$name" >/dev/null 2>"$TMP/skills.err"; rc=$?
+  if [ "$rc" -eq 1 ] && grep -qxF "maestro skills: $msg" "$TMP/skills.err" \
+    && [ -z "$(ls -A "$SKILLS")" ]; then
+    ok "skills install rejects $name"
+  else
+    fail "skills install rejects $name"
+  fi
+}
+skill_reject no-such-skill "unknown skill: no-such-skill"
+skill_reject playbooks "playbooks uses the BottegaStack stack and is not standalone"
+skill_reject ../x "invalid skill name: ../x"
+skill_reject Teach "invalid skill name: Teach"
+rm -rf "$SKILLS/skills"
+skill_cmd install teach ../x >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] && grep -qxF 'maestro skills: invalid skill name: ../x' "$TMP/skills.err" \
+  && [ -z "$(ls -A "$SKILLS")" ]; then
+  ok "skills install rejects a bad name mixed with a valid one"
+else
+  fail "skills install rejects a bad name mixed with a valid one"
+fi
+skill_cmd install -x >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "skills install option is a usage error" || fail "skills install option is a usage error"
+
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
 PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools install" && ok "tool hint when missing" || fail "tool hint when missing"
@@ -716,6 +836,10 @@ worktree prune
 hooks
 hooks install
 hooks uninstall
+skills
+skills list
+skills install
+skills install teach
 tools
 tools install
 tools hint

@@ -35,6 +35,7 @@ Usage:
   maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
+  maestro skills list | install <name>...
   maestro tools install [--yes] | hint
 
 Any command with --help or -h prints this help and changes nothing.
@@ -81,6 +82,176 @@ config_dir() {
   case "$1" in
     claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
     *) echo "unknown target: $1" >&2; exit 1 ;;
+  esac
+}
+
+# ---- Standalone skills ------------------------------------------------------
+# The checked-in list `skills/standalone.txt` decides which skills run without
+# the stack. `install` copies a skill folder to <config>/skills/<name> and adds
+# a `.bottega-managed` marker, so a copy can be listed, refreshed and removed
+# without touching a user's own skill of the same name.
+skills_dest() {
+  printf '%s\n' "$(config_dir claude)/skills"
+}
+
+skills_list_path() {
+  printf '%s\n' "$ROOT/skills/standalone.txt"
+}
+
+skills_usage() {
+  cat <<'EOF'
+Usage: maestro skills list | install <name>...
+  list     print every standalone skill and whether it is installed
+  install  copy the named standalone skills into <config>/skills/
+EOF
+}
+
+# Names are folder names: lowercase letters, digits, and hyphens, never leading
+# with a hyphen. This is checked before any path is built.
+skill_name_ok() {
+  case "$1" in
+    ""|*[!a-z0-9-]*|[!a-z0-9]*) return 1 ;;
+  esac
+  return 0
+}
+
+skill_is_standalone() {
+  local file
+  file="$(skills_list_path)"
+  [ -f "$file" ] && grep -qxF -- "$1" "$file"
+}
+
+# The source folder for a skill name (a directory holding SKILL.md), or nothing.
+skill_src() {
+  local d
+  for d in "$ROOT"/skills/*/"$1"; do
+    if [ -d "$d" ] && [ -f "$d/SKILL.md" ]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# A managed copy is a real directory (never a symlink) holding a regular marker.
+skill_marked() {
+  [ -d "$1" ] && [ ! -L "$1" ] && [ -f "$1/.bottega-managed" ] && [ ! -L "$1/.bottega-managed" ]
+}
+
+skill_status() {
+  local name="$1" path ver
+  path="$(skills_dest)/$name"
+  if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+    printf 'not installed\n'
+  elif skill_marked "$path"; then
+    ver="$(sed -n '1s/^bottega[[:space:]]*//p' "$path/.bottega-managed" 2>/dev/null)"
+    printf 'installed %s\n' "${ver:-unknown}"
+  else
+    printf 'unmanaged copy\n'
+  fi
+}
+
+skills_print() {
+  local file name status
+  file="$(skills_list_path)"
+  [ -f "$file" ] || return 1
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    status="$(skill_status "$name")"
+    printf '%-28s %s\n' "$name" "$status"
+  done < "$file"
+}
+
+# Copy a skill into the destination through a temp dir beside it: a failed copy
+# leaves any existing managed copy in place. Only called for an absent or
+# already-marked target; the marker is written before the old copy is removed.
+skill_copy() {
+  local name="$1" src="$2" dest tmp ver
+  dest="$(skills_dest)"
+  mkdir -p "$dest" || return 1
+  tmp="$(mktemp -d "$dest/.bottega-tmp.XXXXXX")" || return 1
+  if ! cp -R "$src/." "$tmp/"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  ver="$(maestro_version)"
+  if ! printf 'bottega %s\n' "$ver" > "$tmp/.bottega-managed"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if [ -e "$dest/$name" ] || [ -L "$dest/$name" ]; then
+    rm -rf "$dest/$name" || { rm -rf "$tmp"; return 1; }
+  fi
+  mv "$tmp" "$dest/$name" || { rm -rf "$tmp"; return 1; }
+}
+
+skills_install() {
+  local name src path dest
+  if [ "$#" -eq 0 ]; then
+    skills_print || return 1
+    echo 'Nothing installed. Run: maestro skills install <name>... | --all'
+    return 0
+  fi
+  for name in "$@"; do
+    case "$name" in
+      -*) skills_usage >&2; return 2 ;;
+    esac
+  done
+  # Validate every name before writing anything.
+  for name in "$@"; do
+    if ! skill_name_ok "$name"; then
+      echo "maestro skills: invalid skill name: $name" >&2
+      return 1
+    fi
+  done
+  for name in "$@"; do
+    if ! skill_src "$name" >/dev/null; then
+      echo "maestro skills: unknown skill: $name" >&2
+      return 1
+    fi
+    if ! skill_is_standalone "$name"; then
+      echo "maestro skills: $name uses the BottegaStack stack and is not standalone" >&2
+      return 1
+    fi
+  done
+  # Check every target before the first copy: an unmanaged entry aborts all.
+  dest="$(skills_dest)"
+  for name in "$@"; do
+    path="$dest/$name"
+    if { [ -e "$path" ] || [ -L "$path" ]; } && ! skill_marked "$path"; then
+      echo "maestro skills: $path exists and is not managed by BottegaStack; move it away first" >&2
+      return 1
+    fi
+  done
+  for name in "$@"; do
+    src="$(skill_src "$name")" || return 1
+    path="$dest/$name"
+    if skill_marked "$path"; then
+      skill_copy "$name" "$src" || { echo "maestro skills: failed to copy $name" >&2; return 1; }
+      echo "refreshed $name -> $path"
+    else
+      skill_copy "$name" "$src" || { echo "maestro skills: failed to copy $name" >&2; return 1; }
+      echo "installed $name -> $path"
+    fi
+  done
+}
+
+cmd_skills() {
+  local sub="${1:-}"
+  shift || true
+  case "$sub" in
+    list)
+      if [ "$#" -gt 0 ]; then
+        skills_usage >&2
+        return 2
+      fi
+      skills_print
+      ;;
+    install) skills_install "$@" ;;
+    *)
+      skills_usage >&2
+      return 2
+      ;;
   esac
 }
 
@@ -2431,6 +2602,7 @@ case "$cmd" in
   _files) maestro_files ;;
   worktree) cmd_worktree "$@" ;;
   hooks) cmd_hooks "$@" ;;
+  skills) cmd_skills "$@" ;;
   tools) cmd_tools "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
