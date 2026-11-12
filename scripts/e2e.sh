@@ -634,7 +634,16 @@ printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","nam
 hook_in="{\"transcript_path\":\"$TMP/t.jsonl\",\"stop_hook_active\":false}"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks with an open run" || fail "stop hook blocks with an open run"
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
-echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
+echo '{"tool_input":{"subagent_type":"bottega:builder","model":"opus","effort":"high"}}' | "$M" guard builder | grep -q 'headless builder is configured' && ok "builder guard: headless denial kept" || fail "builder guard: headless denial kept"
+echo '{"tool_input":{"subagent_type":"bottega:explorer","model":"haiku","effort":"low"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
+# Every bottega agent call must name both model and effort; anything else is a
+# routing mistake the hook refuses. Non-bottega agents and unreadable input pass.
+echo '{"tool_input":{"subagent_type":"bottega:planner","effort":"high"}}' | "$M" guard builder | grep -q deny && ok "agent guard: missing model denied" || fail "agent guard: missing model denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"opus"}}' | "$M" guard builder | grep -q deny && ok "agent guard: missing effort denied" || fail "agent guard: missing effort denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"","effort":"high"}}' | "$M" guard builder | grep -q deny && ok "agent guard: empty model denied" || fail "agent guard: empty model denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"opus","effort":"high"}}' | "$M" guard builder | grep -q deny && fail "agent guard: model and effort allowed" || ok "agent guard: model and effort allowed"
+echo 'not json' | "$M" guard builder | grep -q deny && fail "agent guard: bad json fails open" || ok "agent guard: bad json fails open"
+echo '{"tool_input":{"subagent_type":"general-purpose"}}' | "$M" guard builder | grep -q deny && fail "agent guard: ignores non-bottega agents" || ok "agent guard: ignores non-bottega agents"
 
 # A hold records an escalation, lets the Stop hook end the session, and shows in
 # `build --status` (issue #23). An isolated state dir keeps the other open runs

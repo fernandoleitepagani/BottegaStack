@@ -143,7 +143,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 - Model routing: read `~/.claude/rules/bottega-models.md` when present; each line is `role: value, effort`.
   Pass both `model` and `effort` on every Agent call. Without the file use explorer `haiku, low`, trivial
   `haiku, low`, builder `headless, medium`, reviewer `sonnet, medium`, reviewer-high-risk `opus, high`,
-  second-opinion `headless, medium`, planner (own model) `high`, master (own model) `medium`; frontmatter is
+  second-opinion `headless, medium`, planner `opus, high`, master (own model) `medium`; frontmatter is
   each agent's default.
 - Review convergence: max 3 rounds, re-review only the new diff after round 1, flag the bug class, no repeats.
 - PR mode: load `review-pr`. `high` risk: load `adversarial-review` and `simplify`.

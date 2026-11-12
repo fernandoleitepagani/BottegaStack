@@ -2758,11 +2758,43 @@ cmd_guard() {
 }
 
 guard_builder() {
-  local input kind
+  local input parsed
   input="$(cat)"
-  kind="$(printf '%s' "$input" | tr -d '\n' | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')"
+  # Python parses the hook payload. Bad JSON or a shape we do not recognise
+  # fails open: a silent hook is harmless, one that blocks every Agent call is not.
+  command -v python3 >/dev/null 2>&1 || exit 0
+  parsed="$(printf '%s' "$input" | python3 -c '
+import json, sys
+
+try:
+    hook = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+if not isinstance(hook, dict):
+    sys.exit(0)
+tool = hook.get("tool_input")
+if not isinstance(tool, dict):
+    sys.exit(0)
+kind = tool.get("subagent_type")
+if not isinstance(kind, str) or not kind:
+    sys.exit(0)
+missing = [k for k in ("model", "effort")
+           if not isinstance(tool.get(k), str) or not tool.get(k).strip()]
+if kind.startswith("bottega:") and missing:
+    print("missing:" + ",".join(missing))
+else:
+    print("kind:" + kind)
+')" || exit 0
+  # Every bottega agent call names both parameters, so the master cannot fall
+  # back to the harness default by accident.
+  case "$parsed" in
+    missing:*)
+      printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Every BottegaStack agent call must pass the Agent tool model and effort parameters, routed from ~/.claude/rules/bottega-models.md (see agents/master.md). Add both."}}'
+      exit 0
+      ;;
+  esac
   # Plugin agents are namespaced (bottega:builder); accept either form.
-  case "$kind" in builder|*:builder) ;; *) exit 0 ;; esac
+  case "${parsed#kind:}" in builder|*:builder) ;; *) exit 0 ;; esac
   builder_ready quiet || exit 0
   printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The headless builder is configured. Do not spawn the Claude-model builder: create the worktree with `maestro worktree create <run> <task>`, then run `maestro build <run> <task> --block` as a background Bash task (see Step 2)."}}'
 }
