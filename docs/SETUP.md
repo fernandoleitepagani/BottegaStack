@@ -71,6 +71,32 @@ A plugin cannot change your global Claude Code config, so set these yourself:
   there yourself.
 - The plugin does not install a launcher into `~/.local/bin`. `maestro` is on
   `PATH` only inside a session.
+- The plugin does not configure the status line. Point Claude Code's status
+  line at the builder watcher in `~/.claude/settings.json`:
+
+  ```json
+  {
+    "statusLine": {
+      "type": "command",
+      "command": "maestro watch --line",
+      "refreshInterval": 10
+    }
+  }
+  ```
+
+  `maestro watch --line` reads Claude Code's JSON (`workspace.current_dir`) on
+  stdin and prints `<done>/<total> tasks · ~<percent>% · ETA <minutes>m`, plus
+  ` · stalled` when a running builder has logged no event for two minutes. It
+  picks the newest open, non-paused run by `events.tsv` mtime. With fewer than
+  three `steps.tsv` samples it prints only `<done>/<total> tasks`; outside a git
+  repository, with no run, or with bad stdin it prints nothing. It always exits
+  0.
+
+  Set `refreshInterval` between 5 and 30 seconds. Each refresh is local and
+  cheap: one `events.tsv` pass and one `steps.tsv` read, with no model call and
+  no network, and it runs only while the session is open. Status-line commands
+  run in a plain shell, so `maestro` must be on `PATH` there; use the absolute
+  path to the plugin's `bin/maestro` when it is not.
 
 ### Builder key
 

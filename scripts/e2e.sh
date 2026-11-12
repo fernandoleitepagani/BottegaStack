@@ -458,6 +458,67 @@ fi
 # state directory (guard stop only blocks while a run is open).
 for s in ev-here ev-steps ev-status hist-ok hist-fail hist-rev; do "$M" report --close "$s" >/dev/null 2>&1; done
 
+# `maestro watch --line` (Task 2): one status line from the newest open run.
+# Fixtures use fixed event times (BOTTEGA_NOW) and mtimes so the numbers are
+# exact. Its own repo and state dir keep the other open runs out of the pick.
+LREPO="$TMP/line-repo"
+LSTATE="$TMP/line-state"
+mkdir -p "$LREPO"
+( cd "$LREPO" && git init -q -b main && git commit -q --allow-empty -m init \
+  && git checkout -q -b work && BOTTEGA_STATE_DIR="$LSTATE" "$M" start "Line seed" ) >/dev/null 2>&1
+LROOT="$(dirname "$(find "$LSTATE" -type d -name line-seed 2>/dev/null | head -1)")"
+line() { printf '{"workspace":{"current_dir":"%s"}}' "$1" | BOTTEGA_NOW="${2:-10000}" BOTTEGA_STATE_DIR="$LSTATE" "$M" watch --line; }
+mk_line_run() { # <slug> <tasks>
+  local slug="$1" n="$2" i=1
+  mkdir -p "$LROOT/$slug/tasks" "$LROOT/$slug/build"
+  while [ "$i" -le "$n" ]; do : > "$LROOT/$slug/tasks/$i.md"; i=$((i + 1)); done
+}
+mk_line_run line-4 4
+printf 'STATUS: DONE\n' > "$LROOT/line-4/build/1.report.md"
+printf 'sid=\n' > "$LROOT/line-4/build/2.run"
+printf '9000\tline-4\t1\tbuilder\tstart\trev=0\n9100\tline-4\t1\tbuilder\tstep\tRead: a.txt\n9200\tline-4\t1\tbuilder\tend\trc=0 DONE\n9970\tline-4\t2\tbuilder\tstart\trev=0\n9980\tline-4\t2\tbuilder\tstep\tBash: ls\n9990\tline-4\t2\tbuilder\tstep\tRead: b.txt\n' > "$LROOT/line-4/events.tsv"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '1/4 tasks' ]; then
+  ok "line: tasks without samples"
+else
+  fail "line: tasks without samples"
+fi
+# Three builder samples for the path of the newest builder sample; other paths
+# and the reviewer role do not count.
+printf '100\tbuilder\t/some/repo\t10\t120\n200\tbuilder\t/some/repo\t10\t120\n250\tbuilder\t/elsewhere\t50\t600\n300\tbuilder\t/some/repo\t10\t120\n320\treviewer\t/some/repo\t99\t900\n' > "$LROOT/steps.tsv"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '1/4 tasks · ~30% · ETA 6m' ]; then
+  ok "line: percent and ETA"
+else
+  fail "line: percent and ETA"
+fi
+mk_line_run line-stall 2
+printf 'sid=\n' > "$LROOT/line-stall/build/1.run"
+printf '9500\tline-stall\t1\tbuilder\tstart\trev=0\n9600\tline-stall\t1\tbuilder\tstep\tBash: ls\n' > "$LROOT/line-stall/events.tsv"
+touch -t 209001010000 "$LROOT/line-4/events.tsv"
+touch -t 209901010000 "$LROOT/line-stall/events.tsv"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '0/2 tasks · ~5% · ETA 2m · stalled' ]; then
+  ok "line: stalled and newest run"
+else
+  fail "line: stalled and newest run"
+fi
+: > "$LROOT/line-stall/paused"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '1/4 tasks · ~30% · ETA 6m' ]; then
+  ok "line: paused run skipped"
+else
+  fail "line: paused run skipped"
+fi
+out="$(printf 'not json' | BOTTEGA_STATE_DIR="$LSTATE" "$M" watch --line 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: bad stdin prints nothing" || fail "line: bad stdin prints nothing"
+mkdir -p "$TMP/not-a-repo"
+out="$(line "$TMP/not-a-repo" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: outside git prints nothing" || fail "line: outside git prints nothing"
+rm -rf "$LROOT/line-4" "$LROOT/line-stall"
+out="$(line "$LREPO" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: no run prints nothing" || fail "line: no run prints nothing"
+
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
 hook_in="{\"transcript_path\":\"$TMP/t.jsonl\",\"stop_hook_active\":false}"
@@ -1267,6 +1328,7 @@ build
 build --init
 build --check
 build --status
+watch --line
 build --here q
 build --review
 worktree
