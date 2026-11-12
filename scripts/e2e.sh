@@ -745,6 +745,19 @@ else
   fail "skills install refreshes a managed copy"
 fi
 
+# An installed copy keeps the source directory's mode: the staging dir made by
+# mktemp -d is 0700, so a fix must set it back before the move. Compare the
+# first column of `ls -ld` so the check works the same on macOS and Linux.
+rm -rf "$SKILLS/skills"
+skill_cmd install teach >/dev/null 2>&1
+src_mode="$(ls -ld "$ROOT/skills/workflow/teach" | awk '{print $1}')"
+inst_mode="$(ls -ld "$SKILLS/skills/teach" | awk '{print $1}')"
+if [ -n "$src_mode" ] && [ "$inst_mode" = "$src_mode" ]; then
+  ok "skills install keeps the source dir mode"
+else
+  fail "skills install keeps the source dir mode"
+fi
+
 # A bad name fails before anything is written, even beside a valid name.
 skill_reject() {
   local name="$1" msg="$2" rc
@@ -974,6 +987,41 @@ if cmp -s "$TMP/skills-only.before" "$TMP/skills-only.after" \
 else
   fail "skills writes only under the skills dir"
 fi
+
+# No CLAUDE_CONFIG_DIR and no HOME means there is no Claude config dir: every
+# skills subcommand must name that once and exit 1 before it creates anything.
+# A mkdir shim records any write attempt, so the test never reaches /skills
+# even when it runs as root.
+NOMKDIR="$TMP/no-mkdir"
+mkdir -p "$NOMKDIR"
+cat > "$NOMKDIR/mkdir" <<'EOF'
+#!/bin/sh
+printf '%s\n' "$*" >> "$MKDIRLOG"
+exit 1
+EOF
+chmod +x "$NOMKDIR/mkdir"
+SKNOCFG="$TMP/skills-nocfg"
+skills_nocfg() {
+  local sub="$1" err="$TMP/skills-nocfg.err" rc
+  shift
+  rm -rf "$SKNOCFG" "$TMP/skills-nocfg.mkdir"
+  mkdir -p "$SKNOCFG"
+  ( cd "$SKNOCFG" && env -u HOME -u CLAUDE_CONFIG_DIR \
+    PATH="$NOMKDIR:$PATH" MKDIRLOG="$TMP/skills-nocfg.mkdir" \
+    "$M" skills "$sub" "$@" ) >/dev/null 2>"$err"
+  rc=$?
+  if [ "$rc" -eq 1 ] \
+    && [ "$(grep -cxF 'maestro skills: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' "$err")" -eq 1 ] \
+    && [ ! -e "$TMP/skills-nocfg.mkdir" ] \
+    && [ -z "$(ls -A "$SKNOCFG")" ]; then
+    ok "skills $sub fails without a config dir"
+  else
+    fail "skills $sub fails without a config dir"
+  fi
+}
+skills_nocfg list
+skills_nocfg install teach
+skills_nocfg uninstall teach
 
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
