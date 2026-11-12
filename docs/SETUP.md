@@ -292,11 +292,13 @@ state directory. The directory is created mode 700.
 $STATE/<slug>/            full run
   spec.md                 the approved SPEC
   tasks/<n>.md            text of each `### Task <n>` section
-  build/<task>.*          prompt, run/rc/progress logs, builder report, reviews
+  events.tsv              build events: time run task role kind step
+  build/<task>.*          prompt, run/rc logs, builder report, reviews
   checks.log              one line per check plus its output
   checks.result           RESULT, HEAD, EXIT, SECONDS
 $STATE/quick/<slug>/      light path (no run, spec, or worktree)
-  run, rc, progress, prompt, report.md, builder.log, settings.json
+  run, rc, events.tsv, prompt, report.md, builder.log, settings.json
+$STATE/steps.tsv          history of finished rev-0 builds, for estimates
 ```
 
 Nothing is written into the repo or a worktree. The chat and the PR (or merge
@@ -335,7 +337,7 @@ maestro build --status <run> [--every <seconds>]
 
 - `--here` is the light path: it needs no run, SPEC, or worktree, builds in the
   current checkout on the current branch, and keeps state in
-  `$STATE/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
+  `$STATE/quick/<slug>/` (`run`, `rc`, `events.tsv`, `prompt`, `report.md`,
   `builder.log`, `settings.json`).
 - `--review` runs the read-only `review-code` agent in the task worktree on the
   third-party model and puts the findings in
@@ -369,9 +371,17 @@ maestro build --status <run> [--every <seconds>]
   the stack with `--plugin-dir`; the `eval` playbook uses it to run a variant.
 - The builder gets a slim tool set (Bash, Edit, Glob, Grep, Read, Skill, Write,
   TodoWrite) and no MCP servers.
-- `build/<task>.progress` gets one line per builder tool call; `maestro build`
-  prints the last one while the build is still `RUNNING`, then prints `tokens: in
-  <n> out <n>` and `steps: <n>` at the end.
+- The run's `events.tsv` gets one line per build event, with six tab-separated
+  fields (`time run task role kind step`; `time` is epoch seconds): `start` when
+  the builder starts (with `rev=<n>`), one `step` per tool call, and `end` with
+  its exit code and report status. It replaces the old `.progress` files.
+  `maestro build` prints the last
+  step while the build is still `RUNNING`, then `tokens: in <n> out <n>` and
+  `steps: <n>` (the number of `step` events) at the end.
+- A first (rev-0) builder build that ends `STATUS: DONE` also appends a line to
+  `$STATE/steps.tsv` (`time role path steps seconds`); failed builds and
+  revisions add nothing. The file sits in the state root, so it outlives
+  `report --close`.
 
 ## Hooks and worktrees
 

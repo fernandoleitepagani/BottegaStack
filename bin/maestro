@@ -1441,16 +1441,17 @@ builder_init() {
 #            itself is capped by BOTTEGA_BUILD_TIMEOUT (default 1800 s = 30 min).
 # One status line for a run: done/running/queued counts plus running tasks.
 build_status_line() {
-  local rundir="$1" bdir="$1/build" n=0 d=0 r=0 q=0 t f sl="" last status=""
+  local rundir="$1" bdir="$1/build" events="$1/events.tsv" n=0 d=0 r=0 q=0 t f sl="" last status=""
   local seen="" cnt
-  if [ -f "$rundir/run" ] || [ -f "$rundir/report.md" ] || [ -f "$rundir/progress" ]; then
+  if [ ! -d "$rundir/tasks" ] \
+    && { [ -f "$rundir/run" ] || [ -f "$rundir/report.md" ] || [ -f "$events" ]; }; then
     # Light path: one builder, state sits beside the slug. A collected build
     # (no run file) is always finished, so a light builder is never queued.
     n=1
     if [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then
       r=1
-      last="$(tail -n 1 "$rundir/progress" 2>/dev/null | cut -c1-60 || true)"
-      sl=" │ $(basename "$rundir"): $(wc -l < "$rundir/progress" 2>/dev/null | tr -d ' ' || echo 0) steps, last ${last:--}"
+      last="$(build_last_step "$events" - builder | cut -c1-60 || true)"
+      sl=" │ $(basename "$rundir"): $(build_steps "$events" - builder) steps, last ${last:--}"
     else
       d=1
       if [ -f "$rundir/report.md" ]; then
@@ -1481,8 +1482,8 @@ build_status_line() {
       d=$((d + 1))
     elif [ -f "$bdir/$t.run" ] && [ ! -f "$bdir/$t.rc" ]; then
       r=$((r + 1))
-      last="$(tail -n 1 "$bdir/$t.progress" 2>/dev/null | cut -c1-60 || true)"
-      sl="$sl │ $t: $(wc -l < "$bdir/$t.progress" 2>/dev/null | tr -d ' ' || echo 0) steps, last ${last:--}"
+      last="$(build_last_step "$events" "$t" builder | cut -c1-60 || true)"
+      sl="$sl │ $t: $(build_steps "$events" "$t" builder) steps, last ${last:--}"
     fi
   done
   q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
@@ -1544,14 +1545,14 @@ with_timeout() {
 }
 
 start_build_exec() {
-  local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}"
+  local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" events="$6" profile="$7" sid="${8:-}"
   # Empty strings fall back to the builder defaults in cmd_build_exec.
   # setsid detaches the builder from the caller's session; macOS has no setsid,
   # so fall back to nohup there.
   local detach=nohup
   command -v setsid >/dev/null 2>&1 && detach=setsid
-  "$detach" "$SELF" _build-exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid" \
-    "${9:-}" "${10:-}" "${11:-}" "${12:-}" \
+  "$detach" "$SELF" _build-exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$events" "$profile" "$sid" \
+    "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:--}" "${15:-builder}" \
     </dev/null >/dev/null 2>&1 &
 }
 
@@ -1571,11 +1572,11 @@ build_mark_stale() {
   [ -f "$2" ] || [ -z "$(find "$1" -mmin +360 2>/dev/null)" ] || echo 1 > "$2"
 }
 
-# build_wait_or_exit <rcfile> <block> <progress> <what> <again> [run-marker] [report]:
+# build_wait_or_exit <rcfile> <block> <events> <task> <role> <what> <again> [run-marker] [report]:
 # wait; if another caller collected the result, say so and exit 0; if the build
 # is still going, print where it stands and exit 5.
 build_wait_or_exit() {
-  local rcfile="$1" block="$2" progress="$3" what="$4" again="$5" marker="${6:-}" report="${7:-}"
+  local rcfile="$1" block="$2" events="$3" task="$4" role="$5" what="$6" again="$7" marker="${8:-}" report="${9:-}" last
   build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker"
   [ -f "$rcfile" ] && return 0
   if [ -n "$marker" ] && [ ! -f "$marker" ]; then
@@ -1585,9 +1586,10 @@ build_wait_or_exit() {
     exit 0
   fi
   echo "RUNNING $what (still going; call again: $again)"
-  echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
-  [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
-  echo "progress: $progress"
+  echo "steps so far: $(build_steps "$events" "$task" "$role")"
+  last="$(build_last_step "$events" "$task" "$role")"
+  [ -n "$last" ] && echo "last step: $last"
+  echo "events: $events"
   exit 5
 }
 
@@ -1657,13 +1659,13 @@ build_collect() {
   printf '%s\n' "$rc"
 }
 
-# build_usage_lines <who> <rc> <log> <progress>
+# build_usage_lines <who> <rc> <log> <events> <task>
 build_usage_lines() {
   local note=""
   if [ "$2" = 124 ] || [ "$2" = 142 ]; then note=" (timed out)"; fi
   echo "$1 exit: $2$note"
   echo "tokens: $(build_tokens "$3")"
-  echo "steps: $(build_steps "$4")"
+  echo "steps: $(build_steps "$4" "$5" "$1")"
 }
 
 # Wait for the rc file. When a run marker is given, stop early if it disappears:
@@ -1709,11 +1711,82 @@ print(tokens or "unknown")
 PY
 }
 
-# Number of lines in a progress file; 0 when it is missing.
+# Current time as epoch seconds. BOTTEGA_NOW overrides it for tests.
+now_epoch() {
+  case "${BOTTEGA_NOW:-}" in
+    ''|*[!0-9]*) date +%s ;;
+    *) printf '%s\n' "$BOTTEGA_NOW" ;;
+  esac
+}
+
+# One event-log field: tabs, CR, and LF would break the TSV, so they become
+# spaces. Appends are a single short write with O_APPEND, so parallel builders
+# do not interleave lines.
+event_field() {
+  printf '%s' "$1" | tr '\t\r\n' '   '
+}
+
+# event_log <events> <run> <task> <role> <kind> <step>
+# `time run task role kind step`, six tab-separated fields, no header.
+event_log() {
+  local events="$1"
+  [ -n "$events" ] || return 0
+  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$(now_epoch)" \
+    "$(event_field "$2")" "$(event_field "$3")" "$(event_field "$4")" \
+    "$(event_field "$5")" "$(event_field "$6")" >> "$events"
+}
+
+# Number of step events for one task and role; 0 when the log is missing.
 build_steps() {
-  local progress="$1" n
-  n="$(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
-  printf '%s\n' "${n:-0}"
+  local events="$1" task="$2" role="$3"
+  [ -f "$events" ] || { echo 0; return 0; }
+  awk -F'\t' -v t="$task" -v r="$role" \
+    '$5 == "step" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$events"
+}
+
+# The last step event's text for one task and role, or nothing.
+build_last_step() {
+  local events="$1" task="$2" role="$3"
+  [ -f "$events" ] || return 0
+  awk -F'\t' -v t="$task" -v r="$role" \
+    '$5 == "step" && $3 == t && $4 == r { s = $6 } END { if (s != "") print s }' "$events"
+}
+
+# The report status carried by the stream's final result event, or MISSING.
+build_log_status() {
+  local log="$1"
+  [ -f "$log" ] || { echo MISSING; return 0; }
+  python3 - "$log" <<'PY'
+import json, re, sys
+status = "MISSING"
+try:
+    with open(sys.argv[1], errors="replace") as f:
+        for line in f:
+            try:
+                ev = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(ev, dict) or ev.get("type") != "result":
+                continue
+            text = ev.get("result")
+            if isinstance(text, str):
+                m = re.search(r"STATUS: ([A-Z_]+)", text)
+                if m:
+                    status = m.group(1)
+except Exception:
+    pass
+print(status)
+PY
+}
+
+# Append a finished rev-0 builder build to the state root's steps history:
+# `time role path steps seconds`. The root outlives the run (report --close
+# removes only the run directory), so later runs can use it for estimates.
+steps_record() {
+  local base="$1" role="$2" path="$3" steps="$4" seconds="$5"
+  [ -n "$base" ] && [ -d "$base" ] || return 0
+  printf '%s\t%s\t%s\t%s\t%s\n' "$(now_epoch)" "$role" "$(event_field "$path")" \
+    "$steps" "$seconds" >> "$base/steps.tsv"
 }
 
 # Effort for a role from the routing rule file written by `/maestro-models`:
@@ -1817,10 +1890,10 @@ build_here() {
   [ -n "$branch" ] || { echo "maestro build --here: detached HEAD; switch to a branch first" >&2; exit 3; }
   qdir="$(light_dir "$slug")" || { echo "maestro build --here: could not create the state directory" >&2; exit 3; }
 
-  local run="$qdir/run" rcfile="$qdir/rc" progress="$qdir/progress"
+  local run="$qdir/run" rcfile="$qdir/rc" events="$qdir/events.tsv"
   local prompt="$qdir/prompt" log="$qdir/builder.log" profile="$qdir/settings.json"
   local report="$qdir/report.md" base="" state="$qdir/light.builder"
-  local max_rev=2 rev=0 sid="" findings_text=""
+  local max_rev=2 rev=0 sid="" findings_text="" t0=""
 
   if [ -f "$run" ]; then
     base="$(sed -n 's/^base=//p' "$run")"
@@ -1876,14 +1949,16 @@ Write no report file: end your final reply with the report in the format of the 
     fi
     printf '%s\n' "$msg" > "$prompt"
     rm -f "$rcfile" "$report"
-    : > "$progress"
     printf 'base=%s\nrev=%s\nsid=%s\n' "$base" "$rev" "$sid" > "$run"
-    start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "$sid"
+    event_log "$events" "$slug" - builder start "rev=$rev"
+    t0="$(now_epoch)"
+    start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$events" "$profile" "$sid" \
+      "" "" "" "" "$slug" - builder
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait" "$run" "$report"
+  build_wait_or_exit "$rcfile" "$block" "$events" - builder "task: $slug" "maestro build --here $slug --task \"<text>\" --wait" "$run" "$report"
 
-  local rc status="MISSING" commits=0
+  local rc status="MISSING" commits=0 secs=0
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
@@ -1891,11 +1966,14 @@ Write no report file: end your final reply with the report in the format of the 
   printf 'session=%s\nrevisions=%s\nagent=builder\nbase=%s\n' "$sid" "$rev" "$base" > "$state"
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   [ -n "$base" ] && commits="$(git -C "$repo" rev-list --count "$base"..HEAD 2>/dev/null || echo 0)"
+  [ -n "$t0" ] && secs=$(( $(now_epoch) - t0 ))
+  [ "$rev" -eq 0 ] && [ "$rc" -eq 0 ] && [ "$status" = "STATUS: DONE" ] \
+    && steps_record "$(state_dir)" builder "$repo" "$(build_steps "$events" - builder)" "$secs"
 
   echo "task: $slug"
   echo "session: ${sid:-none}"
   echo "revisions: $rev/$max_rev"
-  build_usage_lines builder "$rc" "$log" "$progress"
+  build_usage_lines builder "$rc" "$log" "$events" -
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$repo" diff --name-only "$base"...HEAD 2>/dev/null | sed 's/^/  /'
@@ -1963,10 +2041,12 @@ build_review() {
   builder_ready || exit 3
   local run="$bdir/$pre.run"
   local rcfile="$bdir/$pre.rc"
-  local progress="$bdir/$pre.progress"
+  local events="$dir/events.tsv"
   local prompt="$bdir/$pre.prompt"
   local log="$bdir/$pre.log"
   local profile="$bdir/$pre.settings.json"
+  local evtask="$task"
+  [ "$here" = "1" ] && evtask="-"
   mkdir -p "$bdir"
 
   if [ -f "$run" ]; then
@@ -2002,20 +2082,21 @@ Do not write any file. Reply with the full findings as your final message, in ma
 EOF
     fi
     rm -f "$rcfile" "$findings"
-    : > "$progress"
     printf 'sid=\n' > "$run"
-    start_build_exec "$wt" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "" \
+    event_log "$events" "$slug" "$evtask" reviewer start "rev=0"
+    start_build_exec "$wt" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$events" "$profile" "" \
       "bottega:review-code" "Read,Grep,Glob,Bash" "Read,Grep,Glob,Bash" \
-      "Edit,Write,NotebookEdit,Bash(git commit:*),Bash(git add:*),Bash(git push:*),Bash(git merge:*),Bash(git reset:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
+      "Edit,Write,NotebookEdit,Bash(git commit:*),Bash(git add:*),Bash(git push:*),Bash(git merge:*),Bash(git reset:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)" \
+      "$slug" "$evtask" reviewer
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "review: $slug $task" "$again"
+  build_wait_or_exit "$rcfile" "$block" "$events" "$evtask" reviewer "review: $slug $task" "$again"
 
   local rc
   rc="$(build_collect "$rcfile" "$run" "$log" "$findings")"
 
   echo "review: $slug $task"
-  build_usage_lines reviewer "$rc" "$log" "$progress"
+  build_usage_lines reviewer "$rc" "$log" "$events" "$evtask"
   echo "findings: $findings ($([ -s "$findings" ] && echo present || echo missing))"
   [ "$rc" -eq 0 ] && [ -s "$findings" ] || exit 1
 }
@@ -2058,7 +2139,7 @@ cmd_build() {
   local log="$bdir/$task.builder.log"
   local run="$bdir/$task.run"
   local rcfile="$bdir/$task.rc"
-  local progress="$bdir/$task.progress"
+  local events="$dir/events.tsv"
   local profile="$bdir/$task.settings.json"
   local promptfile="$bdir/$task.prompt"
   local taskfile="$dir/tasks/$task.md"
@@ -2067,7 +2148,7 @@ cmd_build() {
   [ -f "$taskfile" ] || { echo "maestro build: no such task: $task (run: maestro spec $slug)" >&2; exit 3; }
   [ -d "$wt" ] || { echo "maestro build: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
   mkdir -p "$bdir"
-  local branch rev=0 sid="" findings_text=""
+  local branch rev=0 sid="" findings_text="" t0=""
   branch="$(git -C "$wt" branch --show-current)"
 
   if [ -n "$findings" ]; then
@@ -2116,12 +2197,14 @@ $(cat "$taskfile")"
     fi
     printf '%s\n' "$msg" > "$promptfile"
     rm -f "$rcfile"
-    : > "$progress"
     printf 'rev=%s\nsid=%s\n' "$rev" "$sid" > "$run"
-    start_build_exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid"
+    event_log "$events" "$slug" "$task" builder start "rev=$rev"
+    t0="$(now_epoch)"
+    start_build_exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$events" "$profile" "$sid" \
+      "" "" "" "" "$slug" "$task" builder
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $task" "maestro build $slug $task --wait" "$run" "$report"
+  build_wait_or_exit "$rcfile" "$block" "$events" "$task" builder "task: $task" "maestro build $slug $task --wait" "$run" "$report"
 
   local rc
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
@@ -2130,15 +2213,18 @@ $(cat "$taskfile")"
   fi
   printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
 
-  local status="MISSING" commits
+  local status="MISSING" commits secs=0
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   commits="$(git -C "$wt" log --oneline "$(run_branch "$slug")..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
+  [ -n "$t0" ] && secs=$(( $(now_epoch) - t0 ))
+  [ "$rev" -eq 0 ] && [ "$rc" -eq 0 ] && [ "$status" = "STATUS: DONE" ] \
+    && steps_record "$(state_dir)" builder "$wt" "$(build_steps "$events" "$task" builder)" "$secs"
 
   echo "task: $task"
   echo "run: $slug"
   echo "session: ${sid:-none}"
   echo "revisions: $rev/$max_rev"
-  build_usage_lines builder "$rc" "$log" "$progress"
+  build_usage_lines builder "$rc" "$log" "$events" "$task"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "$(run_branch "$slug")...HEAD" 2>/dev/null | sed 's/^/  /'
@@ -2150,14 +2236,16 @@ $(cat "$taskfile")"
 # settings) pins the endpoint and models and, when builder.key exists, an
 # apiKeyHelper, with the auth env vars blanked so no settings `env` block can
 # inject a credential. builder.env is sourced in a subshell only; nothing is
-# echoed. Stream events are logged and summarised into the progress file.
+# echoed. Stream events are logged; tool calls also become step events in the
+# run's events.tsv.
 cmd_build_exec() {
-  local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" progress="$6" profile="$7" sid="${8:-}" rc helper=""
+  local wt="$1" envfile="$2" promptfile="$3" log="$4" rcfile="$5" events="$6" profile="$7" sid="${8:-}" rc helper=""
   # Plugin agents are namespaced; a bare name only exists in an old copy-install.
   local agent="${9:-bottega:builder}"
   local tools="${10:-Bash,Edit,Glob,Grep,Read,Skill,Write,TodoWrite}"
   local allowed="${11:-Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite}"
   local disallowed="${12:-Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)}"
+  local run="${13:-}" task="${14:--}" evrole="${15:-builder}"
   local -a resume=()
   [ -n "$sid" ] && resume=(--resume "$sid")
   # The headless runner's effort comes from the routing file: the builder line
@@ -2171,7 +2259,7 @@ cmd_build_exec() {
   local -a plugin_arg=()
   [ -n "${BOTTEGA_PLUGIN_DIR:-}" ] && plugin_arg=(--plugin-dir "$BOTTEGA_PLUGIN_DIR")
   [ -s "$(builder_key_file)" ] && helper="\"$SELF\" keyget"
-  trap 'echo 143 > "$rcfile"; exit 143' TERM HUP
+  trap 'event_log "$events" "$run" "$task" "$evrole" "end" "rc=143 MISSING"; echo 143 > "$rcfile"; exit 143' TERM HUP
   set +e
   (
     unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CLAUDE_CODE_OAUTH_TOKEN
@@ -2219,23 +2307,34 @@ PY
       --allowedTools "$allowed" \
       --disallowedTools "$disallowed"
   ) 2>&1 | tee "$log" | python3 -c '
-import json, sys
-out = open(sys.argv[1], "a")
-for line in sys.stdin:
-    try:
-        ev = json.loads(line)
-    except Exception:
-        continue
-    if ev.get("type") != "assistant":
-        continue
-    for b in (ev.get("message") or {}).get("content") or []:
-        if isinstance(b, dict) and b.get("type") == "tool_use":
-            i = b.get("input") or {}
-            arg = i.get("file_path") or i.get("command") or i.get("pattern") or i.get("path") or ""
-            out.write("%s: %s\n" % (b.get("name"), str(arg).replace("\n", " ")[:100]))
-            out.flush()
-' "$progress" >/dev/null
+import json, os, sys, time
+events, run, task, evrole = sys.argv[1:5]
+fixed = os.environ.get("BOTTEGA_NOW", "")
+
+def stamp():
+    return fixed if fixed.isdigit() else str(int(time.time()))
+
+def clean(value):
+    return str(value).replace("\t", " ").replace("\r", " ").replace("\n", " ")
+
+with open(events, "a") as out:
+    for line in sys.stdin:
+        try:
+            ev = json.loads(line)
+        except Exception:
+            continue
+        if ev.get("type") != "assistant":
+            continue
+        for b in (ev.get("message") or {}).get("content") or []:
+            if isinstance(b, dict) and b.get("type") == "tool_use":
+                i = b.get("input") or {}
+                arg = i.get("file_path") or i.get("command") or i.get("pattern") or i.get("path") or ""
+                step = clean("%s: %s" % (b.get("name"), arg))[:100]
+                out.write("%s\t%s\t%s\t%s\tstep\t%s\n" % (stamp(), run, task, evrole, step))
+                out.flush()
+' "$events" "$run" "$task" "$evrole" >/dev/null
   rc=${PIPESTATUS[0]}
+  event_log "$events" "$run" "$task" "$evrole" "end" "rc=$rc $(build_log_status "$log")"
   echo "$rc" > "$rcfile"
 }
 

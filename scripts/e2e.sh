@@ -375,6 +375,89 @@ else
 fi
 for s in tiers tiers2 fail1 fail2 stat-ready stat-fail race; do "$M" report --close "$s" >/dev/null 2>&1; done
 
+# Event log (Task 1): every headless flavour appends start/step/end to the run's
+# events.tsv with six tab-separated fields, and creates no .progress file.
+SDIR="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a' -type d | head -1)")"
+events_ok() { # <name> <events> <task> <role>
+  local name="$1" ev="$2" task="$3" role="$4" starts steps ends bad
+  if [ ! -f "$ev" ]; then fail "$name"; return; fi
+  starts="$(awk -F'\t' -v t="$task" -v r="$role" '$5 == "start" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$ev")"
+  steps="$(awk -F'\t' -v t="$task" -v r="$role" '$5 == "step" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$ev")"
+  ends="$(awk -F'\t' -v t="$task" -v r="$role" '$5 == "end" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$ev")"
+  bad="$(awk -F'\t' -v t="$task" -v r="$role" '$3 == t && $4 == r && (NF != 6 || tolower($0) ~ /token/) { n++ } END { print n + 0 }' "$ev")"
+  if [ "$starts" -ge 1 ] && [ "$steps" -ge 1 ] && [ "$ends" -eq 1 ] && [ "$bad" -eq 0 ]; then
+    ok "$name"
+  else
+    fail "$name"
+  fi
+}
+expect "events: worktree for run task" "$M" worktree create run-a 2
+expect "events: build run task" "$M" build run-a 2 --block
+expect "events: build review" "$M" build --review run-a 2 --block
+expect "events: build here" "$M" build --here ev-here --task "events" --block
+expect "events: build review here" "$M" build --review --here ev-here --block
+events_ok "events: run task start/step/end" "$SDIR/run-a/events.tsv" 2 builder
+events_ok "events: run review start/step/end" "$SDIR/run-a/events.tsv" 2 reviewer
+events_ok "events: here start/step/end" "$SDIR/quick/ev-here/events.tsv" - builder
+events_ok "events: here review start/step/end" "$SDIR/quick/ev-here/events.tsv" - reviewer
+if awk -F'\t' 'NF != 6 || tolower($0) ~ /token/ { bad++ } END { exit bad ? 1 : 0 }' "$SDIR/run-a/events.tsv"; then
+  ok "events: six fields, no token fields"
+else
+  fail "events: six fields, no token fields"
+fi
+if find "$BOTTEGA_STATE_DIR" -name '*.progress' -print -quit | grep -q .; then
+  fail "events: no .progress file"
+else
+  ok "events: no .progress file"
+fi
+
+# `build --status` counts step events, not lines in a .progress file.
+EVDIR="$SDIR/quick/ev-status"
+mkdir -p "$EVDIR"
+printf 'rev=0\nsid=\n' > "$EVDIR/run"
+printf '1000\tev-status\t-\tbuilder\tstart\trev=0\n1001\tev-status\t-\tbuilder\tstep\tRead: a.txt\n1002\tev-status\t-\tbuilder\tstep\tBash: ls\n' > "$EVDIR/events.tsv"
+out="$("$M" build --status ev-status 2>&1)"
+if printf '%s\n' "$out" | grep -q 'Builders 0/1 done · 1 running' \
+  && printf '%s\n' "$out" | grep -q 'ev-status: 2 steps, last Bash: ls'; then
+  ok "status: steps come from events"
+else
+  fail "status: steps come from events"
+fi
+out="$("$M" build --here ev-steps --task "count steps" --block 2>&1)"
+printf '%s\n' "$out" | grep -qx 'steps: 1' && ok "status: steps line counts step events" || fail "status: steps line counts step events"
+
+# steps.tsv history: only a rev-0 builder build ending STATUS: DONE appends,
+# and the history outlives `report --close`.
+history="$SDIR/steps.tsv"
+hcount() { if [ -f "$history" ]; then wc -l < "$history" | tr -d ' '; else echo 0; fi; }
+before="$(hcount)"
+"$M" build --here hist-ok --task "history" --block >/dev/null 2>&1
+after="$(hcount)"
+if [ "$after" -eq $((before + 1)) ] \
+  && awk -F'\t' -v n="$after" 'NR == n { ok = (NF == 5 && $2 == "builder" && $4 + 0 > 0 && $5 + 0 >= 0) } END { exit ok ? 0 : 1 }' "$history"; then
+  ok "history: DONE build appends one line"
+else
+  fail "history: DONE build appends one line"
+fi
+before="$(hcount)"
+STUB_FAIL=1 "$M" build --here hist-fail --task "history fail" --block >/dev/null 2>&1
+[ "$(hcount)" -eq "$before" ] && ok "history: failed build appends nothing" || fail "history: failed build appends nothing"
+"$M" build --here hist-rev --task "history base" --block >/dev/null 2>&1
+before="$(hcount)"
+echo 'fix it' | "$M" build --here hist-rev --revise - --block >/dev/null 2>&1
+[ "$(hcount)" -eq "$before" ] && ok "history: revision appends nothing" || fail "history: revision appends nothing"
+"$M" build --here hist-close --task "history close" --block >/dev/null 2>&1
+before="$(hcount)"
+"$M" report --close hist-close >/dev/null 2>&1
+if [ ! -d "$SDIR/quick/hist-close" ] && [ "$(hcount)" -eq "$before" ]; then
+  ok "history: survives report --close"
+else
+  fail "history: survives report --close"
+fi
+# Close the light runs this section opened so the hook tests below see a quiet
+# state directory (guard stop only blocks while a run is open).
+for s in ev-here ev-steps ev-status hist-ok hist-fail hist-rev; do "$M" report --close "$s" >/dev/null 2>&1; done
+
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
 hook_in="{\"transcript_path\":\"$TMP/t.jsonl\",\"stop_hook_active\":false}"
