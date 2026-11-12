@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixes: `maestro start` ignores untracked files (for example `__pycache__/` left by `scripts/check`) in its clean-tree check, so a repo whose only changes are untracked can start a run; modified or staged tracked files still refuse with `working tree is dirty; commit or stash first`, and `maestro gate` keeps its strict check (issue #22).
 - Fixes: `maestro gate <run>` names an unknown run on stderr as `maestro gate: no such run: <run>` and exits 1, the same wording as `maestro check`, instead of reporting `GATE: FAIL (no checks.result)`; a known run with no check result still reports that failure (issue #17).
 - Fixes: `maestro start` validates the git repo, branch rule, and clean tree before it auto-inits, so a refused start (for example on `main` without `--branch`) exits 1 and leaves the repo byte-for-byte unchanged: no `AGENTS.md`, `CLAUDE.md`, `.claude/`, or `scripts/` (issue #16).
 - Fixes: `maestro build --review --here <slug>` with no light-path state fails before any model call with `maestro build --review: no such run: <slug>` and exit 1; `maestro build --review <run> <task>` fails the same way for an unknown run (issue #15).

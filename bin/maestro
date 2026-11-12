@@ -144,7 +144,8 @@ resolve_run_dir() {
 
 # `maestro start "<title>" [--branch <name>]`: create the state directory and the
 # run id (the slug). The run works on the branch you are on; only `--branch`
-# creates one. Auto-inits the project on first use and requires a clean tree.
+# creates one. Auto-inits the project on first use and requires no changes to
+# tracked files; untracked files are ignored because a run builds from HEAD.
 cmd_start() {
   local title="" newbranch=""
   while [ "$#" -gt 0 ]; do
@@ -161,7 +162,7 @@ cmd_start() {
   cd "$repo"
   # Validate every rule before writing anything: a refused start must leave the
   # repo byte-for-byte unchanged, so no auto-init happens until all of them pass.
-  if [ -n "$(git status --porcelain)" ]; then
+  if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "working tree is dirty; commit or stash first" >&2
     exit 1
   fi
