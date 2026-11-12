@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "bottega",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "A personal agentic development workflow: playbooks, builders, reviewers, and project templates for Claude Code.",
   "author": {
     "name": "BottegaStack"
