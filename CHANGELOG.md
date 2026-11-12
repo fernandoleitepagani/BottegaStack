@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixes: the repo's own project memory moved to `.claude/CLAUDE.md`, which imports `@../AGENTS.md`, so Claude Code loads it for contributors and `claude plugin validate` no longer warns that a plugin-root `CLAUDE.md` is not project context; `scripts/lint.sh` rejects a root `CLAUDE.md` and requires that import (issue #26).
 - Fixes: the plugin ships a 512x512 PNG icon at `.claude-plugin/icon.png`, so `claude plugin validate` no longer warns `ICON_MISSING`; `scripts/lint.sh` fails unless that icon exists, starts with the PNG signature, and has a 512x512 IHDR (issue #25).
 - New: `maestro --version` (also `-V` and `maestro version`) prints `maestro <version>` from `.claude-plugin/plugin.json` (`unknown` when the file or field is missing) before command dispatch, and `maestro doctor` prints a `version: <version>` line (issue #24).
 - Fixes: `/maestro` no longer pins the master to Opus, so it runs on the session model; `scripts/lint.sh` rejects a `model:` in any `commands/*.md` frontmatter, and the docs explain choosing the master model with `claude --agent bottega:master --model <model>` and per-role routing with `/maestro-models` (issue #19).
