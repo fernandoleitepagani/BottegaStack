@@ -144,6 +144,21 @@ else
   fi
 fi
 
+# Project memory must live at .claude/CLAUDE.md: Claude Code loads it there for
+# contributors, while `claude plugin validate` warns about a CLAUDE.md at the
+# plugin root. Its import resolves one level up, to AGENTS.md.
+if [ -e "$ROOT/CLAUDE.md" ]; then
+  echo "FAIL root CLAUDE.md exists; move it to .claude/CLAUDE.md (not plugin context)"
+  fail=1
+fi
+if [ ! -f "$ROOT/.claude/CLAUDE.md" ]; then
+  echo "FAIL missing .claude/CLAUDE.md"
+  fail=1
+elif ! grep -qxF '@../AGENTS.md' "$ROOT/.claude/CLAUDE.md"; then
+  echo "FAIL .claude/CLAUDE.md must import @../AGENTS.md"
+  fail=1
+fi
+
 # Plugin hooks run in a shell without the plugin's bin/ on PATH, so every hook
 # command must call maestro through CLAUDE_PLUGIN_ROOT. A bare command fails
 # with "maestro: command not found".
