@@ -869,6 +869,112 @@ else
   fail "skills install --all with a name is a usage error"
 fi
 
+# `maestro skills uninstall` (issue #27, task 4): remove managed copies only,
+# by name or --all. A user's own dir of the same name is never touched, and a
+# batch aborts before removing anything when one target is unmanaged.
+rm -rf "$SKILLS/skills"
+skill_cmd install how why >/dev/null 2>&1
+mkdir -p "$SKILLS/skills/mine"
+printf 'mine\n' > "$SKILLS/skills/mine/SKILL.md"
+out="$(skill_cmd uninstall how 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qxF 'removed how' \
+  && [ ! -e "$SKILLS/skills/how" ] && [ -d "$SKILLS/skills/why" ] \
+  && [ "$(cat "$SKILLS/skills/mine/SKILL.md" 2>/dev/null)" = "mine" ]; then
+  ok "skills uninstall removes only marked copies"
+else
+  fail "skills uninstall removes only marked copies"
+fi
+
+# An unmarked dir of a valid standalone name is refused, and a batch removes
+# nothing, even though `how` is a managed copy.
+rm -rf "$SKILLS/skills"
+skill_cmd install how why >/dev/null 2>&1
+mkdir -p "$SKILLS/skills/teach"
+printf 'mine\n' > "$SKILLS/skills/teach/SKILL.md"
+skill_cmd uninstall teach how >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && grep -qxF "maestro skills: $SKILLS/skills/teach is not managed by BottegaStack; refusing to remove" "$TMP/skills.err" \
+  && [ -d "$SKILLS/skills/how" ] && [ -d "$SKILLS/skills/why" ] \
+  && [ "$(cat "$SKILLS/skills/teach/SKILL.md")" = "mine" ]; then
+  ok "skills uninstall refuses an unmanaged dir"
+else
+  fail "skills uninstall refuses an unmanaged dir"
+fi
+
+# --all removes every managed copy and leaves the user's own dirs alone.
+out="$(skill_cmd uninstall --all 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qxF 'removed how' \
+  && printf '%s\n' "$out" | grep -qxF 'removed why' \
+  && [ ! -e "$SKILLS/skills/how" ] && [ ! -e "$SKILLS/skills/why" ] \
+  && [ "$(cat "$SKILLS/skills/teach/SKILL.md" 2>/dev/null)" = "mine" ]; then
+  ok "skills uninstall --all keeps own skills"
+else
+  fail "skills uninstall --all keeps own skills"
+fi
+
+# An absent standalone skill is a no-op that says so.
+rm -rf "$SKILLS/skills"
+mkdir -p "$SKILLS/skills"
+out="$(skill_cmd uninstall teach 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qxF 'teach is not installed' \
+  && [ -z "$(ls -A "$SKILLS/skills")" ]; then
+  ok "skills uninstall of an absent skill is a no-op"
+else
+  fail "skills uninstall of an absent skill is a no-op"
+fi
+
+# A bad name fails before anything is removed, even beside a managed name.
+uninstall_reject() {
+  local name="$1" msg="$2" rc
+  rm -rf "$SKILLS/skills"
+  skill_cmd install how >/dev/null 2>&1
+  skill_cmd uninstall how "$name" >/dev/null 2>"$TMP/skills.err"; rc=$?
+  [ "$rc" -eq 1 ] \
+    && grep -qF "maestro skills: $msg" "$TMP/skills.err" \
+    && [ -f "$SKILLS/skills/how/.bottega-managed" ]
+}
+uninstall_bad=1
+uninstall_reject no-such-skill 'unknown skill: no-such-skill' || uninstall_bad=0
+uninstall_reject playbooks 'playbooks uses the BottegaStack stack and is not standalone' || uninstall_bad=0
+uninstall_reject ../x 'invalid skill name: ../x' || uninstall_bad=0
+uninstall_reject Teach 'invalid skill name: Teach' || uninstall_bad=0
+uninstall_reject '' 'invalid skill name: ' || uninstall_bad=0
+uninstall_reject "$(printf 'how\nteach')" 'invalid skill name: how' || uninstall_bad=0
+if [ "$uninstall_bad" -eq 1 ]; then
+  ok "skills uninstall rejects an invalid name"
+else
+  fail "skills uninstall rejects an invalid name"
+fi
+skill_cmd uninstall -x >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "skills uninstall option is a usage error" || fail "skills uninstall option is a usage error"
+
+# Every skills command writes only under <config>/skills/ (issue #27, task 4):
+# snapshot the config dir outside skills/ and the plugin's skills tree.
+CONF13="$TMP/skills-conf"
+rm -rf "$CONF13"
+mkdir -p "$CONF13/skills" "$CONF13/agents" "$CONF13/plugins"
+printf '{}\n' > "$CONF13/settings.json"
+printf 'mine\n' > "$CONF13/agents/mine.md"
+printf 'plugin\n' > "$CONF13/plugins/p.txt"
+cfg13() { CLAUDE_CONFIG_DIR="$CONF13" "$M" skills "$@"; }
+( cd "$CONF13" && find . -path ./skills -prune -o -print | LC_ALL=C sort ) > "$TMP/skills-only.before"
+( cd "$ROOT" && find skills -type f -exec cksum {} + | LC_ALL=C sort ) > "$TMP/skills-root.before"
+cfg13 list >/dev/null 2>&1
+cfg13 install teach >/dev/null 2>&1
+cfg13 install --all >/dev/null 2>&1
+cfg13 uninstall teach >/dev/null 2>&1
+cfg13 uninstall --all >/dev/null 2>&1
+( cd "$CONF13" && find . -path ./skills -prune -o -print | LC_ALL=C sort ) > "$TMP/skills-only.after"
+( cd "$ROOT" && find skills -type f -exec cksum {} + | LC_ALL=C sort ) > "$TMP/skills-root.after"
+if cmp -s "$TMP/skills-only.before" "$TMP/skills-only.after" \
+  && cmp -s "$TMP/skills-root.before" "$TMP/skills-root.after"; then
+  ok "skills writes only under the skills dir"
+else
+  fail "skills writes only under the skills dir"
+fi
+
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
 PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools install" && ok "tool hint when missing" || fail "tool hint when missing"
@@ -938,6 +1044,8 @@ skills list
 skills install
 skills install teach
 skills install --all
+skills uninstall
+skills uninstall --all
 tools
 tools install
 tools hint
