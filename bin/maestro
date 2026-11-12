@@ -32,6 +32,7 @@ Usage:
   maestro build --review <run> <task> | --here <slug> [--block|--wait]
   maestro build --init | --check
   maestro build --status <run> [--every [seconds]]
+  maestro watch --line
   maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
@@ -1439,55 +1440,240 @@ builder_init() {
 #   --wait   attach to a running build, same bounded wait
 #   --block  wait until the build ends; for a background Bash task. The builder
 #            itself is capped by BOTTEGA_BUILD_TIMEOUT (default 1800 s = 30 min).
-# One status line for a run: done/running/queued counts plus running tasks.
-build_status_line() {
-  local rundir="$1" bdir="$1/build" events="$1/events.tsv" n=0 d=0 r=0 q=0 t f sl="" last status=""
-  local seen="" cnt
+# The median of a sorted list of numbers on stdin; prints nothing for none.
+median_of() {
+  awk '{ a[NR] = $1 + 0 } END {
+    if (NR == 0) exit
+    if (NR % 2) print a[(NR + 1) / 2] + 0
+    else print (a[NR / 2] + a[NR / 2 + 1]) / 2
+  }'
+}
+
+# watch_snapshot <rundir>: one pass over the run's events.tsv plus its task
+# files, shared by `maestro watch` and each status line. Prints tab-separated
+# facts, then one `task <name> <state> <steps> <start> <last>` row per task:
+#   mode total complete running queued stalled percent eta elapsed state status label
+# States are queued, running, stalled (a running task with no builder event for
+# 120 s), and done. Percent and ETA need three steps.tsv samples of role builder
+# on the newest builder path: f = 1 done, min(steps/median, 0.95) started,
+# 0 queued; percent caps at 95 while tasks remain. ETA minutes =
+# ceil(remaining seconds / max(running,1) / 60). `-` when there is no estimate.
+watch_snapshot() {
+  local rundir="$1" events="$1/events.tsv" bdir mode label="" light=0
+  local total=0 complete=0 running=0 queued=0 stalled=0 elapsed=0 state_all=done status=""
+  local now tasks stats rows="" t st steps start lastev last first_start="" row
+  local root steps_file path nsteps nsecs median_steps median_secs percent="-" eta="-"
+  now="$(now_epoch)"
   if [ ! -d "$rundir/tasks" ] \
     && { [ -f "$rundir/run" ] || [ -f "$rundir/report.md" ] || [ -f "$events" ]; }; then
-    # Light path: one builder, state sits beside the slug. A collected build
-    # (no run file) is always finished, so a light builder is never queued.
-    n=1
-    if [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then
-      r=1
-      last="$(build_last_step "$events" - builder | cut -c1-60 || true)"
-      sl=" │ $(basename "$rundir"): $(build_steps "$events" - builder) steps, last ${last:--}"
+    light=1
+  fi
+  if [ "$light" = 1 ]; then
+    mode=light
+    label="$(basename "$rundir")"
+    total=1
+    bdir="$rundir"
+    tasks="-"
+    if [ -f "$rundir/report.md" ]; then
+      status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$rundir/report.md" 2>/dev/null || true)"
+      [ -n "$status" ] || status="STATUS: UNKNOWN"
+    fi
+  else
+    mode=full
+    bdir="$rundir/build"
+    total="$(find "$rundir/tasks" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null | wc -l | tr -d ' ')"
+    # Task files plus whatever a builder wrote, sorted like `build --status`.
+    tasks="$({
+      for f in "$rundir"/tasks/[0-9]*.md; do
+        [ -f "$f" ] || continue
+        t="${f##*/}"; printf '%s\n' "${t%.md}"
+      done
+      for f in "$bdir"/*.report.md; do
+        [ -f "$f" ] || continue
+        t="${f##*/}"; printf '%s\n' "${t%.report.md}"
+      done
+      for f in "$bdir"/*.run; do
+        [ -f "$f" ] || continue
+        t="${f##*/}"; t="${t%.run}"
+        [ "${t%.review2}" = "$t" ] || continue
+        printf '%s\n' "$t"
+      done
+    } | sort -u | tr '\n' ' ')"
+    [ "$total" -gt 0 ] || { set -- $tasks; total="$#"; }
+  fi
+  stats=""
+  if [ -n "$tasks" ]; then
+    if [ -f "$events" ]; then
+      stats="$(awk -F'\t' -v tasks="$tasks" '
+        BEGIN {
+          n = split(tasks, a, " ")
+          for (i = 1; i <= n; i++) { steps[a[i]] = 0; first[a[i]] = ""; lastev[a[i]] = "" }
+        }
+        $4 == "builder" {
+          t = $3
+          if (!(t in steps)) next
+          if ($5 == "step") { steps[t]++; last[t] = $6 }
+          if ($5 == "start" && first[t] == "") first[t] = $1 + 0
+          if ($1 + 0 > lastev[t] + 0) lastev[t] = $1 + 0
+        }
+        END {
+          for (i = 1; i <= n; i++)
+            printf "%s\t%d\t%s\t%s\t%s\n", a[i], steps[a[i]], first[a[i]], lastev[a[i]], last[a[i]]
+        }
+      ' "$events")"
     else
-      d=1
-      if [ -f "$rundir/report.md" ]; then
-        status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$rundir/report.md" 2>/dev/null || echo 'STATUS: UNKNOWN')"
-        sl=" │ $(basename "$rundir"): $status"
+      stats="$(awk -v tasks="$tasks" 'BEGIN {
+        n = split(tasks, a, " ")
+        for (i = 1; i <= n; i++) printf "%s\t0\t\t\t\n", a[i]
+      }')"
+    fi
+  fi
+  rows=""
+  while IFS="$(printf '\t')" read -r t steps start lastev last; do
+    [ -n "$t" ] || continue
+    if [ "$light" = 1 ]; then
+      if [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then st=running; else st=done; fi
+    elif [ -f "$bdir/$t.report.md" ] && grep -q 'STATUS: DONE' "$bdir/$t.report.md" 2>/dev/null; then
+      st=done
+    elif [ -f "$bdir/$t.run" ] && [ ! -f "$bdir/$t.rc" ]; then
+      st=running
+    else
+      st=queued
+    fi
+    case "$start" in ''|*[!0-9]*) start="" ;; esac
+    case "$lastev" in ''|*[!0-9]*) lastev="" ;; esac
+    case "$steps" in ''|*[!0-9]*) steps=0 ;; esac
+    if [ "$st" = running ] && [ -n "$lastev" ] && [ $((now - lastev)) -gt 120 ]; then
+      st=stalled
+    fi
+    case "$st" in
+      done) complete=$((complete + 1)) ;;
+      running) running=$((running + 1)) ;;
+      stalled) running=$((running + 1)); stalled=$((stalled + 1)) ;;
+    esac
+    if [ -n "$start" ] && { [ -z "$first_start" ] || [ "$start" -lt "$first_start" ]; }; then
+      first_start="$start"
+    fi
+    printf -v row 'task\t%s\t%s\t%s\t%s\t%s\n' "$t" "$st" "$steps" "$start" "$last"
+    rows="$rows$row"
+  done <<EOF
+$stats
+EOF
+  [ -z "$first_start" ] || elapsed=$((now - first_start))
+  queued=$((total - complete - running)); [ "$queued" -ge 0 ] || queued=0
+  if [ "$total" -gt 0 ] && [ "$complete" -ge "$total" ]; then state_all=done
+  elif [ "$running" -gt 0 ] && [ "$stalled" -eq "$running" ]; then state_all=stalled
+  elif [ "$running" -gt 0 ]; then state_all=running
+  elif [ "$queued" -gt 0 ]; then state_all=queued
+  fi
+
+  case "$rundir" in
+    */quick/*) root="$(dirname "$(dirname "$rundir")")" ;;
+    *) root="$(dirname "$rundir")" ;;
+  esac
+  steps_file="$root/steps.tsv"
+  if [ -f "$steps_file" ]; then
+    path="$(awk -F'\t' '$2 == "builder" && $4 ~ /^[0-9]+$/ && $5 ~ /^[0-9]+$/ {
+      if ($1 + 0 >= max) { max = $1 + 0; p = $3 }
+    } END { print p }' "$steps_file" 2>/dev/null || true)"
+    if [ -n "$path" ]; then
+      nsteps="$(awk -F'\t' -v p="$path" '$2 == "builder" && $3 == p && $4 ~ /^[0-9]+$/ { print $4 }' "$steps_file" 2>/dev/null | grep -c . || true)"
+      nsecs="$(awk -F'\t' -v p="$path" '$2 == "builder" && $3 == p && $5 ~ /^[0-9]+$/ { print $5 }' "$steps_file" 2>/dev/null | grep -c . || true)"
+      if [ "$nsteps" -ge 3 ] && [ "$nsecs" -ge 3 ] && [ "$total" -gt 0 ]; then
+        median_steps="$(awk -F'\t' -v p="$path" '$2 == "builder" && $3 == p && $4 ~ /^[0-9]+$/ { print $4 }' "$steps_file" | sort -n | median_of)"
+        median_secs="$(awk -F'\t' -v p="$path" '$2 == "builder" && $3 == p && $5 ~ /^[0-9]+$/ { print $5 }' "$steps_file" | sort -n | median_of)"
+        if [ "$median_steps" != "0" ]; then
+          percent="$(printf '%s\n' "$rows" | awk -F'\t' -v m="$median_steps" -v n="$total" -v d="$complete" '
+          $1 == "task" {
+            if ($3 == "done") f = 1
+            else if ($3 == "running" || $3 == "stalled") { f = ($4 + 0) / m; if (f > 0.95) f = 0.95 }
+            else f = 0
+            sum += f
+          }
+          END {
+            p = int(sum / n * 100 + 0.5)
+            if (p > 95 && d < n) p = 95
+            print p + 0
+          }')"
+          eta="$(printf '%s\n' "$rows" | awk -F'\t' -v ms="$median_secs" -v now="$now" -v r="$running" '
+          $1 == "task" {
+            if ($3 == "running" || $3 == "stalled") { x = ms - (now - $5); if (x < 0) x = 0; rem += x }
+            else if ($3 == "queued") rem += ms
+          }
+          END {
+            d = (r > 0) ? r : 1
+            m = rem / d / 60
+            e = int(m)
+            if (e < m) e++
+            print e + 0
+          }')"
+        fi
       fi
     fi
-    q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
-    echo "Builders $d/$n done · $r running · $q queued$sl"
+  fi
+
+  printf 'mode\t%s\n' "$mode"
+  printf 'total\t%s\n' "$total"
+  printf 'complete\t%s\n' "$complete"
+  printf 'running\t%s\n' "$running"
+  printf 'queued\t%s\n' "$queued"
+  printf 'stalled\t%s\n' "$stalled"
+  printf 'percent\t%s\n' "$percent"
+  printf 'eta\t%s\n' "$eta"
+  printf 'elapsed\t%s\n' "$elapsed"
+  printf 'state\t%s\n' "$state_all"
+  printf 'status\t%s\n' "$status"
+  printf 'label\t%s\n' "$label"
+  printf '%s' "$rows"
+}
+
+# One status line for a run: done/running/queued counts plus running tasks.
+build_status_line() {
+  local rundir="$1" snap k a b c d e mode total complete running queued status label
+  local rows="" t steps last out sl row tab
+  tab="$(printf '\t')"
+  snap="$(watch_snapshot "$rundir")"
+  mode=""; total=0; complete=0; running=0; queued=0; status=""; label=""
+  while IFS="$(printf '\t')" read -r k a b c d e; do
+    case "$k" in
+      mode) mode="$a" ;;
+      total) total="$a" ;;
+      complete) complete="$a" ;;
+      running) running="$a" ;;
+      queued) queued="$a" ;;
+      status) status="$a" ;;
+      label) label="$a" ;;
+      task)
+        case "$b" in
+          running|stalled)
+            printf -v row '%s\t%s\t%s\n' "$a" "$c" "$e"
+            rows="$rows$row" ;;
+        esac ;;
+    esac
+  done <<EOF
+$snap
+EOF
+  if [ "$mode" = light ]; then
+    sl=""
+    if [ "$running" -gt 0 ]; then
+      IFS="$tab" read -r t steps last <<EOF
+$rows
+EOF
+      sl=" │ $label: $steps steps, last ${last:--}"
+    elif [ -n "$status" ]; then
+      sl=" │ $label: $status"
+    fi
+    echo "Builders $complete/$total done · $running running · $queued queued$sl"
     return 0
   fi
-  n="$(find "$rundir/tasks" -maxdepth 1 -name '[0-9]*.md' 2>/dev/null | wc -l | tr -d ' ')"
-  for f in "$bdir"/*.report.md; do
-    [ -f "$f" ] || continue
-    t="$(basename "$f")"; seen="$seen ${t%.report.md}"
-  done
-  for f in "$bdir"/*.run; do
-    [ -f "$f" ] || continue
-    t="$(basename "$f")"; t="${t%.run}"
-    case "$t" in *.review2) continue ;; esac
-    seen="$seen $t"
-  done
-  seen="$(printf '%s\n' $seen | sort -u)"
-  cnt="$(printf '%s\n' "$seen" | grep -c . || true)"
-  [ "$n" -gt 0 ] || n="$cnt"
-  for t in $seen; do
-    if [ -f "$bdir/$t.report.md" ] && grep -q 'STATUS: DONE' "$bdir/$t.report.md"; then
-      d=$((d + 1))
-    elif [ -f "$bdir/$t.run" ] && [ ! -f "$bdir/$t.rc" ]; then
-      r=$((r + 1))
-      last="$(build_last_step "$events" "$t" builder | cut -c1-60 || true)"
-      sl="$sl │ $t: $(build_steps "$events" "$t" builder) steps, last ${last:--}"
-    fi
-  done
-  q=$((n - d - r)); [ "$q" -ge 0 ] || q=0
-  echo "Builders $d/$n done · $r running · $q queued$sl"
+  out="Builders $complete/$total done · $running running · $queued queued"
+  while IFS="$(printf '\t')" read -r t steps last; do
+    [ -n "$t" ] || continue
+    out="$out │ $t: $steps steps, last ${last:--}"
+  done <<EOF
+$rows
+EOF
+  echo "$out"
 }
 
 build_status() {
@@ -1531,6 +1717,54 @@ build_status() {
     fi
     sleep 5
   done
+}
+
+# `maestro watch --line`: the one-line form for Claude Code's status line. It
+# reads the hook JSON on stdin, takes workspace.current_dir, picks the newest
+# open non-paused run by events.tsv mtime, and prints one line. Nothing to show
+# (no JSON, outside a repo, no run) prints nothing. Always exits 0.
+watch_line() {
+  local input dir base newest f snap k a b total=0 complete=0 stalled=0
+  local percent="-" eta="-" suffix=""
+  input="$(cat 2>/dev/null || true)"
+  dir="$(printf '%s' "$input" | sed -n 's/.*"current_dir"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  [ -n "$dir" ] && [ -d "$dir" ] || return 0
+  cd "$dir" 2>/dev/null || return 0
+  base="$(state_dir 2>/dev/null)" || return 0
+  [ -d "$base" ] || return 0
+  newest=""
+  for f in "$base"/*/events.tsv "$base"/quick/*/events.tsv; do
+    [ -f "$f" ] || continue
+    if [ -f "$(dirname "$f")/paused" ]; then continue; fi
+    if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then newest="$f"; fi
+  done
+  [ -n "$newest" ] || return 0
+  snap="$(watch_snapshot "$(dirname "$newest")")"
+  while IFS="$(printf '\t')" read -r k a b; do
+    case "$k" in
+      total) total="$a" ;;
+      complete) complete="$a" ;;
+      stalled) stalled="$a" ;;
+      percent) percent="$a" ;;
+      eta) eta="$a" ;;
+    esac
+  done <<EOF
+$snap
+EOF
+  if [ "$percent" = "-" ] || [ "$eta" = "-" ]; then
+    printf '%s/%s tasks\n' "$complete" "$total"
+    return 0
+  fi
+  if [ "$stalled" -gt 0 ]; then suffix=" · stalled"; fi
+  printf '%s/%s tasks · ~%s%% · ETA %sm%s\n' "$complete" "$total" "$percent" "$eta" "$suffix"
+  return 0
+}
+
+cmd_watch() {
+  case "${1:-}" in
+    --line) watch_line ;;
+    *) echo 'usage: maestro watch --line' >&2; exit 2 ;;
+  esac
 }
 
 # Start a detached headless run, so a timeout or kill of the caller cannot stop
@@ -2924,6 +3158,7 @@ case "$cmd" in
   log) cmd_log "$@" ;;
   report) cmd_report "$@" ;;
   build) cmd_build "$@" ;;
+  watch) cmd_watch "$@" ;;
   guard) cmd_guard "$@" ;;
   _build-exec) cmd_build_exec "$@" ;;
   keyget) cmd_keyget ;;
