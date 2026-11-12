@@ -133,6 +133,10 @@ With the plugin also enabled, both `/teach` (the standalone copy) and
 `uninstall` removes only marked copies, so leaving the plugin enabled keeps the
 namespaced one.
 
+A managed copy of a skill that later leaves the standalone list cannot be
+removed by name, because the name is now unknown or non-standalone; use
+`maestro skills uninstall --all` to remove marked copies.
+
 ## Doctor
 
 ```bash

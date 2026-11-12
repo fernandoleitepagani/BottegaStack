@@ -80,9 +80,17 @@ maestro_version() {
 }
 
 config_dir() {
+  local dir=""
   case "$1" in
-    claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
-    *) echo "unknown target: $1" >&2; exit 1 ;;
+    claude)
+      if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+        dir="$CLAUDE_CONFIG_DIR"
+      elif [ -n "${HOME:-}" ]; then
+        dir="$HOME/.claude"
+      fi
+      printf '%s\n' "$dir"
+      ;;
+    *) echo "unknown target: $1" >&2; return 1 ;;
   esac
 }
 
@@ -92,7 +100,13 @@ config_dir() {
 # a `.bottega-managed` marker, so a copy can be listed, refreshed and removed
 # without touching a user's own skill of the same name.
 skills_dest() {
-  printf '%s\n' "$(config_dir claude)/skills"
+  local dir
+  dir="$(config_dir claude)" || dir=""
+  if [ -z "$dir" ]; then
+    echo 'maestro skills: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' >&2
+    return 1
+  fi
+  printf '%s\n' "$dir/skills"
 }
 
 skills_list_path() {
@@ -216,14 +230,39 @@ skills_print() {
   done < "$file"
 }
 
+# The mode of a directory as a chmod symbolic clause, e.g. "u=rwx,g=rx,o=rx".
+# `ls -ld` is used instead of stat flags, which differ between macOS and Linux;
+# only plain read/write/execute bits are accepted, and an unusual mode makes the
+# caller fall back to 755.
+skill_dir_mode() {
+  local perms
+  perms="$(ls -ld "$1" 2>/dev/null | awk '{print $1}')" || return 1
+  perms="$(printf '%s' "$perms" | cut -c2-10)"
+  case "$perms" in
+    [r-][w-][x-][r-][w-][x-][r-][w-][x-]) ;;
+    *) return 1 ;;
+  esac
+  printf 'u=%s,g=%s,o=%s\n' \
+    "$(printf '%s' "$perms" | cut -c1-3 | tr -d -)" \
+    "$(printf '%s' "$perms" | cut -c4-6 | tr -d -)" \
+    "$(printf '%s' "$perms" | cut -c7-9 | tr -d -)"
+}
+
 # Copy a skill into the destination through a temp dir beside it: a failed copy
 # leaves any existing managed copy in place. Only called for an absent or
 # already-marked target; the marker is written before the old copy is removed.
 skill_copy() {
-  local name="$1" src="$2" dest tmp ver
-  dest="$(skills_dest)"
+  local name="$1" src="$2" dest tmp ver mode
+  dest="$(skills_dest)" || return 1
   mkdir -p "$dest" || return 1
   tmp="$(mktemp -d "$dest/.bottega-tmp.XXXXXX")" || return 1
+  # mktemp -d creates the temp dir 0700 and it is moved into place, so match the
+  # source directory's mode (or 755 when it is unusual) before the move.
+  if mode="$(skill_dir_mode "$src")"; then
+    chmod "$mode" "$tmp" || { rm -rf "$tmp"; return 1; }
+  else
+    chmod 755 "$tmp" || { rm -rf "$tmp"; return 1; }
+  fi
   if ! cp -R "$src/." "$tmp/"; then
     rm -rf "$tmp"
     return 1
@@ -423,6 +462,10 @@ skills_uninstall() {
 cmd_skills() {
   local sub="${1:-}"
   shift || true
+  # Every subcommand needs the config dir. Resolve it before dispatch: with no
+  # CLAUDE_CONFIG_DIR and no HOME there is nowhere to write, and failing here
+  # keeps a path like /skills from ever reaching a mkdir.
+  skills_dest >/dev/null || return 1
   case "$sub" in
     list)
       if [ "$#" -gt 0 ]; then
