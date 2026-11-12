@@ -96,6 +96,20 @@ printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n-
 [ "$("$M" spec run-a "$TMP/spec.md")" = "2" ] && ok "spec counts tasks" || fail "spec counts tasks"
 
 # Checks and gates.
+# An unknown run is named the way `check` names it, on stderr; a known run with
+# no check result still reports the missing result (issue #17).
+out="$("$M" gate no-such-gate 2>"$TMP/gate.err")"; rc=$?
+if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qx 'maestro gate: no such run: no-such-gate' "$TMP/gate.err"; then
+  ok "gate unknown run names the run on stderr"
+else
+  fail "gate unknown run names the run on stderr"
+fi
+out="$("$M" gate run-a 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (no checks.result)'; then
+  ok "gate known run without a result says no checks.result"
+else
+  fail "gate known run without a result says no checks.result"
+fi
 expect "check" "$M" check run-a
 expect "gate" "$M" gate run-a
 expect_not "gate --proof without proof" "$M" gate run-a --proof
