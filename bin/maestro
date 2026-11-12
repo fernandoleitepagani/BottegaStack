@@ -366,7 +366,7 @@ cmd_gate() {
   local dir file rc
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
-    if [ "$rc" -eq 2 ]; then echo "GATE: FAIL (not a git repository)"; else echo "GATE: FAIL (no checks.result)"; fi
+    if [ "$rc" -eq 2 ]; then echo "maestro gate: not in a git repository" >&2; else echo "maestro gate: no such run: $slug" >&2; fi
     return 1
   }
   file="$dir/checks.result"

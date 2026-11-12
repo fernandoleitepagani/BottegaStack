@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixes: `maestro gate <run>` names an unknown run on stderr as `maestro gate: no such run: <run>` and exits 1, the same wording as `maestro check`, instead of reporting `GATE: FAIL (no checks.result)`; a known run with no check result still reports that failure (issue #17).
 - Fixes: `maestro start` validates the git repo, branch rule, and clean tree before it auto-inits, so a refused start (for example on `main` without `--branch`) exits 1 and leaves the repo byte-for-byte unchanged: no `AGENTS.md`, `CLAUDE.md`, `.claude/`, or `scripts/` (issue #16).
 - Fixes: `maestro build --review --here <slug>` with no light-path state fails before any model call with `maestro build --review: no such run: <slug>` and exit 1; `maestro build --review <run> <task>` fails the same way for an unknown run (issue #15).
 - Fixes: when more than one `maestro` is on `PATH` (a plugin update can leave an older copy first), `maestro doctor` and the SessionStart `maestro tools hint` warn in PATH order, name every distinct copy with its plugin version, and mark the first as winning; a symlinked copy and its target count once and report the target's version, empty PATH entries are skipped, one copy prints nothing new, and `BOTTEGA_NO_TOOL_HINT=1` still silences the hint (issue #20).
