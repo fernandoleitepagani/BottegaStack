@@ -280,10 +280,12 @@ guessed (principle `prove-it-works`).
 
 There are no tier variants of an agent. The master picks the model and effort per
 call with the Agent tool's `model` and `effort` parameters; each agent's
-frontmatter is the default. The routing comes from
-`~/.claude/rules/bottega-models.md` when present, written by `/maestro-models`.
-Each line is `role: value, effort`, where `value` is a Claude alias (`haiku`,
-`sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`, or `high`:
+frontmatter is the default. The plugin's `PreToolUse` hook denies a `bottega:`
+agent call that omits `model` or `effort`, so the routing is not optional. The
+routing comes from `~/.claude/rules/bottega-models.md` when present, written by
+`/maestro-models`. Each line is `role: value, effort`, where `value` is a Claude
+alias (`haiku`, `sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`,
+or `high`:
 
 ```
 explorer: haiku, low
@@ -296,10 +298,10 @@ planner: opus, high
 master: opus, medium
 ```
 
-Without the file the same defaults apply; `planner` and `master` keep their own
-models. The headless runner reads the `builder` line for `build` and `--here`,
-and the `second-opinion` line for `--review`, passing only the effort as
-`--effort`; a malformed line is ignored.
+Without the file the same defaults apply; `master` keeps its own model. The
+headless runner reads the `builder` line for `build` and `--here`, and the
+`second-opinion` line for `--review`, passing only the effort as `--effort`; a
+malformed line is ignored.
 
 ## Skills
 
