@@ -35,6 +35,8 @@ Usage:
   maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
+  maestro skills list | install <name>... | install --all
+  maestro skills uninstall <name>... | uninstall --all
   maestro tools install [--yes] | hint
 
 Any command with --help or -h prints this help and changes nothing.
@@ -78,9 +80,407 @@ maestro_version() {
 }
 
 config_dir() {
+  local dir=""
   case "$1" in
-    claude) printf '%s\n' "${CLAUDE_CONFIG_DIR:-$HOME/.claude}" ;;
-    *) echo "unknown target: $1" >&2; exit 1 ;;
+    claude)
+      if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+        dir="$CLAUDE_CONFIG_DIR"
+      elif [ -n "${HOME:-}" ]; then
+        dir="$HOME/.claude"
+      fi
+      printf '%s\n' "$dir"
+      ;;
+    *) echo "unknown target: $1" >&2; return 1 ;;
+  esac
+}
+
+# ---- Standalone skills ------------------------------------------------------
+# The checked-in list `skills/standalone.txt` decides which skills run without
+# the stack. `install` copies a skill folder to <config>/skills/<name> and adds
+# a `.bottega-managed` marker, so a copy can be listed, refreshed and removed
+# without touching a user's own skill of the same name.
+skills_dest() {
+  local dir
+  dir="$(config_dir claude)" || dir=""
+  if [ -z "$dir" ]; then
+    echo 'maestro skills: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' >&2
+    return 1
+  fi
+  printf '%s\n' "$dir/skills"
+}
+
+skills_list_path() {
+  printf '%s\n' "$ROOT/skills/standalone.txt"
+}
+
+skills_usage() {
+  cat <<'EOF'
+Usage: maestro skills list | install <name>... | install --all
+       maestro skills uninstall <name>... | uninstall --all
+  list       print every standalone skill and whether it is installed
+  install    copy the named standalone skills, plus the standalone skills they
+             Load, into <config>/skills/
+  uninstall  remove the named managed copies; never touches an unmanaged dir
+  --all      install: exactly the skills in skills/standalone.txt;
+             uninstall: every managed copy
+EOF
+}
+
+# Names are folder names: lowercase letters, digits, and hyphens, never leading
+# with a hyphen. This is checked before any path is built. The class is spelled
+# out because a [a-z] range matches uppercase under a UTF-8 locale on bash 3.2.
+skill_name_ok() {
+  case "$1" in
+    ""|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|[!abcdefghijklmnopqrstuvwxyz0123456789]*) return 1 ;;
+  esac
+  return 0
+}
+
+skill_is_standalone() {
+  local file
+  file="$(skills_list_path)"
+  [ -f "$file" ] && grep -qxF -- "$1" "$file"
+}
+
+# The source folder for a skill name (a directory holding SKILL.md), or nothing.
+skill_src() {
+  local d
+  for d in "$ROOT"/skills/*/"$1"; do
+    if [ -d "$d" ] && [ -f "$d/SKILL.md" ]; then
+      printf '%s\n' "$d"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# The `Load` targets a skill folder names, one per line and C-sorted. Same rule
+# as scripts/standalone-skills.sh, so install and the standalone scan agree.
+skill_loads() {
+  grep -rhoE '([Ll]oad|loads)( the)? `[a-z0-9][a-z0-9-]*`' "$1" 2>/dev/null \
+    | grep -oE '`[a-z0-9][a-z0-9-]*`' | tr -d '`' | LC_ALL=C sort -u
+}
+
+# The named skills plus the standalone skills they Load, transitively, in
+# install order: the names in argument order, then each dependency once. Sets
+# SKILLS_CLOSURE and SKILLS_LOADED ("<dep> <parent>" lines, first parent wins).
+# A Load target that is unknown or not standalone is an error.
+skills_closure() {
+  local queue="" seen="" name dir dep deps
+  SKILLS_CLOSURE=""
+  SKILLS_LOADED=""
+  for name in "$@"; do
+    if printf '%s' "$seen" | grep -qxF -- "$name"; then
+      continue
+    fi
+    SKILLS_CLOSURE="${SKILLS_CLOSURE}${name}"$'\n'
+    seen="${seen}${name}"$'\n'
+    queue="${queue}${name}"$'\n'
+  done
+  while [ -n "$queue" ]; do
+    name="${queue%%$'\n'*}"
+    queue="${queue#*$'\n'}"
+    dir="$(skill_src "$name")" || return 1
+    deps="$(skill_loads "$dir" || true)"
+    for dep in $deps; do
+      if printf '%s' "$seen" | grep -qxF -- "$dep"; then
+        continue
+      fi
+      if ! skill_src "$dep" >/dev/null; then
+        echo "maestro skills: unknown skill: $dep (loaded by $name)" >&2
+        return 1
+      fi
+      if ! skill_is_standalone "$dep"; then
+        echo "maestro skills: $dep uses the BottegaStack stack and is not standalone" >&2
+        return 1
+      fi
+      seen="${seen}${dep}"$'\n'
+      SKILLS_CLOSURE="${SKILLS_CLOSURE}${dep}"$'\n'
+      SKILLS_LOADED="${SKILLS_LOADED}${dep} ${name}"$'\n'
+      queue="${queue}${dep}"$'\n'
+    done
+  done
+}
+
+# A managed copy is a real directory (never a symlink) holding a regular marker.
+skill_marked() {
+  [ -d "$1" ] && [ ! -L "$1" ] && [ -f "$1/.bottega-managed" ] && [ ! -L "$1/.bottega-managed" ]
+}
+
+skill_status() {
+  local name="$1" path ver
+  path="$(skills_dest)/$name"
+  if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+    printf 'not installed\n'
+  elif skill_marked "$path"; then
+    ver="$(sed -n '1s/^bottega[[:space:]]*//p' "$path/.bottega-managed" 2>/dev/null)"
+    printf 'installed %s\n' "${ver:-unknown}"
+  else
+    printf 'unmanaged copy\n'
+  fi
+}
+
+skills_print() {
+  local file name status
+  file="$(skills_list_path)"
+  [ -f "$file" ] || return 1
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    status="$(skill_status "$name")"
+    printf '%-28s %s\n' "$name" "$status"
+  done < "$file"
+}
+
+# The mode of a directory as a chmod symbolic clause, e.g. "u=rwx,g=rx,o=rx".
+# `ls -ld` is used instead of stat flags, which differ between macOS and Linux;
+# only plain read/write/execute bits are accepted, and an unusual mode makes the
+# caller fall back to 755.
+skill_dir_mode() {
+  local perms
+  perms="$(ls -ld "$1" 2>/dev/null | awk '{print $1}')" || return 1
+  perms="$(printf '%s' "$perms" | cut -c2-10)"
+  case "$perms" in
+    [r-][w-][x-][r-][w-][x-][r-][w-][x-]) ;;
+    *) return 1 ;;
+  esac
+  printf 'u=%s,g=%s,o=%s\n' \
+    "$(printf '%s' "$perms" | cut -c1-3 | tr -d -)" \
+    "$(printf '%s' "$perms" | cut -c4-6 | tr -d -)" \
+    "$(printf '%s' "$perms" | cut -c7-9 | tr -d -)"
+}
+
+# Copy a skill into the destination through a temp dir beside it: a failed copy
+# leaves any existing managed copy in place. Only called for an absent or
+# already-marked target; the marker is written before the old copy is removed.
+skill_copy() {
+  local name="$1" src="$2" dest tmp ver mode
+  dest="$(skills_dest)" || return 1
+  mkdir -p "$dest" || return 1
+  tmp="$(mktemp -d "$dest/.bottega-tmp.XXXXXX")" || return 1
+  # mktemp -d creates the temp dir 0700 and it is moved into place, so match the
+  # source directory's mode (or 755 when it is unusual) before the move.
+  if mode="$(skill_dir_mode "$src")"; then
+    chmod "$mode" "$tmp" || { rm -rf "$tmp"; return 1; }
+  else
+    chmod 755 "$tmp" || { rm -rf "$tmp"; return 1; }
+  fi
+  if ! cp -R "$src/." "$tmp/"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  ver="$(maestro_version)"
+  if ! printf 'bottega %s\n' "$ver" > "$tmp/.bottega-managed"; then
+    rm -rf "$tmp"
+    return 1
+  fi
+  if [ -e "$dest/$name" ] || [ -L "$dest/$name" ]; then
+    rm -rf "$dest/$name" || { rm -rf "$tmp"; return 1; }
+  fi
+  mv "$tmp" "$dest/$name" || { rm -rf "$tmp"; return 1; }
+}
+
+# The standalone list in file order, one name per line.
+skills_all_names() {
+  local file name
+  file="$(skills_list_path)"
+  if [ ! -f "$file" ]; then
+    echo "maestro skills: no standalone skill list at $file" >&2
+    return 1
+  fi
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    printf '%s\n' "$name"
+  done < "$file"
+}
+
+# Validate a newline-separated name list before any write: name syntax, a real
+# skill folder, and standalone.
+skills_validate() {
+  local names="$1" name
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if ! skill_name_ok "$name"; then
+      echo "maestro skills: invalid skill name: $name" >&2
+      return 1
+    fi
+    if ! skill_src "$name" >/dev/null; then
+      echo "maestro skills: unknown skill: $name" >&2
+      return 1
+    fi
+    if ! skill_is_standalone "$name"; then
+      echo "maestro skills: $name uses the BottegaStack stack and is not standalone" >&2
+      return 1
+    fi
+  done <<< "$names"
+}
+
+# Install a newline-separated name list. The second argument holds the
+# newline-separated "<dep> <parent>" lines announced first. Every target is
+# checked before the first copy: an unmanaged entry aborts all.
+skills_install_list() {
+  local names="$1" loaded="$2" name src path dest line dep parent
+  dest="$(skills_dest)"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    path="$dest/$name"
+    if { [ -e "$path" ] || [ -L "$path" ]; } && ! skill_marked "$path"; then
+      echo "maestro skills: $path exists and is not managed by BottegaStack; move it away first" >&2
+      return 1
+    fi
+  done <<< "$names"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    dep="${line%% *}"
+    parent="${line#* }"
+    echo "also installing $dep (loaded by $parent)"
+  done <<< "$loaded"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    src="$(skill_src "$name")" || return 1
+    path="$dest/$name"
+    if skill_marked "$path"; then
+      skill_copy "$name" "$src" || { echo "maestro skills: failed to copy $name" >&2; return 1; }
+      echo "refreshed $name -> $path"
+    else
+      skill_copy "$name" "$src" || { echo "maestro skills: failed to copy $name" >&2; return 1; }
+      echo "installed $name -> $path"
+    fi
+  done <<< "$names"
+}
+
+skills_install() {
+  local name names
+  if [ "$#" -eq 0 ]; then
+    skills_print || return 1
+    echo 'Nothing installed. Run: maestro skills install <name>... | --all'
+    return 0
+  fi
+  if [ "$1" = "--all" ]; then
+    if [ "$#" -ne 1 ]; then
+      skills_usage >&2
+      return 2
+    fi
+    names="$(skills_all_names)" || return 1
+    skills_validate "$names" || return 1
+    # --all installs exactly the listed set: no dependency expansion.
+    skills_install_list "$names" "" || return 1
+    return 0
+  fi
+  for name in "$@"; do
+    case "$name" in
+      -*) skills_usage >&2; return 2 ;;
+    esac
+  done
+  # Each argument is one name: validate them before building the list, so an
+  # empty or newline-bearing argument is refused rather than split or skipped.
+  for name in "$@"; do
+    if ! skill_name_ok "$name"; then
+      echo "maestro skills: invalid skill name: $name" >&2
+      return 1
+    fi
+  done
+  names=""
+  for name in "$@"; do
+    names="${names}${name}"$'\n'
+  done
+  skills_validate "$names" || return 1
+  skills_closure "$@" || return 1
+  skills_install_list "$SKILLS_CLOSURE" "$SKILLS_LOADED" || return 1
+}
+
+# Every managed copy in the destination, one name per line, C-sorted.
+skills_managed_names() {
+  local dest d
+  dest="$(skills_dest)"
+  [ -d "$dest" ] || return 0
+  for d in "$dest"/*; do
+    [ -d "$d" ] || continue
+    if skill_marked "$d"; then basename "$d"; fi
+  done | LC_ALL=C sort
+}
+
+# Remove a newline-separated name list. Every target is checked before the
+# first removal, so one unmanaged entry aborts all. An absent name is reported
+# and skipped; a managed copy is removed and reported.
+skills_uninstall_list() {
+  local names="$1" name path
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    path="$(skills_dest)/$name"
+    if { [ -e "$path" ] || [ -L "$path" ]; } && ! skill_marked "$path"; then
+      echo "maestro skills: $path is not managed by BottegaStack; refusing to remove" >&2
+      return 1
+    fi
+  done <<< "$names"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    path="$(skills_dest)/$name"
+    if [ -e "$path" ] || [ -L "$path" ]; then
+      rm -rf "$path" || return 1
+      echo "removed $name"
+    else
+      echo "$name is not installed"
+    fi
+  done <<< "$names"
+}
+
+skills_uninstall() {
+  local name names
+  if [ "$#" -eq 0 ]; then
+    skills_usage >&2
+    return 2
+  fi
+  if [ "$1" = "--all" ]; then
+    if [ "$#" -ne 1 ]; then
+      skills_usage >&2
+      return 2
+    fi
+    names="$(skills_managed_names)" || return 1
+    skills_uninstall_list "$names" || return 1
+    return 0
+  fi
+  for name in "$@"; do
+    case "$name" in
+      -*) skills_usage >&2; return 2 ;;
+    esac
+  done
+  # Mirror install: each argument is one validated name, refused before any
+  # removal so a bad name beside a valid one leaves every copy in place.
+  for name in "$@"; do
+    if ! skill_name_ok "$name"; then
+      echo "maestro skills: invalid skill name: $name" >&2
+      return 1
+    fi
+  done
+  names=""
+  for name in "$@"; do
+    names="${names}${name}"$'\n'
+  done
+  skills_validate "$names" || return 1
+  skills_uninstall_list "$names" || return 1
+}
+
+cmd_skills() {
+  local sub="${1:-}"
+  shift || true
+  # Every subcommand needs the config dir. Resolve it before dispatch: with no
+  # CLAUDE_CONFIG_DIR and no HOME there is nowhere to write, and failing here
+  # keeps a path like /skills from ever reaching a mkdir.
+  skills_dest >/dev/null || return 1
+  case "$sub" in
+    list)
+      if [ "$#" -gt 0 ]; then
+        skills_usage >&2
+        return 2
+      fi
+      skills_print
+      ;;
+    install) skills_install "$@" ;;
+    uninstall) skills_uninstall "$@" ;;
+    *)
+      skills_usage >&2
+      return 2
+      ;;
   esac
 }
 
@@ -251,7 +651,7 @@ cmd_hold() {
   done
   [ -n "$slug" ] || { echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; }
   case "$slug" in
-    ''|*[!a-z0-9-]*|-*) echo "maestro hold: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro hold: bad run id: $slug" >&2; exit 2 ;;
   esac
   if [ "$clear" = "1" ]; then
     [ -z "$reason" ] || { echo 'usage: maestro hold --clear <run>' >&2; exit 2; }
@@ -280,7 +680,7 @@ cmd_resume() {
   local slug="${1:-}" rc dir
   { [ -n "$slug" ] && [ "$#" -eq 1 ]; } || { echo "usage: maestro resume <run>" >&2; exit 2; }
   case "$slug" in
-    ''|*[!a-z0-9-]*|-*) echo "maestro resume: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro resume: bad run id: $slug" >&2; exit 2 ;;
   esac
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
@@ -525,7 +925,7 @@ verify_unmet() {
 cmd_log() {
   local slug="${1:-}" base file
   [ -n "$slug" ] || { echo 'usage: maestro log <run> [<phase> <decision> <why> <evidence> <result>]' >&2; exit 2; }
-  case "$slug" in *[!a-z0-9-]*) echo "maestro log: bad run id: $slug" >&2; exit 2 ;; esac
+  case "$slug" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro log: bad run id: $slug" >&2; exit 2 ;; esac
   base="$(ensure_state_dir)" || { echo "maestro log: not in a git repository" >&2; exit 1; }
   file="$base/decisions/$slug.tsv"
   if [ "$#" -eq 1 ]; then
@@ -1408,7 +1808,7 @@ build_here() {
   done
   [ -n "$slug" ] || { echo 'usage: maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]' >&2; exit 2; }
   case "$slug" in
-    *[!a-z0-9-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
+    *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
   esac
 
   local repo branch qdir
@@ -1534,7 +1934,7 @@ build_review() {
   done
   if [ "$here" = "1" ]; then
     [ -n "$slug" ] && [ -z "$task" ] || { echo "usage: maestro build --review --here <slug> [--block|--wait]" >&2; exit 2; }
-    case "$slug" in *[!a-z0-9-]*|-*) echo "maestro build --review --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;; esac
+    case "$slug" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro build --review --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;; esac
   else
     [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
   fi
@@ -2122,7 +2522,7 @@ cmd_report() {
 cmd_finding() {
   local slug="$1" title="$2" base
   case "$slug" in
-    ''|*[!a-z0-9-]*) echo "maestro report --finding: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro report --finding: bad run id: $slug" >&2; exit 2 ;;
   esac
   title="$(printf '%s' "$title" | tr '\t\n' '  ')"
   [ -n "$title" ] || { echo "maestro report --finding: empty title" >&2; exit 2; }
@@ -2139,7 +2539,7 @@ cmd_finding() {
 cmd_close() {
   local slug="$1" playbook="${2:-}" risk="${3:-}" outcome="${4:-}" base dir
   case "$slug" in
-    ''|*[!a-z0-9-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
   esac
   base="$(ensure_state_dir)" || { echo "maestro report --close: not in a git repository" >&2; exit 1; }
   dir="$base/$slug"
@@ -2431,6 +2831,7 @@ case "$cmd" in
   _files) maestro_files ;;
   worktree) cmd_worktree "$@" ;;
   hooks) cmd_hooks "$@" ;;
+  skills) cmd_skills "$@" ;;
   tools) cmd_tools "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;

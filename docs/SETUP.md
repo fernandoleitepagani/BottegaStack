@@ -104,6 +104,45 @@ maestro build --check    # verifies both without printing them
 
 Without these files, `/maestro` falls back to the Claude `builder` subagent.
 
+## Use skills without the stack
+
+The plugin names every skill under `bottega:` and also brings the hooks and
+agents. To get only some skills as plain slash commands (`/teach`, not
+`/bottega:teach`), copy the standalone ones into your Claude config directory:
+
+```bash
+maestro skills list                 # each standalone skill and its status
+maestro skills install teach        # also installs the standalone skills it Loads
+maestro skills install --all        # the whole standalone list
+maestro skills uninstall teach      # remove a managed copy
+maestro skills uninstall --all
+```
+
+Copies go to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/<name>/` and carry a
+`.bottega-managed` marker, so `list`, `install`, and `uninstall` never touch a
+skill you wrote yourself. `install` with no names installs nothing: it prints the
+list and the hint. Re-running `maestro skills install <name>...` refreshes that
+copy; `install` refuses an unmarked directory of the same name and installs
+nothing.
+
+A copy is a snapshot: it does not update when the plugin does. After a plugin
+update, re-run `maestro skills install <name>...` (or `--all`) to refresh it.
+
+Some standalone skills, for example `interview`, `summary`, `wayfinding`,
+`session-handoff`, `ketchup`, and `domain-modeling`, are written for the full
+stack and mention the master, the planner, or `maestro` commands. Installed
+alone they still work, but those references only apply when the plugin is
+enabled too.
+
+With the plugin also enabled, both `/teach` (the standalone copy) and
+`/bottega:teach` (the plugin's own namespace) appear; they are the same skill.
+`uninstall` removes only marked copies, so leaving the plugin enabled keeps the
+namespaced one.
+
+A managed copy of a skill that later leaves the standalone list cannot be
+removed by name, because the name is now unknown or non-standalone; use
+`maestro skills uninstall --all` to remove marked copies.
+
 ## Doctor
 
 ```bash

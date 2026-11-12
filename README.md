@@ -74,6 +74,14 @@ demand with `maestro seed <Name>`.
 Questions are answered directly; only requests that change code start a run.
 `/maestro` still works for `status`, `resume`, and forcing the workflow.
 
+To use some skills without the stack, `maestro skills install teach` copies a
+standalone skill into your Claude config as a plain slash command (`--all`
+installs the whole list, `uninstall` removes managed copies). A copy does not
+update with the plugin, so re-run `install` after an update. The standalone set
+and the maintainer rule are in [docs/SKILLS.md](docs/SKILLS.md#standalone-skills);
+the commands are in
+[docs/SETUP.md](docs/SETUP.md#use-skills-without-the-stack).
+
 ## Quick start
 
 ```

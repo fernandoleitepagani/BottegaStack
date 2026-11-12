@@ -98,6 +98,32 @@ and `better-ui` when it creates, changes, or polishes UI.
 `linux-sysadmin`, `podman-operator`, and `bash-scripting` are adapted from
 ChrisTitusTech/titstack (MIT); each ends with the credit line.
 
+## Standalone skills
+
+A skill is standalone when it runs without the stack: no file in its folder
+runs `maestro`, spawns an agent, uses the Agent tool, or names the `builder`,
+`planner`, `review-code`, or `explorer` agent. A skill that `Load`s a
+non-standalone skill is not standalone either, transitively; the rule is a
+fixed point. Exceptions go in `skills/standalone-allow.txt`, one name per line:
+an entry is exempt from the direct pattern test only, and its `Load`s still
+count. Lint fails when an entry names no skill, repeats, or exempts a skill the
+pattern does not flag.
+
+`skills/standalone.txt` is the generated set, one name per line, C-sorted;
+`maestro skills install <name>... | --all` copies from it. Never edit it by
+hand: after adding or editing a skill run
+`./scripts/standalone-skills.sh --write`, which prints
+`wrote skills/standalone.txt (<n> skills)`. Lint fails while the list is
+stale or missing and names that command. The allow file is checked the same
+way. The number of standalone skills is not fixed, so docs and scripts read
+the list instead of counting it.
+
+Some standalone skills, for example `interview`, `summary`, `wayfinding`,
+`session-handoff`, `ketchup`, and `domain-modeling`, are written for the full
+stack and mention the master, the planner, or `maestro` commands. Installed
+alone they still work, but those references only apply when the plugin is
+enabled too.
+
 ## Add a skill
 
 1. Create `skills/<category>/<name>/SKILL.md` with `name` and a trigger-rich `description`.
