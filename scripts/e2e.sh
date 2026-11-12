@@ -224,14 +224,36 @@ if [ "$race_ra" -eq 0 ] && [ "$race_rb" -eq 0 ] && [ "$race_elapsed" -lt 12 ]; t
 else
   fail "concurrent light builds both return after the build"
 fi
-race_ok=0
+# Either order is correct (issue #34): normally one caller collects the result
+# and the other prints the normal summary, but on a slow runner both callers can
+# see the finished result at the same moment and both print the normal summary.
+# A caller that returns with no result at all is still a failure.
+race_collected=0
+race_normal=0
+race_bad=0
 for f in "$TMP/race-a.out" "$TMP/race-b.out"; do
-  if grep -qx 'already collected by another caller' "$f" \
-    && grep -qx 'task: race' "$f" \
-    && grep -q '^report: .*report\.md' "$f"; then
-    race_ok=1
+  if [ ! -s "$f" ] || ! grep -qx 'task: race' "$f" || ! grep -q '^report: .*report\.md' "$f"; then
+    race_bad=1
+  elif grep -qx 'already collected by another caller' "$f"; then
+    race_collected=$((race_collected + 1))
+  else
+    race_normal=$((race_normal + 1))
   fi
 done
+race_report_a="$(sed -n 's/^report: //p' "$TMP/race-a.out" | head -1)"
+race_report_b="$(sed -n 's/^report: //p' "$TMP/race-b.out" | head -1)"
+race_ok=0
+if [ "$race_bad" -eq 0 ]; then
+  # (a) exactly one collected and one normal summary.
+  if [ "$race_collected" -eq 1 ] && [ "$race_normal" -eq 1 ]; then
+    race_ok=1
+  fi
+  # (b) both normal summaries, same report, neither collected.
+  if [ "$race_collected" -eq 0 ] && [ "$race_normal" -eq 2 ] \
+    && [ -n "$race_report_a" ] && [ "$race_report_a" = "$race_report_b" ]; then
+    race_ok=1
+  fi
+fi
 [ "$race_ok" -eq 1 ] && ok "concurrent light build names the collected task" || fail "concurrent light build names the collected task"
 # A collected light build is finished, never queued: a READY report and a failed
 # (empty) report both count as 1/1 done, and READY shows the report status.
