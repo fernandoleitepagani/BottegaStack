@@ -127,10 +127,11 @@ EOF
 }
 
 # Names are folder names: lowercase letters, digits, and hyphens, never leading
-# with a hyphen. This is checked before any path is built.
+# with a hyphen. This is checked before any path is built. The class is spelled
+# out because a [a-z] range matches uppercase under a UTF-8 locale on bash 3.2.
 skill_name_ok() {
   case "$1" in
-    ""|*[!a-z0-9-]*|[!a-z0-9]*) return 1 ;;
+    ""|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|[!abcdefghijklmnopqrstuvwxyz0123456789]*) return 1 ;;
   esac
   return 0
 }
@@ -650,7 +651,7 @@ cmd_hold() {
   done
   [ -n "$slug" ] || { echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; }
   case "$slug" in
-    ''|*[!a-z0-9-]*|-*) echo "maestro hold: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro hold: bad run id: $slug" >&2; exit 2 ;;
   esac
   if [ "$clear" = "1" ]; then
     [ -z "$reason" ] || { echo 'usage: maestro hold --clear <run>' >&2; exit 2; }
@@ -679,7 +680,7 @@ cmd_resume() {
   local slug="${1:-}" rc dir
   { [ -n "$slug" ] && [ "$#" -eq 1 ]; } || { echo "usage: maestro resume <run>" >&2; exit 2; }
   case "$slug" in
-    ''|*[!a-z0-9-]*|-*) echo "maestro resume: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro resume: bad run id: $slug" >&2; exit 2 ;;
   esac
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
@@ -924,7 +925,7 @@ verify_unmet() {
 cmd_log() {
   local slug="${1:-}" base file
   [ -n "$slug" ] || { echo 'usage: maestro log <run> [<phase> <decision> <why> <evidence> <result>]' >&2; exit 2; }
-  case "$slug" in *[!a-z0-9-]*) echo "maestro log: bad run id: $slug" >&2; exit 2 ;; esac
+  case "$slug" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro log: bad run id: $slug" >&2; exit 2 ;; esac
   base="$(ensure_state_dir)" || { echo "maestro log: not in a git repository" >&2; exit 1; }
   file="$base/decisions/$slug.tsv"
   if [ "$#" -eq 1 ]; then
@@ -1807,7 +1808,7 @@ build_here() {
   done
   [ -n "$slug" ] || { echo 'usage: maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]' >&2; exit 2; }
   case "$slug" in
-    *[!a-z0-9-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
+    *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
   esac
 
   local repo branch qdir
@@ -1933,7 +1934,7 @@ build_review() {
   done
   if [ "$here" = "1" ]; then
     [ -n "$slug" ] && [ -z "$task" ] || { echo "usage: maestro build --review --here <slug> [--block|--wait]" >&2; exit 2; }
-    case "$slug" in *[!a-z0-9-]*|-*) echo "maestro build --review --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;; esac
+    case "$slug" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro build --review --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;; esac
   else
     [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
   fi
@@ -2521,7 +2522,7 @@ cmd_report() {
 cmd_finding() {
   local slug="$1" title="$2" base
   case "$slug" in
-    ''|*[!a-z0-9-]*) echo "maestro report --finding: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro report --finding: bad run id: $slug" >&2; exit 2 ;;
   esac
   title="$(printf '%s' "$title" | tr '\t\n' '  ')"
   [ -n "$title" ] || { echo "maestro report --finding: empty title" >&2; exit 2; }
@@ -2538,7 +2539,7 @@ cmd_finding() {
 cmd_close() {
   local slug="$1" playbook="${2:-}" risk="${3:-}" outcome="${4:-}" base dir
   case "$slug" in
-    ''|*[!a-z0-9-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
+    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
   esac
   base="$(ensure_state_dir)" || { echo "maestro report --close: not in a git repository" >&2; exit 1; }
   dir="$base/$slug"
