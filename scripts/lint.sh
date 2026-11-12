@@ -20,6 +20,52 @@ for f in "$ROOT"/skills/*/*/SKILL.md; do
   fi
 done
 
+# Standalone skills (issue #27, decision 6): the checked-in list must match the
+# scan, and every allow entry must name a real skill the direct pattern flags.
+# The pattern is repeated in scripts/standalone-skills.sh; keep them in sync.
+standalone_scan="$ROOT/scripts/standalone-skills.sh"
+stale_standalone="FAIL skills/standalone.txt is out of date; run ./scripts/standalone-skills.sh --write"
+if ! expected_standalone="$("$standalone_scan" 2>/dev/null)"; then
+  echo "$stale_standalone"
+  fail=1
+elif [ ! -f "$ROOT/skills/standalone.txt" ]; then
+  echo "$stale_standalone"
+  fail=1
+elif [ "$expected_standalone" != "$(cat "$ROOT/skills/standalone.txt")" ]; then
+  echo "$stale_standalone"
+  fail=1
+fi
+
+allow_file="$ROOT/skills/standalone-allow.txt"
+seen_allow=""
+if [ -f "$allow_file" ]; then
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    if printf '%s' "$seen_allow" | grep -qxF -- "$name"; then
+      echo "FAIL skills/standalone-allow.txt: duplicate entry: $name"
+      fail=1
+      continue
+    fi
+    seen_allow="${seen_allow}${name}"$'\n'
+    dir=""
+    for d in "$ROOT"/skills/*/"$name"; do
+      if [ -d "$d" ] && [ -f "$d/SKILL.md" ]; then
+        dir="$d"
+        break
+      fi
+    done
+    if [ -z "$dir" ]; then
+      echo "FAIL skills/standalone-allow.txt: no such skill: $name"
+      fail=1
+      continue
+    fi
+    if ! grep -rqiE 'maestro |spawn|agent tool|bottega:(builder|planner|review-code|explorer)' "$dir"; then
+      echo "FAIL skills/standalone-allow.txt: stale entry, the pattern does not flag: $name"
+      fail=1
+    fi
+  done < "$allow_file"
+fi
+
 # Templates for the on-demand project files. `maestro seed <Name>` copies these
 # lazily; init does not create them, so the lint only checks the templates.
 for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md BACKLOG.md mistakes.md REVIEW.md \

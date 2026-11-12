@@ -559,6 +559,99 @@ done
 cp "$ROOT/hooks/hooks.json" "$LB/hooks/hooks.json"
 if lint_rejects_hooks; then fail "lint accepts plugin-root hook commands"; else ok "lint accepts plugin-root hook commands"; fi
 
+# Standalone skills (issue #27): decision 6. A direct pattern match or a Load of
+# a non-standalone skill removes a skill; the allow file exempts a skill from
+# the direct test only. `lint` keeps the checked-in list and allow file honest.
+SCAN="$TMP/standalone-scan"
+mkdir -p "$SCAN/scripts" "$SCAN/skills/cat"
+cp "$ROOT/scripts/standalone-skills.sh" "$SCAN/scripts/standalone-skills.sh" 2>/dev/null
+chmod +x "$SCAN/scripts/standalone-skills.sh" 2>/dev/null
+mk_scan_skill() {
+  mkdir -p "$SCAN/skills/cat/$1"
+  printf -- '---\nname: %s\ndescription: fixture\n---\n%s\n' "$1" "$2" > "$SCAN/skills/cat/$1/SKILL.md"
+}
+mk_scan_skill a 'clean'
+mk_scan_skill b 'run maestro start'
+mk_scan_skill c 'Load `b`'
+mk_scan_skill d 'Spawn a worker'
+mk_scan_skill e 'clean references'
+mkdir -p "$SCAN/skills/cat/e/references"
+printf 'Use the Agent tool.\n' > "$SCAN/skills/cat/e/references/x.md"
+mk_scan_skill f 'Load `a`'
+mk_scan_skill g 'loads `c`'
+mk_scan_skill h 'run maestro report'
+printf 'h\n' > "$SCAN/skills/standalone-allow.txt"
+scan_out="$("$SCAN/scripts/standalone-skills.sh" 2>&1)"; scan_rc=$?
+if [ "$scan_rc" -eq 0 ] && [ "$scan_out" = "$(printf 'a\nf\nh')" ]; then
+  ok "standalone scan applies the rule"
+else
+  fail "standalone scan applies the rule"
+fi
+
+# A full copy lets lint pass as it does in the repo; each mutation is checked in
+# place. The checked-in list must match the scan before lint can pass.
+SL="$TMP/standalone-lint"
+mkdir -p "$SL"
+cp -R "$ROOT/." "$SL/"
+chmod +x "$SL/scripts/standalone-skills.sh" 2>/dev/null
+if [ -f "$SL/skills/standalone.txt" ] \
+  && "$SL/scripts/standalone-skills.sh" 2>/dev/null | diff - "$SL/skills/standalone.txt" >/dev/null 2>&1 \
+  && ( cd "$SL" && bash scripts/lint.sh ) 2>&1 | grep -qx 'lint: PASS'; then
+  ok "lint passes with a fresh standalone.txt"
+else
+  fail "lint passes with a fresh standalone.txt"
+fi
+printf 'bogus\n' > "$SL/skills/standalone.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone.txt is out of date; run ./scripts/standalone-skills.sh --write'; then
+  ok "lint fails on a stale standalone.txt"
+else
+  fail "lint fails on a stale standalone.txt"
+fi
+regen_out="$("$SL/scripts/standalone-skills.sh" --write 2>&1)"; regen_rc=$?
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$regen_rc" -eq 0 ] \
+  && printf '%s\n' "$regen_out" | grep -qE '^wrote skills/standalone\.txt \([0-9]+ skills\)$' \
+  && [ "$lint_rc" -eq 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'lint: PASS'; then
+  ok "regen fixes a stale standalone.txt"
+else
+  fail "regen fixes a stale standalone.txt"
+fi
+allow_backup="$TMP/standalone-allow.backup"
+cp "$SL/skills/standalone-allow.txt" "$allow_backup"
+printf 'no-such-skill\n' >> "$SL/skills/standalone-allow.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-allow.txt: no such skill: no-such-skill'; then
+  ok "lint fails on a nonexistent allow entry"
+else
+  fail "lint fails on a nonexistent allow entry"
+fi
+cp "$allow_backup" "$SL/skills/standalone-allow.txt"
+mkdir -p "$SL/skills/cat/plainfixture"
+printf -- '---\nname: plainfixture\ndescription: fixture\n---\nclean\n' > "$SL/skills/cat/plainfixture/SKILL.md"
+"$SL/scripts/standalone-skills.sh" --write >/dev/null 2>&1
+printf 'plainfixture\n' >> "$SL/skills/standalone-allow.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-allow.txt: stale entry, the pattern does not flag: plainfixture'; then
+  ok "lint fails on a stale allow entry"
+else
+  fail "lint fails on a stale allow entry"
+fi
+cp "$allow_backup" "$SL/skills/standalone-allow.txt"
+printf 'ketchup\n' >> "$SL/skills/standalone-allow.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-allow.txt: duplicate entry: ketchup'; then
+  ok "lint fails on a duplicate allow entry"
+else
+  fail "lint fails on a duplicate allow entry"
+fi
+cp "$allow_backup" "$SL/skills/standalone-allow.txt"
+
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
 PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools install" && ok "tool hint when missing" || fail "tool hint when missing"
