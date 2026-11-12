@@ -36,6 +36,7 @@ Usage:
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
   maestro skills list | install <name>... | install --all
+  maestro skills uninstall <name>... | uninstall --all
   maestro tools install [--yes] | hint
 
 Any command with --help or -h prints this help and changes nothing.
@@ -101,10 +102,13 @@ skills_list_path() {
 skills_usage() {
   cat <<'EOF'
 Usage: maestro skills list | install <name>... | install --all
-  list     print every standalone skill and whether it is installed
-  install  copy the named standalone skills, plus the standalone skills they
-           Load, into <config>/skills/
-  --all    install exactly the skills in skills/standalone.txt
+       maestro skills uninstall <name>... | uninstall --all
+  list       print every standalone skill and whether it is installed
+  install    copy the named standalone skills, plus the standalone skills they
+             Load, into <config>/skills/
+  uninstall  remove the named managed copies; never touches an unmanaged dir
+  --all      install: exactly the skills in skills/standalone.txt;
+             uninstall: every managed copy
 EOF
 }
 
@@ -344,6 +348,78 @@ skills_install() {
   skills_install_list "$SKILLS_CLOSURE" "$SKILLS_LOADED" || return 1
 }
 
+# Every managed copy in the destination, one name per line, C-sorted.
+skills_managed_names() {
+  local dest d
+  dest="$(skills_dest)"
+  [ -d "$dest" ] || return 0
+  for d in "$dest"/*; do
+    [ -d "$d" ] || continue
+    if skill_marked "$d"; then basename "$d"; fi
+  done | LC_ALL=C sort
+}
+
+# Remove a newline-separated name list. Every target is checked before the
+# first removal, so one unmanaged entry aborts all. An absent name is reported
+# and skipped; a managed copy is removed and reported.
+skills_uninstall_list() {
+  local names="$1" name path
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    path="$(skills_dest)/$name"
+    if { [ -e "$path" ] || [ -L "$path" ]; } && ! skill_marked "$path"; then
+      echo "maestro skills: $path is not managed by BottegaStack; refusing to remove" >&2
+      return 1
+    fi
+  done <<< "$names"
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    path="$(skills_dest)/$name"
+    if [ -e "$path" ] || [ -L "$path" ]; then
+      rm -rf "$path" || return 1
+      echo "removed $name"
+    else
+      echo "$name is not installed"
+    fi
+  done <<< "$names"
+}
+
+skills_uninstall() {
+  local name names
+  if [ "$#" -eq 0 ]; then
+    skills_usage >&2
+    return 2
+  fi
+  if [ "$1" = "--all" ]; then
+    if [ "$#" -ne 1 ]; then
+      skills_usage >&2
+      return 2
+    fi
+    names="$(skills_managed_names)" || return 1
+    skills_uninstall_list "$names" || return 1
+    return 0
+  fi
+  for name in "$@"; do
+    case "$name" in
+      -*) skills_usage >&2; return 2 ;;
+    esac
+  done
+  # Mirror install: each argument is one validated name, refused before any
+  # removal so a bad name beside a valid one leaves every copy in place.
+  for name in "$@"; do
+    if ! skill_name_ok "$name"; then
+      echo "maestro skills: invalid skill name: $name" >&2
+      return 1
+    fi
+  done
+  names=""
+  for name in "$@"; do
+    names="${names}${name}"$'\n'
+  done
+  skills_validate "$names" || return 1
+  skills_uninstall_list "$names" || return 1
+}
+
 cmd_skills() {
   local sub="${1:-}"
   shift || true
@@ -356,6 +432,7 @@ cmd_skills() {
       skills_print
       ;;
     install) skills_install "$@" ;;
+    uninstall) skills_uninstall "$@" ;;
     *)
       skills_usage >&2
       return 2
