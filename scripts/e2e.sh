@@ -36,6 +36,7 @@ if [ "${STUB_FAIL:-}" = "1" ]; then
   echo '{"type":"result","result":"","usage":{"input_tokens":0,"output_tokens":0}}'
   exit 1
 fi
+[ -n "${STUB_SLEEP:-}" ] && sleep "$STUB_SLEEP"
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
 printf '{"type":"result","result":"STATUS: %s\\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}\n' "${STUB_STATUS:-DONE}"
 EOF
@@ -175,6 +176,37 @@ expect "build --here" "$M" build --here q1 --task "small fix" --block
 out="$("$M" build --here qsum --task "summary" --block 2>&1)"
 printf '%s\n' "$out" | grep -qx 'session: s1' && ok "light summary prints session" || fail "light summary prints session"
 printf '%s\n' "$out" | grep -qx 'revisions: 0/2' && ok "light summary prints revisions" || fail "light summary prints revisions"
+# Two concurrent callers for one light slug (issue #18): the first collects the
+# result, the second must stop when the run marker disappears instead of waiting
+# the full BOTTEGA_BUILD_WAIT. The wait limit is 20 s; both calls must return a
+# few seconds after the build ends (the stub sleeps 4).
+STUB_SLEEP=4 BOTTEGA_BUILD_WAIT=20 "$M" build --here race --task "race" >"$TMP/race-a.out" 2>&1 &
+race_a=$!
+i=0
+while [ "$i" -lt 50 ] && ! find "$BOTTEGA_STATE_DIR" -path '*/quick/race/run' -type f | grep -q .; do
+  sleep 0.1
+  i=$((i + 1))
+done
+race_start="$(date +%s)"
+STUB_SLEEP=4 BOTTEGA_BUILD_WAIT=20 "$M" build --here race --task "race" >"$TMP/race-b.out" 2>&1 &
+race_b=$!
+wait "$race_a"; race_ra=$?
+wait "$race_b"; race_rb=$?
+race_elapsed=$(( $(date +%s) - race_start ))
+if [ "$race_ra" -eq 0 ] && [ "$race_rb" -eq 0 ] && [ "$race_elapsed" -lt 12 ]; then
+  ok "concurrent light builds both return after the build"
+else
+  fail "concurrent light builds both return after the build"
+fi
+race_ok=0
+for f in "$TMP/race-a.out" "$TMP/race-b.out"; do
+  if grep -qx 'already collected by another caller' "$f" \
+    && grep -qx 'task: race' "$f" \
+    && grep -q '^report: .*report\.md' "$f"; then
+    race_ok=1
+  fi
+done
+[ "$race_ok" -eq 1 ] && ok "concurrent light build names the collected task" || fail "concurrent light build names the collected task"
 # A collected light build is finished, never queued: a READY report and a failed
 # (empty) report both count as 1/1 done, and READY shows the report status.
 STUB_STATUS=READY "$M" build --here stat-ready --task "ready" --block >/dev/null 2>&1
@@ -280,7 +312,7 @@ if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'API Error: 400 Upstream re
 else
   fail "0-token review failure prints the error"
 fi
-for s in tiers tiers2 fail1 fail2 stat-ready stat-fail; do "$M" report --close "$s" >/dev/null 2>&1; done
+for s in tiers tiers2 fail1 fail2 stat-ready stat-fail race; do "$M" report --close "$s" >/dev/null 2>&1; done
 
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
