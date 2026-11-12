@@ -151,6 +151,9 @@ skills_closure() {
   SKILLS_CLOSURE=""
   SKILLS_LOADED=""
   for name in "$@"; do
+    if printf '%s' "$seen" | grep -qxF -- "$name"; then
+      continue
+    fi
     SKILLS_CLOSURE="${SKILLS_CLOSURE}${name}"$'\n'
     seen="${seen}${name}"$'\n'
     queue="${queue}${name}"$'\n'
@@ -302,7 +305,7 @@ skills_install_list() {
 }
 
 skills_install() {
-  local name names loaded
+  local name names
   if [ "$#" -eq 0 ]; then
     skills_print || return 1
     echo 'Nothing installed. Run: maestro skills install <name>... | --all'
@@ -323,6 +326,14 @@ skills_install() {
     case "$name" in
       -*) skills_usage >&2; return 2 ;;
     esac
+  done
+  # Each argument is one name: validate them before building the list, so an
+  # empty or newline-bearing argument is refused rather than split or skipped.
+  for name in "$@"; do
+    if ! skill_name_ok "$name"; then
+      echo "maestro skills: invalid skill name: $name" >&2
+      return 1
+    fi
   done
   names=""
   for name in "$@"; do
