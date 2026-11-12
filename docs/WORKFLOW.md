@@ -65,7 +65,11 @@ approval and the final decision). It tracks the steps in the todo list
 (`TodoWrite`, or `TaskCreate`/`TaskUpdate` when that tool is unavailable). A
 `Stop` hook enforces it: mid-pipeline, with no builder or check running, the
 master cannot end its turn while a todo item is open. It never waits for
-"proceed" between steps.
+"proceed" between steps. When the master escalates or a builder reports
+`STATUS: BLOCKED`, it runs `maestro hold <run> "<reason>"` instead of completing
+the remaining todos: that records the escalation in the state directory,
+`maestro build --status` prints `HOLD: <reason>`, and the Stop hook lets the
+session end. `maestro hold --clear <run>` clears it on resume.
 
 **Light path.** `trivial` and small `bugfix` runs use the headless builder in the
 current checkout through `maestro build --here <slug> --task "<text>"`, with state
@@ -332,7 +336,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
+`upgrade`, `start`, `hold`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -342,6 +346,7 @@ maestro seed <Name>
 maestro upgrade [path]
 
 maestro start "<title>"
+maestro hold <run> "<reason>" | --clear <run>
 maestro spec <run> [file]
 maestro check <run>
 maestro gate <run> [--allow-dirty] [--proof]

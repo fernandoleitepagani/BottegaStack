@@ -35,7 +35,10 @@ The plugin provides:
 - The hooks in `hooks/hooks.json`: PreToolUse `Agent|Task` runs
   `"${CLAUDE_PLUGIN_ROOT}/bin/maestro" guard builder`, Stop runs it with
   `guard stop`, and SessionStart runs it with `tools hint`. They use the plugin
-  root because a hook shell has no plugin `bin/` on `PATH`.
+  root because a hook shell has no plugin `bin/` on `PATH`. `guard stop` keeps
+  the master running while a todo item is open, but when every open run is on
+  hold (`maestro hold <run> "<reason>"`) it lets the session end and prints
+  `run <slug> is on hold: <reason>`.
 
 Update with `/plugin` or `claude plugin update bottega@bottega`. Uninstall with
 `claude plugin uninstall bottega`; remove the marketplace with
@@ -264,6 +267,10 @@ handoffs, decisions, reviews, and builder reports.
   dir and a reboot clears it), then removes the run's state directory; the master
   calls it after the closeout is confirmed. `maestro report --trust [n]` prints
   the last n runs (default 10) and a summary; it only reports.
+- `maestro hold <run> "<reason>"` writes a `hold` file (timestamp and reason) in
+  the run's state directory, or `$STATE/quick/<slug>/` on the light path;
+  `maestro build --status` then prints `HOLD: <reason>`, and
+  `maestro hold --clear <run>` removes it.
 
 ## Headless builder (`maestro build`)
 

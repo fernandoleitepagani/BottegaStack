@@ -46,7 +46,10 @@ tasks, the build records, and the check results. Nothing is written into the rep
 Track steps in the todo list: `TodoWrite`, or `TaskCreate`/`TaskUpdate` when that tool is unavailable.
 Mark each item `in_progress` when you start it and `completed` when it passes; keep playbook and risk
 as their own items. A Stop hook keeps the run going while any todo item is open and returns as soon as
-every item is complete.
+every item is complete. When you escalate or a builder returns `STATUS: BLOCKED`, run
+`maestro hold <slug> "<reason>"` instead of marking the remaining todos completed: it records the
+escalated state, `maestro build --status` prints `HOLD: <reason>`, and the Stop hook lets the session end.
+Clear it with `maestro hold --clear <slug>` when the run resumes.
 
 The planner returns the SPEC as its final reply; save the approved SPEC with `maestro spec <slug>`.
 Reviewers return findings as their reply, and a headless builder's final reply is its report.
@@ -95,8 +98,8 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    0/N), never sleep-poll. It ends when all tasks are done; without `Monitor`, run
    `maestro build --status <slug>` after each build. Verify before accepting (principle `prove-it-works`: the
    builder's report is present, commits exist, changed files inside `Allowed files`). `STATUS: BLOCKED` returns
-   to you, not a retry; merging requires a `review-code` verdict of approve. A builder needing another file is
-   `BLOCKED`; do not widen it.
+   to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a `review-code` verdict of approve.
+   A builder needing another file is `BLOCKED`; do not widen it.
 3. **Step 3 — Checks.** Run `maestro check <slug>`; it runs `scripts/check` and records `RESULT`, `HEAD`, duration,
    and exit code in the state directory. Post its output in chat. On failure load `diagnosis` and pass the
    findings to a fresh builder.
@@ -110,7 +113,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 5. **Step 5 — Fix.** On `CHANGES`, load `diagnosis`, pass the review findings to a fresh builder, re-run checks,
    and re-review with `review-code`. Max two rounds. For a headless task, pass the findings on stdin to
    `maestro build <slug> <task> --revise -` (light path: `maestro build --here <slug> --revise -`); it resumes the same session and refuses a third revision (exit 4),
-   so escalate then. Record each blocking finding with `maestro report --finding <slug> "<title>"` (the retro scan reads these). Track failing checks and blocking findings per round; if neither fell in two consecutive
+   so escalate then (`maestro hold <slug> "<reason>"`). Record each blocking finding with `maestro report --finding <slug> "<title>"` (the retro scan reads these). Track failing checks and blocking findings per round; if neither fell in two consecutive
    rounds, stop and escalate. Never run a third identical round.
 6. **Step 6 — Approval.** Load `approval`; run `maestro gate <slug> --proof` first (it fails on a missing, failing, inconclusive, or stale proof; a waiver needs the user's yes through `AskUserQuestion`, then `maestro verify waive <slug> <AC> "<reason>"`). Read the SPEC, every builder report, the check output, and every
    review reply. Decide `APPROVE` or `ESCALATE` yourself, with the acceptance-criteria mapping, risks, and an

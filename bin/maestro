@@ -17,6 +17,7 @@ Usage:
   maestro seed <Name>
   maestro upgrade [path]
   maestro start "<title>"
+  maestro hold <run> "<reason>" | --clear <run>
   maestro spec <run> [file]
   maestro check <run>
   maestro gate <run> [--allow-dirty] [--proof]
@@ -147,6 +148,13 @@ resolve_run_dir() {
   return 1
 }
 
+# The reason recorded in a run's hold file ($STATE/<run>/hold or
+# $STATE/quick/<slug>/hold), or nothing when the run is not on hold.
+run_hold_reason() {
+  [ -f "$1/hold" ] || return 0
+  cut -f2- "$1/hold" 2>/dev/null | head -1
+}
+
 # `maestro start "<title>" [--branch <name>]`: create the state directory and the
 # run id (the slug). The run works on the branch you are on; only `--branch`
 # creates one. Auto-inits the project on first use and requires no changes to
@@ -210,6 +218,44 @@ cmd_start() {
   echo "run: $slug"
   echo "branch: $branch"
   echo "state: $dir"
+}
+
+# `maestro hold <run> "<reason>"`: record an escalation in the run's state
+# directory (a `hold` file with the reason and a timestamp), so the Stop hook
+# can let the session end instead of forcing the master to complete its todos.
+# `maestro hold --clear <run>` removes it when the run resumes.
+cmd_hold() {
+  local clear=0 slug="" reason="" rc dir
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --clear) clear=1; shift ;;
+      -*) echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2 ;;
+      *)
+        if [ -z "$slug" ]; then slug="$1"
+        elif [ -z "$reason" ]; then reason="$1"
+        else echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; fi
+        shift ;;
+    esac
+  done
+  [ -n "$slug" ] || { echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; }
+  if [ "$clear" = "1" ]; then
+    [ -z "$reason" ] || { echo 'usage: maestro hold --clear <run>' >&2; exit 2; }
+  else
+    [ -n "$reason" ] || { echo 'usage: maestro hold <run> "<reason>"' >&2; exit 2; }
+  fi
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "maestro hold: not in a git repository" >&2; else echo "maestro hold: no such run: $slug" >&2; fi
+    exit 1
+  }
+  if [ "$clear" = "1" ]; then
+    rm -f "$dir/hold"
+    echo "hold cleared: $slug"
+    return 0
+  fi
+  reason="$(printf '%s' "$reason" | tr '\t\n\r' '   ')"
+  printf '%s\t%s\n' "$(date -Iseconds)" "$reason" > "$dir/hold"
+  echo "run $slug is on hold: $reason"
 }
 
 # `maestro spec <run> [file]`: save the spec and extract each `### Task <n>`
@@ -1023,6 +1069,7 @@ build_status() {
     if [ "$rc" -eq 2 ]; then echo "maestro build --status: not in a git repository" >&2; else echo "no such run: $slug" >&2; fi
     exit 2
   }
+  [ -f "$dir/hold" ] && echo "HOLD: $(run_hold_reason "$dir")"
   if [ -z "${every:-}" ]; then build_status_line "$dir"; return 0; fi
   case "$every" in ''|*[!0-9]*) echo "--every needs a number of seconds" >&2; exit 2 ;; esac
   while :; do
@@ -1758,7 +1805,8 @@ for line in sys.stdin:
 #   guard builder  PreToolUse: deny the Claude-model builder when the headless
 #                  builder is configured; allow it otherwise (fallback).
 #   guard stop     Stop: do not let the master end its turn between steps. It
-#                  blocks only while a run is mid-pipeline with nothing running.
+#                  blocks only while a run is mid-pipeline with nothing running;
+#                  when every open run is on hold, it lets the session end.
 cmd_guard() {
   # Headless builder/reviewer sessions load the same plugin hooks: stay out of their way.
   [ -z "${BOTTEGA_HEADLESS:-}" ] || exit 0
@@ -1796,14 +1844,25 @@ guard_stop() {
   # in the state root (trust.log, findings.log, decisions/) do not count.
   sdir="$(state_dir 2>/dev/null || true)"
   [ -n "$sdir" ] && [ -d "$sdir" ] || exit 0
-  local open=0
+  local active=0 held=0 hold_slug="" hold_reason=""
   for r in "$sdir"/*/ "$sdir"/quick/*/; do
     [ -d "$r" ] || continue
     case "$r" in "$sdir"/decisions/|"$sdir"/quick/) continue ;; esac
     [ -f "$r/paused" ] && continue
-    open=1; break
+    active=$((active + 1))
+    [ -f "$r/hold" ] || continue
+    held=$((held + 1))
+    if [ -z "$hold_slug" ]; then
+      hold_slug="$(basename "$r")"
+      hold_reason="$(run_hold_reason "$r")"
+    fi
   done
-  [ "$open" = "1" ] || exit 0
+  [ "$active" -gt 0 ] || exit 0
+  # Every open run is on hold: the master escalated, so let the turn end.
+  if [ "$held" -eq "$active" ]; then
+    echo "run $hold_slug is on hold: $hold_reason"
+    exit 0
+  fi
   # A builder is running (a .run with no .rc yet): let the turn end while it works.
   for r in "$sdir"/*/build/*.run "$sdir"/quick/*/*.run; do
     [ -f "$r" ] || continue
@@ -2312,6 +2371,7 @@ case "$cmd" in
   seed) cmd_seed "$@" ;;
   upgrade) cmd_upgrade "${1:-$PWD}" ;;
   start) cmd_start "$@" ;;
+  hold) cmd_hold "$@" ;;
   spec) cmd_spec "$@" ;;
   check) cmd_check "$@" ;;
   gate) cmd_gate "$@" ;;
