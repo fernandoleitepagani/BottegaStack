@@ -59,6 +59,35 @@ printf '#!/usr/bin/env bash\necho ok\n' > scripts/check && chmod +x scripts/chec
 f=$(grep -oE '@\$\{CLAUDE_PLUGIN_ROOT\}/[^ ]+' "$ROOT/commands/maestro.md" | sed 's#@${CLAUDE_PLUGIN_ROOT}/##')
 [ -n "$f" ] && [ -f "$ROOT/$f" ] && ok "/maestro includes $f" || fail "/maestro includes the master"
 
+# `start` validates before it writes (issue #16): a refused start leaves the
+# repo byte-for-byte unchanged in a fresh repo, since auto-init would otherwise
+# run before the branch and cleanliness rules.
+fresh_snapshot() {
+  ( cd "$1" && git status --short --ignored --untracked-files=all \
+    && find . -path ./.git -prune -o -print | LC_ALL=C sort )
+}
+FRESH="$TMP/fresh-start"
+mkdir -p "$FRESH" && ( cd "$FRESH" && git init -q -b main && git commit -q --allow-empty -m init )
+before="$(fresh_snapshot "$FRESH")"
+( cd "$FRESH" && "$M" start "On main" ) >/dev/null 2>&1; rc=$?
+after="$(fresh_snapshot "$FRESH")"
+if [ "$rc" -eq 1 ] && [ "$before" = "$after" ]; then
+  ok "start refused on main writes nothing"
+else
+  fail "start refused on main writes nothing"
+fi
+DIRTY="$TMP/fresh-dirty"
+mkdir -p "$DIRTY" && ( cd "$DIRTY" && git init -q -b main && git commit -q --allow-empty -m init )
+printf 'work in progress\n' > "$DIRTY/dirty.txt"
+before="$(fresh_snapshot "$DIRTY")"
+( cd "$DIRTY" && "$M" start "Dirty tree" ) >/dev/null 2>&1; rc=$?
+after="$(fresh_snapshot "$DIRTY")"
+if [ "$rc" -eq 1 ] && [ "$before" = "$after" ]; then
+  ok "start refused on a dirty tree writes nothing"
+else
+  fail "start refused on a dirty tree writes nothing"
+fi
+
 # Runs and branches.
 expect_not "start refused on main" "$M" start "On main"
 git switch -q -c feat/e2e
