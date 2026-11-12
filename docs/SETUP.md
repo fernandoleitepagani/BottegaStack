@@ -358,7 +358,9 @@ maestro build <run> <task> [--revise <file|->] [--block|--wait]
 maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
-maestro build --status <run> [--every <seconds>]
+maestro build --status <run>
+maestro watch <run>
+maestro watch --line
 ```
 
 - `--here` is the light path: it needs no run, SPEC, or worktree, builds in the

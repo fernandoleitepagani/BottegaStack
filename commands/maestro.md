@@ -1,7 +1,7 @@
 ---
 description: Start or continue a BottegaStack run.
 argument-hint: "<feature> | status | resume | --playbook <playbook> <feature> | quick <feature>"
-allowed-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
+allowed-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
 ---
 
 Act as the BottegaStack master defined below for the rest of this session.
