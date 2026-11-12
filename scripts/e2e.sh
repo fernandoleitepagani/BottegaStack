@@ -56,6 +56,21 @@ git init -q -b main && git commit -q --allow-empty -m init
 "$M" init . >/dev/null 2>&1
 printf '#!/usr/bin/env bash\necho ok\n' > scripts/check && chmod +x scripts/check
 
+# Version (issue #24): --version, -V, and version print the plugin manifest's
+# version before command dispatch and touch no run state. doctor repeats it.
+plugin_version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$ROOT/.claude-plugin/plugin.json" | head -1)"
+for form in --version -V version; do
+  out="$("$M" "$form" 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ] && [ "$out" = "maestro $plugin_version" ] && printf '%s\n' "$out" | grep -q '^maestro 0\.'; then
+    ok "version form $form"
+  else
+    fail "version form $form"
+  fi
+done
+[ ! -e "$BOTTEGA_STATE_DIR" ] && ok "version touches no run state" || fail "version touches no run state"
+out="$("$M" doctor 2>&1)"
+printf '%s\n' "$out" | grep -qx "version: $plugin_version" && ok "doctor prints the version" || fail "doctor prints the version"
+
 # /maestro loads the one master prompt.
 f=$(grep -oE '@\$\{CLAUDE_PLUGIN_ROOT\}/[^ ]+' "$ROOT/commands/maestro.md" | sed 's#@${CLAUDE_PLUGIN_ROOT}/##')
 [ -n "$f" ] && [ -f "$ROOT/$f" ] && ok "/maestro includes $f" || fail "/maestro includes the master"
@@ -615,6 +630,9 @@ guard
 guard stop
 guard builder
 keyget
+--version
+-V
+version
 EOF
 out="$( cd "$HB/repo" && env -i HOME="$HB/home" XDG_CONFIG_HOME="$HB/home/.config" \
   CLAUDE_CONFIG_DIR="$HB/home/.claude" BOTTEGA_STATE_DIR="$HB/state" TMPDIR="$HB/tmp" \
