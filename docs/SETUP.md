@@ -110,7 +110,7 @@ Without these files, `/maestro` falls back to the Claude `builder` subagent.
 maestro doctor
 ```
 
-`doctor` prints the runtime and tool versions (including whether the optional `rtk` is installed), the skill count, `AGENTS.md` size, project Claude settings, hook status, config paths, and
+`doctor` prints the plugin version (`version: <version>`), the runtime and tool versions (including whether the optional `rtk` is installed), the skill count, `AGENTS.md` size, project Claude settings, hook status, config paths, and
 then runs the repo lint when `scripts/lint.sh` sits beside the CLI. It also
 prints security warnings, one line each:
 
@@ -371,8 +371,9 @@ Run this by hand after installing the plugin.
 
 1. `/plugin` lists `bottega`, and a new session shows the `/maestro` and
    `/maestro-models` commands.
-2. `maestro --help` resolves inside a session and prints the usage.
-3. `maestro doctor` shows `claude: yes`.
+2. `maestro --help` resolves inside a session and prints the usage, and
+   `maestro --version` prints `maestro <version>`.
+3. `maestro doctor` shows `version: <version>` and `claude: yes`.
 4. `python3 -m json.tool .claude/settings.json` succeeds in a project.
 5. `/maestro status` loads the master prompt and reads the todo list and
    current branch.
