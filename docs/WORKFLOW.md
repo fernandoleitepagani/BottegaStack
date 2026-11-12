@@ -340,7 +340,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
+`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, `skills`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -374,6 +374,11 @@ maestro build --init | --check
 maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 maestro worktree prune <run> [--force]
 maestro hooks install|uninstall [path]
+
+maestro skills list
+maestro skills install <name>... | --all
+maestro skills uninstall <name>... | --all
+
 maestro tools install [--yes] | hint
 ```
 

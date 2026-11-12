@@ -47,6 +47,8 @@ A personal agentic development workflow, shipped as the Claude Code plugin
 - Skills are folders grouped by category; the plugin manifest lists each
   category directory. Prefer references, scripts, and assets over one long file.
 - Every skill has a trigger-rich description and a Gotchas section where useful.
+- After adding or editing a skill, run `./scripts/standalone-skills.sh --write`;
+  lint fails when `skills/standalone.txt` is stale.
 - `commands/maestro.md` is a thin command that loads `agents/master.md` at run
   time; edit the master prompt only in `agents/master.md`.
 - No secrets, tokens, or personal data in the repo.
@@ -73,7 +75,7 @@ Prefer the highest item that actually prevents recurrence.
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
+`upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, `skills`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -102,4 +104,7 @@ BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 ./bin/maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 ./bin/maestro worktree prune <run> [--force]
 ./bin/maestro hooks install [path]
+./bin/maestro skills list
+./bin/maestro skills install <name>... | --all
+./bin/maestro skills uninstall <name>... | --all
 ```
