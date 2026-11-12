@@ -412,6 +412,45 @@ Risk decides how much review runs: `low` is automated checks plus AI review,
 high-risk reviewer model, the second-opinion reviewer, and a mandatory quiz. The
 human still makes the final decision.
 
+## What the code enforces
+
+The workflow is prose, but some rules are code. Each rule moves to the highest
+level that can prevent it from recurring.
+
+### Already enforced
+
+- `maestro start` refuses a dirty tree, `main`, or a detached HEAD.
+- `maestro check` writes `checks.result`; `maestro gate` fails on a failed or
+  stale result, a dirty tree, or, with `--proof`, an unmet Proof criterion.
+- `maestro verify record` refuses `--by builder` and a PASS without an evidence
+  file; the latest row per criterion decides.
+
+### Designed out
+
+- Build progress is a log, not a polling rule: `events.tsv` feeds `maestro
+  watch` and `build --status`.
+- There is no separate progress file; the raw builder stream is the record.
+
+### Hook
+
+- `hooks/hooks.json` runs `maestro guard stop` on Stop and `maestro guard
+  builder` on Agent/Task.
+- The Stop hook keeps the turn going while a todo item is open. Once every item
+  is complete, each open, non-held, non-paused run needs a passing
+  `checks.result` and, when the SPEC has Proof criteria, a PASS/WAIVED row per
+  criterion plus a reviewer or second-opinion row. The reason names the command
+  that records the evidence.
+- The builder guard denies a Bottega agent call that omits `model` or `effort`.
+
+### Advisory
+
+Later candidates, not enforced yet:
+
+- SPEC-shape validation.
+- An Allowed-files gate on builder writes.
+- Push and merge hooks.
+- Refusing more than three identical build rounds.
+
 ## Run state
 
 A run's working files live in a per-repo state directory outside the repo; the branch,
