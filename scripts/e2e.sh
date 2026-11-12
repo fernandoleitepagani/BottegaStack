@@ -321,6 +321,123 @@ echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks wi
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
 echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
 
+# A hold records an escalation, lets the Stop hook end the session, and shows in
+# `build --status` (issue #23). An isolated state dir keeps the other open runs
+# from counting as active.
+HSTATE="$TMP/hold-state"
+hold_out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" start "Hold run" 2>&1)"; rc=$?
+hold_slug="$(printf '%s\n' "$hold_out" | sed -n 's/^run: //p')"
+[ "$rc" -eq 0 ] && [ -n "$hold_slug" ] && ok "start hold run" || fail "start hold run"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold "$hold_slug" "human decision needed" 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx "run $hold_slug is on hold: human decision needed"; then
+  ok "hold records the escalation"
+else
+  fail "hold records the escalation"
+fi
+out="$(echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE" "$M" guard stop 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx "run $hold_slug is on hold: human decision needed"; then
+  ok "stop hook ends the session on hold"
+else
+  fail "stop hook ends the session on hold"
+fi
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" build --status "$hold_slug" 2>&1)"
+printf '%s\n' "$out" | grep -qx 'HOLD: human decision needed' && ok "build --status shows HOLD" || fail "build --status shows HOLD"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold --clear "$hold_slug" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && ok "hold --clear" || fail "hold --clear"
+echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE" "$M" guard stop | grep -q '"block"' && ok "stop hook blocks after hold --clear" || fail "stop hook blocks after hold --clear"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold no-such-hold "reason" 2>"$TMP/hold.err")"; rc=$?
+if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qxF 'maestro hold: no such run: no-such-hold' "$TMP/hold.err"; then
+  ok "hold unknown slug names the run on stderr"
+else
+  fail "hold unknown slug names the run on stderr"
+fi
+BOTTEGA_STATE_DIR="$HSTATE" "$M" hold "$hold_slug" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "hold without a reason is usage" || fail "hold without a reason is usage"
+
+# A light-path slug holds in quick/<slug>.
+BOTTEGA_STATE_DIR="$HSTATE" "$M" build --here hold-light --task "light" --block >/dev/null 2>&1
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold hold-light "light reason" 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'run hold-light is on hold: light reason'; then
+  ok "hold records a light-path run"
+else
+  fail "hold records a light-path run"
+fi
+find "$HSTATE" -path '*/quick/hold-light/hold' -type f | grep -q . && ok "hold lives in the quick dir" || fail "hold lives in the quick dir"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" build --status hold-light 2>&1)"
+printf '%s\n' "$out" | grep -qx 'HOLD: light reason' && ok "light build --status shows HOLD" || fail "light build --status shows HOLD"
+BOTTEGA_STATE_DIR="$HSTATE" "$M" hold --clear hold-light >/dev/null 2>&1
+
+# A run id that could escape the state dir is rejected before anything resolves.
+before="$(find "$HSTATE" | LC_ALL=C sort)"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold .. "x" 2>"$TMP/hold-dotdot.err")"; rc=$?
+if [ "$rc" -eq 2 ] && [ -z "$out" ] && grep -qxF 'maestro hold: bad run id: ..' "$TMP/hold-dotdot.err"; then
+  ok "hold rejects .."
+else
+  fail "hold rejects .."
+fi
+[ -e "$HSTATE/hold" ] && fail "hold .. writes outside the run dir" || ok "hold .. writes outside the run dir"
+BOTTEGA_STATE_DIR="$HSTATE" "$M" hold ../x "r" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "hold rejects ../x" || fail "hold rejects ../x"
+BOTTEGA_STATE_DIR="$HSTATE" "$M" hold --clear .. >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "hold --clear rejects .." || fail "hold --clear rejects .."
+BOTTEGA_STATE_DIR="$HSTATE" "$M" resume .. >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "resume rejects .." || fail "resume rejects .."
+after="$(find "$HSTATE" | LC_ALL=C sort)"
+[ "$before" = "$after" ] && ok "bad slugs write nothing outside the run dir" || fail "bad slugs write nothing outside the run dir"
+
+# Two open runs, only one on hold: the Stop hook still blocks.
+HSTATE2="$TMP/hold-state-two"
+BOTTEGA_STATE_DIR="$HSTATE2" "$M" start "Hold two a" >/dev/null 2>&1
+BOTTEGA_STATE_DIR="$HSTATE2" "$M" start "Hold two b" >/dev/null 2>&1
+BOTTEGA_STATE_DIR="$HSTATE2" "$M" hold hold-two-a "one of two" >/dev/null 2>&1
+echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE2" "$M" guard stop | grep -q '"block"' && ok "stop hook blocks while another run is open" || fail "stop hook blocks while another run is open"
+BOTTEGA_STATE_DIR="$HSTATE2" "$M" hold hold-two-b "two of two" >/dev/null 2>&1
+out="$(echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE2" "$M" guard stop 2>&1)"
+printf '%s\n' "$out" | grep -q 'is on hold:' && ok "stop hook ends when every run is on hold" || fail "stop hook ends when every run is on hold"
+
+# A merged close removes a held run's state, so the hook goes silent.
+HSTATE3="$TMP/hold-state-close"
+BOTTEGA_STATE_DIR="$HSTATE3" "$M" start "Hold close" >/dev/null 2>&1
+BOTTEGA_STATE_DIR="$HSTATE3" "$M" hold hold-close "closing" >/dev/null 2>&1
+find "$HSTATE3" -name hold -type f | grep -q . && ok "hold file exists before close" || fail "hold file exists before close"
+BOTTEGA_STATE_DIR="$HSTATE3" "$M" report --close hold-close --outcome merged >/dev/null 2>&1
+find "$HSTATE3" -name hold -type f | grep -q . && fail "merged close removes the hold" || ok "merged close removes the hold"
+out="$(echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE3" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop hook silent after closing a held run" || fail "stop hook silent after closing a held run"
+
+# A paused run is closed to the hook even when it also has a hold; resume clears
+# both markers so the hook tracks the run again (issue #21, #23).
+HSTATE4="$TMP/hold-state-resume"
+BOTTEGA_STATE_DIR="$HSTATE4" "$M" start "Hold paused" >/dev/null 2>&1
+BOTTEGA_STATE_DIR="$HSTATE4" "$M" report --close hold-paused --outcome paused >/dev/null 2>&1
+BOTTEGA_STATE_DIR="$HSTATE4" "$M" hold hold-paused "paused and held" >/dev/null 2>&1
+out="$(echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE4" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop hook silent on a paused and held run" || fail "stop hook silent on a paused and held run"
+out="$(BOTTEGA_STATE_DIR="$HSTATE4" "$M" resume hold-paused 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'resumed: hold-paused'; then
+  ok "resume clears a paused run"
+else
+  fail "resume clears a paused run"
+fi
+paused_file="$(find "$HSTATE4" -name paused -type f | head -1)"
+hold_file="$(find "$HSTATE4" -name hold -type f | head -1)"
+[ -z "$paused_file" ] && [ -z "$hold_file" ] && ok "resume removes paused and hold" || fail "resume removes paused and hold"
+echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE4" "$M" guard stop | grep -q '"block"' && ok "stop hook blocks after resume" || fail "stop hook blocks after resume"
+BOTTEGA_STATE_DIR="$HSTATE4" "$M" hold hold-paused "again" >/dev/null 2>&1
+out="$(BOTTEGA_STATE_DIR="$HSTATE4" "$M" resume hold-paused 2>&1)"; rc=$?
+hold_file="$(find "$HSTATE4" -path '*/hold-paused/hold' -type f | head -1)"
+if [ "$rc" -eq 0 ] && [ -z "$hold_file" ] && printf '%s\n' "$out" | grep -q '^resumed: hold-paused'; then
+  ok "resume not paused still clears the hold"
+else
+  fail "resume not paused still clears the hold"
+fi
+out="$(BOTTEGA_STATE_DIR="$HSTATE4" "$M" resume no-such-resume 2>"$TMP/resume.err")"; rc=$?
+if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qxF 'maestro resume: no such run: no-such-resume' "$TMP/resume.err"; then
+  ok "resume unknown run names the run on stderr"
+else
+  fail "resume unknown run names the run on stderr"
+fi
+
 # The git hooks resolve maestro without the plugin bin/ on PATH (issue #3):
 # PATH, then the install-time record, then the newest plugin cache copy.
 HK="$TMP/hookbox"
@@ -465,6 +582,10 @@ init
 seed
 upgrade
 start
+hold
+hold run-x
+resume
+resume run-x
 spec
 check
 gate
@@ -584,6 +705,35 @@ expect "close light run 2" "$M" report --close q2
 expect "close light summary run" "$M" report --close qsum
 "$M" report --trust | grep -q "run-a" && ok "trust log" || fail "trust log"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent after close" || ok "stop hook silent after close"
+
+# A paused close keeps the run state for a resume (issue #21): the state dir,
+# spec, paused marker, and trust line survive, and guard stop treats the run as
+# closed; a later close with a final outcome removes the directory.
+paused_out="$("$M" start "Paused run")"; rc=$?
+paused_slug="$(printf '%s\n' "$paused_out" | sed -n 's/^run: //p')"
+paused_dir="$(printf '%s\n' "$paused_out" | sed -n 's/^state: //p')"
+if [ "$rc" -eq 0 ] && [ -n "$paused_slug" ] && [ -d "$paused_dir" ]; then
+  ok "start paused run"
+else
+  fail "start paused run"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none\n### Task 1 - one\nbody\n' > "$TMP/paused-spec.md"
+"$M" spec "$paused_slug" "$TMP/paused-spec.md" >/dev/null
+expect "close paused keeps state" "$M" report --close "$paused_slug" --playbook feature --risk standard --outcome paused
+if [ -d "$paused_dir" ] && [ -f "$paused_dir/spec.md" ] && [ -f "$paused_dir/paused" ]; then
+  ok "paused close keeps the state dir and spec"
+else
+  fail "paused close keeps the state dir and spec"
+fi
+paused_base="$(dirname "$paused_dir")"
+awk -F'\t' -v r="$paused_slug" '$2 == r && $7 == "paused" { found = 1 } END { exit !found }' "$paused_base/trust.log" \
+  && ok "paused close logs to trust.log" || fail "paused close logs to trust.log"
+echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent on a paused run" || ok "stop hook silent on a paused run"
+"$M" build --status "$paused_slug" >/dev/null 2>&1 && ok "build --status resolves a paused run" || fail "build --status resolves a paused run"
+"$M" verify list "$paused_slug" >/dev/null 2>&1 && ok "verify list resolves a paused run" || fail "verify list resolves a paused run"
+"$M" spec "$paused_slug" "$TMP/paused-spec.md" >/dev/null 2>&1 && ok "spec resolves a paused run" || fail "spec resolves a paused run"
+expect "close paused run for real" "$M" report --close "$paused_slug" --playbook feature --risk standard --outcome merged
+[ ! -d "$paused_dir" ] && ok "merged close removes the paused state" || fail "merged close removes the paused state"
 
 # An unknown review slug fails before the model runs (issue #15).
 : > "$STUBLOG"
