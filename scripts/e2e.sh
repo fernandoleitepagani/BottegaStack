@@ -1113,6 +1113,14 @@ PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools insta
 [ -z "$(BOTTEGA_NO_TOOL_HINT=1 "$M" tools hint)" ] && ok "tool hint silenced" || fail "tool hint silenced"
 printf '#!/bin/sh\n' > "$TMP/bin/rtk"; cp "$TMP/bin/rtk" "$TMP/bin/gitleaks"; chmod +x "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 [ -z "$("$M" tools hint)" ] && ok "tool hint silent when installed" || fail "tool hint silent when installed"
+# A host directory holding a `maestro` must not leak into the hint:
+# prepend a fixture copy and the hint still says nothing, because the e2e PATH
+# drops every other copy. Leftover host copies would make this two and warn.
+HOSTMAESTRO="$TMP/host-maestro"
+mkdir -p "$HOSTMAESTRO"
+printf '#!/bin/sh\nexit 0\n' > "$HOSTMAESTRO/maestro"
+chmod +x "$HOSTMAESTRO/maestro"
+[ -z "$(PATH="$HOSTMAESTRO:$PATH" "$M" tools hint)" ] && ok "tool hint silent when installed with a host maestro copy" || fail "tool hint silent when installed with a host maestro copy"
 "$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
 rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 
