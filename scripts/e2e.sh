@@ -54,6 +54,19 @@ EOF
 chmod +x "$TMP/bin/claude"
 export PATH="$TMP/bin:$PATH" STUBLOG="$TMP/stub.log" STUBENV="$TMP/stub.env"
 
+# Stay independent of any `maestro` the host has on PATH: drop empty entries and
+# entries holding an executable `maestro`, keeping everything else in order. The
+# copy-warning cases below build their own fixture PATHs with two copies.
+e2e_path=""
+e2e_old_ifs="$IFS"; IFS=:
+for e2e_dir in $PATH; do
+  [ -n "$e2e_dir" ] || continue
+  [ -f "$e2e_dir/maestro" ] && [ -x "$e2e_dir/maestro" ] && continue
+  e2e_path="${e2e_path:+$e2e_path:}$e2e_dir"
+done
+IFS="$e2e_old_ifs"
+export PATH="$e2e_path"
+
 # The env the last stub invocation received (the stub logs five lines, then ---).
 stub_env_has() { tail -n 6 "$STUBENV" | grep -qx "$1"; }
 printf 'ANTHROPIC_BASE_URL=http://stub.invalid\nANTHROPIC_MODEL=stub\n' > "$HOME/.config/bottega/builder.env"
@@ -224,14 +237,36 @@ if [ "$race_ra" -eq 0 ] && [ "$race_rb" -eq 0 ] && [ "$race_elapsed" -lt 12 ]; t
 else
   fail "concurrent light builds both return after the build"
 fi
-race_ok=0
+# Either order is correct (issue #34): normally one caller collects the result
+# and the other prints the normal summary, but on a slow runner both callers can
+# see the finished result at the same moment and both print the normal summary.
+# A caller that returns with no result at all is still a failure.
+race_collected=0
+race_normal=0
+race_bad=0
 for f in "$TMP/race-a.out" "$TMP/race-b.out"; do
-  if grep -qx 'already collected by another caller' "$f" \
-    && grep -qx 'task: race' "$f" \
-    && grep -q '^report: .*report\.md' "$f"; then
-    race_ok=1
+  if [ ! -s "$f" ] || ! grep -qx 'task: race' "$f" || ! grep -q '^report: .*report\.md' "$f"; then
+    race_bad=1
+  elif grep -qx 'already collected by another caller' "$f"; then
+    race_collected=$((race_collected + 1))
+  else
+    race_normal=$((race_normal + 1))
   fi
 done
+race_report_a="$(sed -n 's/^report: //p' "$TMP/race-a.out" | head -1)"
+race_report_b="$(sed -n 's/^report: //p' "$TMP/race-b.out" | head -1)"
+race_ok=0
+if [ "$race_bad" -eq 0 ]; then
+  # (a) exactly one collected and one normal summary.
+  if [ "$race_collected" -eq 1 ] && [ "$race_normal" -eq 1 ]; then
+    race_ok=1
+  fi
+  # (b) both normal summaries, same report, neither collected.
+  if [ "$race_collected" -eq 0 ] && [ "$race_normal" -eq 2 ] \
+    && [ -n "$race_report_a" ] && [ "$race_report_a" = "$race_report_b" ]; then
+    race_ok=1
+  fi
+fi
 [ "$race_ok" -eq 1 ] && ok "concurrent light build names the collected task" || fail "concurrent light build names the collected task"
 # A collected light build is finished, never queued: a READY report and a failed
 # (empty) report both count as 1/1 done, and READY shows the report status.
@@ -1091,6 +1126,14 @@ PATH="$TMP/notools:/usr/bin:/bin" "$M" tools hint | grep -q "maestro tools insta
 [ -z "$(BOTTEGA_NO_TOOL_HINT=1 "$M" tools hint)" ] && ok "tool hint silenced" || fail "tool hint silenced"
 printf '#!/bin/sh\n' > "$TMP/bin/rtk"; cp "$TMP/bin/rtk" "$TMP/bin/gitleaks"; chmod +x "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 [ -z "$("$M" tools hint)" ] && ok "tool hint silent when installed" || fail "tool hint silent when installed"
+# A host directory holding a `maestro` must not leak into the hint:
+# prepend a fixture copy and the hint still says nothing, because the e2e PATH
+# drops every other copy. Leftover host copies would make this two and warn.
+HOSTMAESTRO="$TMP/host-maestro"
+mkdir -p "$HOSTMAESTRO"
+printf '#!/bin/sh\nexit 0\n' > "$HOSTMAESTRO/maestro"
+chmod +x "$HOSTMAESTRO/maestro"
+[ -z "$(PATH="$HOSTMAESTRO:$PATH" "$M" tools hint)" ] && ok "tool hint silent when installed with a host maestro copy" || fail "tool hint silent when installed with a host maestro copy"
 "$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
 rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 
