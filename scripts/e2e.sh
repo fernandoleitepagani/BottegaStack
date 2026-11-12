@@ -321,6 +321,39 @@ echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks wi
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
 echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
 
+# A hold records an escalation, lets the Stop hook end the session, and shows in
+# `build --status` (issue #23). An isolated state dir keeps the other open runs
+# from counting as active.
+HSTATE="$TMP/hold-state"
+hold_out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" start "Hold run" 2>&1)"; rc=$?
+hold_slug="$(printf '%s\n' "$hold_out" | sed -n 's/^run: //p')"
+[ "$rc" -eq 0 ] && [ -n "$hold_slug" ] && ok "start hold run" || fail "start hold run"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold "$hold_slug" "human decision needed" 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx "run $hold_slug is on hold: human decision needed"; then
+  ok "hold records the escalation"
+else
+  fail "hold records the escalation"
+fi
+out="$(echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE" "$M" guard stop 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx "run $hold_slug is on hold: human decision needed"; then
+  ok "stop hook ends the session on hold"
+else
+  fail "stop hook ends the session on hold"
+fi
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" build --status "$hold_slug" 2>&1)"
+printf '%s\n' "$out" | grep -qx 'HOLD: human decision needed' && ok "build --status shows HOLD" || fail "build --status shows HOLD"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold --clear "$hold_slug" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && ok "hold --clear" || fail "hold --clear"
+echo "$hook_in" | BOTTEGA_STATE_DIR="$HSTATE" "$M" guard stop | grep -q '"block"' && ok "stop hook blocks after hold --clear" || fail "stop hook blocks after hold --clear"
+out="$(BOTTEGA_STATE_DIR="$HSTATE" "$M" hold no-such-hold "reason" 2>"$TMP/hold.err")"; rc=$?
+if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qx 'maestro hold: no such run: no-such-hold' "$TMP/hold.err"; then
+  ok "hold unknown slug names the run on stderr"
+else
+  fail "hold unknown slug names the run on stderr"
+fi
+BOTTEGA_STATE_DIR="$HSTATE" "$M" hold "$hold_slug" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "hold without a reason is usage" || fail "hold without a reason is usage"
+
 # The git hooks resolve maestro without the plugin bin/ on PATH (issue #3):
 # PATH, then the install-time record, then the newest plugin cache copy.
 HK="$TMP/hookbox"
