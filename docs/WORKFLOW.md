@@ -206,8 +206,10 @@ A run paused instead of finished keeps its state. Closing with
 directory in place and writes a dated `paused` marker in it, so `maestro spec`,
 `maestro build --status`, and `maestro verify list` still resolve the run and a
 later session can resume from the saved spec, tasks, build records, and check
-results. The hook treats a paused run as closed and stays silent. Closing again
-with `merged`, `pr`, or `rejected` removes the directory as usual.
+results. The hook treats a paused run as closed and stays silent. To continue it,
+run `maestro resume <run>` first: it removes the `paused` marker and any `hold`
+file, so the Stop hook tracks the run again. Closing again with `merged`, `pr`,
+or `rejected` removes the directory as usual.
 
 ### Resume
 
@@ -215,7 +217,9 @@ Run state lives in the state directory and the todo list, so a new session can
 continue a run. The entry rule: a feature request starts at Step 0, `status`
 reads the todo list and current branch, and `resume` continues from the open todo
 items without redoing completed steps; the same session can be picked up with
-`claude --continue`.
+`claude --continue`. For a run closed with `--outcome paused`, the master runs
+`maestro resume <slug>` first; a run that is not paused still has any hold
+cleared and says so.
 
 ## Playbooks and risk
 
@@ -336,7 +340,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `hold`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
+`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -347,6 +351,7 @@ maestro upgrade [path]
 
 maestro start "<title>"
 maestro hold <run> "<reason>" | --clear <run>
+maestro resume <run>
 maestro spec <run> [file]
 maestro check <run>
 maestro gate <run> [--allow-dirty] [--proof]

@@ -38,7 +38,8 @@ The plugin provides:
   root because a hook shell has no plugin `bin/` on `PATH`. `guard stop` keeps
   the master running while a todo item is open, but when every open run is on
   hold (`maestro hold <run> "<reason>"`) it lets the session end and prints
-  `run <slug> is on hold: <reason>`.
+  `run <slug> is on hold: <reason>`; `maestro resume <run>` clears a `paused`
+  marker and any hold so it tracks the run again.
 
 Update with `/plugin` or `claude plugin update bottega@bottega`. Uninstall with
 `claude plugin uninstall bottega`; remove the marketplace with
@@ -270,7 +271,8 @@ handoffs, decisions, reviews, and builder reports.
 - `maestro hold <run> "<reason>"` writes a `hold` file (timestamp and reason) in
   the run's state directory, or `$STATE/quick/<slug>/` on the light path;
   `maestro build --status` then prints `HOLD: <reason>`, and
-  `maestro hold --clear <run>` removes it.
+  `maestro hold --clear <run>` removes it. `maestro resume <run>` removes both a
+  `paused` marker and any hold.
 
 ## Headless builder (`maestro build`)
 

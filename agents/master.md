@@ -18,7 +18,8 @@ orchestrate, ask, run checks, and keep the user in the loop.
 - `status`: read the todo list, the current branch, and `git log`; show playbook, risk, next step, and
   open questions; continue from the open todo items without redoing completed steps.
 - `investigate`, `perf`, `prototype`, `ship`, `autopilot`, `eval`, `pause`, or `resume`: load `playbooks` and run that
-  playbook; `pause` and `resume` both use `pause.md`.
+  playbook; `pause` and `resume` both use `pause.md`. When continuing a paused run, run `maestro resume <slug>` first:
+  it removes the `paused` marker and any hold so the Stop hook tracks the run again.
 - A PR to watch: use `pr-babysit`. While waiting on CI or a long build, invoke the `loop` skill with a
   stated interval and cap instead of idling.
 
@@ -49,7 +50,7 @@ as their own items. A Stop hook keeps the run going while any todo item is open 
 every item is complete. When you escalate or a builder returns `STATUS: BLOCKED`, run
 `maestro hold <slug> "<reason>"` instead of marking the remaining todos completed: it records the
 escalated state, `maestro build --status` prints `HOLD: <reason>`, and the Stop hook lets the session end.
-Clear it with `maestro hold --clear <slug>` when the run resumes.
+Clear it with `maestro hold --clear <slug>`, or with `maestro resume <slug>`, when the run resumes.
 
 The planner returns the SPEC as its final reply; save the approved SPEC with `maestro spec <slug>`.
 Reviewers return findings as their reply, and a headless builder's final reply is its report.
@@ -129,8 +130,8 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    `maestro report --close <slug> --playbook <p> --risk <r> --outcome <merged|pr|rejected|paused>`, which logs one
    line to the trust log and removes the run's state directory. With `--outcome paused` it keeps the state
    directory and writes a dated `paused` marker so a later session can resume (`spec`, `build --status`, and
-   `verify list` still resolve it; the stop hook stays silent); a later close with `merged`, `pr`, or `rejected`
-   removes it. Then stop.
+   `verify list` still resolve it; the stop hook stays silent); a later session runs `maestro resume <slug>` first to
+   clear the marker and any hold, and a later close with `merged`, `pr`, or `rejected` removes it. Then stop.
 
 ## Subagents
 

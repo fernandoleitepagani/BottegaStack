@@ -18,6 +18,7 @@ Usage:
   maestro upgrade [path]
   maestro start "<title>"
   maestro hold <run> "<reason>" | --clear <run>
+  maestro resume <run>
   maestro spec <run> [file]
   maestro check <run>
   maestro gate <run> [--allow-dirty] [--proof]
@@ -238,6 +239,9 @@ cmd_hold() {
     esac
   done
   [ -n "$slug" ] || { echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; }
+  case "$slug" in
+    ''|*[!a-z0-9-]*|-*) echo "maestro hold: bad run id: $slug" >&2; exit 2 ;;
+  esac
   if [ "$clear" = "1" ]; then
     [ -z "$reason" ] || { echo 'usage: maestro hold --clear <run>' >&2; exit 2; }
   else
@@ -256,6 +260,29 @@ cmd_hold() {
   reason="$(printf '%s' "$reason" | tr '\t\n\r' '   ')"
   printf '%s\t%s\n' "$(date -Iseconds)" "$reason" > "$dir/hold"
   echo "run $slug is on hold: $reason"
+}
+
+# `maestro resume <run>`: clear a paused marker and any hold so `guard stop`
+# tracks the run again. Works for a run or a light-path slug. A merged, pr, or
+# rejected close still removes the whole state directory.
+cmd_resume() {
+  local slug="${1:-}" rc dir
+  { [ -n "$slug" ] && [ "$#" -eq 1 ]; } || { echo "usage: maestro resume <run>" >&2; exit 2; }
+  case "$slug" in
+    ''|*[!a-z0-9-]*|-*) echo "maestro resume: bad run id: $slug" >&2; exit 2 ;;
+  esac
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "maestro resume: not in a git repository" >&2; else echo "maestro resume: no such run: $slug" >&2; fi
+    exit 1
+  }
+  if [ -f "$dir/paused" ]; then
+    rm -f "$dir/paused" "$dir/hold"
+    echo "resumed: $slug"
+  else
+    rm -f "$dir/hold"
+    echo "resumed: $slug (not paused)"
+  fi
 }
 
 # `maestro spec <run> [file]`: save the spec and extract each `### Task <n>`
@@ -2372,6 +2399,7 @@ case "$cmd" in
   upgrade) cmd_upgrade "${1:-$PWD}" ;;
   start) cmd_start "$@" ;;
   hold) cmd_hold "$@" ;;
+  resume) cmd_resume "$@" ;;
   spec) cmd_spec "$@" ;;
   check) cmd_check "$@" ;;
   gate) cmd_gate "$@" ;;
