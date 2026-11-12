@@ -1080,15 +1080,23 @@ build_mark_stale() {
   [ -f "$2" ] || [ -z "$(find "$1" -mmin +360 2>/dev/null)" ] || echo 1 > "$2"
 }
 
-# build_wait_or_exit <rcfile> <block> <progress> <what> <again>: wait; if the
-# build is still going, print where it stands and exit 5.
+# build_wait_or_exit <rcfile> <block> <progress> <what> <again> [run-marker] [report]:
+# wait; if another caller collected the result, say so and exit 0; if the build
+# is still going, print where it stands and exit 5.
 build_wait_or_exit() {
-  build_wait "$1" "$(build_wait_limit "$2")"
-  [ -f "$1" ] && return 0
-  echo "RUNNING $4 (still going; call again: $5)"
-  echo "steps so far: $(wc -l < "$3" 2>/dev/null | tr -d ' ')"
-  [ -s "$3" ] && echo "last step: $(tail -1 "$3")"
-  echo "progress: $3"
+  local rcfile="$1" block="$2" progress="$3" what="$4" again="$5" marker="${6:-}" report="${7:-}"
+  build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker"
+  [ -f "$rcfile" ] && return 0
+  if [ -n "$marker" ] && [ ! -f "$marker" ]; then
+    echo "$what"
+    echo "already collected by another caller"
+    [ -n "$report" ] && [ -f "$report" ] && echo "report: $report"
+    exit 0
+  fi
+  echo "RUNNING $what (still going; call again: $again)"
+  echo "steps so far: $(wc -l < "$progress" 2>/dev/null | tr -d ' ')"
+  [ -s "$progress" ] && echo "last step: $(tail -1 "$progress")"
+  echo "progress: $progress"
   exit 5
 }
 
@@ -1167,9 +1175,12 @@ build_usage_lines() {
   echo "steps: $(build_steps "$4")"
 }
 
+# Wait for the rc file. When a run marker is given, stop early if it disappears:
+# another caller collected the result and removed both files.
 build_wait() {
-  local rcfile="$1" limit="$2" waited=0
-  while [ ! -f "$rcfile" ] && [ "$waited" -lt "$limit" ]; do
+  local rcfile="$1" limit="$2" marker="${3:-}" waited=0
+  while [ ! -f "$rcfile" ] && { [ -z "$marker" ] || [ -f "$marker" ]; } \
+    && [ "$waited" -lt "$limit" ]; do
     sleep 2
     waited=$((waited + 2))
   done
@@ -1379,7 +1390,7 @@ Write no report file: end your final reply with the report in the format of the 
     start_build_exec "$repo" "$(builder_env_file)" "$prompt" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait"
+  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $slug" "maestro build --here $slug --task \"<text>\" --wait" "$run" "$report"
 
   local rc status="MISSING" commits=0
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
@@ -1619,7 +1630,7 @@ $(cat "$taskfile")"
     start_build_exec "$wt" "$envfile" "$promptfile" "$log" "$rcfile" "$progress" "$profile" "$sid"
   fi
 
-  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $task" "maestro build $slug $task --wait"
+  build_wait_or_exit "$rcfile" "$block" "$progress" "task: $task" "maestro build $slug $task --wait" "$run" "$report"
 
   local rc
   rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
