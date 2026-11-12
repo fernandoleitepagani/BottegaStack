@@ -585,6 +585,35 @@ expect "close light summary run" "$M" report --close qsum
 "$M" report --trust | grep -q "run-a" && ok "trust log" || fail "trust log"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent after close" || ok "stop hook silent after close"
 
+# A paused close keeps the run state for a resume (issue #21): the state dir,
+# spec, paused marker, and trust line survive, and guard stop treats the run as
+# closed; a later close with a final outcome removes the directory.
+paused_out="$("$M" start "Paused run")"; rc=$?
+paused_slug="$(printf '%s\n' "$paused_out" | sed -n 's/^run: //p')"
+paused_dir="$(printf '%s\n' "$paused_out" | sed -n 's/^state: //p')"
+if [ "$rc" -eq 0 ] && [ -n "$paused_slug" ] && [ -d "$paused_dir" ]; then
+  ok "start paused run"
+else
+  fail "start paused run"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none\n### Task 1 - one\nbody\n' > "$TMP/paused-spec.md"
+"$M" spec "$paused_slug" "$TMP/paused-spec.md" >/dev/null
+expect "close paused keeps state" "$M" report --close "$paused_slug" --playbook feature --risk standard --outcome paused
+if [ -d "$paused_dir" ] && [ -f "$paused_dir/spec.md" ] && [ -f "$paused_dir/paused" ]; then
+  ok "paused close keeps the state dir and spec"
+else
+  fail "paused close keeps the state dir and spec"
+fi
+paused_base="$(dirname "$paused_dir")"
+awk -F'\t' -v r="$paused_slug" '$2 == r && $7 == "paused" { found = 1 } END { exit !found }' "$paused_base/trust.log" \
+  && ok "paused close logs to trust.log" || fail "paused close logs to trust.log"
+echo "$hook_in" | "$M" guard stop | grep -q '"block"' && fail "stop hook silent on a paused run" || ok "stop hook silent on a paused run"
+"$M" build --status "$paused_slug" >/dev/null 2>&1 && ok "build --status resolves a paused run" || fail "build --status resolves a paused run"
+"$M" verify list "$paused_slug" >/dev/null 2>&1 && ok "verify list resolves a paused run" || fail "verify list resolves a paused run"
+"$M" spec "$paused_slug" "$TMP/paused-spec.md" >/dev/null 2>&1 && ok "spec resolves a paused run" || fail "spec resolves a paused run"
+expect "close paused run for real" "$M" report --close "$paused_slug" --playbook feature --risk standard --outcome merged
+[ ! -d "$paused_dir" ] && ok "merged close removes the paused state" || fail "merged close removes the paused state"
+
 # An unknown review slug fails before the model runs (issue #15).
 : > "$STUBLOG"
 out="$("$M" build --review --here no-such-review 2>&1 >/dev/null)"; rc=$?
