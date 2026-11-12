@@ -118,6 +118,12 @@ stale or missing and names that command. The allow file is checked the same
 way. The number of standalone skills is not fixed, so docs and scripts read
 the list instead of counting it.
 
+Some standalone skills, for example `interview`, `summary`, `wayfinding`,
+`session-handoff`, `ketchup`, and `domain-modeling`, are written for the full
+stack and mention the master, the planner, or `maestro` commands. Installed
+alone they still work, but those references only apply when the plugin is
+enabled too.
+
 ## Add a skill
 
 1. Create `skills/<category>/<name>/SKILL.md` with `name` and a trigger-rich `description`.

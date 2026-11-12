@@ -128,6 +128,12 @@ nothing.
 A copy is a snapshot: it does not update when the plugin does. After a plugin
 update, re-run `maestro skills install <name>...` (or `--all`) to refresh it.
 
+Some standalone skills, for example `interview`, `summary`, `wayfinding`,
+`session-handoff`, `ketchup`, and `domain-modeling`, are written for the full
+stack and mention the master, the planner, or `maestro` commands. Installed
+alone they still work, but those references only apply when the plugin is
+enabled too.
+
 With the plugin also enabled, both `/teach` (the standalone copy) and
 `/bottega:teach` (the plugin's own namespace) appear; they are the same skill.
 `uninstall` removes only marked copies, so leaving the plugin enabled keeps the
