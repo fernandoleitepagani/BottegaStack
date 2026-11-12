@@ -918,6 +918,46 @@ verify_unmet() {
   return 0
 }
 
+# Print the first missing close-out evidence for one open run directory; print
+# nothing when the run is ready. A run needs a passing checks.result (head
+# freshness is `maestro gate`'s job). A full run with Proof criteria also needs
+# the latest row per criterion to be PASS or WAIVED, and at least one
+# reviewer/second-opinion row. Reuses verify_required_acs, so `Proof: none` and
+# runs without a SPEC are exempt.
+run_evidence_gap() {
+  local dir="$1" slug result idx ac row acs
+  slug="$(basename "$dir")"
+  result="$(sed -n 's/^RESULT:[[:space:]]*//p' "$dir/checks.result" 2>/dev/null | head -1)"
+  if [ "$result" != "PASS" ]; then
+    printf '%s has no passing checks.result; record it with: maestro check %s\n' "$slug" "$slug"
+    return 0
+  fi
+  acs="$(verify_required_acs "$dir/spec.md")"
+  [ -n "$acs" ] || return 0
+  idx="$dir/verify/index.tsv"
+  [ -f "$idx" ] || idx=/dev/null
+  while IFS= read -r ac; do
+    [ -n "$ac" ] || continue
+    row="$(awk -F'\t' -v a="$ac" '$2 == a { last = $0 } END { print last }' "$idx" 2>/dev/null)"
+    if [ -z "$row" ]; then
+      printf '%s has no proof for %s; record it with: maestro verify record %s %s PASS --by reviewer --evidence <file>\n' "$slug" "$ac" "$slug" "$ac"
+      return 0
+    fi
+    result="$(printf '%s' "$row" | cut -f3)"
+    case "$result" in
+      PASS|WAIVED) ;;
+      *)
+        printf '%s has %s for %s; record it with: maestro verify record %s %s PASS --by reviewer --evidence <file>\n' "$slug" "$result" "$ac" "$slug" "$ac"
+        return 0
+        ;;
+    esac
+  done <<< "$acs"
+  if ! awk -F'\t' '$5 == "reviewer" || $5 == "second-opinion" { found = 1 } END { exit !found }' "$idx" 2>/dev/null; then
+    printf '%s has no reviewer or second-opinion verification; record one with: maestro verify record %s <AC> PASS --by reviewer --evidence <file>\n' "$slug" "$slug"
+  fi
+  return 0
+}
+
 # `maestro log <run> <phase> <decision> <why> <evidence> <result>`: append one row
 # to the run's decision log ($STATE/decisions/<run>.tsv, kept after the run is
 # closed). With only <run> it prints the log as a table. Cells are one line; a
@@ -2732,7 +2772,7 @@ guard_builder() {
 # or TaskCreate/TaskUpdate when TodoWrite is unavailable). Anything unexpected
 # fails open: a silent hook is harmless, a hook that blocks forever is not.
 guard_stop() {
-  local input sdir r
+  local input sdir r todo_out gap
   input="$(cat)"
   command -v python3 >/dev/null 2>&1 || exit 0
   # Never block a stop the harness already blocked once.
@@ -2744,17 +2784,21 @@ guard_stop() {
   # in the state root (trust.log, findings.log, decisions/) do not count.
   sdir="$(state_dir 2>/dev/null || true)"
   [ -n "$sdir" ] && [ -d "$sdir" ] || exit 0
-  local active=0 held=0 hold_slug="" hold_reason=""
+  local active=0 held=0 hold_slug="" hold_reason="" active_dirs=""
   for r in "$sdir"/*/ "$sdir"/quick/*/; do
     [ -d "$r" ] || continue
     case "$r" in "$sdir"/decisions/|"$sdir"/quick/) continue ;; esac
     [ -f "$r/paused" ] && continue
     active=$((active + 1))
-    [ -f "$r/hold" ] || continue
-    held=$((held + 1))
-    if [ -z "$hold_slug" ]; then
-      hold_slug="$(basename "$r")"
-      hold_reason="$(run_hold_reason "$r")"
+    if [ -f "$r/hold" ]; then
+      held=$((held + 1))
+      if [ -z "$hold_slug" ]; then
+        hold_slug="$(basename "$r")"
+        hold_reason="$(run_hold_reason "$r")"
+      fi
+    else
+      active_dirs="$active_dirs$r
+"
     fi
   done
   [ "$active" -gt 0 ] || exit 0
@@ -2768,7 +2812,7 @@ guard_stop() {
     [ -f "$r" ] || continue
     [ -f "${r%.run}.rc" ] || exit 0
   done
-  printf '%s' "$input" | python3 -c '
+  todo_out="$(printf '%s' "$input" | python3 -c '
 import json, sys
 
 try:
@@ -2849,8 +2893,25 @@ for it in items:
             "reason": "Todo item %s is still open. Continue to the next step now without asking the user to proceed; if you are truly blocked, ask with AskUserQuestion." % json.dumps(subject),
         }))
         sys.exit(0)
+print("ALL_DONE")
 sys.exit(0)
-'
+')"
+  case "$todo_out" in
+    ALL_DONE) ;;
+    '') exit 0 ;;
+    *) printf '%s\n' "$todo_out"; exit 0 ;;
+  esac
+  # Every todo is complete, so the session may end only once each open run has
+  # recorded its close-out evidence. Runs on hold are exempt (already escalated);
+  # paused runs never reached this point.
+  while IFS= read -r r; do
+    [ -n "$r" ] || continue
+    gap="$(run_evidence_gap "$r")"
+    [ -n "$gap" ] || continue
+    printf '%s' "$gap" | python3 -c 'import json, sys; print(json.dumps({"decision": "block", "reason": sys.stdin.read().strip()}))'
+    exit 0
+  done <<< "$active_dirs"
+  exit 0
 }
 
 cmd_worktree() {

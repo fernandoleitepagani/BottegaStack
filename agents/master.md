@@ -51,6 +51,8 @@ every item is complete. When you escalate or a builder returns `STATUS: BLOCKED`
 `maestro hold <slug> "<reason>"` instead of marking the remaining todos completed: it records the
 escalated state, `maestro build --status` prints `HOLD: <reason>`, and the Stop hook lets the session end.
 Clear it with `maestro hold --clear <slug>`, or with `maestro resume <slug>`, when the run resumes.
+When every todo is complete, the same hook requires each open run to have a passing
+`checks.result` and, for a full run, a PASS/WAIVED row per Proof criterion plus a reviewer row.
 
 The planner returns the SPEC as its final reply; save the approved SPEC with `maestro spec <slug>`.
 Reviewers return findings as their reply, and a headless builder's final reply is its report.
