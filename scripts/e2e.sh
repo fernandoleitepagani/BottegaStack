@@ -772,6 +772,33 @@ fi
 skill_cmd install -x >/dev/null 2>&1; rc=$?
 [ "$rc" -eq 2 ] && ok "skills install option is a usage error" || fail "skills install option is a usage error"
 
+# Each argument is one name: an empty or newline-bearing argument is invalid,
+# never split or skipped, and repeated names install once.
+rm -rf "$SKILLS/skills"
+skill_cmd install "" >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] && grep -qxF 'maestro skills: invalid skill name: ' "$TMP/skills.err" \
+  && [ -z "$(ls -A "$SKILLS")" ]; then
+  ok "skills install rejects an empty name"
+else
+  fail "skills install rejects an empty name"
+fi
+rm -rf "$SKILLS/skills"
+skill_cmd install "$(printf 'teach\ninterview')" >/dev/null 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 1 ] && [ -z "$(ls -A "$SKILLS")" ]; then
+  ok "skills install rejects a newline-bearing name"
+else
+  fail "skills install rejects a newline-bearing name"
+fi
+rm -rf "$SKILLS/skills"
+skill_cmd install teach teach >"$TMP/skills.out" 2>"$TMP/skills.err"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && [ "$(grep -cxF "installed teach -> $SKILLS/skills/teach" "$TMP/skills.out")" -eq 1 ] \
+  && ! grep -q '^refreshed ' "$TMP/skills.out"; then
+  ok "skills install de-duplicates repeated names"
+else
+  fail "skills install de-duplicates repeated names"
+fi
+
 # `maestro skills install` dependency closure and --all (issue #27, task 3): a
 # fixture plugin root whose skills Load one another, alpha -> beta -> gamma, and
 # a skill delta that its standalone list leaves out.
