@@ -31,8 +31,8 @@ Usage:
   maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
   maestro build --review <run> <task> | --here <slug> [--block|--wait]
   maestro build --init | --check
-  maestro build --status <run> [--every [seconds]]
-  maestro watch --line
+  maestro build --status <run>
+  maestro watch <run> | --line
   maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
@@ -1535,7 +1535,11 @@ watch_snapshot() {
       if [ -f "$rundir/run" ] && [ ! -f "$rundir/rc" ]; then st=running; else st=done; fi
     elif [ -f "$bdir/$t.report.md" ] && grep -q 'STATUS: DONE' "$bdir/$t.report.md" 2>/dev/null; then
       st=done
-    elif [ -f "$bdir/$t.run" ] && [ ! -f "$bdir/$t.rc" ]; then
+    elif [ -f "$bdir/$t.rc" ]; then
+      # The builder has exited but its caller has not collected the report yet:
+      # for progress it is a finished task, not a queued one.
+      st=done
+    elif [ -f "$bdir/$t.run" ]; then
       st=running
     else
       st=queued
@@ -1676,47 +1680,26 @@ EOF
   echo "$out"
 }
 
+# `maestro build --status <run>`: one reading of the run's events and tasks.
+# The live view moved to `maestro watch <run>`; `--every` is rejected so an old
+# invocation names the replacement instead of silently polling.
 build_status() {
-  local slug="" every="" dir line now last_print=0 idle=0 pd="" pr="" rc
+  local slug="" dir rc
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --every)
-        case "${2:-}" in
-          ''|*[!0-9]*) every="${BOTTEGA_STATUS_EVERY:-180}"; shift ;;
-          *) every="$2"; shift 2 ;;
-        esac ;;
+      --every) echo "maestro build --status: --every was removed; use maestro watch <run> for a live view" >&2; exit 2 ;;
       -*) echo "maestro build --status: unknown flag: $1" >&2; exit 2 ;;
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo "usage: maestro build --status <run> [--every [seconds]]" >&2; exit 2; }
+  [ -n "$slug" ] || { echo "usage: maestro build --status <run>" >&2; exit 2; }
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
     if [ "$rc" -eq 2 ]; then echo "maestro build --status: not in a git repository" >&2; else echo "no such run: $slug" >&2; fi
     exit 2
   }
   [ -f "$dir/hold" ] && echo "HOLD: $(run_hold_reason "$dir")"
-  if [ -z "${every:-}" ]; then build_status_line "$dir"; return 0; fi
-  case "$every" in ''|*[!0-9]*) echo "--every needs a number of seconds" >&2; exit 2 ;; esac
-  while :; do
-    line="$(build_status_line "$dir")"
-    local cur_d cur_r cur_n
-    cur_d="${line#Builders }"; cur_d="${cur_d%%/*}"
-    cur_r="${line#* done · }"; cur_r="${cur_r%% running*}"
-    cur_n="${line#*/}"; cur_n="${cur_n%% done*}"
-    case "$cur_d" in ''|*[!0-9]*) cur_d=0 ;; esac
-    case "$cur_r" in ''|*[!0-9]*) cur_r=0 ;; esac
-    case "$cur_n" in ''|*[!0-9]*) cur_n=0 ;; esac
-    now="$(date +%s)"
-    if [ -z "$pd" ] || [ "$cur_d" != "$pd" ] || [ "$cur_r" != "$pr" ] || [ $((now - last_print)) -ge "$every" ]; then
-      if [ -n "$pd" ] && [ "$cur_d" = "$pd" ] && [ "$cur_r" = "$pr" ]; then idle=$((idle + 1)); else idle=0; fi
-      echo "$line"
-      last_print=$now; pd="$cur_d"; pr="$cur_r"
-      [ "$cur_n" -gt 0 ] && [ "$cur_d" -ge "$cur_n" ] && return 0
-      [ "$cur_r" = 0 ] && [ "$idle" -ge 3 ] && return 0
-    fi
-    sleep 5
-  done
+  build_status_line "$dir"
 }
 
 # `maestro watch --line`: the one-line form for Claude Code's status line. It
@@ -1760,10 +1743,135 @@ EOF
   return 0
 }
 
+# Elapsed seconds as a short label: 45s, 12m, 1h5m.
+fmt_elapsed() {
+  local s="$1"
+  case "$s" in ''|*[!0-9]*) s=0 ;; esac
+  if [ "$s" -lt 60 ]; then
+    printf '%ss\n' "$s"
+  elif [ "$s" -lt 3600 ]; then
+    printf '%sm\n' "$((s / 60))"
+  else
+    printf '%sh%sm\n' "$((s / 3600))" "$(((s % 3600) / 60))"
+  fi
+}
+
+# watch_progress <rundir>: two lines for the plain view. The first is the change
+# key `<n>/<N> <state>`; the second is the `progress:` line to post. The caller
+# prints the line only when the key changes, so a steady build stays quiet.
+watch_progress() {
+  local rundir="$1" snap k a b c d e complete=0 total=0 state="" stalled=0
+  local percent="-" eta="-" line=""
+  snap="$(watch_snapshot "$rundir")"
+  while IFS="$(printf '\t')" read -r k a b c d e; do
+    case "$k" in
+      total) total="$a" ;;
+      complete) complete="$a" ;;
+      state) state="$a" ;;
+      stalled) stalled="$a" ;;
+      percent) percent="$a" ;;
+      eta) eta="$a" ;;
+    esac
+  done <<EOF
+$snap
+EOF
+  line="progress: $complete/$total tasks"
+  if [ "$percent" != "-" ] && [ "$eta" != "-" ]; then
+    line="$line · ~$percent% · ETA ${eta}m"
+  fi
+  [ "$stalled" -gt 0 ] && line="$line · stalled"
+  printf '%s\n%s\n' "$complete/$total $state" "$line"
+}
+
+# watch_frame <rundir>: the full view. A header with the task count, the
+# estimate-labelled percent and ETA, and elapsed time, then one row per task.
+watch_frame() {
+  local rundir="$1" snap k a b c d e total=0 complete=0 state="" stalled=0
+  local percent="-" eta="-" elapsed=0 label="" rows="" row header est
+  snap="$(watch_snapshot "$rundir")"
+  while IFS="$(printf '\t')" read -r k a b c d e; do
+    case "$k" in
+      total) total="$a" ;;
+      complete) complete="$a" ;;
+      state) state="$a" ;;
+      stalled) stalled="$a" ;;
+      percent) percent="$a" ;;
+      eta) eta="$a" ;;
+      elapsed) elapsed="$a" ;;
+      label) label="$a" ;;
+      task)
+        case "$b" in
+          done) printf -v row '  %s  done  %s steps\n' "$a" "$c" ;;
+          running) printf -v row '  %s  running  %s steps, last %s\n' "$a" "$c" "${e:--}" ;;
+          stalled) printf -v row '  %s  stalled  %s steps, last %s\n' "$a" "$c" "${e:--}" ;;
+          *) printf -v row '  %s  queued\n' "$a" ;;
+        esac
+        rows="$rows$row" ;;
+    esac
+  done <<EOF
+$snap
+EOF
+  [ -n "$label" ] || label="$(basename "$rundir")"
+  if [ "$percent" = "-" ] || [ "$eta" = "-" ]; then
+    est='~?% · ETA ?m (estimate)'
+  else
+    est="~$percent% · ETA ${eta}m (estimate)"
+  fi
+  header="Watch $label: $complete/$total tasks · $est · elapsed $(fmt_elapsed "$elapsed")"
+  printf '%s\n%s' "$header" "$rows"
+}
+
+# `maestro watch <run>`: follow a run until it is done, held, or closed. On a
+# TTY it redraws the full view every BOTTEGA_WATCH_EVERY seconds (default 30);
+# piped, it polls every 5 seconds and prints a `progress:` line only when the
+# task count or state changes. BOTTEGA_WATCH_TTY=1|0 and BOTTEGA_WATCH_ONCE=1
+# are test seams. An unknown run exits 2.
+watch_run() {
+  local slug="$1" dir tty=0 once=0 every poll out key line last="" rc
+  dir="$(resolve_run_dir "$slug")" || {
+    rc=$?
+    if [ "$rc" -eq 2 ]; then echo "maestro watch: not in a git repository" >&2; else echo "no such run: $slug" >&2; fi
+    exit 2
+  }
+  case "${BOTTEGA_WATCH_TTY:-}" in
+    1) tty=1 ;;
+    0) tty=0 ;;
+    *) if [ -t 1 ]; then tty=1; fi ;;
+  esac
+  if [ "${BOTTEGA_WATCH_ONCE:-}" = "1" ]; then once=1; fi
+  case "${BOTTEGA_WATCH_EVERY:-}" in
+    ''|*[!0-9]*) every=30 ;;
+    *) every="$BOTTEGA_WATCH_EVERY" ;;
+  esac
+  poll="$every"; [ "$tty" = 1 ] || poll="${BOTTEGA_WATCH_EVERY:-5}"
+  while :; do
+    [ -d "$dir" ] || return 0
+    if [ -f "$dir/hold" ]; then
+      echo "HOLD: $(run_hold_reason "$dir")"
+      return 0
+    fi
+    out="$(watch_progress "$dir")"
+    key="$(printf '%s\n' "$out" | sed -n '1p')"
+    line="$(printf '%s\n' "$out" | sed -n '2p')"
+    if [ "$tty" = 1 ]; then
+      [ "$once" = 1 ] || printf '\033[H\033[2J'
+      watch_frame "$dir"
+    elif [ "$key" != "$last" ]; then
+      printf '%s\n' "$line"
+      last="$key"
+    fi
+    [ "$once" = 1 ] && return 0
+    case "$key" in *" done") return 0 ;; esac
+    sleep "$poll"
+  done
+}
+
 cmd_watch() {
   case "${1:-}" in
     --line) watch_line ;;
-    *) echo 'usage: maestro watch --line' >&2; exit 2 ;;
+    -*) echo 'usage: maestro watch <run> | --line' >&2; exit 2 ;;
+    '') echo 'usage: maestro watch <run> | --line' >&2; exit 2 ;;
+    *) watch_run "$@" ;;
   esac
 }
 
@@ -1810,8 +1918,9 @@ build_mark_stale() {
 # wait; if another caller collected the result, say so and exit 0; if the build
 # is still going, print where it stands and exit 5.
 build_wait_or_exit() {
-  local rcfile="$1" block="$2" events="$3" task="$4" role="$5" what="$6" again="$7" marker="${8:-}" report="${9:-}" last
-  build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker"
+  local rcfile="$1" block="$2" events="$3" task="$4" role="$5" what="$6" again="$7" marker="${8:-}" report="${9:-}" last tickdir=""
+  if [ -n "$events" ]; then tickdir="$(dirname "$events")"; fi
+  build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker" "$tickdir"
   [ -f "$rcfile" ] && return 0
   if [ -n "$marker" ] && [ ! -f "$marker" ]; then
     echo "$what"
@@ -1902,15 +2011,34 @@ build_usage_lines() {
   echo "steps: $(build_steps "$4" "$5" "$1")"
 }
 
+# build_progress_tick <rundir>: print one `progress:` line when the done count or
+# the overall state changes. Called by build_wait before it starts, on every 2 s
+# poll, and once more before the result is collected, so every headless build
+# shows progress without the master running anything.
+build_progress_tick() {
+  local rundir="$1" out key line
+  [ -n "$rundir" ] && [ -d "$rundir" ] || return 0
+  out="$(watch_progress "$rundir")"
+  key="$(printf '%s\n' "$out" | sed -n '1p')"
+  line="$(printf '%s\n' "$out" | sed -n '2p')"
+  [ "$key" != "${_BOTTEGA_PROGRESS_LAST:-}" ] || return 0
+  _BOTTEGA_PROGRESS_LAST="$key"
+  printf '%s\n' "$line"
+}
+
 # Wait for the rc file. When a run marker is given, stop early if it disappears:
-# another caller collected the result and removed both files.
+# another caller collected the result and removed both files. <tickdir> is the
+# run directory whose progress is printed on change.
 build_wait() {
-  local rcfile="$1" limit="$2" marker="${3:-}" waited=0
+  local rcfile="$1" limit="$2" marker="${3:-}" tickdir="${4:-}" waited=0
+  build_progress_tick "$tickdir"
   while [ ! -f "$rcfile" ] && { [ -z "$marker" ] || [ -f "$marker" ]; } \
     && [ "$waited" -lt "$limit" ]; do
     sleep 2
     waited=$((waited + 2))
+    build_progress_tick "$tickdir"
   done
+  build_progress_tick "$tickdir"
 }
 
 # Token usage from the final stream result event: input includes cache reads and
@@ -2347,7 +2475,7 @@ cmd_build() {
     --review) shift; build_review "$@"; return ;;
   esac
 
-  local usage="usage: maestro build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--revise <file|->] [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run> [--every [seconds]]"
+  local usage="usage: maestro build <run> <task> [--revise <file|->] [--block|--wait] | --here <slug> --task \"<text>\" [--revise <file|->] [--block|--wait] | --review <run> <task> [--block|--wait] | --init | --check | --status <run>"
   [ "$#" -ge 2 ] || { echo "$usage" >&2; exit 2; }
   local slug="$1" task="$2" findings="" block=0
   shift 2

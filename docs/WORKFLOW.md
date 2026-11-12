@@ -92,11 +92,11 @@ it is not, the Claude `builder` is the fallback.
 
 The master runs each build itself as a background Bash task
 (`maestro build <run> <task> --block`), so no relay model is involved. It keeps a
-`TodoWrite` item per task and, once per wave, runs
-`maestro build --status <run> --every 180` through `Monitor`, posting each line
-(`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
-`--status` once per finished build. It moves to checks as soon as the wave has
-joined. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
+`TodoWrite` item per task. Every headless build prints its own `progress:` lines
+as tasks finish; a live view of a wave is `maestro watch <run>` in a pane, whose
+piped output prints one line only on a count or state change. The master also
+runs `maestro build --status <run>` (a one-shot reading) after each finished
+build and moves to checks as soon as the wave has joined. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
 is the only stop. Each build reports its token counts and step count.
 
 The master reads the task graph from the saved SPEC and inspects the ready set
@@ -368,7 +368,9 @@ maestro build <run> <task> [--revise <file|->] [--block|--wait]
 maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
-maestro build --status <run> [--every <seconds>]
+maestro build --status <run>
+maestro watch <run>
+maestro watch --line
 maestro build --init | --check
 
 maestro worktree create <run> <task> [--branch <name> [--base <ref>]]

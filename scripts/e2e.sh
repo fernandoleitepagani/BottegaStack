@@ -99,6 +99,17 @@ printf '%s\n' "$out" | grep -qx "version: $plugin_version" && ok "doctor prints 
 f=$(grep -oE '@\$\{CLAUDE_PLUGIN_ROOT\}/[^ ]+' "$ROOT/commands/maestro.md" | sed 's#@${CLAUDE_PLUGIN_ROOT}/##')
 [ -n "$f" ] && [ -f "$ROOT/$f" ] && ok "/maestro includes $f" || fail "/maestro includes the master"
 
+# Monitor and `build --status --every` were designed out (Task 3): the master
+# and docs drive progress with `maestro watch` instead.
+if grep -nE 'Monitor|--every' "$ROOT/agents/master.md" "$ROOT/commands/maestro.md" \
+  "$ROOT/docs/WORKFLOW.md" "$ROOT/docs/SETUP.md" "$ROOT/skills/workflow/playbooks/SKILL.md" \
+  "$ROOT/README.md" "$ROOT/AGENTS.md" >/dev/null 2>&1; then
+  fail "docs: no Monitor or --every"
+else
+  ok "docs: no Monitor or --every"
+fi
+grep -q 'maestro watch' "$ROOT/agents/master.md" && ok "docs: master names maestro watch" || fail "docs: master names maestro watch"
+
 # `start` validates before it writes (issue #16): a refused start leaves the
 # repo byte-for-byte unchanged in a fresh repo, since auto-init would otherwise
 # run before the branch and cleanliness rules.
@@ -293,7 +304,12 @@ grep -q -- "--plugin-dir /some/checkout" "$STUBLOG" && ok "BOTTEGA_PLUGIN_DIR" |
 expect "check light" "$M" check q1
 find "$BOTTEGA_STATE_DIR" -path '*/quick/q1/checks.result' -type f | grep -q . && ok "check light records in the quick dir" || fail "check light records in the quick dir"
 expect "gate light" "$M" gate q1
-"$M" build --status q1 --every 1 | grep -q 'Builders 1/1 done' && ok "build --status light --every" || fail "build --status light --every"
+out="$("$M" build --status q1 --every 5 2>&1)"; rc=$?
+if [ "$rc" -eq 2 ] && printf '%s\n' "$out" | grep -q 'maestro watch'; then
+  ok "status: --every removed"
+else
+  fail "status: --every removed"
+fi
 git commit -q --allow-empty -m light-next
 expect_not "gate light stale" "$M" gate q1
 expect "check light again" "$M" check q1
@@ -518,6 +534,100 @@ out="$(line "$TMP/not-a-repo" 2>&1)"; rc=$?
 rm -rf "$LROOT/line-4" "$LROOT/line-stall"
 out="$(line "$LREPO" 2>&1)"; rc=$?
 [ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: no run prints nothing" || fail "line: no run prints nothing"
+
+# `maestro watch <run>` (Task 3): a TTY frame, change-only lines in a pipe, and
+# the exit rules. Fixed BOTTEGA_NOW and mtimes keep the numbers exact. Its own
+# repo and state dir keep the other runs out of the fixture.
+WREPO="$TMP/watch-repo"
+WSTATE="$TMP/watch-state"
+mkdir -p "$WREPO"
+( cd "$WREPO" && git init -q -b main && git commit -q --allow-empty -m init \
+  && git switch -q -c feat/watch && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Watch seed" ) >/dev/null 2>&1
+WROOT="$(dirname "$(find "$WSTATE" -type d -name watch-seed 2>/dev/null | head -1)")"
+mk_watch_run() { # <slug> <tasks>
+  local slug="$1" n="$2" i=1
+  mkdir -p "$WROOT/$slug/tasks" "$WROOT/$slug/build"
+  while [ "$i" -le "$n" ]; do : > "$WROOT/$slug/tasks/$i.md"; i=$((i + 1)); done
+}
+mk_watch_run watch-4 4
+printf 'STATUS: DONE\n' > "$WROOT/watch-4/build/1.report.md"
+printf 'sid=\n' > "$WROOT/watch-4/build/2.run"
+printf '9000\twatch-4\t1\tbuilder\tstart\trev=0\n9100\twatch-4\t1\tbuilder\tstep\tRead: a.txt\n9200\twatch-4\t1\tbuilder\tend\trc=0 DONE\n9970\twatch-4\t2\tbuilder\tstart\trev=0\n9980\twatch-4\t2\tbuilder\tstep\tBash: ls\n9990\twatch-4\t2\tbuilder\tstep\tRead: b.txt\n' > "$WROOT/watch-4/events.tsv"
+printf '100\tbuilder\t/some/repo\t10\t120\n200\tbuilder\t/some/repo\t10\t120\n300\tbuilder\t/some/repo\t10\t120\n' > "$WROOT/steps.tsv"
+out="$( cd "$WREPO" && BOTTEGA_NOW=10000 BOTTEGA_WATCH_TTY=1 BOTTEGA_WATCH_ONCE=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-4 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qx 'Watch watch-4: 1/4 tasks · ~30% · ETA 6m (estimate) · elapsed 16m' \
+  && printf '%s\n' "$out" | grep -qx '  1  done  1 steps' \
+  && printf '%s\n' "$out" | grep -qx '  2  running  2 steps, last Read: b.txt' \
+  && [ "$(printf '%s\n' "$out" | grep -c '^  [0-9]')" -eq 4 ]; then
+  ok "watch: frame"
+else
+  fail "watch: frame"
+fi
+out="$( cd "$WREPO" && BOTTEGA_NOW=10000 BOTTEGA_WATCH_TTY=0 BOTTEGA_WATCH_ONCE=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-4 2>&1 )"; rc=$?
+[ "$rc" -eq 0 ] && [ "$out" = 'progress: 1/4 tasks · ~30% · ETA 6m' ] && ok "watch: non-TTY progress line" || fail "watch: non-TTY progress line"
+# A stable running run polls but prints its line only once.
+( cd "$WREPO" && exec env BOTTEGA_NOW=10000 BOTTEGA_WATCH_TTY=0 BOTTEGA_WATCH_EVERY=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-4 ) > "$TMP/watch-nontty.out" 2>&1 &
+watch_pid=$!
+sleep 3
+kill "$watch_pid" 2>/dev/null
+wait "$watch_pid" 2>/dev/null
+[ "$(grep -c '^progress:' "$TMP/watch-nontty.out")" -eq 1 ] && ok "watch: non-TTY prints changes only" || fail "watch: non-TTY prints changes only"
+mk_watch_run watch-done 1
+printf 'STATUS: DONE\n' > "$WROOT/watch-done/build/1.report.md"
+out="$( cd "$WREPO" && BOTTEGA_WATCH_TTY=0 BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-done 2>&1 )"; rc=$?
+[ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' && ok "watch: done exits 0" || fail "watch: done exits 0"
+mk_watch_run watch-hold 2
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" hold watch-hold "human needed" ) >/dev/null 2>&1
+out="$( cd "$WREPO" && BOTTEGA_WATCH_TTY=0 BOTTEGA_WATCH_ONCE=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-hold 2>&1 )"; rc=$?
+[ "$rc" -eq 0 ] && [ "$out" = 'HOLD: human needed' ] && ok "watch: hold exits 0" || fail "watch: hold exits 0"
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" watch no-such-watch 2>&1 )"; rc=$?
+[ "$rc" -eq 2 ] && ok "watch: unknown run exits 2" || fail "watch: unknown run exits 2"
+rm -rf "$WROOT/watch-4" "$WROOT/watch-done" "$WROOT/watch-hold"
+
+# Every headless build flavour prints `progress:` lines while it waits (Task 3).
+# Its own state dir keeps the counts to one task; the final summary is unchanged.
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Progress run" ) >/dev/null 2>&1
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/progress-spec.md"
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" spec progress-run "$TMP/progress-spec.md" ) >/dev/null 2>&1
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" worktree create progress-run 1 ) >/dev/null 2>&1
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build progress-run 1 --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -qx 'task: 1' \
+  && printf '%s\n' "$out" | grep -q '^steps: ' \
+  && printf '%s\n' "$out" | grep -q '^report: '; then
+  ok "build progress: run task"
+else
+  fail "build progress: run task"
+fi
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build --review progress-run 1 --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -qx 'review: progress-run 1' \
+  && printf '%s\n' "$out" | grep -q '^steps: '; then
+  ok "build progress: review"
+else
+  fail "build progress: review"
+fi
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build --here prog-here --task "progress" --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -qx 'task: prog-here' \
+  && printf '%s\n' "$out" | grep -q '^steps: '; then
+  ok "build progress: here"
+else
+  fail "build progress: here"
+fi
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build --review --here prog-here --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -q '^review: prog-here' \
+  && printf '%s\n' "$out" | grep -q '^steps: '; then
+  ok "build progress: review here"
+else
+  fail "build progress: review here"
+fi
 
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
@@ -1328,6 +1438,7 @@ build
 build --init
 build --check
 build --status
+watch
 watch --line
 build --here q
 build --review

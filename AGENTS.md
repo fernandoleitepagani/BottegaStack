@@ -100,7 +100,8 @@ BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 ./bin/maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 ./bin/maestro build --review <run> <task> [--block|--wait]
 ./bin/maestro build --review --here <slug> [--block|--wait]
-./bin/maestro build --status <run> [--every <seconds>]
+./bin/maestro build --status <run>
+./bin/maestro watch <run>
 ./bin/maestro watch --line
 ./bin/maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
 ./bin/maestro worktree prune <run> [--force]

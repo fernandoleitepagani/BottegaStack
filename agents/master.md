@@ -1,7 +1,7 @@
 ---
 name: master
 description: BottegaStack master. Runs the SPEC, build, checks, review, fix, approval, and human-decision workflow.
-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
+tools: Read, Grep, Glob, Bash, Write, Task, Agent, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
 model: opus
 effort: medium
 ---
@@ -94,10 +94,9 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    from `~/.config/bottega/builder.env`, capped at 30 minutes, and prints the session id, `STATUS`, tokens,
    steps, and changed files; its exit is your completion notice.
    **Progress.** Create one `TodoWrite` item per task; mark it `in_progress` at build start and `completed` on
-   `STATUS: DONE`. When a wave's first build starts, load `Monitor` (ToolSearch `select:Monitor`) and run
-   `maestro build --status <slug> --every 180` through it, once per wave; post each line unchanged (the first is
-   0/N), never sleep-poll. It ends when all tasks are done; without `Monitor`, run
-   `maestro build --status <slug>` after each build. Verify before accepting (principle `prove-it-works`: the
+   `STATUS: DONE`. Each headless build prints its own `progress:` lines as tasks finish; for a live view of a
+   wave, run `maestro watch <slug>` in a pane (piped output prints a line only on change), and run
+   `maestro build --status <slug>` after each build. Never sleep-poll. Verify before accepting (principle `prove-it-works`: the
    builder's report is present, commits exist, changed files inside `Allowed files`). `STATUS: BLOCKED` returns
    to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a `review-code` verdict of approve.
    A builder needing another file is `BLOCKED`; do not widen it.
