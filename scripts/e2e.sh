@@ -54,6 +54,19 @@ EOF
 chmod +x "$TMP/bin/claude"
 export PATH="$TMP/bin:$PATH" STUBLOG="$TMP/stub.log" STUBENV="$TMP/stub.env"
 
+# Stay independent of any `maestro` the host has on PATH: drop empty entries and
+# entries holding an executable `maestro`, keeping everything else in order. The
+# copy-warning cases below build their own fixture PATHs with two copies.
+e2e_path=""
+e2e_old_ifs="$IFS"; IFS=:
+for e2e_dir in $PATH; do
+  [ -n "$e2e_dir" ] || continue
+  [ -f "$e2e_dir/maestro" ] && [ -x "$e2e_dir/maestro" ] && continue
+  e2e_path="${e2e_path:+$e2e_path:}$e2e_dir"
+done
+IFS="$e2e_old_ifs"
+export PATH="$e2e_path"
+
 # The env the last stub invocation received (the stub logs five lines, then ---).
 stub_env_has() { tail -n 6 "$STUBENV" | grep -qx "$1"; }
 printf 'ANTHROPIC_BASE_URL=http://stub.invalid\nANTHROPIC_MODEL=stub\n' > "$HOME/.config/bottega/builder.env"
