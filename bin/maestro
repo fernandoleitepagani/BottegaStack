@@ -1495,7 +1495,7 @@ watch_snapshot() {
       for f in "$bdir"/*.run; do
         [ -f "$f" ] || continue
         t="${f##*/}"; t="${t%.run}"
-        case "$t" in *.review2) continue ;; esac
+        [ "${t%.review2}" = "$t" ] || continue
         printf '%s\n' "$t"
       done
     } | sort -u | tr '\n' ' ')"
