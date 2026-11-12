@@ -89,6 +89,19 @@ if ! grep -qF '@${CLAUDE_PLUGIN_ROOT}/agents/master.md' "$ROOT/commands/maestro.
   fail=1
 fi
 
+# Commands run on the session model. A `model:` in their frontmatter pins one
+# and ignores the user's choice, so reject it.
+for cmd_file in "$ROOT"/commands/*.md; do
+  [ -f "$cmd_file" ] || continue
+  if awk 'NR == 1 && $0 == "---" { fm = 1; next }
+          fm && $0 == "---" { exit }
+          fm && /^model:/ { found = 1 }
+          END { exit !found }' "$cmd_file"; then
+    echo "FAIL command frontmatter sets model: ${cmd_file#"$ROOT"/}"
+    fail=1
+  fi
+done
+
 if command -v python3 >/dev/null 2>&1; then
   for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
     if [ ! -f "$ROOT/$f" ]; then
