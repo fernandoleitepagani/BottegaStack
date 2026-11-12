@@ -634,7 +634,16 @@ printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","nam
 hook_in="{\"transcript_path\":\"$TMP/t.jsonl\",\"stop_hook_active\":false}"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks with an open run" || fail "stop hook blocks with an open run"
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
-echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
+echo '{"tool_input":{"subagent_type":"bottega:builder","model":"opus","effort":"high"}}' | "$M" guard builder | grep -q 'headless builder is configured' && ok "builder guard: headless denial kept" || fail "builder guard: headless denial kept"
+echo '{"tool_input":{"subagent_type":"bottega:explorer","model":"haiku","effort":"low"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
+# Every bottega agent call must name both model and effort; anything else is a
+# routing mistake the hook refuses. Non-bottega agents and unreadable input pass.
+echo '{"tool_input":{"subagent_type":"bottega:planner","effort":"high"}}' | "$M" guard builder | grep -q deny && ok "agent guard: missing model denied" || fail "agent guard: missing model denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"opus"}}' | "$M" guard builder | grep -q deny && ok "agent guard: missing effort denied" || fail "agent guard: missing effort denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"","effort":"high"}}' | "$M" guard builder | grep -q deny && ok "agent guard: empty model denied" || fail "agent guard: empty model denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"opus","effort":"high"}}' | "$M" guard builder | grep -q deny && fail "agent guard: model and effort allowed" || ok "agent guard: model and effort allowed"
+echo 'not json' | "$M" guard builder | grep -q deny && fail "agent guard: bad json fails open" || ok "agent guard: bad json fails open"
+echo '{"tool_input":{"subagent_type":"general-purpose"}}' | "$M" guard builder | grep -q deny && fail "agent guard: ignores non-bottega agents" || ok "agent guard: ignores non-bottega agents"
 
 # A hold records an escalation, lets the Stop hook end the session, and shows in
 # `build --status` (issue #23). An isolated state dir keeps the other open runs
@@ -783,6 +792,50 @@ if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qxF 'maestro resume: no such run: n
 else
   fail "resume unknown run names the run on stderr"
 fi
+
+# Stop-hook evidence (AC10): with every todo complete, an open run must record a
+# passing check and, when the SPEC has Proof criteria, a PASS/WAIVED row per
+# criterion plus a reviewer/second-opinion row. Each reason names the command
+# that records the evidence. An isolated state dir keeps other runs out.
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 1","status":"completed","activeForm":"x"}]}}]}}' > "$TMP/t-done.jsonl"
+hook_done="{\"transcript_path\":\"$TMP/t-done.jsonl\",\"stop_hook_active\":false}"
+ESTATE="$TMP/evidence-state"
+ev_out="$(BOTTEGA_STATE_DIR="$ESTATE" "$M" start "Evidence run" 2>&1)"; rc=$?
+ev_slug="$(printf '%s\n' "$ev_out" | sed -n 's/^run: //p')"
+[ "$rc" -eq 0 ] && [ -n "$ev_slug" ] && ok "stop evidence: start fixture" || fail "stop evidence: start fixture"
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+if printf '%s\n' "$out" | grep -q '"block"' && printf '%s\n' "$out" | grep -qF "maestro check $ev_slug"; then
+  ok "stop evidence: no check blocks"
+else
+  fail "stop evidence: no check blocks"
+fi
+BOTTEGA_STATE_DIR="$ESTATE" "$M" check "$ev_slug" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop evidence: silent with a passing check" || fail "stop evidence: silent with a passing check"
+cat > "$TMP/evidence-spec.md" <<'EOF'
+## Acceptance criteria
+- AC1: the run works. Proof: `true` -> ok.
+EOF
+BOTTEGA_STATE_DIR="$ESTATE" "$M" spec "$ev_slug" "$TMP/evidence-spec.md" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+if printf '%s\n' "$out" | grep -q '"block"' && printf '%s\n' "$out" | grep -qF "maestro verify record $ev_slug AC1"; then
+  ok "stop evidence: no proof blocks"
+else
+  fail "stop evidence: no proof blocks"
+fi
+printf 'true\n' > "$TMP/evidence.txt"
+BOTTEGA_STATE_DIR="$ESTATE" "$M" verify record "$ev_slug" AC1 PASS --by master --evidence "$TMP/evidence.txt" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+if printf '%s\n' "$out" | grep -q '"block"' && printf '%s\n' "$out" | grep -q 'reviewer or second-opinion'; then
+  ok "stop evidence: no review blocks"
+else
+  fail "stop evidence: no review blocks"
+fi
+BOTTEGA_STATE_DIR="$ESTATE" "$M" verify record "$ev_slug" AC1 PASS --by reviewer --evidence "$TMP/evidence.txt" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop evidence: silent with evidence" || fail "stop evidence: silent with evidence"
+out="$(echo "{\"transcript_path\":\"$TMP/t-done.jsonl\",\"stop_hook_active\":true}" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop evidence: stop_hook_active is silent" || fail "stop evidence: stop_hook_active is silent"
 
 # The git hooks resolve maestro without the plugin bin/ on PATH (issue #3):
 # PATH, then the install-time record, then the newest plugin cache copy.

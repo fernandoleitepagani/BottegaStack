@@ -280,10 +280,12 @@ guessed (principle `prove-it-works`).
 
 There are no tier variants of an agent. The master picks the model and effort per
 call with the Agent tool's `model` and `effort` parameters; each agent's
-frontmatter is the default. The routing comes from
-`~/.claude/rules/bottega-models.md` when present, written by `/maestro-models`.
-Each line is `role: value, effort`, where `value` is a Claude alias (`haiku`,
-`sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`, or `high`:
+frontmatter is the default. The plugin's `PreToolUse` hook denies a `bottega:`
+agent call that omits `model` or `effort`, so the routing is not optional. The
+routing comes from `~/.claude/rules/bottega-models.md` when present, written by
+`/maestro-models`. Each line is `role: value, effort`, where `value` is a Claude
+alias (`haiku`, `sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`,
+or `high`:
 
 ```
 explorer: haiku, low
@@ -296,10 +298,10 @@ planner: opus, high
 master: opus, medium
 ```
 
-Without the file the same defaults apply; `planner` and `master` keep their own
-models. The headless runner reads the `builder` line for `build` and `--here`,
-and the `second-opinion` line for `--review`, passing only the effort as
-`--effort`; a malformed line is ignored.
+Without the file the same defaults apply; `master` keeps its own model. The
+headless runner reads the `builder` line for `build` and `--here`, and the
+`second-opinion` line for `--review`, passing only the effort as `--effort`; a
+malformed line is ignored.
 
 ## Skills
 
@@ -411,6 +413,45 @@ Risk decides how much review runs: `low` is automated checks plus AI review,
 `standard` is the default, and `high` adds adversarial review, `simplify`, the
 high-risk reviewer model, the second-opinion reviewer, and a mandatory quiz. The
 human still makes the final decision.
+
+## What the code enforces
+
+The workflow is prose, but some rules are code. Each rule moves to the highest
+level that can prevent it from recurring.
+
+### Already enforced
+
+- `maestro start` refuses a dirty tree, `main`, or a detached HEAD.
+- `maestro check` writes `checks.result`; `maestro gate` fails on a failed or
+  stale result, a dirty tree, or, with `--proof`, an unmet Proof criterion.
+- `maestro verify record` refuses `--by builder` and a PASS without an evidence
+  file; the latest row per criterion decides.
+
+### Designed out
+
+- Build progress is a log, not a polling rule: `events.tsv` feeds `maestro
+  watch` and `build --status`.
+- There is no separate progress file; the raw builder stream is the record.
+
+### Hook
+
+- `hooks/hooks.json` runs `maestro guard stop` on Stop and `maestro guard
+  builder` on Agent/Task.
+- The Stop hook keeps the turn going while a todo item is open. Once every item
+  is complete, each open, non-held, non-paused run needs a passing
+  `checks.result` and, when the SPEC has Proof criteria, a PASS/WAIVED row per
+  criterion plus a reviewer or second-opinion row. The reason names the command
+  that records the evidence.
+- The builder guard denies a Bottega agent call that omits `model` or `effort`.
+
+### Advisory
+
+Later candidates, not enforced yet:
+
+- SPEC-shape validation.
+- An Allowed-files gate on builder writes.
+- Push and merge hooks.
+- Refusing more than three identical build rounds.
 
 ## Run state
 

@@ -51,6 +51,8 @@ every item is complete. When you escalate or a builder returns `STATUS: BLOCKED`
 `maestro hold <slug> "<reason>"` instead of marking the remaining todos completed: it records the
 escalated state, `maestro build --status` prints `HOLD: <reason>`, and the Stop hook lets the session end.
 Clear it with `maestro hold --clear <slug>`, or with `maestro resume <slug>`, when the run resumes.
+When every todo is complete, the same hook requires each open run to have a passing
+`checks.result` and, for a full run, a PASS/WAIVED row per Proof criterion plus a reviewer row.
 
 The planner returns the SPEC as its final reply; save the approved SPEC with `maestro spec <slug>`.
 Reviewers return findings as their reply, and a headless builder's final reply is its report.
@@ -141,7 +143,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 - Model routing: read `~/.claude/rules/bottega-models.md` when present; each line is `role: value, effort`.
   Pass both `model` and `effort` on every Agent call. Without the file use explorer `haiku, low`, trivial
   `haiku, low`, builder `headless, medium`, reviewer `sonnet, medium`, reviewer-high-risk `opus, high`,
-  second-opinion `headless, medium`, planner (own model) `high`, master (own model) `medium`; frontmatter is
+  second-opinion `headless, medium`, planner `opus, high`, master (own model) `medium`; frontmatter is
   each agent's default.
 - Review convergence: max 3 rounds, re-review only the new diff after round 1, flag the bug class, no repeats.
 - PR mode: load `review-pr`. `high` risk: load `adversarial-review` and `simplify`.
