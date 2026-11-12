@@ -124,7 +124,10 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    findings repeat across runs: load `correct` and fix each class at the highest level that works (a builder
    applies the approved fixes); docs or `mistakes.md` only for what a check cannot enforce. Load `session-handoff` if the run continues elsewhere, then close the run with
    `maestro report --close <slug> --playbook <p> --risk <r> --outcome <merged|pr|rejected|paused>`, which logs one
-   line to the trust log and removes the run's state directory, and stop.
+   line to the trust log and removes the run's state directory. With `--outcome paused` it keeps the state
+   directory and writes a dated `paused` marker so a later session can resume (`spec`, `build --status`, and
+   `verify list` still resolve it; the stop hook stays silent); a later close with `merged`, `pr`, or `rejected`
+   removes it. Then stop.
 
 ## Subagents
 

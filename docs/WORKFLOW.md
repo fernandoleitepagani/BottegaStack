@@ -197,6 +197,14 @@ the run continues elsewhere. Once the PR or merge is confirmed, it runs
 `maestro worktree prune <slug>` and `maestro report --close <slug>` to remove the
 worktrees and the state directory, then stops.
 
+A run paused instead of finished keeps its state. Closing with
+`--outcome paused` still writes the one trust-log line but leaves the state
+directory in place and writes a dated `paused` marker in it, so `maestro spec`,
+`maestro build --status`, and `maestro verify list` still resolve the run and a
+later session can resume from the saved spec, tasks, build records, and check
+results. The hook treats a paused run as closed and stays silent. Closing again
+with `merged`, `pr`, or `rejected` removes the directory as usual.
+
 ### Resume
 
 Run state lives in the state directory and the todo list, so a new session can

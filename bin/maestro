@@ -44,6 +44,11 @@ the one you are on (`start --branch <name>` creates one). Run state lives outsid
 `${BOTTEGA_STATE_DIR:-${TMPDIR:-/tmp}/bottega-$(id -u)}/<repo-id>/<slug>/`.
 Nothing is written into the repo or a worktree.
 
+`maestro report --close <run> --outcome paused` logs the trust line and keeps the
+run's state directory with a dated `paused` marker, so `spec`, `build --status`,
+and `verify list` still resolve it and a resume can use it. Closing later with
+`merged`, `pr`, or `rejected` removes the directory as usual.
+
 Headless builder:
   `maestro build` runs the Claude Code `builder` agent headless on a third-party
   model. Credentials live in ~/.config/bottega/builder.env (create it with
@@ -1786,14 +1791,16 @@ guard_stop() {
   printf '%s' "$input" | tr -d '\n' | grep -Eq '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
   # Only act while this repo has an open run (a run or light-path folder that
   # `maestro report --close` has not removed): the plugin hook is global, and an
-  # ordinary session with open todos must not be nudged. The logs kept in the
-  # state root (trust.log, findings.log, decisions/) do not count.
+  # ordinary session with open todos must not be nudged. A paused run is closed
+  # until it is resumed, so its marker takes it out of this check. The logs kept
+  # in the state root (trust.log, findings.log, decisions/) do not count.
   sdir="$(state_dir 2>/dev/null || true)"
   [ -n "$sdir" ] && [ -d "$sdir" ] || exit 0
   local open=0
   for r in "$sdir"/*/ "$sdir"/quick/*/; do
     [ -d "$r" ] || continue
     case "$r" in "$sdir"/decisions/|"$sdir"/quick/) continue ;; esac
+    [ -f "$r/paused" ] && continue
     open=1; break
   done
   [ "$open" = "1" ] || exit 0
@@ -2028,7 +2035,9 @@ cmd_finding() {
 
 # `maestro report --close <run> [--playbook p --risk r --outcome o]`: append one
 # line to the trust log (state-directory root, so it outlives the run), then
-# remove the run's state directory. The master calls this at close.
+# remove the run's state directory. `--outcome paused` keeps the directory and
+# writes a dated `paused` marker so a resume can use it; a later close with any
+# other outcome removes it. The master calls this at close.
 cmd_close() {
   local slug="$1" playbook="${2:-}" risk="${3:-}" outcome="${4:-}" base dir
   case "$slug" in
@@ -2048,8 +2057,13 @@ cmd_close() {
     [ -f "$dir/checks.result" ] && checks="$(sed -n 's/^RESULT:[[:space:]]*//p' "$dir/checks.result" | head -1)"
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$(date +%F)" "$slug" "${playbook:--}" "${risk:--}" "$rounds" "${checks:-none}" "${outcome:--}" \
       | tr -d '\r' >> "$base/trust.log"
-    rm -rf -- "$dir"
-    echo "closed: $dir"
+    if [ "$outcome" = "paused" ]; then
+      (umask 077; printf '%s\n' "$(date +%F)" > "$dir/paused")
+      echo "paused: $dir"
+    else
+      rm -rf -- "$dir"
+      echo "closed: $dir"
+    fi
   else
     echo "no such run: $slug" >&2
     exit 1

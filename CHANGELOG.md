@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixes: `maestro report --close <run> --outcome paused` writes the trust-log line but keeps the run's state directory (spec, tasks, build records, check results) and adds a dated `paused` marker so a resume can use it; `maestro guard stop` treats a paused run as closed, while `maestro spec`, `maestro build --status`, and `maestro verify list` still resolve it, and a later close with `merged`, `pr`, or `rejected` removes the directory as before (issue #21).
 - Fixes: when two `maestro build` callers attach to one build, the one that does not collect the result stops as soon as the run marker disappears and prints `task: <slug>`, `already collected by another caller`, and the report path, instead of sleeping the full `BOTTEGA_BUILD_WAIT` for a file another caller removed (issue #18).
 - Fixes: `maestro start` ignores untracked files (for example `__pycache__/` left by `scripts/check`) in its clean-tree check, so a repo whose only changes are untracked can start a run; modified or staged tracked files still refuse with `working tree is dirty; commit or stash first`, and `maestro gate` keeps its strict check (issue #22).
 - Fixes: `maestro gate <run>` names an unknown run on stderr as `maestro gate: no such run: <run>` and exits 1, the same wording as `maestro check`, instead of reporting `GATE: FAIL (no checks.result)`; a known run with no check result still reports that failure (issue #17).
