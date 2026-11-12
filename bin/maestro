@@ -159,12 +159,8 @@ cmd_start() {
   local repo
   repo="$(git rev-parse --show-toplevel)"
   cd "$repo"
-  # /maestro is the only command you need: set the project up on first use. init
-  # only creates what is missing and everything it creates is excluded from git,
-  # so the clean-tree check below is unaffected.
-  if [ ! -f AGENTS.md ] || [ ! -x scripts/check ] || [ ! -f .claude/settings.json ]; then
-    cmd_init "$repo" | tail -1
-  fi
+  # Validate every rule before writing anything: a refused start must leave the
+  # repo byte-for-byte unchanged, so no auto-init happens until all of them pass.
   if [ -n "$(git status --porcelain)" ]; then
     echo "working tree is dirty; commit or stash first" >&2
     exit 1
@@ -192,6 +188,11 @@ cmd_start() {
         echo "maestro start: you are on '${branch:-detached HEAD}'. Switch to your working branch, or pass --branch <name> to create one." >&2
         exit 1 ;;
     esac
+  fi
+  # /maestro is the only command you need: set the project up on first use, now
+  # that every rule has passed. init only creates what is missing.
+  if [ ! -f AGENTS.md ] || [ ! -x scripts/check ] || [ ! -f .claude/settings.json ]; then
+    cmd_init "$repo" | tail -1
   fi
   local dir
   while [ -d "$(state_dir)/$slug" ]; do
