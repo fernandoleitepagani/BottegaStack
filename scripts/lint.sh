@@ -114,6 +114,36 @@ if command -v python3 >/dev/null 2>&1; then
   done
 fi
 
+# `claude plugin validate` warns ICON_MISSING without a plugin icon. Keep a
+# square 512x512 PNG at .claude-plugin/icon.png.
+icon="$ROOT/.claude-plugin/icon.png"
+if [ ! -f "$icon" ]; then
+  echo "FAIL missing plugin icon: .claude-plugin/icon.png"
+  fail=1
+else
+  # Signature (0-7), IHDR length (8-11), type (12-15), width (16-19),
+  # height (20-23), all big-endian.
+  read -r b0 b1 b2 b3 b4 b5 b6 b7 l0 l1 l2 l3 t0 t1 t2 t3 w0 w1 w2 w3 h0 h1 h2 h3 \
+    < <(od -An -v -t u1 -N 24 "$icon" | tr '\n' ' ') || true
+  if [ "${b0:-}" != "137" ] || [ "${b1:-}" != "80" ] || \
+     [ "${b2:-}" != "78" ] || [ "${b3:-}" != "71" ] || \
+     [ "${b4:-}" != "13" ] || [ "${b5:-}" != "10" ] || \
+     [ "${b6:-}" != "26" ] || [ "${b7:-}" != "10" ]; then
+    echo "FAIL plugin icon is not a PNG: .claude-plugin/icon.png"
+    fail=1
+  elif [ "${t0:-}${t1:-}${t2:-}${t3:-}" != "73726882" ]; then
+    echo "FAIL plugin icon has no IHDR: .claude-plugin/icon.png"
+    fail=1
+  else
+    width=$((w0 * 16777216 + w1 * 65536 + w2 * 256 + w3))
+    height=$((h0 * 16777216 + h1 * 65536 + h2 * 256 + h3))
+    if [ "$width" != "512" ] || [ "$height" != "512" ]; then
+      echo "FAIL plugin icon is ${width}x${height}, want 512x512: .claude-plugin/icon.png"
+      fail=1
+    fi
+  fi
+fi
+
 # Plugin hooks run in a shell without the plugin's bin/ on PATH, so every hook
 # command must call maestro through CLAUDE_PLUGIN_ROOT. A bare command fails
 # with "maestro: command not found".
