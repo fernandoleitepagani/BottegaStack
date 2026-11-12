@@ -12,6 +12,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 usage() {
   cat <<'EOF'
 Usage:
+  maestro --version | -V | version
   maestro doctor
   maestro init [path]
   maestro seed <Name>
@@ -64,6 +65,16 @@ Headless builder:
 The skills stay organized by category; the plugin manifest points at each
 category directory so Claude Code discovers the skills inside.
 EOF
+}
+
+# The plugin version from the manifest beside bin/, or `unknown` when the file
+# or field is missing. Read-only: version output must touch no state or builder.
+maestro_version() {
+  local file="$ROOT/.claude-plugin/plugin.json" ver=""
+  if [ -f "$file" ]; then
+    ver="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$file" | head -1)"
+  fi
+  printf '%s\n' "${ver:-unknown}"
 }
 
 config_dir() {
@@ -655,6 +666,7 @@ maestro_path_warning() {
 cmd_doctor() {
   echo "BottegaStack doctor"
   echo "root: $ROOT"
+  echo "version: $(maestro_version)"
   maestro_path_warning
   local sdir
   if sdir="$(state_dir 2>/dev/null)"; then
@@ -2390,6 +2402,12 @@ case "$cmd" in
       esac
     done
     ;;
+esac
+
+# Version is not a command: handle it before dispatch so it never reports an
+# unknown command and never touches run state or the builder.
+case "$cmd" in
+  --version|-V|version) printf 'maestro %s\n' "$(maestro_version)"; exit 0 ;;
 esac
 
 case "$cmd" in

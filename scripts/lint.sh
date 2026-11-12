@@ -89,6 +89,19 @@ if ! grep -qF '@${CLAUDE_PLUGIN_ROOT}/agents/master.md' "$ROOT/commands/maestro.
   fail=1
 fi
 
+# Commands run on the session model. A `model:` in their frontmatter pins one
+# and ignores the user's choice, so reject it.
+for cmd_file in "$ROOT"/commands/*.md; do
+  [ -f "$cmd_file" ] || continue
+  if awk 'NR == 1 && $0 == "---" { fm = 1; next }
+          fm && $0 == "---" { exit }
+          fm && /^model:/ { found = 1 }
+          END { exit !found }' "$cmd_file"; then
+    echo "FAIL command frontmatter sets model: ${cmd_file#"$ROOT"/}"
+    fail=1
+  fi
+done
+
 if command -v python3 >/dev/null 2>&1; then
   for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json hooks/hooks.json; do
     if [ ! -f "$ROOT/$f" ]; then
@@ -99,6 +112,51 @@ if command -v python3 >/dev/null 2>&1; then
       fail=1
     fi
   done
+fi
+
+# `claude plugin validate` warns ICON_MISSING without a plugin icon. Keep a
+# square 512x512 PNG at .claude-plugin/icon.png.
+icon="$ROOT/.claude-plugin/icon.png"
+if [ ! -f "$icon" ]; then
+  echo "FAIL missing plugin icon: .claude-plugin/icon.png"
+  fail=1
+else
+  # Signature (0-7), IHDR length (8-11), type (12-15), width (16-19),
+  # height (20-23), all big-endian.
+  read -r b0 b1 b2 b3 b4 b5 b6 b7 l0 l1 l2 l3 t0 t1 t2 t3 w0 w1 w2 w3 h0 h1 h2 h3 \
+    < <(od -An -v -t u1 -N 24 "$icon" | tr '\n' ' ') || true
+  if [ "${b0:-}" != "137" ] || [ "${b1:-}" != "80" ] || \
+     [ "${b2:-}" != "78" ] || [ "${b3:-}" != "71" ] || \
+     [ "${b4:-}" != "13" ] || [ "${b5:-}" != "10" ] || \
+     [ "${b6:-}" != "26" ] || [ "${b7:-}" != "10" ]; then
+    echo "FAIL plugin icon is not a PNG: .claude-plugin/icon.png"
+    fail=1
+  elif [ "${t0:-}${t1:-}${t2:-}${t3:-}" != "73726882" ]; then
+    echo "FAIL plugin icon has no IHDR: .claude-plugin/icon.png"
+    fail=1
+  else
+    width=$((w0 * 16777216 + w1 * 65536 + w2 * 256 + w3))
+    height=$((h0 * 16777216 + h1 * 65536 + h2 * 256 + h3))
+    if [ "$width" != "512" ] || [ "$height" != "512" ]; then
+      echo "FAIL plugin icon is ${width}x${height}, want 512x512: .claude-plugin/icon.png"
+      fail=1
+    fi
+  fi
+fi
+
+# Project memory must live at .claude/CLAUDE.md: Claude Code loads it there for
+# contributors, while `claude plugin validate` warns about a CLAUDE.md at the
+# plugin root. Its import resolves one level up, to AGENTS.md.
+if [ -e "$ROOT/CLAUDE.md" ]; then
+  echo "FAIL root CLAUDE.md exists; move it to .claude/CLAUDE.md (not plugin context)"
+  fail=1
+fi
+if [ ! -f "$ROOT/.claude/CLAUDE.md" ]; then
+  echo "FAIL missing .claude/CLAUDE.md"
+  fail=1
+elif ! grep -qxF '@../AGENTS.md' "$ROOT/.claude/CLAUDE.md"; then
+  echo "FAIL .claude/CLAUDE.md must import @../AGENTS.md"
+  fail=1
 fi
 
 # Plugin hooks run in a shell without the plugin's bin/ on PATH, so every hook

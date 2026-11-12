@@ -57,8 +57,13 @@ After installing:
 }
 ```
 
-Then run `claude --agent bottega:master` (the `agent` setting also does this). Details,
-including the manual steps a plugin cannot do: [docs/SETUP.md](docs/SETUP.md).
+Then run `claude --agent bottega:master` (the `agent` setting also does this).
+`/maestro` runs on the session model; the command pins no model. To choose the
+master's model, run `claude --agent bottega:master --model <model>`, or set
+`"model": "<model>"` beside `"agent": "bottega:master"` in
+`~/.claude/settings.json`. `/maestro-models` writes the per-role routing for the
+agents the master delegates to. Details, including the manual steps a plugin
+cannot do: [docs/SETUP.md](docs/SETUP.md).
 
 In a project there is nothing to set up: open Claude Code there and run
 `/maestro <request>`. On first use it creates `AGENTS.md`, `CLAUDE.md`,

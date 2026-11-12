@@ -1,7 +1,6 @@
 ---
 description: Start or continue a BottegaStack run.
 argument-hint: "<feature> | status | resume | --playbook <playbook> <feature> | quick <feature>"
-model: opus
 allowed-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
 ---
 
