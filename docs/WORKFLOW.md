@@ -393,6 +393,7 @@ maestro skills install <name>... | --all
 maestro skills uninstall <name>... | --all
 
 maestro tools install [--yes] | hint
+maestro statusline install [--yes] | status
 ```
 
 Use `./bin/maestro` instead of `maestro` when running from a clone outside a
