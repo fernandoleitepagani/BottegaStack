@@ -743,19 +743,23 @@ cmd_spec() {
   dir="$(run_state_dir "$slug")" || { echo "maestro spec: not in a git repository" >&2; exit 1; }
   [ -d "$dir" ] || { echo "maestro spec: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 1; }
   local spec="$dir/spec.md" tmp="$dir/.spec.md.$$"
+  # Create the temp file 0600 and remove it on every exit path until the rename.
+  (umask 077; : > "$tmp") || { echo "maestro spec: could not write: $tmp" >&2; exit 1; }
+  trap 'rm -f "$tmp"' EXIT
+  trap 'rm -f "$tmp"; exit 130' INT TERM
   if [ -n "$file" ]; then
     [ -f "$file" ] || { echo "maestro spec: no such file: $file" >&2; exit 1; }
     # The redirect used to truncate spec.md before `cat` read it when the source
     # was the spec itself (directly or through a symlink).
     [ "$(maestro_real_file "$file")" != "$(maestro_real_file "$spec")" ] \
-      || { echo "maestro spec: source is the spec it would overwrite: $file" >&2; exit 1; }
-    [ -s "$file" ] || { echo "maestro spec: source is empty: $file" >&2; exit 1; }
+      || { echo "maestro spec: refusing to read the spec from its own destination: $file" >&2; exit 1; }
+    [ -s "$file" ] || { echo "maestro spec: empty spec: $file" >&2; exit 1; }
     cat "$file" > "$tmp" || { rm -f "$tmp"; echo "maestro spec: could not read: $file" >&2; exit 1; }
   else
     cat > "$tmp"
     if [ ! -s "$tmp" ]; then
       rm -f "$tmp"
-      echo "maestro spec: empty spec from stdin; nothing to save" >&2
+      echo "maestro spec: empty spec: stdin" >&2
       exit 1
     fi
   fi
@@ -777,6 +781,7 @@ cmd_spec() {
   # Write through a temp file in the same directory so the rename is atomic and
   # a failed save never leaves a partial spec.md.
   mv "$tmp" "$spec" || { rm -f "$tmp"; echo "maestro spec: could not write: $spec" >&2; exit 1; }
+  trap - EXIT INT TERM
   local tasks="$dir/tasks"
   mkdir -p "$tasks"
   rm -f "$tasks"/*.md 2>/dev/null || true
@@ -1206,6 +1211,16 @@ spec_ac_rows() {
   [ -f "$spec" ] || return 0
   awk '
     function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    # The last `Proof:` outside backticks is the field: AC prose and the proof
+    # command may each quote an earlier one.
+    function last_proof(s,   i, n, ticks, at) {
+      at = 0; ticks = 0; n = length(s)
+      for (i = 1; i <= n; i++) {
+        if (substr(s, i, 1) == "`") { ticks = 1 - ticks; continue }
+        if (ticks == 0 && substr(s, i, 6) == "Proof:") { at = i; i += 5 }
+      }
+      return at
+    }
     /^[-*0-9. ]*AC[0-9]+/ {
       line = $0
       match(line, /AC[0-9]+/)
@@ -1214,11 +1229,12 @@ spec_ac_rows() {
         print NR "\t" id "\tbad\tnot an AC line (expected \"- AC<n>: <text> Proof: ...\")"
         next
       }
-      if (!match(line, /Proof:/)) {
+      pstart = last_proof(line)
+      if (pstart == 0) {
         print NR "\t" id "\tbad\tno Proof:"
         next
       }
-      ptext = trim(substr(line, RSTART + 6))
+      ptext = trim(substr(line, pstart + 6))
       if (ptext == "") {
         print NR "\t" id "\tbad\tempty Proof:"
         next
@@ -3029,14 +3045,17 @@ $(cat "$taskfile")"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "$(run_branch "$slug")...HEAD" 2>/dev/null | sed 's/^/  /'
 
-  # A DONE build with commits is accepted only when the worktree check passes
-  # and every task rule holds. A HEAD-bound waiver hides the rule failure, the
-  # same as `maestro verify-task`; otherwise the task stays BLOCKED.
-  if [ "$status" = "STATUS: DONE" ] && [ "${commits:-0}" -gt 0 ]; then
+  # Every build report is judged: a DONE report with or without commits, and a
+  # BLOCKED or FAILED one. A HEAD-bound waiver hides a rule failure for a DONE
+  # report; a non-DONE report never passes. Otherwise the task stays BLOCKED.
+  if [ "$status" != "MISSING" ]; then
     local vfail=0 whead wreason wdate
     ensure_check "$slug" "$dir" "$wt" || true
     verify_task_rules "$slug" "$task" "$dir" "$wt" || vfail=1
-    if [ "$vfail" -eq 0 ]; then
+    if [ "$status" != "STATUS: DONE" ]; then
+      verify_failed=1
+      printf 'verify-task: FAIL; task stays BLOCKED (waive: maestro verify-task %s %s --waive "<reason>")\n' "$slug" "$task"
+    elif [ "$vfail" -eq 0 ]; then
       echo "verify-task: PASS"
     elif [ -f "$bdir/$task.verify-waiver" ]; then
       IFS="$(printf '\t')" read -r whead wreason wdate < "$bdir/$task.verify-waiver"

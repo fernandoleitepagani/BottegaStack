@@ -196,18 +196,26 @@ printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n-
 spec_dir="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/spec.md' -type f | head -1)")"
 spec_before="$(cat "$spec_dir/spec.md")"
 spec_self_ok=1
-"$M" spec run-a "$spec_dir/spec.md" >/dev/null 2>&1; rc=$?
-[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_self_ok=0
+out="$("$M" spec run-a "$spec_dir/spec.md" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF "maestro spec: refusing to read the spec from its own destination: $spec_dir/spec.md" \
+  || spec_self_ok=0
 ln -s "$spec_dir/spec.md" "$TMP/spec-self-link.md"
-"$M" spec run-a "$TMP/spec-self-link.md" >/dev/null 2>&1; rc=$?
-[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_self_ok=0
+out="$("$M" spec run-a "$TMP/spec-self-link.md" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF "maestro spec: refusing to read the spec from its own destination: $TMP/spec-self-link.md" \
+  || spec_self_ok=0
 [ "$spec_self_ok" -eq 1 ] && ok "spec refuses its own spec.md" || fail "spec refuses its own spec.md"
 spec_empty_ok=1
 : > "$TMP/empty-source.md"
-"$M" spec run-a "$TMP/empty-source.md" >/dev/null 2>&1; rc=$?
-[ "$rc" -ne 0 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_empty_ok=0
-"$M" spec run-a </dev/null >/dev/null 2>&1; rc=$?
-[ "$rc" -ne 0 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_empty_ok=0
+out="$("$M" spec run-a "$TMP/empty-source.md" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF "maestro spec: empty spec: $TMP/empty-source.md" \
+  || spec_empty_ok=0
+out="$("$M" spec run-a </dev/null 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF 'maestro spec: empty spec: stdin' \
+  || spec_empty_ok=0
 [ "$spec_empty_ok" -eq 1 ] && ok "spec refuses an empty source" || fail "spec refuses an empty source"
 printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n### Task 2 - two\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/spec-new.md"
 out="$("$M" spec run-a "$TMP/spec-new.md" 2>&1)"; rc=$?
@@ -267,8 +275,11 @@ esp_out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" start "Empty spe
 esp_slug="$(printf '%s\n' "$esp_out" | sed -n 's/^run: //p')"
 esp_dir="$(printf '%s\n' "$esp_out" | sed -n 's/^state: //p')"
 : > "$esp_dir/spec.md"
+stub_before="$( [ -f "$STUBLOG" ] && wc -l < "$STUBLOG" | tr -d ' ' || echo 0)"
 out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" build "$esp_slug" 1 --block 2>&1)"; rc=$?
-if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -q 'spec.md is empty, re-run maestro spec'; then
+stub_after="$( [ -f "$STUBLOG" ] && wc -l < "$STUBLOG" | tr -d ' ' || echo 0)"
+if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -q 'spec.md is empty, re-run maestro spec' \
+  && [ "$stub_before" = "$stub_after" ]; then
   ok "build refuses an empty spec.md"
 else
   fail "build refuses an empty spec.md"
@@ -339,6 +350,30 @@ if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (proof: SPEC h
 else
   fail "gate --proof fails with zero ACs"
 fi
+# A quoted `Proof: none` in the AC prose is not the proof field (Task 5 fix): the
+# last `Proof:` outside backticks decides, so prose and the proof command may both
+# quote an earlier one. AC1 quotes it in prose and in its command, so it stays a
+# required proof and is never listed as `proof none:`.
+LASTPROOF_STATE="$TMP/last-proof-state"
+lpout="$( BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" start "Quoted proof" 2>&1 )"
+lpslug="$(printf '%s\n' "$lpout" | sed -n 's/^run: //p')"
+cat > "$TMP/last-proof-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: quotes `Proof: none` in prose. Proof: `printf '%s\n' 'Proof: none criteria'` -> exit 0
+### Task 1 - one
+body
+EOF
+BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" spec "$lpslug" "$TMP/last-proof-spec.md" >/dev/null
+BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" check "$lpslug" >/dev/null 2>&1
+out="$( BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" gate "$lpslug" --proof 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (proof: AC1 has no recorded proof)' \
+  && ! printf '%s\n' "$out" | grep -q '^proof none: AC1:'; then
+  ok "gate reads the last Proof: on an AC line"
+else
+  fail "gate reads the last Proof: on an AC line"
+fi
 git commit -q --allow-empty -m next
 "$M" check run-a >/dev/null
 expect_not "gate --proof stale" "$M" gate run-a --proof
@@ -407,9 +442,17 @@ body
 **Allowed files:** `src/rev.sh`
 **Test first:** none
 body
+### Task 4 - blocked report
+**Allowed files:** `src/blocked.sh`
+**Test first:** none
+body
+### Task 5 - no commits
+**Allowed files:** `src/none.sh`
+**Test first:** none
+body
 EOF
 "$M" spec build-verify "$TMP/build-verify-spec.md" >/dev/null 2>&1
-for bvt in 1 2 3; do "$M" worktree create build-verify "$bvt" --branch "bv-$bvt" >/dev/null 2>&1; done
+for bvt in 1 2 3 4 5; do "$M" worktree create build-verify "$bvt" --branch "bv-$bvt" >/dev/null 2>&1; done
 out="$(STUB_COMMIT='tests/pass_test.sh src/pass.sh' "$M" build build-verify 1 --block 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'verify-task: PASS'; then
   ok "build --block passes verify-task"
@@ -431,6 +474,23 @@ if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL allowed-files:' \
   ok "build --block fails on verify-task after a revision"
 else
   fail "build --block fails on verify-task after a revision"
+fi
+# A non-DONE report runs the rules too, so a BLOCKED build exits 1 instead of
+# passing just because the builder exited 0 with commits.
+out="$(STUB_STATUS=BLOCKED STUB_COMMIT='src/blocked.sh' "$M" build build-verify 4 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL report: STATUS: BLOCKED' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED'; then
+  ok "build --block fails a BLOCKED report"
+else
+  fail "build --block fails a BLOCKED report"
+fi
+# A DONE report with no commits still runs the rules, so the commits rule fails.
+out="$("$M" build build-verify 5 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL commits: no commits on ' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED'; then
+  ok "build --block fails a DONE report with no commits"
+else
+  fail "build --block fails a DONE report with no commits"
 fi
 "$M" report --close build-verify >/dev/null 2>&1
 expect "build --review" "$M" build --review run-a 1 --block
