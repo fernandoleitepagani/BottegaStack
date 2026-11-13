@@ -378,6 +378,7 @@ maestro gate <run> [--allow-dirty] [--proof]
 maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>]
 maestro verify waive <run> <AC> "<reason>"
 maestro verify list <run>
+maestro verify-task <run> <task> [--waive "<reason>"]
 maestro log <run> [<phase> <decision> <why> <evidence> <result>]
 maestro report [--retro] [--exit-code]
 maestro report --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>]
@@ -454,6 +455,13 @@ level that can prevent it from recurring.
   `proof none: AC<n>: <reason>` before its verdict.
 - `maestro verify record` refuses `--by builder` and a PASS without an evidence
   file; the latest row per criterion decides.
+- `maestro verify-task <run> <task>` accepts a task only when its report is
+  `STATUS: DONE`, it has commits on the run branch, its test commit came first
+  (skipped for `Test first: none` or `n/a`, and a test file named in that field
+  counts), every changed file is in `Allowed files`, and `maestro check` passed
+  for the worktree HEAD. It prints one `FAIL <rule>: <detail>` line per broken
+  rule and exits 1; a waiver recorded for that HEAD with `--waive "<reason>"`
+  hides the failures, prints `verify-task: WAIVED (<reason>)`, and exits 0.
 
 ### Designed out
 
