@@ -2717,6 +2717,147 @@ expect "worktree prune" "$M" worktree prune run-a --force
 "$M" worktree prune prog >/dev/null 2>&1
 git show-ref --verify --quiet refs/heads/feat/unit-1 && ok "named branch kept" || fail "named branch kept"
 
+# `maestro release <version> [--yes]` (issue #27 run C, task 3): the guard, the
+# bump-retitle-branch-commit step, and the --yes push and PR. Each case is its
+# own fixture repo on main with a plugin.json, a CHANGELOG, and a bare origin.
+# The bare remote's pre-receive hook logs one line per push, and a stub gh logs
+# its arguments; refusals must leave the tree byte-identical and push nothing.
+REL="$TMP/release"
+mkdir -p "$REL"
+cat > "$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "ARGS: $*" >> "${GHLOG:-/dev/null}"
+echo "https://github.com/example/bottega/pull/1"
+EOF
+chmod +x "$TMP/bin/gh"
+rel_today="$(date +%Y-%m-%d)"
+rel_commit() {  # rel_commit <dir> <message>
+  git -C "$1" add -A && git -C "$1" commit -q -m "$2"
+}
+rel_fixture() {  # rel_fixture <name> [version]: a BottegaStack-shaped repo on main with a bare origin
+  local dir="$REL/$1" bare="$REL/$1.git"
+  rm -rf "$dir" "$bare" "$REL/$1.pushes"
+  mkdir -p "$dir/.claude-plugin"
+  printf '{\n  "name": "bottega",\n  "version": "%s"\n}\n' "${2:-0.7.0}" > "$dir/.claude-plugin/plugin.json"
+  printf '# Changelog\n\n## Unreleased\n- New: a fixture change.\n\n## 0.6.0 — 2026-01-01\n- Old entry.\n' > "$dir/CHANGELOG.md"
+  printf 'tracked\n' > "$dir/README.md"
+  git init -q "$dir" && git -C "$dir" symbolic-ref HEAD refs/heads/main
+  rel_commit "$dir" init
+  git init -q --bare "$bare"
+  git -C "$dir" remote add origin "$bare"
+  git -C "$dir" push -q origin main
+  printf '#!/bin/sh\necho push >> "%s"\n' "$REL/$1.pushes" > "$bare/hooks/pre-receive"
+  chmod +x "$bare/hooks/pre-receive"
+}
+rel_state() {  # rel_state <dir>: everything a refused release must leave unchanged
+  (cd "$1" && git rev-parse HEAD && git branch --show-current && git for-each-ref \
+    && git status --porcelain --untracked-files=all \
+    && find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs cksum) 2>&1
+}
+rel_refuse() {  # rel_refuse <label> <fixture> <reason> <release args...>: exit 1, one stderr line, tree unchanged
+  local label="$1" name="$2" reason="$3" dir before err rc after
+  shift 3
+  dir="$REL/$name"
+  before="$(rel_state "$dir")"
+  err="$(cd "$dir" && "$M" release "$@" 2>&1 >/dev/null)"; rc=$?
+  after="$(rel_state "$dir")"
+  if [ "$rc" -eq 1 ] && [ "$err" = "maestro release: refusing: $reason" ] \
+    && [ "$before" = "$after" ] && [ ! -e "$REL/$name.pushes" ]; then
+    ok "release refuses $label"
+  else
+    fail "release refuses $label"
+  fi
+}
+
+rel_fixture ok
+printf 'scratch\n' > "$REL/ok/scratch.txt"
+rel_ok_out="$(cd "$REL/ok" && GHLOG="$REL/ok.gh" "$M" release 0.7.1 2>"$REL/ok.err")"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && [ "$(git -C "$REL/ok" branch --show-current)" = release/0.7.1 ] \
+  && grep -qx '  "version": "0.7.1"' "$REL/ok/.claude-plugin/plugin.json" \
+  && grep -qxF "## 0.7.1 — $rel_today" "$REL/ok/CHANGELOG.md" \
+  && ! grep -qxF '## Unreleased' "$REL/ok/CHANGELOG.md" \
+  && [ "$(git -C "$REL/ok" rev-list --count main..release/0.7.1)" = 1 ] \
+  && [ "$(git -C "$REL/ok" diff --name-only main release/0.7.1)" = "$(printf '.claude-plugin/plugin.json\nCHANGELOG.md')" ] \
+  && [ ! -e "$REL/ok.pushes" ] && [ ! -e "$REL/ok.gh" ] \
+  && printf '%s\n' "$rel_ok_out" | grep -q 'push .*release/0.7.1' \
+  && printf '%s\n' "$rel_ok_out" | grep -q 'gh pr create --base main --head release/0.7.1'; then
+  ok "release bumps, retitles, commits, and pushes nothing"
+else
+  fail "release bumps, retitles, commits, and pushes nothing"
+fi
+
+rel_fixture yes
+rel_main_before="$(git -C "$REL/yes.git" rev-parse refs/heads/main)"
+yes_out="$(cd "$REL/yes" && GHLOG="$REL/yes.gh" "$M" release 0.7.1 --yes 2>"$REL/yes.err")"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && git -C "$REL/yes.git" rev-parse --verify -q refs/heads/release/0.7.1 >/dev/null \
+  && [ "$(wc -l < "$REL/yes.pushes" 2>/dev/null | tr -d ' ')" = 1 ] \
+  && [ "$(grep -c '^ARGS: pr create ' "$REL/yes.gh" 2>/dev/null)" = 1 ] \
+  && grep -q '^ARGS: pr create --base main --head release/0.7.1 ' "$REL/yes.gh" \
+  && [ -z "$(git -C "$REL/yes.git" for-each-ref refs/tags)" ] && [ -z "$(git -C "$REL/yes" tag)" ] \
+  && [ "$(git -C "$REL/yes.git" rev-parse refs/heads/main)" = "$rel_main_before" ] \
+  && printf '%s\n' "$yes_out" | grep -qxF 'https://github.com/example/bottega/pull/1'; then
+  ok "release --yes pushes and opens the PR only"
+else
+  fail "release --yes pushes and opens the PR only"
+fi
+
+rel_fixture ssh
+git -C "$REL/ssh" remote set-url origin git@github.com:example/bottega.git
+ssh_out="$(cd "$REL/ssh" && "$M" release 0.7.1 2>/dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && [ ! -e "$REL/ssh.pushes" ] \
+  && printf '%s\n' "$ssh_out" | grep -q 'https://github.com/example/bottega.git' \
+  && ! printf '%s\n' "$ssh_out" | grep -q 'git@github.com'; then
+  ok "release prints the HTTPS push URL for an ssh origin"
+else
+  fail "release prints the HTTPS push URL for an ssh origin"
+fi
+
+rel_fixture numeric
+(cd "$REL/numeric" && "$M" release 0.10.0 >/dev/null 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && grep -qx '  "version": "0.10.0"' "$REL/numeric/.claude-plugin/plugin.json"; then
+  ok "release compares versions numerically"
+else
+  fail "release compares versions numerically"
+fi
+
+rel_fixture dirty
+printf 'edit\n' >> "$REL/dirty/README.md"
+rel_refuse "dirty tree" dirty "working tree has uncommitted tracked changes" 0.7.1
+
+rel_fixture branch
+git -C "$REL/branch" checkout -q -b feat/x
+rel_refuse "non-main" branch "must run on main (on feat/x)" 0.7.1
+
+rel_fixture empty
+printf '# Changelog\n\n## Unreleased\n\n## 0.6.0 — 2026-01-01\n- Old entry.\n' > "$REL/empty/CHANGELOG.md"
+rel_commit "$REL/empty" "empty unreleased"
+rel_refuse "empty Unreleased" empty "## Unreleased has no entries in CHANGELOG.md" 0.7.1
+
+rel_fixture lower 0.9.0
+rel_refuse "lower version" lower "version 0.8.9 is not greater than 0.9.0" 0.8.9
+
+rel_fixture malformed
+rel_refuse "malformed version" malformed "malformed version: v0.7.1" v0.7.1
+
+rel_fixture exists
+git -C "$REL/exists" branch release/0.7.1
+rel_refuse "existing branch" exists "branch release/0.7.1 already exists" 0.7.1
+
+rel_fixture noorigin
+git -C "$REL/noorigin" remote remove origin
+rel_refuse "--yes without origin" noorigin "no origin remote" 0.7.1 --yes
+
+mkdir -p "$REL/plain"
+printf 'x\n' > "$REL/plain/README.md"
+git init -q "$REL/plain" && git -C "$REL/plain" symbolic-ref HEAD refs/heads/main && rel_commit "$REL/plain" init
+rel_refuse "non-Bottega checkout" plain "not a BottegaStack checkout" 0.7.1
+
+(cd "$REL/ok" && "$M" release >/dev/null 2>&1); rc=$?
+[ "$rc" -eq 2 ] && ok "release needs a version" || fail "release needs a version"
+"$M" release --help >/dev/null 2>&1 && ok "release --help" || fail "release --help"
+
 echo
 if [ "$fails" -gt 0 ]; then
   echo "e2e: $fails failed"
