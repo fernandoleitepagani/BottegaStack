@@ -10,7 +10,7 @@ Adapted from pstack's `orchestrate` (Lauren Tan, MIT). You run the program, neve
 
 ## 1. Plan the program
 
-- Map the work into PR-sized units, each with a goal, its dependencies, the files it may write, and an exit `Proof:` (a command and its expected output). Load `wayfinding` when the map is foggy. If you cannot name a unit's proof, it is not scoped yet.
+- Map the work into PR-sized units, each with a goal, its dependencies, the files it may write, and an exit `Proof:` (a command and its expected output). Load `wayfinder` when the map is foggy. If you cannot name a unit's proof, it is not scoped yet.
 - The user names each unit's branch, or approves a naming pattern (`feat/upgrade-<unit>`), with `AskUserQuestion`. Units run off trunk; a unit stacks on another only when it needs that unit's code.
 - Write the ledger in `PLAN.md` (local, never pushed) under `## Program: <name>`: `- [ ] <unit> — branch <b> — after <deps> — state: todo`. States: todo, building, verifying, ready, pr #n, merged, dropped. Log each program decision with `maestro log <program> ...` (load `show-me-your-work`).
 

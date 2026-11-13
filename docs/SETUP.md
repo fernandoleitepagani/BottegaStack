@@ -192,7 +192,7 @@ reinstalls it. `maestro skills install <name>` clears the name from that file.
 Only names that `uninstall` actually removed are recorded.
 
 `skills/standalone-deny.txt` lists the stack-role skills `interview`,
-`summary`, `wayfinding`, and `session-handoff`, which are plugin-only. Sync
+`summary`, and `session-handoff`, which are plugin-only. Sync
 removes a managed copy of a denied skill left by an older version, even when
 the name is in the opt-out file. It never removes a skill you wrote yourself.
 

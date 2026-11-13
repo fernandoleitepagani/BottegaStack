@@ -9,7 +9,7 @@ Read the interview answers in your prompt, the project `SPEC.md`, `PLAN.md`, `AG
 and the code the work touches. Do not guess names; seed missing files with
 `maestro seed SPEC.md` and `maestro seed PLAN.md`. Load `codebase-design` for
 architecture or testability vocabulary, `domain-modeling` to keep `GLOSSARY.md`
-and ADRs current, and `wayfinding` when the work is too big for one spec. The
+and ADRs current, and `wayfinder` when the work is too big for one spec. The
 template is adapted from Matt Pocock's `to-spec` and `to-tickets`; keep its shape.
 ## Template
 ```markdown

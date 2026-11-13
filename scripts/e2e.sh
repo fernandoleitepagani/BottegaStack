@@ -1670,16 +1670,43 @@ else
 fi
 rm -f "$SL/skills/standalone-deny.txt"
 
-# The checked-in deny list names the four stack-role skills; with it in place
-# the repo lint passes and the scan prints 32 standalone names.
+# The checked-in deny list names the three stack-role skills; with it in place
+# the repo lint passes and the scan prints 33 standalone names.
 deny_real="$(cat "$ROOT/skills/standalone-deny.txt" 2>/dev/null)"
 real_count="$("$ROOT/scripts/standalone-skills.sh" 2>/dev/null | wc -l | tr -d ' ')"
-if [ "$deny_real" = "$(printf 'interview\nsummary\nwayfinding\nsession-handoff')" ] \
-  && [ "$real_count" = 32 ] \
+if [ "$deny_real" = "$(printf 'interview\nsummary\nsession-handoff')" ] \
+  && [ "$real_count" = 33 ] \
   && ( cd "$ROOT" && bash scripts/lint.sh 2>&1 ) | grep -qx 'lint: PASS'; then
   ok "repo deny list drops the stack-role skills and lint passes"
 else
   fail "repo deny list drops the stack-role skills and lint passes"
+fi
+
+# Vendored skills (skills/vendored.txt) need a non-empty LICENSE in their folder.
+# A fresh copy gets one fixture skill with no LICENSE: lint must name it, then
+# pass once the LICENSE exists.
+VL="$TMP/vendored-lint"
+mkdir -p "$VL"
+cp -R "$ROOT/." "$VL/"
+chmod +x "$VL/scripts/standalone-skills.sh" 2>/dev/null
+mkdir -p "$VL/skills/cat/vendorfixture"
+printf -- '---\nname: vendorfixture\ndescription: fixture\n---\nclean\n' > "$VL/skills/cat/vendorfixture/SKILL.md"
+"$VL/scripts/standalone-skills.sh" --write >/dev/null 2>&1
+printf 'vendorfixture\n' > "$VL/skills/vendored.txt"
+lint_out="$( cd "$VL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/vendored.txt: no non-empty LICENSE file: vendorfixture'; then
+  ok "lint fails when a vendored skill has no license"
+else
+  fail "lint fails when a vendored skill has no license"
+fi
+printf 'MIT License\n' > "$VL/skills/cat/vendorfixture/LICENSE"
+lint_out="$( cd "$VL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -eq 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'lint: PASS'; then
+  ok "lint passes once the vendored skill has a license"
+else
+  fail "lint passes once the vendored skill has a license"
 fi
 
 # `maestro skills` (issue #27, task 2): list the checked-in standalone set and
