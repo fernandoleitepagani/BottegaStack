@@ -2038,6 +2038,84 @@ chmod +x "$HOSTMAESTRO/maestro"
 "$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
 rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 
+# Playwright (Run D, task 1): doctor and install are the only readiness and
+# install paths. Every case pins the cache dir and the state dir, so no host
+# cache or run leaks in. Nothing here reaches the network: install is refused.
+PWCACHE="$TMP/pw-cache"
+PWPIN="$(sed -n 's/^PW_PIN="\([^"]*\)".*/\1/p' "$M" | head -1)"
+pw_usage="$("$M" --help 2>&1)"
+printf '%s\n' "$pw_usage" | grep -q 'maestro playwright doctor' \
+  && printf '%s\n' "$pw_usage" | grep -q 'maestro playwright install' \
+  && ok "usage names playwright doctor and install" || fail "usage names playwright doctor and install"
+
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$TMP/pw-absent" "$M" playwright doctor 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^playwright: not installed' \
+  && printf '%s\n' "$out" | grep -q '^missing: .*playwright'; then
+  ok "playwright doctor fails cleanly without playwright"
+else
+  fail "playwright doctor fails cleanly without playwright"
+fi
+
+PWFAKE="$TMP/pw-fake"
+mkdir -p "$PWFAKE/node_modules/playwright" "$PWFAKE/browsers/chromium-1000"
+printf '{"name":"playwright","version":"%s"}\n' "$PWPIN" > "$PWFAKE/node_modules/playwright/package.json"
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$PWFAKE" "$M" playwright doctor 2>&1)"; rc=$?
+if [ -n "$PWPIN" ] && [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^node: yes' \
+  && printf '%s\n' "$out" | grep -q "^playwright: $PWPIN" && printf '%s\n' "$out" | grep -qx 'chromium: yes'; then
+  ok "playwright doctor reports node, pinned version, and chromium"
+else
+  fail "playwright doctor reports node, pinned version, and chromium"
+fi
+
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" playwright install </dev/null 2>"$TMP/pw-install.err")"; rc=$?
+if [ "$rc" -ne 0 ] && [ -z "$out" ] && grep -qi 'confirmation' "$TMP/pw-install.err" && [ ! -e "$PWCACHE" ]; then
+  ok "playwright install refuses without confirmation"
+else
+  fail "playwright install refuses without confirmation"
+fi
+
+# pw_fixture <name> <package.json body or -> <file the SPEC names>: a git repo at
+# $TMP/pw-<name>, a run whose SPEC names that file, and an events.tsv so the run
+# is the newest one (watch's rule). Its state dir is $TMP/pw-<name>-state.
+pw_fixture() {
+  local d="$TMP/pw-$1" st="$TMP/pw-$1-state" sdir
+  mkdir -p "$d" && ( cd "$d" && git init -q -b main && git commit -q --allow-empty -m init )
+  [ "$2" = - ] || printf '%s\n' "$2" > "$d/package.json"
+  printf '# Spec\n## Acceptance criteria\n- AC1: renders. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `%s`\n' "$3" > "$TMP/pw-$1.spec.md"
+  ( cd "$d" && BOTTEGA_STATE_DIR="$st" "$M" spec pw-run "$TMP/pw-$1.spec.md" ) >/dev/null 2>&1
+  sdir="$(cd "$d" && BOTTEGA_STATE_DIR="$st" "$M" doctor 2>/dev/null | sed -n 's/^state: //p')"
+  : > "$sdir/pw-run/events.tsv"
+}
+pw_fixture ui '{"name":"ui","dependencies":{"react":"^18.2.0"},"scripts":{"dev":"vite"}}' 'src/Button.tsx'
+pw_fixture backend '{"name":"api","dependencies":{"express":"^4.19.0"},"scripts":{"start":"node server.js"}}' 'api/routes.tsx'
+pw_fixture react-backend '{"name":"ui","dependencies":{"react":"^18.2.0"},"scripts":{"dev":"vite"}}' 'server/handlers.go'
+pw_fixture bare - 'src/App.tsx'
+
+hint_ui="$(cd "$TMP/pw-ui" && BOTTEGA_STATE_DIR="$TMP/pw-ui-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" tools hint 2>/dev/null)"
+hint_ui_off="$(cd "$TMP/pw-ui" && BOTTEGA_NO_TOOL_HINT=1 BOTTEGA_STATE_DIR="$TMP/pw-ui-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" tools hint 2>/dev/null)"
+doctor_ui="$(cd "$TMP/pw-ui" && BOTTEGA_STATE_DIR="$TMP/pw-ui-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" doctor 2>&1)"
+if printf '%s' "$hint_ui" | grep -q 'maestro playwright install' && [ -z "$hint_ui_off" ] \
+  && printf '%s\n' "$doctor_ui" | grep -q 'maestro playwright install'; then
+  ok "hint offers playwright only for ui work"
+else
+  fail "hint offers playwright only for ui work"
+fi
+
+pw_mention=0
+for pw_case in backend react-backend bare; do
+  pw_hint="$(cd "$TMP/pw-$pw_case" && BOTTEGA_STATE_DIR="$TMP/pw-$pw_case-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" tools hint 2>/dev/null)"
+  pw_doc="$(cd "$TMP/pw-$pw_case" && BOTTEGA_STATE_DIR="$TMP/pw-$pw_case-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" doctor 2>&1)"
+  if printf '%s' "$pw_hint" | grep -q 'maestro playwright install' \
+    || printf '%s\n' "$pw_doc" | grep -q 'maestro playwright install'; then
+    pw_mention=1
+  fi
+done
+if [ "$pw_mention" = 0 ]; then
+  ok "hint stays silent on backend-only work"
+else
+  fail "hint stays silent on backend-only work"
+fi
+
 # Status line (AC9-AC11): one settings reader drives the SessionStart hint and
 # `maestro statusline`. Each fixture is its own scratch CLAUDE_CONFIG_DIR.
 SL="$TMP/statusline"
@@ -2295,6 +2373,9 @@ tools hint
 statusline
 statusline install
 statusline status
+playwright
+playwright doctor
+playwright install
 guard
 guard stop
 guard builder
@@ -2380,8 +2461,105 @@ else
   fail "doctor --help stays usage only with two copies"
 fi
 
+# Playwright (`maestro playwright doctor|install`, AC1, AC2, AC7). The cache dir is
+# always a scratch dir and node and npm are stubbed, so readiness is deterministic
+# on any host and nothing touches the network.
+PW_STUBS="$TMP/pw-node"
+mkdir -p "$PW_STUBS"
+printf '#!/bin/sh\necho v22.0.0\n' > "$PW_STUBS/node"
+printf '#!/bin/sh\necho 10.0.0\n' > "$PW_STUBS/npm"
+chmod +x "$PW_STUBS/node" "$PW_STUBS/npm"
+PW_PATH="$PW_STUBS:$PATH"
+
+PW_MISSING="$TMP/pw-missing"
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$PW_MISSING" "$M" playwright doctor 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^playwright: not installed' \
+  && printf '%s\n' "$out" | grep -qx 'chromium: no' && printf '%s\n' "$out" | grep -q '^node: '; then
+  ok "playwright doctor fails cleanly without playwright"
+else
+  fail "playwright doctor fails cleanly without playwright"
+fi
+
+PW_READY="$TMP/pw-ready"
+mkdir -p "$PW_READY/node_modules/playwright" "$PW_READY/browsers/chromium-1234"
+printf '{"name":"playwright","version":"9.9.9"}\n' > "$PW_READY/node_modules/playwright/package.json"
+out="$(PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" playwright doctor 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^node: yes' \
+  && printf '%s\n' "$out" | grep -q '^playwright: 9.9.9' && printf '%s\n' "$out" | grep -qx 'chromium: yes'; then
+  ok "playwright doctor reports node, version, and chromium"
+else
+  fail "playwright doctor reports node, version, and chromium"
+fi
+out="$(PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" playwright install 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q 'already installed'; then
+  ok "playwright install is a no-op when doctor passes"
+else
+  fail "playwright install is a no-op when doctor passes"
+fi
+
+PW_INSTALL="$TMP/pw-install"
+out="$(PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_INSTALL" "$M" playwright install </dev/null 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'confirmation' && [ ! -e "$PW_INSTALL" ]; then
+  ok "playwright install refuses without confirmation"
+else
+  fail "playwright install refuses without confirmation"
+fi
+out="$(cd "$REPO" && PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$REPO/.pw-cache" "$M" playwright install --yes 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'inside the repo' && [ ! -e "$REPO/.pw-cache" ]; then
+  ok "playwright install refuses a cache dir inside the repo"
+else
+  fail "playwright install refuses a cache dir inside the repo"
+fi
+printf '%s\n' "$("$M" --help)" | grep -q 'maestro playwright doctor' \
+  && printf '%s\n' "$("$M" --help)" | grep -q 'maestro playwright install' \
+  && ok "usage lists playwright doctor and install" || fail "usage lists playwright doctor and install"
+
+# UI-project detection (AC7): one run per fixture repo, each with a build event so
+# the newest run is the one resolved. The hint and doctor name the install only
+# for UI work; backend-only work and BOTTEGA_NO_TOOL_HINT=1 stay quiet.
+PW_NONE="$TMP/pw-none"
+pw_repo() {  # pw_repo <dir> <package.json|none> <spec task body>
+  local dir="$1" manifest="$2" body="$3" out slug state
+  mkdir -p "$dir" && ( cd "$dir" && git init -q -b main && git commit -q --allow-empty -m init && git checkout -q -b feat/ui ) || return 1
+  [ "$manifest" = none ] || printf '%s\n' "$manifest" > "$dir/package.json"
+  ( cd "$dir" && git add -A && git commit -q -m manifest ) || return 1
+  out="$(cd "$dir" && "$M" start "UI work" 2>/dev/null)" || return 1
+  slug="$(printf '%s\n' "$out" | sed -n 's/^run: //p')"
+  state="$(printf '%s\n' "$out" | sed -n 's/^state: //p')"
+  [ -n "$slug" ] && [ -d "$state" ] || return 1
+  printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none (summary only)\n### Task 1 - work\n%s\n' "$body" \
+    | ( cd "$dir" && "$M" spec "$slug" ) >/dev/null 2>&1 || return 1
+  printf '1\t%s\t1\tbuilder\tstart\tfixture\n' "$slug" > "$state/events.tsv"
+}
+pw_repo "$TMP/pw-ui" '{"name":"ui","dependencies":{"react":"18.3.1"}}' 'Allowed files: src/App.tsx' || fail "playwright fixture: ui"
+pw_repo "$TMP/pw-api" '{"name":"api","dependencies":{"express":"4.19.2"}}' 'Allowed files: src/server.ts' || fail "playwright fixture: api"
+pw_repo "$TMP/pw-ui-api" '{"name":"ui","dependencies":{"react":"18.3.1"}}' 'Allowed files: src/api.ts' || fail "playwright fixture: ui api"
+pw_repo "$TMP/pw-spec-only" none 'Allowed files: src/App.tsx' || fail "playwright fixture: spec only"
+
+ui_hint="$(cd "$TMP/pw-ui" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" tools hint 2>/dev/null)"
+ui_doctor="$(cd "$TMP/pw-ui" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" doctor 2>&1)"
+if printf '%s\n' "$ui_hint" | grep -qF 'maestro playwright install'; then
+  ok "hint offers playwright only for ui work"
+else
+  fail "hint offers playwright only for ui work"
+fi
+if printf '%s\n' "$ui_doctor" | grep -qF 'maestro playwright install'; then
+  ok "doctor offers playwright for ui work"
+else
+  fail "doctor offers playwright for ui work"
+fi
+silent=1
+for pw_case in pw-api pw-ui-api pw-spec-only; do
+  case_hint="$(cd "$TMP/$pw_case" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" tools hint 2>/dev/null)"
+  case_doctor="$(cd "$TMP/$pw_case" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" doctor 2>&1)"
+  if printf '%s\n%s\n' "$case_hint" "$case_doctor" | grep -qF 'maestro playwright install'; then silent=0; fi
+done
+[ "$silent" = 1 ] && ok "hint stays silent on backend-only work" || fail "hint stays silent on backend-only work"
+[ -z "$(cd "$TMP/pw-ui" && BOTTEGA_NO_TOOL_HINT=1 BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" tools hint 2>/dev/null)" ] \
+  && ok "hint silenced for ui work by BOTTEGA_NO_TOOL_HINT" || fail "hint silenced for ui work by BOTTEGA_NO_TOOL_HINT"
+
 # Logs, findings, close, trust.
-expect "log" "$M" log run-a frame "a decision" "a reason" "commit x" done
+expect "log""$M" log run-a frame "a decision" "a reason" "commit x" done
 "$M" log run-a | grep -q "a decision" && ok "log prints" || fail "log prints"
 "$M" report --finding run-a "Missing null check" >/dev/null
 "$M" report --finding run-b "missing null check" >/dev/null
