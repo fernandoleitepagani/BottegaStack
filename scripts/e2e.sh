@@ -2123,6 +2123,7 @@ fi
 # Unmanaged dirs of two standalone names are left alone, named in one warning.
 sync_fresh
 sync_cmd >/dev/null 2>&1
+rm -rf "$SY/skills/how" "$SY/skills/why"
 mkdir -p "$SY/skills/how" "$SY/skills/why"
 printf 'mine\n' > "$SY/skills/how/SKILL.md"
 printf 'mine\n' > "$SY/skills/why/SKILL.md"
