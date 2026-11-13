@@ -6,6 +6,7 @@ set -eu
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LIST="$ROOT/skills/standalone.txt"
 ALLOW="$ROOT/skills/standalone-allow.txt"
+DENY="$ROOT/skills/standalone-deny.txt"
 # Decision 6: any file in the skill folder matching this removes the skill.
 PATTERN='maestro |spawn|agent tool|bottega:(builder|planner|review-code|explorer)'
 
@@ -74,6 +75,14 @@ while [ "$changed" -eq 1 ]; do
     changed=1
   fi
 done
+
+# Deny entries leave the set after the fixed point, so they win over allow.
+if [ -f "$DENY" ]; then
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    standalone="$(printf '%s' "$standalone" | grep -vxF -- "$name" || true)"
+  done < "$DENY"
+fi
 
 names="$(printf '%s' "$standalone" | LC_ALL=C sort)"
 

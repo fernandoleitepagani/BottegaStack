@@ -50,7 +50,8 @@ A personal agentic development workflow, shipped as the Claude Code plugin
   category directory. Prefer references, scripts, and assets over one long file.
 - Every skill has a trigger-rich description and a Gotchas section where useful.
 - After adding or editing a skill, run `./scripts/standalone-skills.sh --write`;
-  lint fails when `skills/standalone.txt` is stale.
+  lint fails when `skills/standalone.txt` is stale. Stack-role skills listed in
+  `skills/standalone-deny.txt` stay out of the standalone set.
 - `commands/maestro.md` is a thin command that loads `agents/master.md` at run
   time; edit the master prompt only in `agents/master.md`.
 - No secrets, tokens, or personal data in the repo.
