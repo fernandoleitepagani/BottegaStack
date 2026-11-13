@@ -46,6 +46,7 @@ Usage:
   maestro tools install [--yes] | hint
   maestro playwright doctor
   maestro playwright install [--yes]
+  maestro shot <url|file> [--viewport WxH] [--dark] [--text] [--out <name>]
   maestro statusline install [--yes] | status
 
 Any command with --help or -h prints this help and changes nothing.
@@ -4049,6 +4050,105 @@ cmd_playwright() {
   esac
 }
 
+# ---- Shot -------------------------------------------------------------------
+# `maestro shot`: one single-page capture through resources/playwright-shot.js,
+# the only Playwright invocation in the stack. Exit 0 ok, 1 runtime (not
+# installed, driver failure), 2 usage. Artifacts go to the newest run's shots/
+# dir, else <state>/shots/, never the repo.
+shot_usage() {
+  echo "usage: maestro shot <url|file> [--viewport WxH] [--dark] [--text] [--out <name>]" >&2
+}
+
+# One viewport side: a positive integer of at most four digits, up to 8192.
+shot_dim_ok() {
+  case "$1" in
+    ''|*[!0-9]*|0*) return 1 ;;
+  esac
+  [ "${#1}" -le 4 ] && [ "$1" -le 8192 ]
+}
+
+# An artifact name: ASCII letters, digits, dot, dash, underscore; no leading dot or dash.
+shot_name_ok() {
+  case "$1" in
+    ''|.*|-*|*[!abcdefghijklmnopqrstuvwxyz0123456789._-]*) return 1 ;;
+  esac
+  return 0
+}
+
+cmd_shot() {
+  local target="" vp="1280x800" dark=0 text=0 name="" w="" h="" url="" d base run shot_dir pwdir driver png txt
+  local -a args=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --viewport)
+        [ "$#" -ge 2 ] || { shot_usage; echo "maestro shot: --viewport needs WxH" >&2; return 2; }
+        vp="$2"; shift ;;
+      --out)
+        [ "$#" -ge 2 ] || { shot_usage; echo "maestro shot: --out needs a name" >&2; return 2; }
+        name="$2"; shift ;;
+      --dark) dark=1 ;;
+      --text) text=1 ;;
+      -*) shot_usage; echo "maestro shot: unknown flag: $1" >&2; return 2 ;;
+      *)
+        [ -z "$target" ] || { shot_usage; echo "maestro shot: one target only" >&2; return 2; }
+        target="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$target" ] || { shot_usage; echo "maestro shot: no target; give a url or a file" >&2; return 2; }
+
+  case "$vp" in
+    *x*x*|x*|*x) ;;
+    *x*) w="${vp%x*}"; h="${vp#*x}" ;;
+  esac
+  if [ -z "$w" ] || ! shot_dim_ok "$w" || ! shot_dim_ok "$h"; then
+    shot_usage; echo "maestro shot: bad viewport '$vp' (want WxH, each 1-8192)" >&2; return 2
+  fi
+
+  [ -n "$name" ] || name="shot-$STAMP"
+  shot_name_ok "$name" || { shot_usage; echo "maestro shot: bad --out name '$name' (letters, digits, . _ -; no leading dot or dash)" >&2; return 2; }
+
+  case "$target" in
+    http://*|https://*|file://*) url="$target" ;;
+    *)
+      [ -f "$target" ] || { echo "maestro shot: no such file: $target" >&2; return 2; }
+      d="$(cd "$(dirname "$target")" && pwd)" || return 2
+      url="file://$d/$(basename "$target")" ;;
+  esac
+
+  playwright_status >/dev/null 2>&1 \
+    || { echo "maestro shot: playwright is not installed; run maestro playwright install" >&2; return 1; }
+
+  run="$(newest_run_dir 2>/dev/null)" || run=""
+  if [ -n "$run" ]; then
+    shot_dir="$run/shots"
+  else
+    base="$(state_dir 2>/dev/null)" || { echo "maestro shot: no state dir; run it inside a git repo" >&2; return 1; }
+    shot_dir="$base/shots"
+  fi
+  (umask 077; mkdir -p "$shot_dir") || { echo "maestro shot: cannot create $shot_dir" >&2; return 1; }
+
+  pwdir="$(pw_dir)"
+  driver="$ROOT/resources/playwright-shot.js"
+  png="$shot_dir/$name.png"
+  txt="$shot_dir/$name.txt"
+  args=(--url "$url" --width "$w" --height "$h")
+  if [ "$dark" = 1 ]; then args+=(--dark); fi
+  if [ "$text" = 1 ]; then args+=(--text); fi
+  args+=(--png "$png")
+  if [ "$text" = 1 ]; then args+=(--txt "$txt"); fi
+
+  PLAYWRIGHT_BROWSERS_PATH="$pwdir/browsers" NODE_PATH="$pwdir/node_modules" \
+    node "$driver" "${args[@]}" || { echo "maestro shot: driver failed for $url" >&2; return 1; }
+  [ -f "$png" ] || { echo "maestro shot: driver wrote no $png" >&2; return 1; }
+  printf 'shot: %s\n' "$png"
+  if [ "$text" = 1 ]; then
+    [ -f "$txt" ] || { echo "maestro shot: driver wrote no $txt" >&2; return 1; }
+    printf 'shot: %s\n' "$txt"
+  fi
+  return 0
+}
+
 # A UI project: index.html at the repo root, or a root package.json naming a UI
 # framework dependency or a `dev` script. The repo root only, never recursive.
 ui_project() {
@@ -4205,6 +4305,7 @@ case "$cmd" in
   tools) cmd_tools "$@" ;;
   statusline) cmd_statusline "$@" ;;
   playwright) cmd_playwright "$@" ;;
+  shot) cmd_shot "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac
