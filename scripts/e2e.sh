@@ -179,6 +179,56 @@ expect "start on a branch" "$M" start "Run A"
 printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n### Task 2 - two\nbody\n' > "$TMP/spec.md"
 [ "$("$M" spec run-a "$TMP/spec.md")" = "2" ] && ok "spec counts tasks" || fail "spec counts tasks"
 
+# Atomic spec save and empty-spec guards (issue #39). A source that is its own
+# destination, directly or through a symlink, and an empty source, a 0-byte file
+# or empty stdin, must leave spec.md untouched; a successful save leaves no
+# temp file behind.
+spec_dir="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/spec.md' -type f | head -1)")"
+spec_before="$(cat "$spec_dir/spec.md")"
+spec_self_ok=1
+"$M" spec run-a "$spec_dir/spec.md" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_self_ok=0
+ln -s "$spec_dir/spec.md" "$TMP/spec-self-link.md"
+"$M" spec run-a "$TMP/spec-self-link.md" >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_self_ok=0
+[ "$spec_self_ok" -eq 1 ] && ok "spec refuses its own spec.md" || fail "spec refuses its own spec.md"
+spec_empty_ok=1
+: > "$TMP/empty-source.md"
+"$M" spec run-a "$TMP/empty-source.md" >/dev/null 2>&1; rc=$?
+[ "$rc" -ne 0 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_empty_ok=0
+"$M" spec run-a </dev/null >/dev/null 2>&1; rc=$?
+[ "$rc" -ne 0 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_empty_ok=0
+[ "$spec_empty_ok" -eq 1 ] && ok "spec refuses an empty source" || fail "spec refuses an empty source"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n### Task 2 - two\nbody\n' > "$TMP/spec-new.md"
+out="$("$M" spec run-a "$TMP/spec-new.md" 2>&1)"; rc=$?
+spec_leftovers="$(find "$spec_dir" -maxdepth 1 \( -name '.spec*' -o -name 'spec.md.*' -o -name '*.tmp' \) -print)"
+if [ "$rc" -eq 0 ] && [ "$out" = "2" ] && cmp -s "$TMP/spec-new.md" "$spec_dir/spec.md" \
+  && [ -z "$spec_leftovers" ]; then
+  ok "spec saves without leftovers"
+else
+  fail "spec saves without leftovers"
+fi
+# `build` and `gate` refuse a run whose spec.md is 0 bytes, before any model
+# call or check lookup. An isolated state dir keeps the empty run out of the
+# other cases.
+ESPEC_STATE="$TMP/empty-spec-state"
+esp_out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" start "Empty spec" 2>&1)"
+esp_slug="$(printf '%s\n' "$esp_out" | sed -n 's/^run: //p')"
+esp_dir="$(printf '%s\n' "$esp_out" | sed -n 's/^state: //p')"
+: > "$esp_dir/spec.md"
+out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" build "$esp_slug" 1 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -q 'spec.md is empty, re-run maestro spec'; then
+  ok "build refuses an empty spec.md"
+else
+  fail "build refuses an empty spec.md"
+fi
+out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" gate "$esp_slug" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'spec.md is empty, re-run maestro spec'; then
+  ok "gate refuses an empty spec.md"
+else
+  fail "gate refuses an empty spec.md"
+fi
+
 # Checks and gates.
 # An unknown run is named the way `check` names it, on stderr; a known run with
 # no check result still reports the missing result (issue #17).

@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fixes: `maestro spec` refuses a source that is its own destination (the direct path or a symlink to it) and an empty source (a 0-byte file or empty stdin), saving through a temp file and atomic rename with no temp left behind, so a spec can no longer be truncated before it is read; `maestro build <run> <task>` exits 3 and `maestro gate <run>` fails with `spec.md is empty, re-run maestro spec` when spec.md is 0 bytes. Likely cause: self-truncating redirect; issue stays open (issue #39).
 - Fixes: `maestro check <run>` records `checks/<sha>.result` and `checks/<sha>.log` for the checked HEAD and refreshes `checks.result` as the latest record; `maestro gate <run>` reads only the record for the current HEAD, so checks and review can run per task worktree in parallel and a check in another worktree no longer makes the gate stale, while a new commit still reports `GATE: FAIL (checks stale: <sha> != <head>)` and a run with no record still reports `GATE: FAIL (no checks.result)`.
 - Fixes: `session-handoff` writes the handoff to `${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md` (mode 600, disposable) instead of keeping it only in chat, replies with `HANDOFF: <path>` and a `NEXT:` line, and the master prompt names the same file as its one allowed write outside the repo; the docs, playbooks, and README say so too, and `scripts/lint.sh` fails when the skill and `agents/master.md` disagree on the path.
 

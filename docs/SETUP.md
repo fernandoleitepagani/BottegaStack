@@ -495,6 +495,7 @@ maestro worktree prune <run> [--force]
 | `maestro gate` says stale | Run `maestro check <run>` after the latest commit. |
 | `maestro gate --proof` fails | A criterion has no PASS for the current HEAD: run its `Proof:` and `maestro verify record` it, or waive it with the user's approval. |
 | `maestro gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
+| `maestro build` or `maestro gate` says `spec.md is empty` | Re-run `maestro spec <run> <file>`; `spec` refuses an empty source and never overwrites the spec it is reading. |
 | `maestro doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `maestro init`. |
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |

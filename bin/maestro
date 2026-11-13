@@ -732,13 +732,26 @@ cmd_spec() {
   local dir
   dir="$(run_state_dir "$slug")" || { echo "maestro spec: not in a git repository" >&2; exit 1; }
   [ -d "$dir" ] || { echo "maestro spec: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 1; }
-  local spec="$dir/spec.md"
+  local spec="$dir/spec.md" tmp="$dir/.spec.md.$$"
   if [ -n "$file" ]; then
     [ -f "$file" ] || { echo "maestro spec: no such file: $file" >&2; exit 1; }
-    cat "$file" > "$spec"
+    # The redirect used to truncate spec.md before `cat` read it when the source
+    # was the spec itself (directly or through a symlink).
+    [ "$(maestro_real_file "$file")" != "$(maestro_real_file "$spec")" ] \
+      || { echo "maestro spec: source is the spec it would overwrite: $file" >&2; exit 1; }
+    [ -s "$file" ] || { echo "maestro spec: source is empty: $file" >&2; exit 1; }
+    cat "$file" > "$tmp" || { rm -f "$tmp"; echo "maestro spec: could not read: $file" >&2; exit 1; }
   else
-    cat > "$spec"
+    cat > "$tmp"
+    if [ ! -s "$tmp" ]; then
+      rm -f "$tmp"
+      echo "maestro spec: empty spec from stdin; nothing to save" >&2
+      exit 1
+    fi
   fi
+  # Write through a temp file in the same directory so the rename is atomic and
+  # a failed save never leaves a partial spec.md.
+  mv "$tmp" "$spec" || { rm -f "$tmp"; echo "maestro spec: could not write: $spec" >&2; exit 1; }
   local tasks="$dir/tasks"
   mkdir -p "$tasks"
   rm -f "$tasks"/*.md 2>/dev/null || true
@@ -892,6 +905,10 @@ cmd_gate() {
     if [ "$rc" -eq 2 ]; then echo "maestro gate: not in a git repository" >&2; else echo "maestro gate: no such run: $slug" >&2; fi
     return 1
   }
+  if [ -f "$dir/spec.md" ] && [ ! -s "$dir/spec.md" ]; then
+    echo "GATE: FAIL (spec.md is empty, re-run maestro spec)"
+    return 1
+  fi
   local result sha head
   head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   file="$dir/checks/$head.result"
@@ -2620,6 +2637,8 @@ cmd_build() {
   local taskfile="$dir/tasks/$task.md"
 
   [ -d "$dir" ] || { echo "maestro build: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 3; }
+  [ ! -f "$dir/spec.md" ] || [ -s "$dir/spec.md" ] \
+    || { echo "maestro build: spec.md is empty, re-run maestro spec" >&2; exit 3; }
   [ -f "$taskfile" ] || { echo "maestro build: no such task: $task (run: maestro spec $slug)" >&2; exit 3; }
   [ -d "$wt" ] || { echo "maestro build: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
   mkdir -p "$bdir"
