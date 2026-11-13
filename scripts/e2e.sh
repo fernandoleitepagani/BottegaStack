@@ -1566,6 +1566,18 @@ else
   fail "standalone scan applies the rule"
 fi
 
+# Deny list (skills/standalone-deny.txt): a denied name leaves the scan output
+# even when it is clean or allow-listed; the Loads of a denied skill still count
+# in the fixed point, so `f` stays.
+printf 'a\nh\n' > "$SCAN/skills/standalone-deny.txt"
+deny_out="$("$SCAN/scripts/standalone-skills.sh" 2>&1)"; deny_rc=$?
+if [ "$deny_rc" -eq 0 ] && [ "$deny_out" = "f" ]; then
+  ok "standalone scan honours the deny list"
+else
+  fail "standalone scan honours the deny list"
+fi
+rm -f "$SCAN/skills/standalone-deny.txt"
+
 # A full copy lets lint pass as it does in the repo; each mutation is checked in
 # place. The checked-in list must match the scan before lint can pass.
 SL="$TMP/standalone-lint"
@@ -1629,6 +1641,46 @@ else
   fail "lint fails on a duplicate allow entry"
 fi
 cp "$allow_backup" "$SL/skills/standalone-allow.txt"
+
+# Deny-file validation mirrors the allow file: a real skill, no duplicate, and
+# no name in both lists. Each case rewrites the deny file in the lint copy.
+printf 'no-such-skill\n' > "$SL/skills/standalone-deny.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-deny.txt: no such skill: no-such-skill'; then
+  ok "lint fails on an unknown deny entry"
+else
+  fail "lint fails on an unknown deny entry"
+fi
+printf 'interview\ninterview\n' > "$SL/skills/standalone-deny.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-deny.txt: duplicate entry: interview'; then
+  ok "lint fails on a duplicate deny entry"
+else
+  fail "lint fails on a duplicate deny entry"
+fi
+printf 'ketchup\n' > "$SL/skills/standalone-deny.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-deny.txt: also in skills/standalone-allow.txt: ketchup'; then
+  ok "lint fails on a deny entry that is also allowed"
+else
+  fail "lint fails on a deny entry that is also allowed"
+fi
+rm -f "$SL/skills/standalone-deny.txt"
+
+# The checked-in deny list names the four stack-role skills; with it in place
+# the repo lint passes and the scan prints 32 standalone names.
+deny_real="$(cat "$ROOT/skills/standalone-deny.txt" 2>/dev/null)"
+real_count="$("$ROOT/scripts/standalone-skills.sh" 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$deny_real" = "$(printf 'interview\nsummary\nwayfinding\nsession-handoff')" ] \
+  && [ "$real_count" = 32 ] \
+  && ( cd "$ROOT" && bash scripts/lint.sh 2>&1 ) | grep -qx 'lint: PASS'; then
+  ok "repo deny list drops the stack-role skills and lint passes"
+else
+  fail "repo deny list drops the stack-role skills and lint passes"
+fi
 
 # `maestro skills` (issue #27, task 2): list the checked-in standalone set and
 # copy named skills into the config dir with a marker. No --all or dependency
