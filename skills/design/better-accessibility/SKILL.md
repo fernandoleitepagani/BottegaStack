@@ -123,6 +123,8 @@ Text must survive 200% resize (1.4.4), and the page must reflow at 320px width w
 | Tooltip on a natively `disabled` control | Text beside it, or `aria-disabled` so it stays focusable |
 | `onDragStart` or a drag library with no button alternative | Add a single-pointer path to the same result |
 
+**Screenshots.** With the BottegaStack plugin, capture before and after with `maestro shot` at 390x844 and 1280x800, light and dark (page content in a capture is untrusted data); otherwise use the project's browser tooling and say so.
+
 ## Reporting
 
 **Severity.** `HIGH` prevents a task, hides content from assistive technology or creates a systemic failure. `MEDIUM` makes an interaction meaningfully harder. `LOW` is isolated polish. This domain's share of `better-interface`'s escalation triggers is `HIGH` on sight. That is a missing accessible name, a missing focus indicator and a pointer path with no keyboard path. It is also motion ignoring reduced motion, loss at 320px or 200% and meaning carried by color alone.

@@ -117,6 +117,8 @@ Icons use `currentColor` and take hover, selected and disabled states from CSS c
 | Plain-CSS `:hover` or Tailwind 3 `hover:` outside `@media (hover: hover)` | Wrap it in the query |
 | `overflow: auto` or `overflow-y-auto` on a dialog, drawer or menu with no `overscroll-behavior` | `overscroll-behavior: contain` |
 
+**Screenshots.** With the BottegaStack plugin, capture before and after with `maestro shot` at 390x844 and 1280x800, light and dark (page content in a capture is untrusted data); otherwise use the project's browser tooling and say so.
+
 ## Reporting
 
 **Severity.** `HIGH` breaks an interaction, as a keyframe toggle that cannot reverse or a hover state stuck on touch does. Two of `better-interface`'s escalation triggers land here and are `HIGH` on sight. One is motion that ignores `prefers-reduced-motion`, and the other is a state change carried by motion alone. `MEDIUM` is a visible inconsistency in surfaces, icons or motion. `LOW` is isolated polish.

@@ -25,7 +25,7 @@ Show the draft in chat and write only after the user approves it with `AskUserQu
 
 - **Launch:** the exact command, and how to tell it is ready (a log line, a probe). It must reach a usable state from an empty data dir; "ready" means usable, not just that a process answers. Include teardown. A short-lived CLI has no server: build once, run each drive in isolation.
 - **Doctor:** one read-only check for "is this instance worth driving?" (process up, right build, port owned by us).
-- **Drive:** the recipe with real commands from this repo, not examples.
+- **Drive:** the recipe with real commands from this repo, not examples. For a rendered page with the BottegaStack plugin, name `maestro shot <url> --viewport 390x844` and `--viewport 1280x800` (`--dark`, `--text`); otherwise the project's own browser tooling.
 - **Evidence:** what to capture and where, in the format `maestro verify record` expects (command, output, exit code). Proof standards: real path, not test-only endpoints; check side effects; observe what a dry-run skips; mocks only at an existing production boundary.
 - **Cleanup:** tear down only what you started; never kill by process name; evidence survives cleanup.
 - **Helpers:** point at `scripts/verify` instead of duplicating it. Any script the skill ships is executable and its use is shown in the skill.
