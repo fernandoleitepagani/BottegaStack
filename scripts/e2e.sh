@@ -51,6 +51,16 @@ if [ "${STUB_FAIL:-}" = "1" ]; then
   exit 1
 fi
 [ -n "${STUB_SLEEP:-}" ] && sleep "$STUB_SLEEP"
+# STUB_COMMIT lists paths to change and commit in order; `build` runs
+# verify-task at the end, so a fixture builder must leave real commits.
+if [ -n "${STUB_COMMIT:-}" ]; then
+  for stub_path in $STUB_COMMIT; do
+    mkdir -p "$(dirname "$stub_path")"
+    printf 'stub %s %s\n' "$stub_path" "$RANDOM$$" >> "$stub_path"
+    git add -- "$stub_path" >/dev/null 2>&1
+    git commit -q -m "stub: $stub_path" >/dev/null 2>&1
+  done
+fi
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
 printf '{"type":"result","result":"STATUS: %s\\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}\n' "${STUB_STATUS:-DONE}"
 EOF
@@ -176,8 +186,110 @@ fi
 expect_not "start refused on main" "$M" start "On main"
 git switch -q -c feat/e2e
 expect "start on a branch" "$M" start "Run A"
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n### Task 2 - two\nbody\n' > "$TMP/spec.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n### Task 2 - two\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/spec.md"
 [ "$("$M" spec run-a "$TMP/spec.md")" = "2" ] && ok "spec counts tasks" || fail "spec counts tasks"
+
+# Atomic spec save and empty-spec guards (issue #39). A source that is its own
+# destination, directly or through a symlink, and an empty source, a 0-byte file
+# or empty stdin, must leave spec.md untouched; a successful save leaves no
+# temp file behind.
+spec_dir="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/spec.md' -type f | head -1)")"
+spec_before="$(cat "$spec_dir/spec.md")"
+spec_self_ok=1
+out="$("$M" spec run-a "$spec_dir/spec.md" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF "maestro spec: refusing to read the spec from its own destination: $spec_dir/spec.md" \
+  || spec_self_ok=0
+ln -s "$spec_dir/spec.md" "$TMP/spec-self-link.md"
+out="$("$M" spec run-a "$TMP/spec-self-link.md" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF "maestro spec: refusing to read the spec from its own destination: $TMP/spec-self-link.md" \
+  || spec_self_ok=0
+[ "$spec_self_ok" -eq 1 ] && ok "spec refuses its own spec.md" || fail "spec refuses its own spec.md"
+spec_empty_ok=1
+: > "$TMP/empty-source.md"
+out="$("$M" spec run-a "$TMP/empty-source.md" 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF "maestro spec: empty spec: $TMP/empty-source.md" \
+  || spec_empty_ok=0
+out="$("$M" spec run-a </dev/null 2>&1)"; rc=$?
+[ "$rc" -eq 1 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] \
+  && printf '%s\n' "$out" | grep -qxF 'maestro spec: empty spec: stdin' \
+  || spec_empty_ok=0
+[ "$spec_empty_ok" -eq 1 ] && ok "spec refuses an empty source" || fail "spec refuses an empty source"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n### Task 2 - two\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/spec-new.md"
+out="$("$M" spec run-a "$TMP/spec-new.md" 2>&1)"; rc=$?
+spec_leftovers="$(find "$spec_dir" -maxdepth 1 \( -name '.spec*' -o -name 'spec.md.*' -o -name '*.tmp' \) -print)"
+if [ "$rc" -eq 0 ] && [ "$out" = "2" ] && cmp -s "$TMP/spec-new.md" "$spec_dir/spec.md" \
+  && [ -z "$spec_leftovers" ]; then
+  ok "spec saves without leftovers"
+else
+  fail "spec saves without leftovers"
+fi
+# AC parser (Task 2): `maestro spec` rejects a malformed AC line and leaves the
+# previous spec.md and tasks/ byte-for-byte unchanged. One AC per line, `Proof:`
+# on the same line, and unique ids; every bad line is reported with its number.
+run_snapshot() {
+  ( cd "$1" && cat spec.md; find tasks -type f -print 2>/dev/null | LC_ALL=C sort \
+    | while IFS= read -r f; do printf '%s: ' "$f"; cat "$f"; done )
+}
+spec_before="$(run_snapshot "$spec_dir")"
+printf '# Spec\n## Acceptance criteria\n- AC1 works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/spec-malformed.md"
+out="$("$M" spec run-a "$TMP/spec-malformed.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 3: not an AC line (expected "- AC<n>: <text> Proof: ..."): - AC1 works. Proof: `true` -> exit 0' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects a malformed AC line"
+else
+  fail "spec rejects a malformed AC line"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: works.\n### Task 1 - one\nbody\n' > "$TMP/spec-no-proof.md"
+out="$("$M" spec run-a "$TMP/spec-no-proof.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 3: no Proof:: - AC1: works.' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects a missing Proof"
+else
+  fail "spec rejects a missing Proof"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: judgment. Proof: none\n### Task 1 - one\nbody\n' > "$TMP/spec-none-reason.md"
+out="$("$M" spec run-a "$TMP/spec-none-reason.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 3: Proof: none needs a reason: - AC1: judgment. Proof: none' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects Proof: none without a reason"
+else
+  fail "spec rejects Proof: none without a reason"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: one. Proof: `true` -> exit 0\n- AC1: two. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/spec-duplicate.md"
+out="$("$M" spec run-a "$TMP/spec-duplicate.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 4: duplicate AC1 (first on line 3): - AC1: two. Proof: `true` -> exit 0' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects a duplicate AC id"
+else
+  fail "spec rejects a duplicate AC id"
+fi
+# `build` and `gate` refuse a run whose spec.md is 0 bytes, before any model
+# call or check lookup. An isolated state dir keeps the empty run out of the
+# other cases.
+ESPEC_STATE="$TMP/empty-spec-state"
+esp_out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" start "Empty spec" 2>&1)"
+esp_slug="$(printf '%s\n' "$esp_out" | sed -n 's/^run: //p')"
+esp_dir="$(printf '%s\n' "$esp_out" | sed -n 's/^state: //p')"
+: > "$esp_dir/spec.md"
+stub_before="$( [ -f "$STUBLOG" ] && wc -l < "$STUBLOG" | tr -d ' ' || echo 0)"
+out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" build "$esp_slug" 1 --block 2>&1)"; rc=$?
+stub_after="$( [ -f "$STUBLOG" ] && wc -l < "$STUBLOG" | tr -d ' ' || echo 0)"
+if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -q 'spec.md is empty, re-run maestro spec' \
+  && [ "$stub_before" = "$stub_after" ]; then
+  ok "build refuses an empty spec.md"
+else
+  fail "build refuses an empty spec.md"
+fi
+out="$( cd "$REPO" && BOTTEGA_STATE_DIR="$ESPEC_STATE" "$M" gate "$esp_slug" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'spec.md is empty, re-run maestro spec'; then
+  ok "gate refuses an empty spec.md"
+else
+  fail "gate refuses an empty spec.md"
+fi
 
 # Checks and gates.
 # An unknown run is named the way `check` names it, on stderr; a known run with
@@ -213,6 +325,55 @@ expect_not "verify PASS needs evidence" "$M" verify record run-a AC1 PASS --by r
 expect_not "gate --proof INCONCLUSIVE" "$M" gate run-a --proof
 "$M" verify record run-a AC1 PASS --by reviewer --evidence "$TMP/ev.txt" >/dev/null
 expect "gate --proof PASS" "$M" gate run-a --proof
+# `Proof: none` criteria are listed before the gate result, whether it passes
+# or fails (Task 2); run-a has AC2 with `Proof: none (taste)`.
+out="$("$M" gate run-a --proof 2>&1)"; rc=$?
+none_line="$(printf '%s\n' "$out" | grep -n '^proof none: AC2: ' | head -1 | cut -d: -f1)"
+gate_line="$(printf '%s\n' "$out" | grep -n '^GATE:' | head -1 | cut -d: -f1)"
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'proof none: AC2: (taste)' \
+  && [ -n "$none_line" ] && [ -n "$gate_line" ] && [ "$none_line" -lt "$gate_line" ]; then
+  ok "gate --proof lists Proof: none criteria"
+else
+  fail "gate --proof lists Proof: none criteria"
+fi
+# A full run whose saved SPEC has no AC lines fails `gate --proof`; a light path
+# (no SPEC) keeps its old behaviour. An isolated state dir keeps this run clean.
+ZEROAC_STATE="$TMP/zero-ac-state"
+zout="$( BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" start "Zero ACs" 2>&1 )"
+zslug="$(printf '%s\n' "$zout" | sed -n 's/^run: //p')"
+printf '# Spec\n## Acceptance criteria\nNo criteria here.\n### Task 1 - one\nbody\n' > "$TMP/zero-ac-spec.md"
+BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" spec "$zslug" "$TMP/zero-ac-spec.md" >/dev/null
+BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" check "$zslug" >/dev/null 2>&1
+out="$( BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" gate "$zslug" --proof 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (proof: SPEC has no acceptance criteria)'; then
+  ok "gate --proof fails with zero ACs"
+else
+  fail "gate --proof fails with zero ACs"
+fi
+# A quoted `Proof: none` in the AC prose is not the proof field (Task 5 fix): the
+# last `Proof:` outside backticks decides, so prose and the proof command may both
+# quote an earlier one. AC1 quotes it in prose and in its command, so it stays a
+# required proof and is never listed as `proof none:`.
+LASTPROOF_STATE="$TMP/last-proof-state"
+lpout="$( BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" start "Quoted proof" 2>&1 )"
+lpslug="$(printf '%s\n' "$lpout" | sed -n 's/^run: //p')"
+cat > "$TMP/last-proof-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: quotes `Proof: none` in prose. Proof: `printf '%s\n' 'Proof: none criteria'` -> exit 0
+### Task 1 - one
+body
+EOF
+BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" spec "$lpslug" "$TMP/last-proof-spec.md" >/dev/null
+BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" check "$lpslug" >/dev/null 2>&1
+out="$( BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" gate "$lpslug" --proof 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (proof: AC1 has no recorded proof)' \
+  && ! printf '%s\n' "$out" | grep -q '^proof none: AC1:'; then
+  ok "gate reads the last Proof: on an AC line"
+else
+  fail "gate reads the last Proof: on an AC line"
+fi
 git commit -q --allow-empty -m next
 "$M" check run-a >/dev/null
 expect_not "gate --proof stale" "$M" gate run-a --proof
@@ -259,9 +420,124 @@ fi
 # Builds through the stub.
 : > "$STUBLOG"
 expect "worktree create" "$M" worktree create run-a 1
-expect "build" "$M" build run-a 1 --block
-expect "build --revise" sh -c "echo 'fix it' | '$M' build run-a 1 --revise - --block"
+expect "build" env STUB_COMMIT=allowed.txt "$M" build run-a 1 --block
+expect "build --revise" sh -c "echo 'fix it' | STUB_COMMIT=allowed.txt '$M' build run-a 1 --revise - --block"
+# `maestro build` runs the worktree check and verify-task at the end (Task 5): a
+# DONE build with commits passes only when every task rule holds; a changed file
+# outside `Allowed files` exits 1 and leaves the task BLOCKED.
+"$M" start "Build verify" >/dev/null 2>&1
+cat > "$TMP/build-verify-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: works. Proof: `true` -> exit 0
+### Task 1 - pass
+**Allowed files:** `tests/pass_test.sh`, `src/pass.sh`
+**Test first:** tests/pass_test.sh
+body
+### Task 2 - outside
+**Allowed files:** `src/ok.sh`
+**Test first:** none
+body
+### Task 3 - revision
+**Allowed files:** `src/rev.sh`
+**Test first:** none
+body
+### Task 4 - blocked report
+**Allowed files:** `src/blocked.sh`
+**Test first:** none
+body
+### Task 5 - no commits
+**Allowed files:** `src/none.sh`
+**Test first:** none
+body
+EOF
+"$M" spec build-verify "$TMP/build-verify-spec.md" >/dev/null 2>&1
+for bvt in 1 2 3 4 5; do "$M" worktree create build-verify "$bvt" --branch "bv-$bvt" >/dev/null 2>&1; done
+out="$(STUB_COMMIT='tests/pass_test.sh src/pass.sh' "$M" build build-verify 1 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'verify-task: PASS'; then
+  ok "build --block passes verify-task"
+else
+  fail "build --block passes verify-task"
+fi
+out="$(STUB_COMMIT='src/other.sh' "$M" build build-verify 2 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL allowed-files:' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED' \
+  && printf '%s\n' "$out" | grep -q 'verify-task build-verify 2 --waive'; then
+  ok "build --block fails on verify-task"
+else
+  fail "build --block fails on verify-task"
+fi
+STUB_COMMIT='src/rev.sh' "$M" build build-verify 3 --block >/dev/null 2>&1
+out="$(printf 'fix it\n' | STUB_COMMIT='src/bad.sh' "$M" build build-verify 3 --revise - --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL allowed-files:' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED'; then
+  ok "build --block fails on verify-task after a revision"
+else
+  fail "build --block fails on verify-task after a revision"
+fi
+# A non-DONE report runs the rules too, so a BLOCKED build exits 1 instead of
+# passing just because the builder exited 0 with commits.
+out="$(STUB_STATUS=BLOCKED STUB_COMMIT='src/blocked.sh' "$M" build build-verify 4 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL report: STATUS: BLOCKED' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED'; then
+  ok "build --block fails a BLOCKED report"
+else
+  fail "build --block fails a BLOCKED report"
+fi
+# A DONE report with no commits still runs the rules, so the commits rule fails.
+out="$("$M" build build-verify 5 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL commits: no commits on ' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED'; then
+  ok "build --block fails a DONE report with no commits"
+else
+  fail "build --block fails a DONE report with no commits"
+fi
+"$M" report --close build-verify >/dev/null 2>&1
 expect "build --review" "$M" build --review run-a 1 --block
+# `build --review` checks before it reviews (Task 3): a new HEAD runs the check
+# in the worktree, a fresh PASS record is reused without another checks.log line,
+# and a failing check stops the reviewer before it writes anything.
+WT_REVIEW="$TMP/repo-bottega/run-a/1"
+BDIR_REVIEW="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/build/1.report.md' | head -1)")"
+RUN_REVIEW="$(dirname "$BDIR_REVIEW")"
+git -C "$WT_REVIEW" commit -q --allow-empty -m "review check head"
+STUB_REVIEW="$TMP/stub-review.log"
+: > "$STUB_REVIEW"
+out="$(STUBLOG="$STUB_REVIEW" "$M" build --review run-a 1 --block 2>&1)"; rc=$?
+review_head="$(git -C "$WT_REVIEW" rev-parse HEAD)"
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^check: PASS' \
+  && grep -qx 'RESULT: PASS' "$RUN_REVIEW/checks/$review_head.result" \
+  && grep -q -- '--agent bottega:review-code' "$STUB_REVIEW"; then
+  ok "build --review runs the check first"
+else
+  fail "build --review runs the check first"
+fi
+checks_before="$(wc -l < "$RUN_REVIEW/checks.log" | tr -d ' ')"
+: > "$STUB_REVIEW"
+out="$(STUBLOG="$STUB_REVIEW" "$M" build --review run-a 1 --block 2>&1)"; rc=$?
+checks_after="$(wc -l < "$RUN_REVIEW/checks.log" | tr -d ' ')"
+review_sha7="$(git -C "$WT_REVIEW" rev-parse HEAD | cut -c1-7)"
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx "check: reused PASS record $review_sha7" \
+  && [ "$checks_before" = "$checks_after" ]; then
+  ok "build --review reuses a fresh check"
+else
+  fail "build --review reuses a fresh check"
+fi
+git -C "$WT_REVIEW" commit -q --allow-empty -m "failing check head"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$WT_REVIEW/scripts/check"
+chmod +x "$WT_REVIEW/scripts/check"
+rm -f "$BDIR_REVIEW/1.review2.md"
+: > "$STUB_REVIEW"
+out="$(STUBLOG="$STUB_REVIEW" "$M" build --review run-a 1 --block 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'check: FAIL' \
+  && ! grep -q -- '--agent bottega:review-code' "$STUB_REVIEW" \
+  && [ ! -e "$BDIR_REVIEW/1.review2.md" ]; then
+  ok "build --review refuses a failing check"
+else
+  fail "build --review refuses a failing check"
+fi
+printf '#!/usr/bin/env bash\necho ok\n' > "$WT_REVIEW/scripts/check"
+chmod +x "$WT_REVIEW/scripts/check"
 expect "build --here" "$M" build --here q1 --task "small fix" --block
 out="$("$M" build --here qsum --task "summary" --block 2>&1)"
 printf '%s\n' "$out" | grep -qx 'session: s1' && ok "light summary prints session" || fail "light summary prints session"
@@ -345,6 +621,23 @@ out="$("$M" build --status stat-fail)"
 printf '%s\n' "$out" | grep -q 'Builders 1/1 done' && ok "light status failed is done" || fail "light status failed is done"
 printf '%s\n' "$out" | grep -q '0 queued' && ok "light status failed is never queued" || fail "light status failed is never queued"
 expect "build --review --here" "$M" build --review --here q1 --block
+# The light path follows the same rule: a failing check in the current checkout
+# stops the reviewer. Swap the repo's check, then restore it.
+"$M" build --here rev-here --task "review input" --block >/dev/null 2>&1
+printf '#!/usr/bin/env bash\nexit 1\n' > "$REPO/scripts/check"
+chmod +x "$REPO/scripts/check"
+STUB_HERE="$TMP/stub-review-here.log"
+: > "$STUB_HERE"
+out="$(STUBLOG="$STUB_HERE" "$M" build --review --here rev-here --block 2>&1)"; rc=$?
+printf '#!/usr/bin/env bash\necho ok\n' > "$REPO/scripts/check"
+chmod +x "$REPO/scripts/check"
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'check: FAIL' \
+  && ! grep -q -- '--agent bottega:review-code' "$STUB_HERE"; then
+  ok "build --review --here refuses a failing check"
+else
+  fail "build --review --here refuses a failing check"
+fi
+"$M" report --close rev-here >/dev/null 2>&1
 "$M" build --status run-a | grep -q "done" && ok "build --status" || fail "build --status"
 grep -q -- "--agent bottega:builder" "$STUBLOG" && ok "runner uses bottega:builder" || fail "runner uses bottega:builder"
 grep -q -- "--agent bottega:review-code" "$STUBLOG" && ok "runner uses bottega:review-code" || fail "runner uses bottega:review-code"
@@ -463,7 +756,7 @@ events_ok() { # <name> <events> <task> <role>
   fi
 }
 expect "events: worktree for run task" "$M" worktree create run-a 2
-expect "events: build run task" "$M" build run-a 2 --block
+expect "events: build run task" env STUB_COMMIT=allowed.txt "$M" build run-a 2 --block
 expect "events: build review" "$M" build --review run-a 2 --block
 expect "events: build here" "$M" build --here ev-here --task "events" --block
 expect "events: build review here" "$M" build --review --here ev-here --block
@@ -598,6 +891,11 @@ WSTATE="$TMP/watch-state"
 mkdir -p "$WREPO"
 ( cd "$WREPO" && git init -q -b main && git commit -q --allow-empty -m init \
   && git switch -q -c feat/watch && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Watch seed" ) >/dev/null 2>&1
+# `build --review` runs the check first, so `worktree create` copies a passing
+# scripts/check into the task worktree.
+mkdir -p "$WREPO/scripts"
+printf '#!/usr/bin/env bash\necho ok\n' > "$WREPO/scripts/check"
+chmod +x "$WREPO/scripts/check"
 WROOT="$(dirname "$(find "$WSTATE" -type d -name watch-seed 2>/dev/null | head -1)")"
 mk_watch_run() { # <slug> <tasks>
   local slug="$1" n="$2" i=1
@@ -647,10 +945,10 @@ rm -rf "$WROOT/watch-4" "$WROOT/watch-done" "$WROOT/watch-hold"
 # Every headless build flavour prints `progress:` lines while it waits (Task 3).
 # Its own state dir keeps the counts to one task; the final summary is unchanged.
 ( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Progress run" ) >/dev/null 2>&1
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/progress-spec.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/progress-spec.md"
 ( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" spec progress-run "$TMP/progress-spec.md" ) >/dev/null 2>&1
 ( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" worktree create progress-run 1 ) >/dev/null 2>&1
-out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build progress-run 1 --block 2>&1 )"; rc=$?
+out="$( cd "$WREPO" && STUB_COMMIT=allowed.txt BOTTEGA_STATE_DIR="$WSTATE" "$M" build progress-run 1 --block 2>&1 )"; rc=$?
 if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
   && printf '%s\n' "$out" | grep -qx 'task: 1' \
   && printf '%s\n' "$out" | grep -q '^steps: ' \
@@ -682,6 +980,184 @@ if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
   ok "build progress: review here"
 else
   fail "build progress: review here"
+fi
+
+# `maestro verify-task` (Task 4): the five acceptance rules and the HEAD-bound
+# waiver. Its own repo and state dir, no stub: the task worktrees are committed
+# directly and the report and the check record are written where the command
+# reads them. Each broken-rule task breaks exactly one rule.
+VREPO="$TMP/verify-repo"
+VSTATE="$TMP/verify-state"
+mkdir -p "$VREPO/scripts" "$VREPO/.claude"
+( cd "$VREPO" \
+  && git init -q -b main && git commit -q --allow-empty -m init \
+  && git switch -q -c feat/verify \
+  && printf '#!/usr/bin/env bash\necho ok\n' > scripts/check && chmod +x scripts/check \
+  && printf '# Agents\n' > AGENTS.md && printf '{}\n' > .claude/settings.json \
+  && git add scripts/check AGENTS.md .claude/settings.json && git commit -q -m setup \
+  && BOTTEGA_STATE_DIR="$VSTATE" "$M" start "Verify run" ) >/dev/null 2>&1
+VRUN="verify-run"
+VDIR="$(find "$VSTATE" -type d -name "$VRUN" | head -1)"
+VWTS="$TMP/verify-repo-bottega/$VRUN"
+cat > "$TMP/verify-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: works. Proof: `true` -> exit 0
+### Task 1 - clean
+**Allowed files:** `src/app.sh`, `tests/app_test.sh`
+**Test first:** tests/app_test.sh
+body
+### Task 2 - report broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 3 - commits broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 4 - test first broken
+**Allowed files:** `src/app.sh`, `tests/app_test.sh`
+**Test first:** tests/app_test.sh
+body
+### Task 5 - allowed files broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 6 - check broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 7 - several broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 8 - test first none
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 9 - test file named in Test first
+**Allowed files:** `src/app.sh`, `scripts/t.sh`
+**Test first:** scripts/t.sh
+body
+EOF
+( cd "$VREPO" && BOTTEGA_STATE_DIR="$VSTATE" "$M" spec "$VRUN" "$TMP/verify-spec.md" ) >/dev/null 2>&1
+for vt in 1 2 3 4 5 6 7 8 9; do
+  ( cd "$VREPO" && BOTTEGA_STATE_DIR="$VSTATE" "$M" worktree create "$VRUN" "$vt" ) >/dev/null 2>&1
+done
+vcommit() { # <task> <message> <path>...
+  local vt="$1" msg="$2" p
+  shift 2
+  for p in "$@"; do
+    mkdir -p "$(dirname "$VWTS/$vt/$p")"
+    printf 'v %s\n' "$vt" > "$VWTS/$vt/$p"
+  done
+  ( cd "$VWTS/$vt" && git add "$@" && git commit -q -m "$msg (task $vt)" )
+}
+vreport() { mkdir -p "$VDIR/build"; printf 'STATUS: %s\n' "$2" > "$VDIR/build/$1.report.md"; }
+vcheck() { ( cd "$VWTS/$1" && BOTTEGA_STATE_DIR="$VSTATE" "$M" check "$VRUN" ) >/dev/null 2>&1; }
+vverify() { ( cd "$VREPO" && BOTTEGA_STATE_DIR="$VSTATE" "$M" verify-task "$VRUN" "$@" 2>&1 ); }
+
+vcommit 1 "test first" tests/app_test.sh
+vcommit 1 "implementation" src/app.sh
+vreport 1 DONE
+vcheck 1
+vcommit 2 "implementation" src/app.sh
+vcheck 2
+vreport 3 DONE
+vcheck 3
+vcommit 4 "implementation first" src/app.sh
+vcommit 4 "test after" tests/app_test.sh
+vreport 4 DONE
+vcheck 4
+vcommit 5 "outside allowed files" src/other.sh
+vreport 5 DONE
+vcheck 5
+vcommit 6 "implementation" src/app.sh
+vreport 6 DONE
+vcommit 7 "outside allowed files" src/other.sh
+vreport 7 BLOCKED
+vcommit 8 "implementation" src/app.sh
+vreport 8 DONE
+vcheck 8
+vcommit 9 "test first" scripts/t.sh
+vcommit 9 "implementation" src/app.sh
+vreport 9 DONE
+vcheck 9
+
+out="$(vverify 1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = 'verify-task: PASS' ]; then
+  ok "verify-task passes a clean task"
+else
+  fail "verify-task passes a clean task"
+fi
+# One rule broken alone: exit 1 and exactly one FAIL line for that rule.
+for vpair in report:2 commits:3 test-first:4 allowed-files:5 check:6; do
+  vrule="${vpair%%:*}"
+  vtask="${vpair##*:}"
+  out="$(vverify "$vtask")"; rc=$?
+  vone="$(printf '%s\n' "$out" | grep -c "^FAIL $vrule:")"
+  vtotal="$(printf '%s\n' "$out" | grep -c '^FAIL ')"
+  if [ "$rc" -eq 1 ] && [ "$vone" -eq 1 ] && [ "$vtotal" -eq 1 ]; then
+    ok "verify-task fails: $vrule"
+  else
+    fail "verify-task fails: $vrule"
+  fi
+done
+# Several broken rules: one FAIL line per broken rule and nothing else on stdout.
+out="$(vverify 7)"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL report:')" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL allowed-files:')" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL check:')" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL ')" -eq 3 ] \
+  && [ "$(printf '%s\n' "$out" | grep -vc '^FAIL ')" -eq 0 ]; then
+  ok "verify-task prints one line per failed rule"
+else
+  fail "verify-task prints one line per failed rule"
+fi
+# `Test first: none` skips the rule: an implementation-only first commit passes.
+out="$(vverify 8)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = 'verify-task: PASS' ]; then
+  ok "verify-task test-first skipped for none"
+else
+  fail "verify-task test-first skipped for none"
+fi
+# A test path that `is_test_path` does not match still counts when the task's
+# `Test first:` names it.
+out="$(vverify 9)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = 'verify-task: PASS' ]; then
+  ok "verify-task test-first counts files named in Test first"
+else
+  fail "verify-task test-first counts files named in Test first"
+fi
+# The waiver is bound to the worktree HEAD: empty reason exits 2 and records
+# nothing, a recorded waiver hides the failures, and a new commit drops it.
+vwaiver="$VDIR/build/7.verify-waiver"
+waiver_ok=1
+out="$(vverify 7 --waive "")"; rc=$?
+[ "$rc" -eq 2 ] && [ ! -e "$vwaiver" ] || waiver_ok=0
+out="$(vverify 7 --waive "user approved")"; rc=$?
+[ "$rc" -eq 0 ] && [ -f "$vwaiver" ] || waiver_ok=0
+out="$(vverify 7)"; rc=$?
+if [ "$rc" -ne 0 ] || ! printf '%s\n' "$out" | grep -qx 'verify-task: WAIVED (user approved)' \
+  || ! printf '%s\n' "$out" | grep -q '^FAIL '; then
+  waiver_ok=0
+fi
+( cd "$VWTS/7" && git commit -q --allow-empty -m "after waiver" )
+out="$(vverify 7)"; rc=$?
+if [ "$rc" -ne 1 ] || printf '%s\n' "$out" | grep -q 'verify-task: WAIVED'; then
+  waiver_ok=0
+fi
+[ "$waiver_ok" -eq 1 ] && ok "verify-task waiver holds for its HEAD only" || fail "verify-task waiver holds for its HEAD only"
+# Bad run and task ids exit 2 before anything is written.
+vstate_before="$(cd "$VSTATE" && find . -print | LC_ALL=C sort)"
+vverify '../x' 1 >/dev/null 2>&1; vrc_a=$?
+vverify 'run-a' '../x' >/dev/null 2>&1; vrc_b=$?
+vstate_after="$(cd "$VSTATE" && find . -print | LC_ALL=C sort)"
+if [ "$vrc_a" -eq 2 ] && [ "$vrc_b" -eq 2 ] && [ "$vstate_before" = "$vstate_after" ]; then
+  ok "verify-task rejects bad ids"
+else
+  fail "verify-task rejects bad ids"
 fi
 
 # Hooks.
@@ -1928,7 +2404,7 @@ if [ "$rc" -eq 0 ] && [ -n "$paused_slug" ] && [ -d "$paused_dir" ]; then
 else
   fail "start paused run"
 fi
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none\n### Task 1 - one\nbody\n' > "$TMP/paused-spec.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none (summary only)\n### Task 1 - one\nbody\n' > "$TMP/paused-spec.md"
 "$M" spec "$paused_slug" "$TMP/paused-spec.md" >/dev/null
 expect "close paused keeps state" "$M" report --close "$paused_slug" --playbook feature --risk standard --outcome paused
 if [ -d "$paused_dir" ] && [ -f "$paused_dir/spec.md" ] && [ -f "$paused_dir/paused" ]; then

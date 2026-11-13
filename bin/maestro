@@ -26,6 +26,7 @@ Usage:
   maestro log <run> [<phase> <decision> <why> <evidence> <result>]
   maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>] [--note <text>]
   maestro verify waive <run> <AC> "<reason>" | list <run>
+  maestro verify-task <run> <task> [--waive "<reason>"]
   maestro report [--retro] [--exit-code] | --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>] | --finding <run> "<title>" | --trust [n]
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
   maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
@@ -590,6 +591,15 @@ resolve_run_dir() {
   return 1
 }
 
+# The task worktree `maestro worktree create <slug> <task>` made: beside the
+# repo root, under <repo>-bottega/<slug>/<task>.
+task_worktree() {
+  local slug="$1" task="$2" repo name
+  repo="$(git rev-parse --show-toplevel)" || return 1
+  name="$(basename "$repo")"
+  printf '%s/%s-bottega/%s/%s\n' "$(cd "$repo/.." && pwd)" "$name" "$slug" "$task"
+}
+
 # The reason recorded in a run's hold file ($STATE/<run>/hold or
 # $STATE/quick/<slug>/hold), or nothing when the run is not on hold.
 run_hold_reason() {
@@ -732,13 +742,46 @@ cmd_spec() {
   local dir
   dir="$(run_state_dir "$slug")" || { echo "maestro spec: not in a git repository" >&2; exit 1; }
   [ -d "$dir" ] || { echo "maestro spec: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 1; }
-  local spec="$dir/spec.md"
+  local spec="$dir/spec.md" tmp="$dir/.spec.md.$$"
+  # Create the temp file 0600 and remove it on every exit path until the rename.
+  (umask 077; : > "$tmp") || { echo "maestro spec: could not write: $tmp" >&2; exit 1; }
+  trap 'rm -f "$tmp"' EXIT
+  trap 'rm -f "$tmp"; exit 130' INT TERM
   if [ -n "$file" ]; then
     [ -f "$file" ] || { echo "maestro spec: no such file: $file" >&2; exit 1; }
-    cat "$file" > "$spec"
+    # The redirect used to truncate spec.md before `cat` read it when the source
+    # was the spec itself (directly or through a symlink).
+    [ "$(maestro_real_file "$file")" != "$(maestro_real_file "$spec")" ] \
+      || { echo "maestro spec: refusing to read the spec from its own destination: $file" >&2; exit 1; }
+    [ -s "$file" ] || { echo "maestro spec: empty spec: $file" >&2; exit 1; }
+    cat "$file" > "$tmp" || { rm -f "$tmp"; echo "maestro spec: could not read: $file" >&2; exit 1; }
   else
-    cat > "$spec"
+    cat > "$tmp"
+    if [ ! -s "$tmp" ]; then
+      rm -f "$tmp"
+      echo "maestro spec: empty spec: stdin" >&2
+      exit 1
+    fi
   fi
+  # Validate the temporary file before anything is replaced: one AC per line,
+  # `Proof:` on the same line, a reason for `Proof: none`, and unique ids. Every
+  # bad line is reported with its number; on any error spec.md and tasks/ stay
+  # untouched.
+  local bad=0 n id kind detail badline
+  while IFS="$(printf '\t')" read -r n id kind detail; do
+    [ "$kind" = "bad" ] || continue
+    badline="$(sed -n "${n}p" "$tmp")"
+    printf 'maestro spec: line %s: %s: %s\n' "$n" "$detail" "$badline" >&2
+    bad=1
+  done < <(spec_ac_rows "$tmp")
+  if [ "$bad" -eq 1 ]; then
+    rm -f "$tmp"
+    exit 1
+  fi
+  # Write through a temp file in the same directory so the rename is atomic and
+  # a failed save never leaves a partial spec.md.
+  mv "$tmp" "$spec" || { rm -f "$tmp"; echo "maestro spec: could not write: $spec" >&2; exit 1; }
+  trap - EXIT INT TERM
   local tasks="$dir/tasks"
   mkdir -p "$tasks"
   rm -f "$tasks"/*.md 2>/dev/null || true
@@ -804,6 +847,29 @@ cmd_check() {
   printf '%s HEAD %s RESULT %s EXIT %s SECONDS %s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "$duration" >> "$dir/checks.log"
   echo "check: $result (${duration}s, exit $code)"
   [ "$code" -eq 0 ]
+}
+
+# `ensure_check <slug> <statedir> <checkout>`: reuse a PASS record for the
+# checkout HEAD when the tracked tree is clean, else run `maestro check` in the
+# checkout. Prints the check output; returns 1 when the check fails, after the
+# tail of its log. Used before a review starts and at the end of a DONE build.
+ensure_check() {
+  local slug="$1" statedir="$2" checkout="$3" sha sha7 rc=0
+  sha="$(git -C "$checkout" rev-parse HEAD 2>/dev/null || true)"
+  sha="${sha:-unknown}"
+  sha7="${sha:0:7}"
+  if [ -f "$statedir/checks/$sha.result" ] \
+    && grep -qx 'RESULT: PASS' "$statedir/checks/$sha.result" \
+    && [ -z "$(git -C "$checkout" status --porcelain --untracked-files=no 2>/dev/null)" ]; then
+    echo "check: reused PASS record $sha7"
+    return 0
+  fi
+  ( cd "$checkout" && "$SELF" check "$slug" ) || rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  if [ -f "$statedir/checks/$sha.log" ]; then
+    tail -n 20 "$statedir/checks/$sha.log"
+  fi
+  return 1
 }
 
 # A repo test file: a test/spec directory, or a conventional test filename.
@@ -892,6 +958,10 @@ cmd_gate() {
     if [ "$rc" -eq 2 ]; then echo "maestro gate: not in a git repository" >&2; else echo "maestro gate: no such run: $slug" >&2; fi
     return 1
   }
+  if [ -f "$dir/spec.md" ] && [ ! -s "$dir/spec.md" ]; then
+    echo "GATE: FAIL (spec.md is empty, re-run maestro spec)"
+    return 1
+  fi
   local result sha head
   head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   file="$dir/checks/$head.result"
@@ -915,11 +985,214 @@ cmd_gate() {
     return 1
   fi
   if [ "$proof" = "1" ]; then
-    local pmsg
+    local pmsg rows
+    case "$dir" in
+      */quick/*) ;;
+      *)
+        # A full run must have at least one AC line; a light path has no SPEC.
+        rows="$(spec_ac_rows "$dir/spec.md" | awk -F'\t' '$3 == "proof" || $3 == "none"' | wc -l | tr -d ' ')"
+        if [ "${rows:-0}" -eq 0 ]; then
+          echo "GATE: FAIL (proof: SPEC has no acceptance criteria)"
+          return 1
+        fi
+        # Opted-out criteria are visible before the verdict, pass or fail.
+        spec_ac_rows "$dir/spec.md" | awk -F'\t' '$3 == "none" { print "proof none: " $2 ": " $4 }'
+        ;;
+    esac
     pmsg="$(verify_unmet "$slug" "$head")" || { echo "GATE: FAIL (proof: $pmsg)"; return 1; }
   fi
   gate_commit_order_warning "$slug"
   echo "GATE: PASS"
+}
+
+# ---- Task acceptance rules --------------------------------------------------
+# A built task is accepted only when its report is DONE, it has commits, its
+# test came before the implementation, every changed file is allowed, and the
+# check passed for the worktree HEAD. `maestro build` and `maestro verify-task`
+# share this check; the waiver is recorded by `maestro verify-task --waive`.
+
+# The field text of a task line: the line containing <label> up to, but not
+# including, the next `**<Label>:**` line or heading.
+task_field_text() {
+  awk -v label="$2" '
+    index($0, label) { on = 1 }
+    on {
+      if (seen && ($0 ~ /^[[:space:]]*\*\*[^*]+:\*\*/ || $0 ~ /^#+[[:space:]]/)) exit
+      print
+      seen = 1
+    }
+  ' "$1"
+}
+
+# `verify_task_rules <slug> <task> <dir> <wt>`: print one
+# `FAIL <rule>: <detail>` line per broken rule and return 1 when any rule
+# failed. Callers own the PASS, WAIVED, and hard-fail lines.
+verify_task_rules() {
+  local slug="$1" task="$2" dir="$3" wt="$4"
+  local failed=0 rb report count tf tf_lc head
+  local p pat off="" allowed_files okpat c any all_test failure saw_test_only
+  rb="$(run_branch "$slug")"
+
+  # 1. The builder reported DONE. A BLOCKED or FAILED report never passes.
+  report="$dir/build/$task.report.md"
+  if [ ! -f "$report" ]; then
+    echo "FAIL report: no builder report"
+    failed=1
+  elif grep -qE '^STATUS: (BLOCKED|FAILED)' "$report"; then
+    echo "FAIL report: $(grep -m1 -E '^STATUS: (BLOCKED|FAILED)' "$report")"
+    failed=1
+  elif ! grep -qx 'STATUS: DONE' "$report"; then
+    echo "FAIL report: no STATUS: DONE"
+    failed=1
+  fi
+
+  # 2. The worktree has at least one commit on top of the run branch.
+  count="$(git -C "$wt" rev-list --count "$rb..HEAD" 2>/dev/null || echo 0)"
+  if [ "${count:-0}" -eq 0 ]; then
+    echo "FAIL commits: no commits on $rb"
+    failed=1
+  fi
+
+  # 3. The failing test came first. `Test first: none` or `n/a` skips the rule;
+  # a path named in the field counts as a test even when is_test_path misses it.
+  tf="$(grep -m1 'Test first:' "$dir/tasks/$task.md" 2>/dev/null \
+    | sed 's/.*Test first:[[:space:]]*//' | sed 's/^\*\*[[:space:]]*//' \
+    | tr -d '`' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\*\*[[:space:]]*$//' || true)"
+  tf_lc="$(printf '%s' "$tf" | tr '[:upper:]' '[:lower:]')"
+  case "$tf_lc" in
+    none*|n/a*) ;;
+    '') ;;
+    *)
+      failure=""; saw_test_only=0
+      while IFS= read -r c; do
+        [ -n "$c" ] || continue
+        any=0; all_test=1
+        while IFS= read -r p; do
+          [ -n "$p" ] || continue
+          any=1
+          if ! is_test_path "$p"; then
+            case "$tf" in
+              *"$p"*) ;;
+              *) all_test=0 ;;
+            esac
+          fi
+        done < <(git -C "$wt" show --format= --name-only "$c" 2>/dev/null)
+        if [ "$any" = "1" ] && [ "$all_test" = "1" ]; then
+          saw_test_only=1
+        elif [ "$any" = "1" ] && [ "$saw_test_only" = "0" ] && [ -z "$failure" ]; then
+          failure="${c:0:7}"
+        fi
+      done < <(git -C "$wt" rev-list --reverse --no-merges "$rb..HEAD" 2>/dev/null)
+      if [ -n "$failure" ]; then
+        echo "FAIL test-first: $failure changes non-test files before any test-only commit"
+        failed=1
+      fi
+      ;;
+  esac
+
+  # 4. Every changed file is an `Allowed files` pattern: equal, a glob match, or
+  # under a pattern ending in `/`. Patterns are the backticked spans.
+  allowed_files="$(task_field_text "$dir/tasks/$task.md" 'Allowed files:' \
+    | grep -o '`[^`]*`' | tr -d '`' || true)"
+  if [ -z "$allowed_files" ]; then
+    echo "FAIL allowed-files: task lists no backticked Allowed files"
+    failed=1
+  else
+    off=""
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      okpat=0
+      while IFS= read -r pat; do
+        [ -n "$pat" ] || continue
+        case "$pat" in
+          */)
+            case "$p" in "$pat"*) okpat=1 ;; esac ;;
+        esac
+        [ "$okpat" = "1" ] && continue
+        [ "$p" = "$pat" ] && { okpat=1; continue; }
+        case "$p" in $pat) okpat=1 ;; esac
+      done < <(printf '%s\n' "$allowed_files")
+      if [ "$okpat" = "0" ]; then
+        if [ -z "$off" ]; then off="$p"; else off="$off, $p"; fi
+      fi
+    done < <(git -C "$wt" diff --name-only "$rb...HEAD" 2>/dev/null)
+    if [ -n "$off" ]; then
+      echo "FAIL allowed-files: $off not in Allowed files"
+      failed=1
+    fi
+  fi
+
+  # 5. The check passed for this worktree HEAD.
+  head="$(git -C "$wt" rev-parse HEAD 2>/dev/null || true)"
+  if [ -z "$head" ] || [ ! -f "$dir/checks/$head.result" ] \
+    || ! grep -qx 'RESULT: PASS' "$dir/checks/$head.result"; then
+    echo "FAIL check: no PASS record for ${head:0:7}"
+    failed=1
+  fi
+
+  [ "$failed" -eq 0 ]
+}
+
+# `maestro verify-task <run> <task> [--waive "<reason>"]`: apply the five rules
+# to a task worktree, print the failures, and honor a waiver recorded for the
+# current worktree HEAD. Exit 0 pass/waived/waiver recorded, 1 rule failure or
+# unknown run/task/worktree, 2 usage or bad id.
+cmd_verify_task() {
+  local slug="" task="" waive="" have_waive=0 head=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --waive)
+        [ "$#" -ge 2 ] || { echo 'maestro verify-task: --waive needs a reason' >&2; exit 2; }
+        waive="$2"; have_waive=1; shift 2 ;;
+      -*)
+        echo "maestro verify-task: unknown flag: $1" >&2; exit 2 ;;
+      *)
+        if [ -z "$slug" ]; then slug="$1"
+        elif [ -z "$task" ]; then task="$1"
+        else echo 'usage: maestro verify-task <run> <task> [--waive "<reason>"]' >&2; exit 2
+        fi
+        shift ;;
+    esac
+  done
+  [ -n "$slug" ] && [ -n "$task" ] \
+    || { echo 'usage: maestro verify-task <run> <task> [--waive "<reason>"]' >&2; exit 2; }
+  require_run_id "verify-task" "$slug"
+  require_run_id "verify-task" "$task"
+  if [ "$have_waive" = "1" ] && [ -z "$waive" ]; then
+    echo 'maestro verify-task: --waive needs a reason' >&2
+    exit 2
+  fi
+
+  local dir wt
+  dir="$(run_state_dir "$slug")" || { echo "maestro verify-task: not in a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "maestro verify-task: no such run: $slug" >&2; exit 1; }
+  [ -f "$dir/tasks/$task.md" ] || { echo "maestro verify-task: no such task: $task" >&2; exit 1; }
+  wt="$(task_worktree "$slug" "$task")" || { echo "maestro verify-task: not in a git repository" >&2; exit 1; }
+  [ -d "$wt" ] || { echo "maestro verify-task: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 1; }
+
+  if [ "$have_waive" = "1" ]; then
+    head="$(git -C "$wt" rev-parse HEAD)"
+    (umask 077; mkdir -p "$dir/build")
+    printf '%s\t%s\t%s\n' "$head" "$waive" "$(date -Iseconds)" > "$dir/build/$task.verify-waiver"
+    printf 'verify-task: waiver recorded for %s: %s\n' "${head:0:7}" "$waive"
+    return 0
+  fi
+
+  local failed=0 whead wreason wdate
+  verify_task_rules "$slug" "$task" "$dir" "$wt" || failed=1
+  if [ "$failed" -eq 1 ]; then
+    if [ -f "$dir/build/$task.verify-waiver" ]; then
+      IFS="$(printf '\t')" read -r whead wreason wdate < "$dir/build/$task.verify-waiver"
+      head="$(git -C "$wt" rev-parse HEAD)"
+      if [ "$whead" = "$head" ]; then
+        printf 'verify-task: WAIVED (%s)\n' "$wreason"
+        return 0
+      fi
+    fi
+    return 1
+  fi
+  echo "verify-task: PASS"
+  return 0
 }
 
 # ---- Proof of acceptance criteria ------------------------------------------
@@ -927,13 +1200,77 @@ cmd_gate() {
 # `Proof: none` opts a criterion out. Rows live in $STATE/<run>/verify/index.tsv:
 # time, AC, result, HEAD, by, evidence, note. The latest row per AC wins.
 
+# One row per candidate AC line, tab-separated:
+#   line<TAB>id<TAB>proof|none|bad<TAB>command-or-reason-or-error
+# A candidate starts like a list item naming an AC id (`^[-*0-9. ]*AC[0-9]+`).
+# A line is valid when it matches `- AC<n>: <text> Proof: <text>`; `Proof: none`
+# needs a reason. Ids are unique. `maestro spec` refuses bad rows; the gate reads
+# the `proof` and `none` rows. One awk pass keeps the parser in one place.
+spec_ac_rows() {
+  local spec="$1"
+  [ -f "$spec" ] || return 0
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    # The last `Proof:` outside backticks is the field: AC prose and the proof
+    # command may each quote an earlier one.
+    function last_proof(s,   i, n, ticks, at) {
+      at = 0; ticks = 0; n = length(s)
+      for (i = 1; i <= n; i++) {
+        if (substr(s, i, 1) == "`") { ticks = 1 - ticks; continue }
+        if (ticks == 0 && substr(s, i, 6) == "Proof:") { at = i; i += 5 }
+      }
+      return at
+    }
+    /^[-*0-9. ]*AC[0-9]+/ {
+      line = $0
+      match(line, /AC[0-9]+/)
+      id = substr(line, RSTART, RLENGTH)
+      if (line !~ /^- AC[0-9]+: /) {
+        print NR "\t" id "\tbad\tnot an AC line (expected \"- AC<n>: <text> Proof: ...\")"
+        next
+      }
+      pstart = last_proof(line)
+      if (pstart == 0) {
+        print NR "\t" id "\tbad\tno Proof:"
+        next
+      }
+      ptext = trim(substr(line, pstart + 6))
+      if (ptext == "") {
+        print NR "\t" id "\tbad\tempty Proof:"
+        next
+      }
+      rest = ptext
+      if (substr(rest, 1, 1) == "`") rest = substr(rest, 2)
+      if (rest == "none" || rest ~ /^none[ \t(]/ || rest ~ /^none`/) {
+        reason = trim(substr(rest, 5))
+        if (substr(reason, 1, 1) == "`") reason = trim(substr(reason, 2))
+        if (reason == "") {
+          print NR "\t" id "\tbad\tProof: none needs a reason"
+          next
+        }
+        if (id in seen) {
+          print NR "\t" id "\tbad\tduplicate " id " (first on line " seen[id] ")"
+          next
+        }
+        seen[id] = NR
+        print NR "\t" id "\tnone\t" reason
+        next
+      }
+      if (id in seen) {
+        print NR "\t" id "\tbad\tduplicate " id " (first on line " seen[id] ")"
+        next
+      }
+      seen[id] = NR
+      print NR "\t" id "\tproof\t" ptext
+    }
+  ' "$spec"
+}
+
 # Criteria ids that need proof, one per line.
 verify_required_acs() {
   local spec="$1"
   [ -f "$spec" ] || return 0
-  grep -E '^[-*0-9. ]*AC[0-9]+[:.)]' "$spec" \
-    | grep -E 'Proof:' | grep -viE 'Proof:[[:space:]]*`?none' \
-    | sed -E 's/^[-*0-9. ]*(AC[0-9]+).*/\1/' | sort -u
+  spec_ac_rows "$spec" | awk -F'\t' '$3 == "proof" { print $2 }' | sort -u
 }
 
 # Print nothing and return 0 when every required criterion has a PASS row for
@@ -2490,7 +2827,7 @@ build_review() {
     [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
   fi
 
-  local repo name dir wt bdir pre findings again base
+  local repo dir wt bdir pre findings again base
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --review: not a git repository" >&2; exit 3; }
   if [ "$here" = "1" ]; then
     # Light path: review the current checkout; state sits beside the quick run.
@@ -2503,9 +2840,8 @@ build_review() {
     bdir="$dir"; pre="review"; findings="$dir/review.md"
     again="maestro build --review --here $slug --wait"
   else
-    name="$(basename "$repo")"
     dir="$(run_state_dir "$slug")" || { echo "maestro build --review: not in a git repository" >&2; exit 3; }
-    wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
+    wt="$(task_worktree "$slug" "$task")"
     [ -d "$dir" ] || { echo "maestro build --review: no such run: $slug" >&2; exit 1; }
     [ -d "$wt" ] || { echo "maestro build --review: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
     bdir="$dir/build"; pre="$task.review2"; findings="$bdir/$task.review2.md"
@@ -2525,6 +2861,10 @@ build_review() {
   if [ -f "$run" ]; then
     build_mark_stale "$run" "$rcfile"
   else
+    # A reviewer starts only after a passing check for the checkout HEAD, before
+    # the prompt or the .run marker exists. Attaching to a running review skips it.
+    ensure_check "$slug" "$dir" "$wt" \
+      || { echo "review: not started (check failed)" >&2; exit 1; }
     local diff_base
     if [ "$here" = "1" ]; then
       diff_base="$(default_base_ref "$wt")"
@@ -2602,12 +2942,10 @@ cmd_build() {
 
   require_run_id "build" "$slug"
   builder_ready || exit 3
-  local envfile repo name dir wt max_rev=2
+  local envfile dir wt max_rev=2
   envfile="$(builder_env_file)"
-  repo="$(git rev-parse --show-toplevel)"
-  name="$(basename "$repo")"
   dir="$(run_state_dir "$slug")" || { echo "maestro build: not in a git repository" >&2; exit 3; }
-  wt="$(cd "$repo/.." && pwd)/$name-bottega/$slug/$task"
+  wt="$(task_worktree "$slug" "$task")"
   local bdir="$dir/build"
   local report="$bdir/$task.report.md"
   local state="$bdir/$task.builder"
@@ -2620,6 +2958,8 @@ cmd_build() {
   local taskfile="$dir/tasks/$task.md"
 
   [ -d "$dir" ] || { echo "maestro build: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 3; }
+  [ ! -f "$dir/spec.md" ] || [ -s "$dir/spec.md" ] \
+    || { echo "maestro build: spec.md is empty, re-run maestro spec" >&2; exit 3; }
   [ -f "$taskfile" ] || { echo "maestro build: no such task: $task (run: maestro spec $slug)" >&2; exit 3; }
   [ -d "$wt" ] || { echo "maestro build: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 3; }
   mkdir -p "$bdir"
@@ -2689,7 +3029,7 @@ $(cat "$taskfile")"
   fi
   printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
 
-  local status="MISSING" commits secs=0
+  local status="MISSING" commits secs=0 verify_failed=0
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   commits="$(git -C "$wt" log --oneline "$(run_branch "$slug")..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
   [ -n "$t0" ] && secs=$(( $(now_epoch) - t0 ))
@@ -2704,7 +3044,33 @@ $(cat "$taskfile")"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "$(run_branch "$slug")...HEAD" 2>/dev/null | sed 's/^/  /'
-  [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
+
+  # Every build report is judged: a DONE report with or without commits, and a
+  # BLOCKED or FAILED one. A HEAD-bound waiver hides a rule failure for a DONE
+  # report; a non-DONE report never passes. Otherwise the task stays BLOCKED.
+  if [ "$status" != "MISSING" ]; then
+    local vfail=0 whead wreason wdate
+    ensure_check "$slug" "$dir" "$wt" || true
+    verify_task_rules "$slug" "$task" "$dir" "$wt" || vfail=1
+    if [ "$status" != "STATUS: DONE" ]; then
+      verify_failed=1
+      printf 'verify-task: FAIL; task stays BLOCKED (waive: maestro verify-task %s %s --waive "<reason>")\n' "$slug" "$task"
+    elif [ "$vfail" -eq 0 ]; then
+      echo "verify-task: PASS"
+    elif [ -f "$bdir/$task.verify-waiver" ]; then
+      IFS="$(printf '\t')" read -r whead wreason wdate < "$bdir/$task.verify-waiver"
+      if [ "$whead" = "$(git -C "$wt" rev-parse HEAD)" ]; then
+        printf 'verify-task: WAIVED (%s)\n' "$wreason"
+      else
+        verify_failed=1
+        printf 'verify-task: FAIL; task stays BLOCKED (waive: maestro verify-task %s %s --waive "<reason>")\n' "$slug" "$task"
+      fi
+    else
+      verify_failed=1
+      printf 'verify-task: FAIL; task stays BLOCKED (waive: maestro verify-task %s %s --waive "<reason>")\n' "$slug" "$task"
+    fi
+  fi
+  [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] && [ "$verify_failed" -eq 0 ] || exit 1
 }
 
 # Internal: run the headless builder and record its exit code. Started detached
@@ -3671,6 +4037,7 @@ case "$cmd" in
   check) cmd_check "$@" ;;
   gate) cmd_gate "$@" ;;
   verify) cmd_verify "$@" ;;
+  verify-task) cmd_verify_task "$@" ;;
   log) cmd_log "$@" ;;
   report) cmd_report "$@" ;;
   build) cmd_build "$@" ;;

@@ -84,7 +84,9 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    stay in chat. Spawn `planner`; it returns the SPEC as its final reply. Check the task graph: no cycles, every
    task a vertical slice, the first wave ready, each task has `Allowed files`, `Test first`, and `Done when`, and
    the SPEC has `## Sensors`; send gaps back before approval. Post the SPEC and first wave, then wait. On
-   approval, save it with `maestro spec <slug>`; it prints the task count.
+   approval, save it with `maestro spec <slug>`; it validates the AC lines (one AC per line, `Proof:` on the
+   same line, unique ids), rejects a malformed save with `maestro spec: line <n>: <reason>: <line>` and leaves
+   the previous spec untouched, then prints the task count.
 2. **Step 2 — Build.** Read the task graph. Default sequential. Run a wave in parallel, one worktree per task, when
    ready tasks touch disjoint files and have no dependency; parallel is preferred when safe, sequential when tasks
    share a file or migration or one needs another's output. Join rule: `ALL`; a parallel wave merges only when
@@ -99,18 +101,24 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    **Progress.** Create one `TodoWrite` item per task; mark it `in_progress` at build start and `completed` on
    `STATUS: DONE`. Each headless build prints its own `progress:` lines as tasks finish; for a live view of a
    wave, run `maestro watch <slug>` in a pane (piped output prints a line only on change), and run
-   `maestro build --status <slug>` after each build. Never sleep-poll. Verify before accepting (principle `prove-it-works`: the
-   builder's report is present, commits exist, changed files inside `Allowed files`). `STATUS: BLOCKED` returns
-   to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a `review-code` verdict of approve.
-   A builder needing another file is `BLOCKED`; do not widen it.
-3. **Step 3 — Checks.** Run `maestro check <slug>` in each task worktree; it runs `scripts/check` and records
+   `maestro build --status <slug>` after each build. Never sleep-poll. Each DONE build with commits already runs
+   the worktree check and `maestro verify-task <slug> <task>`; it prints `verify-task: PASS`, or each
+   `FAIL <rule>: <detail>` plus `verify-task: FAIL; task stays BLOCKED (...)` and exits 1 (principle `prove-it-works`).
+   Fix the broken rule. To accept a failure anyway, ask the user with `AskUserQuestion`; on yes run
+   `maestro verify-task <slug> <task> --waive "<reason>"`, which holds for that worktree HEAD only.
+   `STATUS: BLOCKED` returns to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a
+   `review-code` verdict of approve. A builder needing another file is `BLOCKED`; do not widen it.
+3. **Step 3 — Checks.** The build already ran and recorded the worktree check. After further commits, run
+   `maestro check <slug>` in each task worktree; it runs `scripts/check` and records
    `checks/<sha>.result` (plus `.log`) for the current HEAD, then refreshes `checks.result` as the latest record.
    Checks and review can run per task worktree in parallel: `maestro gate` reads only the record for the current
    HEAD, so a check in another worktree does not make it stale. Post the output in chat. On failure load
    `diagnosis` and pass the findings to a fresh builder.
-4. **Step 4 — Review.** Review can run per task worktree in parallel; run `maestro gate <slug>` in the worktree
-   first. For `low` risk, run `maestro build --review <slug> <task> --block` (headless; on the light
-   path `maestro build --review --here <slug> --block`) next: read its reply; no findings means no Claude reviewer, any finding means the `review-code` reviewer below runs.
+4. **Step 4 — Review.** Review can run per task worktree in parallel. `maestro build --review` checks before it reviews:
+   it runs `maestro check` in the task worktree, or reuses a fresh PASS record for that HEAD, and starts
+   no reviewer when the check fails. For `low` risk, run `maestro build --review <slug> <task> --block` (headless;
+   on the light path `maestro build --review --here <slug> --block`): read its reply; no findings means no Claude
+   reviewer, any finding means the `review-code` reviewer below runs.
    `standard` and `high` spawn one `review-code` reviewer covering code, UI, UX, and security; it returns its
    verdict and findings as its reply. Tell it to load `verification`, run every `Proof:` line in the SPEC, and record each result with `maestro verify record <slug> <AC> PASS|FAIL|INCONCLUSIVE --by reviewer --evidence <file>`, and to check the diff against `Allowed files` (a file outside it is a finding), test-first
    evidence (principle `test-behavior-not-implementation`), and sensor blind spots.
@@ -121,7 +129,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    `maestro build <slug> <task> --revise -` (light path: `maestro build --here <slug> --revise -`); it resumes the same session and refuses a third revision (exit 4),
    so escalate then (`maestro hold <slug> "<reason>"`). Record each blocking finding with `maestro report --finding <slug> "<title>"` (the retro scan reads these). Track failing checks and blocking findings per round; if neither fell in two consecutive
    rounds, stop and escalate. Never run a third identical round.
-6. **Step 6 — Approval.** Load `approval`; run `maestro gate <slug> --proof` first (it fails on a missing, failing, inconclusive, or stale proof; a waiver needs the user's yes through `AskUserQuestion`, then `maestro verify waive <slug> <AC> "<reason>"`). Read the SPEC, every builder report, the check output, and every
+6. **Step 6 — Approval.** Load `approval`; run `maestro gate <slug> --proof` first (it lists each `Proof: none` criterion as `proof none: AC<n>: <reason>` and fails on a missing, failing, inconclusive, or stale proof; a waiver needs the user's yes through `AskUserQuestion`, then `maestro verify waive <slug> <AC> "<reason>"`). Read the SPEC, every builder report, the check output, and every
    review reply. Decide `APPROVE` or `ESCALATE` yourself, with the acceptance-criteria mapping, risks, and an
    explainer. For `feature`, `refactor`, and `high` risk add a 3-5 question quiz. In every playbook present the
    decision and explainer with `AskUserQuestion`, the quiz first in chat (never in the PR body); a chat summary alone is never enough.

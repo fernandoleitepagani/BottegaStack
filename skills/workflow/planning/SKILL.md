@@ -27,8 +27,8 @@ template is adapted from Matt Pocock's `to-spec` and `to-tickets`; keep its shap
 ### Out
 ## Constraints
 ## Acceptance criteria
-- AC1: <observable behaviour>. Proof: `<command>` -> `<expected output or exit code>`
-- AC2: <behaviour a command cannot show>. Proof: none (<why>)
+- AC1: <observable behaviour>. Proof: `<command>` -> `<expected>`
+- AC2: <behaviour a command cannot show>. Proof: none <reason>
 ## Options considered
 1. <direction> — <trade-off>
 2. <direction> — <trade-off>
@@ -46,8 +46,8 @@ External behaviour, not implementation; the modules tested, seams, prior art.
 **What to build:** the end-to-end behaviour, from the user's perspective.
 **Blocked by:** <task numbers/titles> or "None (can start immediately)".
 **Files and interfaces:** modules, types, or contracts; no stale line numbers.
-**Allowed files:** exact paths this task may create or modify. No others.
-**Test first:** the failing test or check that proves the task before the fix.
+**Allowed files:** backticked exact paths this task may create or modify. No others.
+**Test first:** the failing test or check that proves the task, naming the test file.
 **Done when:** the observable result and the command that proves it.
 **Acceptance criteria:**
 - [ ] <criterion>
@@ -64,12 +64,13 @@ External behaviour, not implementation; the modules tested, seams, prior art.
 ```
 ## Task rules
 - A task is a tracer bullet: a narrow but complete vertical slice (data, logic, UI, tests), demoable or verifiable alone and one context window.
-- Fill `Allowed files`, `Test first`, and `Done when`; an empty field means not ready.
+- Fill `Allowed files`, `Test first`, and `Done when`; an empty field means not ready. Write every `Allowed files` path in backticks, and make `Test first` name the test file.
 - Prefactoring comes first; a task with no blockers can start immediately. Wide refactors use expand-contract.
 - Inline decision-rich prototype code only when a decision depends on it; no stale paths or line numbers.
 ## Rules
 - Synthesize the interview; do not interview again.
-- Acceptance criteria are the contract and each is checkable with only the repo; test the highest existing seam, prefer one. Number them `AC1`, `AC2`, and give each a `Proof:` line naming a real command and what it must print. `Proof: none (<why>)` is allowed only for judgment calls; `maestro gate <run> --proof` requires a PASS record for every other criterion.
+- Acceptance criteria are the contract and each is checkable with only the repo; test the highest existing seam, prefer one. Number them `AC1`, `AC2`, and give each a `Proof:` line naming a real command and what it must print. `Proof: none <reason>` is allowed only for judgment calls; `maestro gate <run> --proof` requires a PASS record for every other criterion, and lists the `none` criteria with their reasons.
+- `maestro spec` rejects the save of a malformed AC line and leaves the previous spec and tasks untouched: one AC per line, `Proof:` on the same line, and unique ids. A SPEC with no AC lines still saves.
 - Show 2-3 directions and trade-offs under `## Options considered`; the user still approves one SPEC, so not a new checkpoint.
 - Use the project's vocabulary, include needed doc updates, prefer the smallest change, and add no options or extras the user did not ask for.
 - Put unanswered categories under **Open questions** and stop; the master asks the user and re-runs you. Never invent a product decision.

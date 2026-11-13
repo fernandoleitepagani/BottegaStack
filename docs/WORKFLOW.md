@@ -51,7 +51,9 @@ slice that fits one fresh context. Every task carries `Allowed files`,
 neither covers. If a contract field is empty or `## Sensors` is missing, the
 master sends the SPEC back to the planner before approval. If the SPEC has open
 questions, the master asks you and has it revised. On approval, the master saves
-it with `maestro spec <slug>`, which extracts `tasks/<n>.md` and prints the task
+it with `maestro spec <slug>`, which validates the AC lines first and rejects a
+malformed one (one AC per line, `Proof:` on the same line, unique ids) without
+overwriting the previous spec, then extracts `tasks/<n>.md` and prints the task
 count. You approve the spec and the first wave.
 
 `trivial` runs skip this step. A `bugfix` still commits a failing test first.
@@ -101,6 +103,14 @@ check` records a per-HEAD result, so one worktree's check never invalidates
 another's gate. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
 is the only stop. Each build reports its token counts and step count.
 
+After a build reports `STATUS: DONE` with commits, `maestro build` runs
+`maestro check` in the task worktree and then `maestro verify-task <run> <task>`.
+`verify-task: PASS` accepts the task; any broken rule prints `FAIL <rule>:
+<detail>` and `verify-task: FAIL; task stays BLOCKED (...)` and exits 1. The
+master fixes the rule. To accept it anyway it asks for the user's yes with
+`AskUserQuestion`, then records the HEAD-bound waiver with `maestro verify-task
+<run> <task> --waive "<reason>"` (`verify-task: WAIVED (<reason>)`, exit 0).
+
 The master reads the task graph from the saved SPEC and inspects the ready set
 before building. It defaults to sequential. If two or more ready tasks touch
 disjoint files and have no dependency between them, it runs that wave in parallel
@@ -120,7 +130,8 @@ the task pass. A genuine test change needs approval and is recorded under
 
 ### Step 3: Checks
 
-The master runs `maestro check <run>`, which runs `scripts/check` (in the
+The build already ran and recorded the check in each task worktree. After further
+commits, the master runs `maestro check <run>`, which runs `scripts/check` (in the
 current worktree) and writes `checks/<sha>.result` with `RESULT`, `HEAD`, exit
 code, and duration plus the output to `checks/<sha>.log`, both keyed by the
 checked commit. It also writes the same record to `checks.result` as the latest
@@ -133,12 +144,16 @@ failing build.
 
 ### Step 4: Review
 
-The master runs `maestro gate <run>` first. A failing, stale, or dirty gate stops
-the review; the gate is per HEAD, so each task worktree can review in parallel. For `low` risk it first runs `maestro build --review <run> <task>
---block` (on the light path `maestro build --review --here <slug> --block`) on the headless model: no findings means no Claude reviewer runs, and
-any finding means the `review-code` reviewer below runs. `standard` and `high`
-risk are unchanged. It then spawns one `review-code` reviewer, which covers code,
-UI, UX, and security in one pass and returns one verdict:
+`maestro build --review <run> <task>` checks before it reviews: it runs
+`maestro check` in the task worktree, or reuses a fresh PASS record for the
+current HEAD, and starts no reviewer when the check fails. The check is per
+HEAD, so each task worktree can review in parallel. For `low` risk the master
+runs `maestro build --review <run> <task> --block` (on the light path
+`maestro build --review --here <slug> --block`) on the headless model: no
+findings means no Claude reviewer runs, and any finding means the `review-code`
+reviewer below runs. `standard` and `high` risk are unchanged. It then spawns
+one `review-code` reviewer, which covers code, UI, UX, and security in one pass
+and returns one verdict:
 
 - **Code** — correctness, simplicity, conventions, tests, and spec fidelity.
 - **UI** — visual consistency, design-system fit, spacing, responsive layout,
@@ -175,8 +190,11 @@ of running a third identical round.
 
 ### Step 6: Approval
 
-The master loads `approval` and reads the SPEC, the builder reports, checks, and
-review replies. It decides `APPROVE` or `ESCALATE` itself, with the
+The master loads `approval` and runs `maestro gate <slug> --proof` first: the
+gate lists each `Proof: none` criterion as `proof none: AC<n>: <reason>` and
+fails on a missing, failing, inconclusive, or stale proof (a waiver needs your
+yes). It reads the SPEC, the builder reports, checks, and review
+replies. It decides `APPROVE` or `ESCALATE` itself, with the
 acceptance-criteria mapping, risks, and an explainer. For `feature`, `refactor`,
 and `high` risk it adds a quiz; `trivial`, `bugfix`, and `low` risk get the
 explainer only. In every playbook it then presents the decision and asks for it
@@ -351,7 +369,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, `skills`, and
+`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `verify-task`, `log`, `report`, `build`, `worktree`, `skills`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -369,6 +387,7 @@ maestro gate <run> [--allow-dirty] [--proof]
 maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>]
 maestro verify waive <run> <AC> "<reason>"
 maestro verify list <run>
+maestro verify-task <run> <task> [--waive "<reason>"]
 maestro log <run> [<phase> <decision> <why> <evidence> <result>]
 maestro report [--retro] [--exit-code]
 maestro report --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>]
@@ -434,11 +453,29 @@ level that can prevent it from recurring.
 ### Already enforced
 
 - `maestro start` refuses a dirty tree, `main`, or a detached HEAD.
+- `maestro spec` validates the AC lines before saving (one AC per line,
+  `Proof:` on the same line, a reason for `Proof: none`, unique ids) and exits 1
+  with `maestro spec: line <n>: <reason>: <line>` per bad line, leaving the
+  previous spec and `tasks/` untouched.
 - `maestro check` writes a per-HEAD `checks/<sha>.result` and refreshes
   `checks.result`; `maestro gate` fails on a failed or stale result for the
-  current HEAD, a dirty tree, or, with `--proof`, an unmet Proof criterion.
+  current HEAD, a dirty tree, or, with `--proof`, a full run with no acceptance
+  criteria or an unmet Proof criterion; it lists each `Proof: none` criterion as
+  `proof none: AC<n>: <reason>` before its verdict.
 - `maestro verify record` refuses `--by builder` and a PASS without an evidence
   file; the latest row per criterion decides.
+- `maestro verify-task <run> <task>` accepts a task only when its report is
+  `STATUS: DONE`, it has commits on the run branch, its test commit came first
+  (skipped for `Test first: none` or `n/a`, and a test file named in that field
+  counts), every changed file is in `Allowed files`, and `maestro check` passed
+  for the worktree HEAD. It prints one `FAIL <rule>: <detail>` line per broken
+  rule and exits 1; a waiver recorded for that HEAD with `--waive "<reason>"`
+  hides the failures, prints `verify-task: WAIVED (<reason>)`, and exits 0.
+- `maestro build <run> <task>` runs that worktree check and `maestro
+  verify-task` itself after a `STATUS: DONE` report with commits: `verify-task:
+  PASS` accepts the task, and a failing rule exits 1 with the `FAIL <rule>` lines
+  and `verify-task: FAIL; task stays BLOCKED (...)`, so a build cannot report a
+  blocked task as accepted.
 
 ### Designed out
 

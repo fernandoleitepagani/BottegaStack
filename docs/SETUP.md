@@ -384,6 +384,7 @@ maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run>
+maestro verify-task <run> <task> [--waive "<reason>"]
 maestro watch <run>
 maestro watch --line
 ```
@@ -401,6 +402,11 @@ maestro watch --line
   attaches to a running build with the same bounded wait. Without either, the
   call waits up to `BOTTEGA_BUILD_WAIT` seconds and then prints `RUNNING` and
   exits 5.
+- A `STATUS: DONE` build with commits runs `maestro check` in the task worktree
+  and then `maestro verify-task <run> <task>`. It prints `verify-task: PASS`, or
+  each `FAIL <rule>: <detail>` plus `verify-task: FAIL; task stays BLOCKED (...)`
+  and exits 1. A HEAD-bound waiver prints `verify-task: WAIVED (<reason>)` and
+  exits 0.
 - Each run writes a settings profile (`build/<task>.settings.json`, no secrets)
   and passes it with `--settings`, so it outranks user and project settings. The
   profile blanks `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` in settings
@@ -495,6 +501,8 @@ maestro worktree prune <run> [--force]
 | `maestro gate` says stale | Run `maestro check <run>` after the latest commit. |
 | `maestro gate --proof` fails | A criterion has no PASS for the current HEAD: run its `Proof:` and `maestro verify record` it, or waive it with the user's approval. |
 | `maestro gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
+| `maestro build` or `maestro gate` says `spec.md is empty` | Re-run `maestro spec <run> <file>`; `spec` refuses an empty source and never overwrites the spec it is reading. |
+| `maestro verify-task` says `FAIL <rule>` | Fix that rule (`report`, `commits`, `test-first`, `allowed-files`, or `check`) and re-run it. To accept it anyway, first get the user's yes, then run `maestro verify-task <run> <task> --waive "<reason>"`; the waiver holds only for the current worktree HEAD. |
 | `maestro doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `maestro init`. |
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
