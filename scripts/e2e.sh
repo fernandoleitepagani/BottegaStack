@@ -51,6 +51,16 @@ if [ "${STUB_FAIL:-}" = "1" ]; then
   exit 1
 fi
 [ -n "${STUB_SLEEP:-}" ] && sleep "$STUB_SLEEP"
+# STUB_COMMIT lists paths to change and commit in order; `build` runs
+# verify-task at the end, so a fixture builder must leave real commits.
+if [ -n "${STUB_COMMIT:-}" ]; then
+  for stub_path in $STUB_COMMIT; do
+    mkdir -p "$(dirname "$stub_path")"
+    printf 'stub %s %s\n' "$stub_path" "$RANDOM$$" >> "$stub_path"
+    git add -- "$stub_path" >/dev/null 2>&1
+    git commit -q -m "stub: $stub_path" >/dev/null 2>&1
+  done
+fi
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}'
 printf '{"type":"result","result":"STATUS: %s\\nall good","usage":{"input_tokens":10,"output_tokens":5},"session_id":"s1"}\n' "${STUB_STATUS:-DONE}"
 EOF
@@ -176,7 +186,7 @@ fi
 expect_not "start refused on main" "$M" start "On main"
 git switch -q -c feat/e2e
 expect "start on a branch" "$M" start "Run A"
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n### Task 2 - two\nbody\n' > "$TMP/spec.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n### Task 2 - two\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/spec.md"
 [ "$("$M" spec run-a "$TMP/spec.md")" = "2" ] && ok "spec counts tasks" || fail "spec counts tasks"
 
 # Atomic spec save and empty-spec guards (issue #39). A source that is its own
@@ -199,7 +209,7 @@ spec_empty_ok=1
 "$M" spec run-a </dev/null >/dev/null 2>&1; rc=$?
 [ "$rc" -ne 0 ] && [ "$(cat "$spec_dir/spec.md")" = "$spec_before" ] || spec_empty_ok=0
 [ "$spec_empty_ok" -eq 1 ] && ok "spec refuses an empty source" || fail "spec refuses an empty source"
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n### Task 2 - two\nbody\n' > "$TMP/spec-new.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n- AC2: judgment. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n### Task 2 - two\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/spec-new.md"
 out="$("$M" spec run-a "$TMP/spec-new.md" 2>&1)"; rc=$?
 spec_leftovers="$(find "$spec_dir" -maxdepth 1 \( -name '.spec*' -o -name 'spec.md.*' -o -name '*.tmp' \) -print)"
 if [ "$rc" -eq 0 ] && [ "$out" = "2" ] && cmp -s "$TMP/spec-new.md" "$spec_dir/spec.md" \
@@ -375,8 +385,54 @@ fi
 # Builds through the stub.
 : > "$STUBLOG"
 expect "worktree create" "$M" worktree create run-a 1
-expect "build" "$M" build run-a 1 --block
-expect "build --revise" sh -c "echo 'fix it' | '$M' build run-a 1 --revise - --block"
+expect "build" env STUB_COMMIT=allowed.txt "$M" build run-a 1 --block
+expect "build --revise" sh -c "echo 'fix it' | STUB_COMMIT=allowed.txt '$M' build run-a 1 --revise - --block"
+# `maestro build` runs the worktree check and verify-task at the end (Task 5): a
+# DONE build with commits passes only when every task rule holds; a changed file
+# outside `Allowed files` exits 1 and leaves the task BLOCKED.
+"$M" start "Build verify" >/dev/null 2>&1
+cat > "$TMP/build-verify-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: works. Proof: `true` -> exit 0
+### Task 1 - pass
+**Allowed files:** `tests/pass_test.sh`, `src/pass.sh`
+**Test first:** tests/pass_test.sh
+body
+### Task 2 - outside
+**Allowed files:** `src/ok.sh`
+**Test first:** none
+body
+### Task 3 - revision
+**Allowed files:** `src/rev.sh`
+**Test first:** none
+body
+EOF
+"$M" spec build-verify "$TMP/build-verify-spec.md" >/dev/null 2>&1
+for bvt in 1 2 3; do "$M" worktree create build-verify "$bvt" >/dev/null 2>&1; done
+out="$(STUB_COMMIT='tests/pass_test.sh src/pass.sh' "$M" build build-verify 1 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'verify-task: PASS'; then
+  ok "build --block passes verify-task"
+else
+  fail "build --block passes verify-task"
+fi
+out="$(STUB_COMMIT='src/other.sh' "$M" build build-verify 2 --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL allowed-files:' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED' \
+  && printf '%s\n' "$out" | grep -q 'verify-task build-verify 2 --waive'; then
+  ok "build --block fails on verify-task"
+else
+  fail "build --block fails on verify-task"
+fi
+STUB_COMMIT='src/rev.sh' "$M" build build-verify 3 --block >/dev/null 2>&1
+out="$(printf 'fix it\n' | STUB_COMMIT='src/bad.sh' "$M" build build-verify 3 --revise - --block 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^FAIL allowed-files:' \
+  && printf '%s\n' "$out" | grep -q '^verify-task: FAIL; task stays BLOCKED'; then
+  ok "build --block fails on verify-task after a revision"
+else
+  fail "build --block fails on verify-task after a revision"
+fi
+"$M" report --close build-verify >/dev/null 2>&1
 expect "build --review" "$M" build --review run-a 1 --block
 # `build --review` checks before it reviews (Task 3): a new HEAD runs the check
 # in the worktree, a fresh PASS record is reused without another checks.log line,
@@ -640,7 +696,7 @@ events_ok() { # <name> <events> <task> <role>
   fi
 }
 expect "events: worktree for run task" "$M" worktree create run-a 2
-expect "events: build run task" "$M" build run-a 2 --block
+expect "events: build run task" env STUB_COMMIT=allowed.txt "$M" build run-a 2 --block
 expect "events: build review" "$M" build --review run-a 2 --block
 expect "events: build here" "$M" build --here ev-here --task "events" --block
 expect "events: build review here" "$M" build --review --here ev-here --block
@@ -829,10 +885,10 @@ rm -rf "$WROOT/watch-4" "$WROOT/watch-done" "$WROOT/watch-hold"
 # Every headless build flavour prints `progress:` lines while it waits (Task 3).
 # Its own state dir keeps the counts to one task; the final summary is unchanged.
 ( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Progress run" ) >/dev/null 2>&1
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/progress-spec.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n**Allowed files:** `allowed.txt`\n' > "$TMP/progress-spec.md"
 ( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" spec progress-run "$TMP/progress-spec.md" ) >/dev/null 2>&1
 ( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" worktree create progress-run 1 ) >/dev/null 2>&1
-out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build progress-run 1 --block 2>&1 )"; rc=$?
+out="$( cd "$WREPO" && STUB_COMMIT=allowed.txt BOTTEGA_STATE_DIR="$WSTATE" "$M" build progress-run 1 --block 2>&1 )"; rc=$?
 if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
   && printf '%s\n' "$out" | grep -qx 'task: 1' \
   && printf '%s\n' "$out" | grep -q '^steps: ' \
