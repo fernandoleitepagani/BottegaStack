@@ -31,6 +31,9 @@ unset BOTTEGA_BUILDER_ENV BOTTEGA_BUILDER_KEY BOTTEGA_PLUGIN_DIR BOTTEGA_NO_TOOL
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" CLAUDE_CONFIG_DIR="$TMP/home/.claude" BOTTEGA_STATE_DIR="$TMP/state"
 export GIT_AUTHOR_NAME=e2e GIT_AUTHOR_EMAIL=e2e@example.invalid GIT_COMMITTER_NAME=e2e GIT_COMMITTER_EMAIL=e2e@example.invalid
 mkdir -p "$TMP/bin" "$CLAUDE_CONFIG_DIR/rules" "$HOME/.config/bottega"
+# A complete status-line config: the existing silent-hint cases below must stay
+# silent now that a missing status line adds its own SessionStart line (AC9).
+printf '%s\n' '{"statusLine":{"type":"command","command":"maestro watch --line","refreshInterval":10}}' > "$CLAUDE_CONFIG_DIR/settings.json"
 cat > "$TMP/bin/claude" <<'EOF'
 #!/usr/bin/env bash
 echo "ARGS: $*" >> "$STUBLOG"
@@ -216,6 +219,43 @@ expect_not "gate --proof stale" "$M" gate run-a --proof
 "$M" verify waive run-a AC1 "user approved" >/dev/null
 expect "gate --proof waived" "$M" gate run-a --proof
 
+# Check records are keyed per HEAD (Task 2): two task worktrees at different
+# commits in the shared state directory keep their own result, so a check in B
+# no longer makes A's gate stale. A new commit in A still does.
+expect "worktree create A" "$M" worktree create run-a p1
+expect "worktree create B" "$M" worktree create run-a p2
+WT_A="$TMP/repo-bottega/run-a/p1"
+WT_B="$TMP/repo-bottega/run-a/p2"
+sha_a="$(git -C "$WT_A" rev-parse HEAD)"
+git -C "$WT_B" commit -q --allow-empty -m parallel
+sha_b="$(git -C "$WT_B" rev-parse HEAD)"
+expect "check worktree A" sh -c "cd '$WT_A' && '$M' check run-a"
+expect "check worktree B" sh -c "cd '$WT_B' && '$M' check run-a"
+checks_dir="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/checks.result' -type f | head -1)")"
+out="$( cd "$WT_A" && "$M" gate run-a 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = "GATE: PASS" ] \
+  && [ -f "$checks_dir/checks/$sha_a.result" ] && [ -f "$checks_dir/checks/$sha_b.result" ]; then
+  ok "check record per HEAD survives a parallel worktree"
+else
+  fail "check record per HEAD survives a parallel worktree"
+fi
+grep -qx "HEAD: $sha_b" "$checks_dir/checks.result" && ok "check refreshes checks.result to the latest record" || fail "check refreshes checks.result to the latest record"
+git -C "$WT_A" commit -q --allow-empty -m after-check
+out="$( cd "$WT_A" && "$M" gate run-a 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qE '^GATE: FAIL \(checks stale: [0-9a-f]+ != [0-9a-f]+\)$'; then
+  ok "gate stale after a new commit"
+else
+  fail "gate stale after a new commit"
+fi
+mkdir -p "$checks_dir/../no-record"
+out="$("$M" gate no-record 2>&1)"; rc=$?
+rmdir "$checks_dir/../no-record" 2>/dev/null || true
+if [ "$rc" -eq 1 ] && [ "$out" = "GATE: FAIL (no checks.result)" ]; then
+  ok "gate fails with no check record"
+else
+  fail "gate fails with no check record"
+fi
+
 # Builds through the stub.
 : > "$STUBLOG"
 expect "worktree create" "$M" worktree create run-a 1
@@ -279,6 +319,21 @@ if [ "$race_bad" -eq 0 ]; then
   fi
 fi
 [ "$race_ok" -eq 1 ] && ok "concurrent light build names the collected task" || fail "concurrent light build names the collected task"
+# Both callers name a finished report that exists, and exactly one caller
+# collects the rc: the other prints the already-collected reply. A loser that
+# sees the run marker gone before the report is written prints no report line.
+race_report_files=1
+race_collect_count=0
+for f in "$TMP/race-a.out" "$TMP/race-b.out"; do
+  race_report="$(sed -n 's/^report: \([^ ]*\).*/\1/p' "$f" | head -1)"
+  [ -n "$race_report" ] && [ -f "$race_report" ] || race_report_files=0
+  grep -qx 'already collected by another caller' "$f" && race_collect_count=$((race_collect_count + 1))
+done
+if [ "$race_report_files" -eq 1 ] && [ "$race_collect_count" -eq 1 ]; then
+  ok "concurrent light build report exists for both callers"
+else
+  fail "concurrent light build report exists for both callers"
+fi
 # A collected light build is finished, never queued: a READY report and a failed
 # (empty) report both count as 1/1 done, and READY shows the report status.
 STUB_STATUS=READY "$M" build --here stat-ready --task "ready" --block >/dev/null 2>&1
@@ -740,6 +795,53 @@ else
   fail "build --here rejects an uppercase slug under a UTF-8 locale"
 fi
 
+# Every run-taking command shares one run-id check (issue #37): a malformed or
+# traversal-style id is refused with `bad run id`, exit 2, before the command
+# resolves or writes anything.
+RUNID_STATE="$TMP/run-id-state"
+mkdir -p "$RUNID_STATE"
+runid_snapshot() {
+  {
+    [ -d "$RUNID_STATE" ] && find "$RUNID_STATE" | LC_ALL=C sort
+    [ -d "$TMP/repo-bottega" ] && find "$TMP/repo-bottega" | LC_ALL=C sort
+  } 2>/dev/null
+  return 0
+}
+runid_check() {
+  local label="$1" id="$2" rc
+  shift 2
+  BOTTEGA_STATE_DIR="$RUNID_STATE" BOTTEGA_WATCH_ONCE=1 "$M" "$@" >/dev/null 2>"$TMP/run-id.err"
+  rc=$?
+  if [ "$rc" -eq 2 ] && grep -q 'bad run id' "$TMP/run-id.err"; then
+    return 0
+  fi
+  echo "FAIL run id $label $id"
+  runid_fails=$((runid_fails + 1))
+}
+runid_before="$(runid_snapshot)"
+runid_fails=0
+for runid in '..' 'a/b' '' '-x'; do
+  runid_check spec "$runid" spec "$runid"
+  runid_check check "$runid" check "$runid"
+  runid_check gate "$runid" gate "$runid"
+  runid_check "verify list" "$runid" verify list "$runid"
+  runid_check log "$runid" log "$runid"
+  runid_check hold "$runid" hold "$runid" reason
+  runid_check resume "$runid" resume "$runid"
+  runid_check build "$runid" build "$runid" 1
+  runid_check "build --here" "$runid" build --here "$runid" --task x
+  runid_check "build --review" "$runid" build --review "$runid" 1
+  runid_check "build --status" "$runid" build --status "$runid"
+  runid_check watch "$runid" watch "$runid"
+  runid_check "worktree create" "$runid" worktree create "$runid" 1
+  runid_check "worktree prune" "$runid" worktree prune "$runid"
+  runid_check "report --close" "$runid" report --close "$runid"
+  runid_check "report --finding" "$runid" report --finding "$runid" title
+done
+runid_after="$(runid_snapshot)"
+[ "$runid_before" = "$runid_after" ] && ok "bad run ids write nothing" || fail "bad run ids write nothing"
+[ "$runid_fails" -eq 0 ] && ok "run id rejected everywhere" || fail "run id rejected everywhere"
+
 # Two open runs, only one on hold: the Stop hook still blocks.
 HSTATE2="$TMP/hold-state-two"
 BOTTEGA_STATE_DIR="$HSTATE2" "$M" start "Hold two a" >/dev/null 2>&1
@@ -942,6 +1044,22 @@ for v in bare absolute unbraced compound multiline; do
 done
 cp "$ROOT/hooks/hooks.json" "$LB/hooks/hooks.json"
 if lint_rejects_hooks; then fail "lint accepts plugin-root hook commands"; else ok "lint accepts plugin-root hook commands"; fi
+
+# session-handoff writes the handoff to ${BOTTEGA_HANDOFF_DIR:-/tmp}; the master
+# prompt must name the same location or the next session looks elsewhere.
+HB="$TMP/handofflint"
+mkdir -p "$HB/scripts" "$HB/agents" "$HB/skills/workflow/session-handoff"
+cp "$ROOT/scripts/lint.sh" "$HB/scripts/lint.sh"
+cp "$ROOT/agents/master.md" "$HB/agents/master.md"
+cp "$ROOT/skills/workflow/session-handoff/SKILL.md" "$HB/skills/workflow/session-handoff/SKILL.md"
+sed 's/BOTTEGA_HANDOFF_DIR/HANDOFF_DIR_ENV/g' "$HB/agents/master.md" > "$HB/agents/master.md.tmp"
+mv "$HB/agents/master.md.tmp" "$HB/agents/master.md"
+lint_drift() {
+  ( cd "$HB" && bash scripts/lint.sh 2>&1 ) | grep -q '^FAIL session-handoff and agents/master.md disagree on the handoff path'
+}
+if lint_drift; then ok "lint rejects handoff skill/master drift"; else fail "lint rejects handoff skill/master drift"; fi
+cp "$ROOT/agents/master.md" "$HB/agents/master.md"
+if lint_drift; then fail "lint accepts matching handoff paths"; else ok "lint accepts matching handoff paths"; fi
 
 # Standalone skills (issue #27): decision 6. A direct pattern match or a Load of
 # a non-standalone skill removes a skill; the allow file exempts a skill from
@@ -1444,6 +1562,191 @@ chmod +x "$HOSTMAESTRO/maestro"
 "$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
 rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 
+# Status line (AC9-AC11): one settings reader drives the SessionStart hint and
+# `maestro statusline`. Each fixture is its own scratch CLAUDE_CONFIG_DIR.
+SL="$TMP/statusline"
+mkdir -p "$SL"
+sl_fixture() {  # sl_fixture <name> [json]
+  mkdir -p "$SL/$1"
+  [ "$#" -gt 1 ] && printf '%s\n' "$2" > "$SL/$1/settings.json"
+  return 0
+}
+sl_hint_count() {
+  CLAUDE_CONFIG_DIR="$SL/$1" "$M" tools hint 2>/dev/null \
+    | grep -oF 'Status line not set up. Run: maestro statusline install' | wc -l | tr -d ' '
+}
+sl_hint_case() {  # sl_hint_case <name> <hint|silent>
+  local n
+  n="$(sl_hint_count "$1")"
+  if [ "$2" = hint ]; then
+    [ "$n" = 1 ] && ok "statusline hint $1" || fail "statusline hint $1"
+  else
+    [ "$n" = 0 ] && ok "statusline hint $1" || fail "statusline hint $1"
+  fi
+}
+sl_fixture missing
+sl_fixture empty '{}'
+sl_fixture nori '{"statusLine":{"type":"command","command":"maestro watch --line"}}'
+sl_fixture complete '{"statusLine":{"type":"command","command":"maestro watch --line","refreshInterval":10}}'
+sl_fixture custom '{"statusLine":{"type":"command","command":"/opt/custom/status","refreshInterval":10}}'
+sl_fixture invalid '{"statusLine":'
+sl_hint_case missing hint
+sl_hint_case empty hint
+sl_hint_case nori hint
+sl_hint_case complete silent
+sl_hint_case custom silent
+sl_hint_case invalid silent
+# Without a working python3 the reader fails and the hint stays silent.
+mkdir -p "$TMP/badpy"
+printf '#!/bin/sh\nexit 1\n' > "$TMP/badpy/python3"
+chmod +x "$TMP/badpy/python3"
+out="$(PATH="$TMP/badpy:$PATH" CLAUDE_CONFIG_DIR="$SL/missing" "$M" tools hint 2>/dev/null)"
+printf '%s\n' "$out" | grep -qF 'Status line not set up' && fail "statusline hint without python3" || ok "statusline hint without python3"
+[ -z "$(BOTTEGA_NO_TOOL_HINT=1 CLAUDE_CONFIG_DIR="$SL/missing" "$M" tools hint 2>/dev/null)" ] \
+  && ok "statusline hint silenced" || fail "statusline hint silenced"
+
+# `statusline install`: plan first, apply only on y/--yes, never clobber.
+sl_fixture install-empty
+out="$(printf 'n\n' | CLAUDE_CONFIG_DIR="$SL/install-empty" "$M" statusline install 2>/dev/null)"; rc=$?
+if [ "$rc" -ne 0 ] && [ -z "$(ls -A "$SL/install-empty")" ] \
+  && printf '%s' "$out" | grep -q '"refreshInterval": 10'; then
+  ok "statusline install prompts and writes nothing on n"
+else
+  fail "statusline install prompts and writes nothing on n"
+fi
+out="$(CLAUDE_CONFIG_DIR="$SL/install-empty" "$M" statusline install </dev/null 2>/dev/null)"; rc=$?
+if [ "$rc" -ne 0 ] && [ -z "$(ls -A "$SL/install-empty")" ]; then
+  ok "statusline install writes nothing on EOF"
+else
+  fail "statusline install writes nothing on EOF"
+fi
+
+sl_fixture install-yes '{"theme":"dark"}'
+out="$(CLAUDE_CONFIG_DIR="$SL/install-yes" "$M" statusline install --yes </dev/null 2>/dev/null)"; rc=$?
+sl_script="$SL/install-yes/statusline.sh"
+got=""
+[ "$rc" -eq 0 ] && got="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+s=d["statusLine"]
+print(d.get("theme"), s.get("type"), s.get("command"), s.get("refreshInterval"))' "$SL/install-yes/settings.json" 2>/dev/null)"
+if [ "$got" = "dark command $sl_script 10" ]; then
+  ok "statusline install merges the managed command"
+else
+  fail "statusline install merges the managed command"
+fi
+if printf '%s' "$out" | python3 -c 'import json,sys
+d=json.load(sys.stdin)
+sys.exit(0 if d == {"statusLine": {"type": "command", "command": sys.argv[1], "refreshInterval": 10}} else 1)' "$sl_script" 2>/dev/null; then
+  ok "statusline install prints the exact JSON"
+else
+  fail "statusline install prints the exact JSON"
+fi
+if [ -x "$sl_script" ] && grep -qx '# bottega-managed statusline' "$sl_script" \
+  && grep -qF "$M" "$sl_script" && grep -qF 'watch --line' "$sl_script" \
+  && [ "$(ls -ld "$sl_script" | cut -c1-10)" = "-rwx------" ]; then
+  ok "statusline install writes the managed script mode 700"
+else
+  fail "statusline install writes the managed script mode 700"
+fi
+n="$(ls "$SL/install-yes"/settings.json.bak.* 2>/dev/null | wc -l | tr -d ' ')"
+ls "$SL/install-yes"/settings.json.bak.* 2>/dev/null | grep -qE 'settings\.json\.bak\.[0-9]+$' || n=0
+[ "$n" = 1 ] && ok "statusline install backs up the settings once" || fail "statusline install backs up the settings once"
+
+sl_fixture install-custom '{"statusLine":{"type":"command","command":"/opt/keep/me"},"keep":true}'
+CLAUDE_CONFIG_DIR="$SL/install-custom" "$M" statusline install --yes </dev/null >/dev/null 2>&1
+got="$(python3 -c 'import json,sys
+d=json.load(open(sys.argv[1]))
+s=d["statusLine"]
+print(s.get("command"), s.get("refreshInterval"), d.get("keep"))' "$SL/install-custom/settings.json" 2>/dev/null)"
+[ "$got" = "/opt/keep/me 10 True" ] && ok "statusline install keeps a custom command" || fail "statusline install keeps a custom command"
+
+sl_fixture install-invalid '{"statusLine":'
+before="$(cat "$SL/install-invalid/settings.json")"
+CLAUDE_CONFIG_DIR="$SL/install-invalid" "$M" statusline install --yes </dev/null >/dev/null 2>&1; rc=$?
+if [ "$rc" -ne 0 ] && [ "$before" = "$(cat "$SL/install-invalid/settings.json")" ] \
+  && [ ! -e "$SL/install-invalid/statusline.sh" ] \
+  && [ -z "$(ls "$SL/install-invalid"/settings.json.bak.* 2>/dev/null)" ]; then
+  ok "statusline install refuses invalid JSON"
+else
+  fail "statusline install refuses invalid JSON"
+fi
+
+sl_fixture install-unmanaged
+printf '#!/bin/sh\necho mine\n' > "$SL/install-unmanaged/statusline.sh"
+chmod 755 "$SL/install-unmanaged/statusline.sh"
+CLAUDE_CONFIG_DIR="$SL/install-unmanaged" "$M" statusline install --yes </dev/null >/dev/null 2>&1; rc=$?
+if [ "$rc" -ne 0 ] && grep -qx 'echo mine' "$SL/install-unmanaged/statusline.sh" \
+  && [ ! -e "$SL/install-unmanaged/settings.json" ]; then
+  ok "statusline install refuses an unmanaged script"
+else
+  fail "statusline install refuses an unmanaged script"
+fi
+
+sl_before="$(cksum "$SL/install-yes/settings.json") $(cksum "$sl_script")"
+sl_baks="$(ls "$SL/install-yes"/settings.json.bak.* 2>/dev/null | wc -l | tr -d ' ')"
+out="$(CLAUDE_CONFIG_DIR="$SL/install-yes" "$M" statusline install --yes </dev/null 2>/dev/null)"
+if printf '%s\n' "$out" | grep -qx 'statusline: already installed' \
+  && [ "$sl_before" = "$(cksum "$SL/install-yes/settings.json") $(cksum "$sl_script")" ] \
+  && [ "$sl_baks" = "$(ls "$SL/install-yes"/settings.json.bak.* 2>/dev/null | wc -l | tr -d ' ')" ]; then
+  ok "statusline install is idempotent"
+else
+  fail "statusline install is idempotent"
+fi
+
+sl_fixture install-mode '{"statusLine":{"type":"command","command":"/opt/x"}}'
+chmod 640 "$SL/install-mode/settings.json"
+CLAUDE_CONFIG_DIR="$SL/install-mode" "$M" statusline install --yes </dev/null >/dev/null 2>&1
+sl_bak="$(ls "$SL/install-mode"/settings.json.bak.* 2>/dev/null | head -1)"
+if [ "$(ls -l "$SL/install-mode/settings.json" | cut -c1-10)" = "-rw-r-----" ] \
+  && [ -n "$sl_bak" ] && [ "$(ls -l "$sl_bak" | cut -c1-10)" = "-rw-r-----" ]; then
+  ok "statusline install preserves the settings mode"
+else
+  fail "statusline install preserves the settings mode"
+fi
+
+# `statusline status`: read-only report of the same reader.
+out="$(CLAUDE_CONFIG_DIR="$SL/missing" "$M" statusline status 2>/dev/null)"
+if printf '%s\n' "$out" | grep -qx 'statusLine: unset' \
+  && printf '%s\n' "$out" | grep -qx 'refreshInterval: unset' \
+  && printf '%s\n' "$out" | grep -qx 'command: none'; then
+  ok "statusline status reports unset"
+else
+  fail "statusline status reports unset"
+fi
+out="$(CLAUDE_CONFIG_DIR="$SL/install-yes" "$M" statusline status 2>/dev/null)"
+if printf '%s\n' "$out" | grep -qx 'statusLine: set' \
+  && printf '%s\n' "$out" | grep -qx 'refreshInterval: set (10)' \
+  && printf '%s\n' "$out" | grep -qx 'command: maestro' \
+  && printf '%s\n' "$out" | grep -qxF "maestro path: $M (ok)"; then
+  ok "statusline status reports the managed command"
+else
+  fail "statusline status reports the managed command"
+fi
+out="$(CLAUDE_CONFIG_DIR="$SL/custom" "$M" statusline status 2>/dev/null)"
+if printf '%s\n' "$out" | grep -qx 'command: custom' \
+  && ! printf '%s\n' "$out" | grep -q '^maestro path:'; then
+  ok "statusline status reports a custom command"
+else
+  fail "statusline status reports a custom command"
+fi
+out="$(CLAUDE_CONFIG_DIR="$SL/invalid" "$M" statusline status 2>/dev/null)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'settings: unreadable'; then
+  ok "statusline status reports unreadable settings"
+else
+  fail "statusline status reports unreadable settings"
+fi
+sl_fixture status-ro '{"statusLine":{"type":"command","command":"/opt/custom","refreshInterval":10}}'
+( cd "$SL/status-ro" && find . | LC_ALL=C sort ) > "$TMP/status-ro.before"
+touch "$TMP/status-ro.stamp"
+CLAUDE_CONFIG_DIR="$SL/status-ro" "$M" statusline status >/dev/null 2>&1
+( cd "$SL/status-ro" && find . | LC_ALL=C sort ) > "$TMP/status-ro.after"
+if cmp -s "$TMP/status-ro.before" "$TMP/status-ro.after" \
+  && [ ! "$SL/status-ro/settings.json" -nt "$TMP/status-ro.stamp" ]; then
+  ok "statusline status is read-only"
+else
+  fail "statusline status is read-only"
+fi
+
 # --help/-h: usage only. Every user-facing form runs from a fresh sandbox with
 # its own HOME, state, temp, and repo, and stubs for the optional tools.
 HB="$TMP/helpbox"
@@ -1513,6 +1816,9 @@ skills uninstall --all
 tools
 tools install
 tools hint
+statusline
+statusline install
+statusline status
 guard
 guard stop
 guard builder

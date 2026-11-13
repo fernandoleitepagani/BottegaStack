@@ -40,6 +40,7 @@ Usage:
   maestro skills list | install <name>... | install --all
   maestro skills uninstall <name>... | uninstall --all
   maestro tools install [--yes] | hint
+  maestro statusline install [--yes] | status
 
 Any command with --help or -h prints this help and changes nothing.
 
@@ -526,6 +527,25 @@ ensure_state_dir() {
   printf '%s\n' "$dir"
 }
 
+# Run ids are folder names: lowercase letters, digits, and hyphens, never empty
+# and never leading with a hyphen. The class is spelled out because a [a-z] range
+# matches uppercase under a UTF-8 locale on bash 3.2.
+run_id_ok() {
+  case "$1" in
+    ''|-*|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) return 1 ;;
+  esac
+  return 0
+}
+
+# Refuse a bad run id before a command builds a path from it. Prints on stderr
+# and exits 2, so every run-taking command reports the same way.
+require_run_id() {
+  local label="$1" id="$2"
+  run_id_ok "$id" && return 0
+  printf 'maestro %s: bad run id: %s\n' "$label" "$id" >&2
+  exit 2
+}
+
 # The run's branch: the name saved by `start`, else bottega/<slug>.
 run_branch() {
   local slug="$1" dir b=""
@@ -539,8 +559,10 @@ run_dir() {
 }
 
 # $STATE/<slug> without creating anything (commands that read an existing run).
+# Returns 3 for a bad run id so a caller can tell it from "not a git repository".
 run_state_dir() {
   local base
+  run_id_ok "$1" || return 3
   base="$(state_dir)" || return 1
   printf '%s/%s\n' "$base" "$1"
 }
@@ -555,10 +577,11 @@ light_dir() {
 
 # Resolve a slug to its state directory wherever a run or a light-path slug is
 # accepted: $STATE/<slug> for a run, else $STATE/quick/<slug> for the light
-# path. Prints the directory; returns 1 when neither exists and 2 outside a git
-# repository.
+# path. Prints the directory; returns 1 when neither exists, 2 outside a git
+# repository, and 3 for a bad run id.
 resolve_run_dir() {
   local base dir
+  run_id_ok "$1" || return 3
   base="$(state_dir)" || return 2
   dir="$base/$1"
   if [ -d "$dir" ]; then printf '%s\n' "$dir"; return 0; fi
@@ -644,22 +667,22 @@ cmd_start() {
 # can let the session end instead of forcing the master to complete its todos.
 # `maestro hold --clear <run>` removes it when the run resumes.
 cmd_hold() {
-  local clear=0 slug="" reason="" rc dir
+  local clear=0 slug="" reason="" rc dir npos=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --clear) clear=1; shift ;;
-      -*) echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2 ;;
+      --*) echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2 ;;
+      -*) require_run_id "hold" "$1" ;;
       *)
-        if [ -z "$slug" ]; then slug="$1"
-        elif [ -z "$reason" ]; then reason="$1"
-        else echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; fi
-        shift ;;
+        case "$npos" in
+          0) slug="$1" ;;
+          1) reason="$1" ;;
+          *) echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2 ;;
+        esac
+        npos=$((npos + 1)); shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo 'usage: maestro hold <run> "<reason>" | --clear <run>' >&2; exit 2; }
-  case "$slug" in
-    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro hold: bad run id: $slug" >&2; exit 2 ;;
-  esac
+  require_run_id "hold" "$slug"
   if [ "$clear" = "1" ]; then
     [ -z "$reason" ] || { echo 'usage: maestro hold --clear <run>' >&2; exit 2; }
   else
@@ -685,10 +708,8 @@ cmd_hold() {
 # rejected close still removes the whole state directory.
 cmd_resume() {
   local slug="${1:-}" rc dir
-  { [ -n "$slug" ] && [ "$#" -eq 1 ]; } || { echo "usage: maestro resume <run>" >&2; exit 2; }
-  case "$slug" in
-    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro resume: bad run id: $slug" >&2; exit 2 ;;
-  esac
+  [ "$#" -eq 1 ] || { echo "usage: maestro resume <run>" >&2; exit 2; }
+  require_run_id "resume" "$slug"
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
     if [ "$rc" -eq 2 ]; then echo "maestro resume: not in a git repository" >&2; else echo "maestro resume: no such run: $slug" >&2; fi
@@ -707,7 +728,7 @@ cmd_resume() {
 # section into tasks/<n>.md. Prints the task count.
 cmd_spec() {
   local slug="${1:-}" file="${2:-}"
-  [ -n "$slug" ] || { echo "usage: maestro spec <run> [file]" >&2; exit 2; }
+  require_run_id "spec" "$slug"
   local dir
   dir="$(run_state_dir "$slug")" || { echo "maestro spec: not in a git repository" >&2; exit 1; }
   [ -d "$dir" ] || { echo "maestro spec: no such run: $slug (run: maestro start \"<title>\")" >&2; exit 1; }
@@ -739,11 +760,12 @@ cmd_spec() {
   echo "$count"
 }
 
-# `maestro check <run>`: run scripts/check from the repo root and record the
-# result in the state directory.
+# `maestro check <run>`: run scripts/check from the current worktree and record
+# the result under the state directory, keyed by HEAD so parallel worktrees keep
+# their own record. `checks.result` mirrors the latest record.
 cmd_check() {
   local slug="${1:-}"
-  [ -n "$slug" ] || { echo "usage: maestro check <run>" >&2; exit 2; }
+  require_run_id "check" "$slug"
   local dir repo rc
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
@@ -764,18 +786,22 @@ cmd_check() {
   sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   if [ "$code" -eq 0 ]; then result="PASS"; else result="FAIL"; fi
   mkdir -p "$dir"
-  {
-    echo "RESULT: $result"
-    echo "HEAD: $sha"
-    echo "EXIT: $code"
-    echo "SECONDS: $duration"
-  } > "$dir/checks.result"
+  (umask 077; mkdir -p "$dir/checks")
+  local record tmp
+  record="$(printf 'RESULT: %s\nHEAD: %s\nEXIT: %s\nSECONDS: %s' "$result" "$sha" "$code" "$duration")"
+  tmp="$dir/checks/.$sha.result.$$"
+  printf '%s\n' "$record" > "$tmp"
+  mv "$tmp" "$dir/checks/$sha.result"
+  tmp="$dir/checks.result.$$"
+  printf '%s\n' "$record" > "$tmp"
+  mv "$tmp" "$dir/checks.result"
   {
     printf '%s HEAD %s RESULT %s EXIT %s SECONDS %s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "$duration"
     echo '```'
     echo "$output"
     echo '```'
-  } >> "$dir/checks.log"
+  } > "$dir/checks/$sha.log"
+  printf '%s HEAD %s RESULT %s EXIT %s SECONDS %s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "$duration" >> "$dir/checks.log"
   echo "check: $result (${duration}s, exit $code)"
   [ "$code" -eq 0 ]
 }
@@ -847,11 +873,11 @@ cmd_gate() {
     case "$1" in
       --allow-dirty) allow_dirty=1; shift ;;
       --proof) proof=1; shift ;;
-      -*) echo "unknown flag: $1" >&2; exit 1 ;;
+      --*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo "usage: maestro gate <run> [--allow-dirty] [--proof]" >&2; exit 1; }
+  require_run_id "gate" "$slug"
 
   if [ "$allow_dirty" = "0" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     if [ -n "$(git status --porcelain)" ]; then
@@ -866,12 +892,20 @@ cmd_gate() {
     if [ "$rc" -eq 2 ]; then echo "maestro gate: not in a git repository" >&2; else echo "maestro gate: no such run: $slug" >&2; fi
     return 1
   }
-  file="$dir/checks.result"
-  [ -f "$file" ] || { echo "GATE: FAIL (no checks.result)"; return 1; }
   local result sha head
+  head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  file="$dir/checks/$head.result"
+  if [ ! -f "$file" ]; then
+    if [ -f "$dir/checks.result" ]; then
+      sha="$(grep -m1 '^HEAD:' "$dir/checks.result" | sed 's/^HEAD:[[:space:]]*//')"
+      echo "GATE: FAIL (checks stale: ${sha:-unknown} != $head)"
+    else
+      echo "GATE: FAIL (no checks.result)"
+    fi
+    return 1
+  fi
   result="$(grep -m1 '^RESULT:' "$file" | sed 's/^RESULT:[[:space:]]*//')"
   sha="$(grep -m1 '^HEAD:' "$file" | sed 's/^HEAD:[[:space:]]*//')"
-  head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   if [ "$result" != "PASS" ]; then
     echo "GATE: FAIL (checks result: ${result:-missing})"
     return 1
@@ -971,8 +1005,7 @@ run_evidence_gap() {
 # run it as a formula.
 cmd_log() {
   local slug="${1:-}" base file
-  [ -n "$slug" ] || { echo 'usage: maestro log <run> [<phase> <decision> <why> <evidence> <result>]' >&2; exit 2; }
-  case "$slug" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro log: bad run id: $slug" >&2; exit 2 ;; esac
+  require_run_id "log" "$slug"
   base="$(ensure_state_dir)" || { echo "maestro log: not in a git repository" >&2; exit 1; }
   file="$base/decisions/$slug.tsv"
   if [ "$#" -eq 1 ]; then
@@ -998,7 +1031,7 @@ cmd_verify() {
   local action="${1:-}"
   shift || true
   local slug="${1:-}" dir idx head rc
-  [ -n "$slug" ] || { echo "usage: maestro verify record|waive|list <run> ..." >&2; exit 2; }
+  require_run_id "verify" "$slug"
   shift || true
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
@@ -1734,11 +1767,11 @@ build_status() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --every) echo "maestro build --status: --every was removed; use maestro watch <run> for a live view" >&2; exit 2 ;;
-      -*) echo "maestro build --status: unknown flag: $1" >&2; exit 2 ;;
+      --*) echo "maestro build --status: unknown flag: $1" >&2; exit 2 ;;
       *) slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo "usage: maestro build --status <run>" >&2; exit 2; }
+  require_run_id "build --status" "$slug"
   dir="$(resolve_run_dir "$slug")" || {
     rc=$?
     if [ "$rc" -eq 2 ]; then echo "maestro build --status: not in a git repository" >&2; else echo "no such run: $slug" >&2; fi
@@ -1914,11 +1947,10 @@ watch_run() {
 
 cmd_watch() {
   case "${1:-}" in
-    --line) watch_line ;;
-    -*) echo 'usage: maestro watch <run> | --line' >&2; exit 2 ;;
-    '') echo 'usage: maestro watch <run> | --line' >&2; exit 2 ;;
-    *) watch_run "$@" ;;
+    --line) watch_line; return ;;
   esac
+  require_run_id "watch" "${1:-}"
+  watch_run "$@"
 }
 
 # Start a detached headless run, so a timeout or kill of the caller cannot stop
@@ -1960,6 +1992,29 @@ build_mark_stale() {
   [ -f "$2" ] || [ -z "$(find "$1" -mmin +360 2>/dev/null)" ] || echo 1 > "$2"
 }
 
+# build_lost_collect <rcfile> <what> <report> <marker> <limit>: another caller
+# won the collect claim. Wait (bounded) for it to finish: it removes the claimed
+# rc file and the run marker only after the report is written, so the report
+# path this prints always names an existing file. Then print the reply and exit 0.
+build_lost_collect() {
+  local rcfile="$1" what="$2" report="$3" marker="${4:-}" limit="$5" waited=0 owned
+  while [ "$waited" -lt "$limit" ]; do
+    if ls "$rcfile".collecting.* >/dev/null 2>&1; then
+      owned=1
+    else
+      owned=0
+      [ -n "$marker" ] && [ -f "$marker" ] && owned=1
+    fi
+    [ "$owned" -eq 1 ] || break
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo "$what"
+  echo "already collected by another caller"
+  [ -n "$report" ] && [ -f "$report" ] && echo "report: $report"
+  exit 0
+}
+
 # build_wait_or_exit <rcfile> <block> <events> <task> <role> <what> <again> [run-marker] [report]:
 # wait; if another caller collected the result, say so and exit 0; if the build
 # is still going, print where it stands and exit 5.
@@ -1969,10 +2024,7 @@ build_wait_or_exit() {
   build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker" "$tickdir"
   [ -f "$rcfile" ] && return 0
   if [ -n "$marker" ] && [ ! -f "$marker" ]; then
-    echo "$what"
-    echo "already collected by another caller"
-    [ -n "$report" ] && [ -f "$report" ] && echo "report: $report"
-    exit 0
+    build_lost_collect "$rcfile" "$what" "$report" "$marker" "$(build_wait_limit "$block")"
   fi
   echo "RUNNING $what (still going; call again: $again)"
   echo "steps so far: $(build_steps "$events" "$task" "$role")"
@@ -2036,15 +2088,20 @@ build_failure_note() {
   return 0
 }
 
-# build_collect <rcfile> <run> <log> <out>: print the exit code and turn the log
-# into the final reply at <out>.
+# build_collect <rcfile> <run> <log> <out>: claim the rc file, print the exit
+# code, and turn the log into the final reply at <out>. The rename is atomic, so
+# when two callers attach to one build exactly one collects; the loser returns 1
+# and its caller prints the already-collected reply. The run marker is removed
+# last, after the report is written, so a waiting caller never sees a finished
+# build whose report is still missing.
 build_collect() {
-  local rc
-  rc="$(cat "$1")"
-  rm -f "$1" "$2"
+  local claimed="$1.collecting.$$" rc
+  mv "$1" "$claimed" 2>/dev/null || return 1
+  rc="$(cat "$claimed")"
   cap_log "$3"
   build_result_text "$3" "$4"
   build_failure_note "$rc" "$3" "$4"
+  rm -f "$claimed" "$1" "$2"
   printf '%s\n' "$rc"
 }
 
@@ -2281,16 +2338,20 @@ build_here() {
       --revise) findings="${2:?findings file required}"; shift 2 ;;
       --block) block=1; shift ;;
       --wait) shift ;;
-      -*) echo "maestro build --here: unknown flag: $1" >&2; exit 2 ;;
+      --*) echo "maestro build --here: unknown flag: $1" >&2; exit 2 ;;
       *)
         [ -z "$slug" ] || { echo "maestro build --here: one slug only" >&2; exit 2; }
         slug="$1"; shift ;;
     esac
   done
-  [ -n "$slug" ] || { echo 'usage: maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]' >&2; exit 2; }
-  case "$slug" in
-    *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*|'') echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;;
-  esac
+  if ! run_id_ok "$slug"; then
+    # Keep the wording an existing e2e case pins for an uppercase slug.
+    case "$slug" in
+      *[ABCDEFGHIJKLMNOPQRSTUVWXYZ]*) echo "maestro build --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2 ;;
+      *) require_run_id "build --here" "$slug" ;;
+    esac
+    exit 2
+  fi
 
   local repo branch qdir
   repo="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "maestro build --here: not a git repository" >&2; exit 3; }
@@ -2367,7 +2428,8 @@ Write no report file: end your final reply with the report in the format of the 
   build_wait_or_exit "$rcfile" "$block" "$events" - builder "task: $slug" "maestro build --here $slug --task \"<text>\" --wait" "$run" "$report"
 
   local rc status="MISSING" commits=0 secs=0
-  rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$report")" \
+    || build_lost_collect "$rcfile" "task: $slug" "$report" "$run" "$(build_wait_limit "$block")"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
@@ -2404,25 +2466,28 @@ default_base_ref() {
 }
 
 build_review() {
-  local slug="" task="" block=0 here=0
+  local slug="" task="" block=0 here=0 npos=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --block) block=1; shift ;;
       --wait) shift ;;
       --here) here=1; shift ;;
-      -*) echo "maestro build --review: unknown flag: $1" >&2; exit 2 ;;
+      --*) echo "maestro build --review: unknown flag: $1" >&2; exit 2 ;;
       *)
-        if [ -z "$slug" ]; then slug="$1"
-        elif [ -z "$task" ]; then task="$1"
-        else echo "maestro build --review: unexpected argument: $1" >&2; exit 2; fi
-        shift ;;
+        case "$npos" in
+          0) slug="$1" ;;
+          1) task="$1" ;;
+          *) echo "maestro build --review: unexpected argument: $1" >&2; exit 2 ;;
+        esac
+        npos=$((npos + 1)); shift ;;
     esac
   done
   if [ "$here" = "1" ]; then
-    [ -n "$slug" ] && [ -z "$task" ] || { echo "usage: maestro build --review --here <slug> [--block|--wait]" >&2; exit 2; }
-    case "$slug" in *[!abcdefghijklmnopqrstuvwxyz0123456789-]*|-*) echo "maestro build --review --here: slug must be lowercase letters, digits, and hyphens: $slug" >&2; exit 2 ;; esac
+    require_run_id "build --review --here" "$slug"
+    [ -z "$task" ] || { echo "usage: maestro build --review --here <slug> [--block|--wait]" >&2; exit 2; }
   else
-    [ -n "$slug" ] && [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
+    require_run_id "build --review" "$slug"
+    [ -n "$task" ] || { echo "usage: maestro build --review <run> <task> | --here <slug> [--block|--wait]" >&2; exit 2; }
   fi
 
   local repo name dir wt bdir pre findings again base
@@ -2501,7 +2566,8 @@ EOF
   build_wait_or_exit "$rcfile" "$block" "$events" "$evtask" reviewer "review: $slug $task" "$again"
 
   local rc
-  rc="$(build_collect "$rcfile" "$run" "$log" "$findings")"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$findings")" \
+    || build_lost_collect "$rcfile" "review: $slug $task" "$findings" "" "$(build_wait_limit "$block")"
 
   echo "review: $slug $task"
   build_usage_lines reviewer "$rc" "$log" "$events" "$evtask"
@@ -2534,6 +2600,7 @@ cmd_build() {
     esac
   done
 
+  require_run_id "build" "$slug"
   builder_ready || exit 3
   local envfile repo name dir wt max_rev=2
   envfile="$(builder_env_file)"
@@ -2615,7 +2682,8 @@ $(cat "$taskfile")"
   build_wait_or_exit "$rcfile" "$block" "$events" "$task" builder "task: $task" "maestro build $slug $task --wait" "$run" "$report"
 
   local rc
-  rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$report")" \
+    || build_lost_collect "$rcfile" "task: $task" "$report" "$run" "$(build_wait_limit "$block")"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
@@ -2956,8 +3024,10 @@ cmd_worktree() {
   local action="${1:-}"
   case "$action" in
     create)
-      local slug="${2:?run id required}" task="${3:?task required}"
-      shift 3
+      local slug="${2-}" task="${3-}"
+      if [ "$#" -gt 3 ]; then shift 3; else set --; fi
+      require_run_id "worktree create" "$slug"
+      [ -n "$task" ] || { echo "maestro worktree create: task required" >&2; exit 2; }
       local newbranch="" newbase=""
       while [ "$#" -gt 0 ]; do
         case "$1" in
@@ -2995,11 +3065,11 @@ cmd_worktree() {
       while [ "$#" -gt 0 ]; do
         case "$1" in
           --force) force=1; shift ;;
-          -*) echo "unknown flag: $1" >&2; exit 1 ;;
+          --*) echo "unknown flag: $1" >&2; exit 1 ;;
           *) slug="$1"; shift ;;
         esac
       done
-      [ -n "$slug" ] || { echo "usage: maestro worktree prune <run> [--force]" >&2; exit 1; }
+      require_run_id "worktree prune" "$slug"
       local repo name root wt
       repo="$(git rev-parse --show-toplevel)"
       name="$(basename "$repo")"
@@ -3040,17 +3110,17 @@ cmd_worktree() {
 
 cmd_report() {
   local retro=0 exit_code=0 close="" finding_run="" finding_title="" trust=0 trust_n=10
-  local t_playbook="" t_risk="" t_outcome=""
+  local close_set=0 finding_set=0 t_playbook="" t_risk="" t_outcome=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --retro) retro=1; shift ;;
       --exit-code) retro=1; exit_code=1; shift ;;
-      --close) close="${2:?--close needs a run}"; shift 2 ;;
+      --close) close="${2-}"; close_set=1; shift; if [ "$#" -gt 0 ]; then shift; fi ;;
       --playbook) t_playbook="${2:?--playbook needs a value}"; shift 2 ;;
       --risk) t_risk="${2:?--risk needs a value}"; shift 2 ;;
       --outcome) t_outcome="${2:?--outcome needs a value}"; shift 2 ;;
       --trust) trust=1; shift; case "${1:-}" in ''|-*) ;; *[!0-9]*) ;; *) trust_n="$1"; shift ;; esac ;;
-      --finding) finding_run="${2:?--finding needs a run and a title}"; finding_title="${3:?--finding needs a run and a title}"; shift 3 ;;
+      --finding) finding_run="${2-}"; finding_title="${3-}"; finding_set=1; shift; if [ "$#" -gt 0 ]; then shift; fi; if [ "$#" -gt 0 ]; then shift; fi ;;
       -*) echo "unknown flag: $1" >&2; exit 1 ;;
       *) echo "unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -3059,11 +3129,11 @@ cmd_report() {
     cmd_trust "$trust_n"
     return
   fi
-  if [ -n "$close" ]; then
+  if [ "$close_set" = "1" ]; then
     cmd_close "$close" "$t_playbook" "$t_risk" "$t_outcome"
     return
   fi
-  if [ -n "$finding_run" ]; then
+  if [ "$finding_set" = "1" ]; then
     cmd_finding "$finding_run" "$finding_title"
     return
   fi
@@ -3080,10 +3150,8 @@ cmd_report() {
 # so the retro scan can spot a finding that repeats across runs. The log lives
 # in the state directory root, so closing a run does not remove it.
 cmd_finding() {
-  local slug="$1" title="$2" base
-  case "$slug" in
-    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro report --finding: bad run id: $slug" >&2; exit 2 ;;
-  esac
+  local slug="${1:-}" title="${2:-}" base
+  require_run_id "report --finding" "$slug"
   title="$(printf '%s' "$title" | tr '\t\n' '  ')"
   [ -n "$title" ] || { echo "maestro report --finding: empty title" >&2; exit 2; }
   base="$(ensure_state_dir)" || { echo "maestro report --finding: not in a git repository" >&2; exit 1; }
@@ -3097,10 +3165,8 @@ cmd_finding() {
 # writes a dated `paused` marker so a resume can use it; a later close with any
 # other outcome removes it. The master calls this at close.
 cmd_close() {
-  local slug="$1" playbook="${2:-}" risk="${3:-}" outcome="${4:-}" base dir
-  case "$slug" in
-    ''|*[!abcdefghijklmnopqrstuvwxyz0123456789-]*) echo "maestro report --close: bad run id: $slug" >&2; exit 2 ;;
-  esac
+  local slug="${1:-}" playbook="${2:-}" risk="${3:-}" outcome="${4:-}" base dir
+  require_run_id "report --close" "$slug"
   base="$(ensure_state_dir)" || { echo "maestro report --close: not in a git repository" >&2; exit 1; }
   dir="$base/$slug"
   # A light-path run lives in quick/<slug>; close it the same way.
@@ -3298,6 +3364,200 @@ tools_install_rtk_script() {
   rm -f "$f"; return 1
 }
 
+# One settings reader for the SessionStart hint and `maestro statusline`.
+# Prints four tab-separated fields: statusLine (set|unset), refreshInterval
+# (<n>|unset), command class (maestro|custom|none), and the command. A missing
+# file reads as empty settings; unreadable or invalid JSON, or a missing
+# python3, returns 1. `maestro` means the command is <config>/statusline.sh and
+# that file carries the bottega marker.
+statusline_read() {
+  local file="$1" cfg
+  cfg="$(dirname "$file")"
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 -c '
+import json, os, sys
+path, cfg = sys.argv[1], sys.argv[2]
+if not os.path.exists(path):
+    sys.stdout.write("unset\tunset\tnone\n")
+    sys.exit(0)
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (OSError, ValueError):
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+cmd, sl_set, ri = "", "unset", "unset"
+sl = data.get("statusLine")
+if isinstance(sl, dict):
+    cmd = sl.get("command") if isinstance(sl.get("command"), str) else ""
+    r = sl.get("refreshInterval")
+    if isinstance(r, int) and not isinstance(r, bool):
+        ri = str(r)
+if cmd:
+    sl_set = "set"
+klass = "none"
+if cmd:
+    if cmd == os.path.join(cfg, "statusline.sh"):
+        try:
+            with open(cmd) as f:
+                marked = "# bottega-managed statusline" in f.read()
+        except OSError:
+            marked = False
+        klass = "maestro" if marked else "custom"
+    else:
+        klass = "custom"
+sys.stdout.write("%s\t%s\t%s\t%s\n" % (sl_set, ri, klass, cmd))
+' "$file" "$cfg"
+}
+
+# One tab-separated field from `statusline_read`, without a heredoc (bash 3.2
+# cannot parse a heredoc inside a command substitution).
+statusline_field() {
+  printf '%s\n' "$2" | cut -f"$1"
+}
+
+# The managed status-line script: shell, marker, absolute maestro path, 700.
+statusline_script_body() {
+  local qp
+  qp="$(printf '%s' "$SELF" | sed "s/'/'\\\\''/g")"
+  printf '#!/bin/sh\n# bottega-managed statusline\np=%s\n[ -x "$p" ] || exit 0\nexec "$p" watch --line\n' "'$qp'"
+}
+
+statusline_write_script() {
+  local script="$1" tmp="$1.tmp.$$"
+  statusline_script_body > "$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 700 "$tmp" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$script"
+}
+
+statusline_merge() {
+  local settings="$1" plan="$2" script="$3" tmp="$1.tmp.$$"
+  if [ -f "$settings" ]; then
+    cp -p "$settings" "$settings.bak.$(date +%s)" || return 1
+    cp -p "$settings" "$tmp" || { rm -f "$tmp"; return 1; }
+  fi
+  python3 -c '
+import json, sys
+path, tmp, plan, script = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except FileNotFoundError:
+    data = {}
+except (OSError, ValueError):
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+sl = data.get("statusLine")
+if not isinstance(sl, dict):
+    sl = {}
+if plan == "full":
+    sl["type"] = "command"
+    sl["command"] = script
+    sl["refreshInterval"] = 10
+else:
+    sl["refreshInterval"] = 10
+data["statusLine"] = sl
+with open(tmp, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+' "$settings" "$tmp" "$plan" "$script" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$settings"
+}
+
+statusline_install() {
+  local yes=0 cfg settings script sr sl="" ri="" klass="" cmd="" plan="" ans=""
+  [ "${1:-}" = "--yes" ] && yes=1
+  cfg="$(config_dir claude)"
+  if [ -z "$cfg" ]; then
+    echo 'maestro statusline: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' >&2
+    return 1
+  fi
+  settings="$cfg/settings.json"
+  script="$cfg/statusline.sh"
+  if ! sr="$(statusline_read "$settings")"; then
+    echo "statusline: cannot read settings: $settings" >&2
+    return 1
+  fi
+  sl="$(statusline_field 1 "$sr")"; ri="$(statusline_field 2 "$sr")"
+  klass="$(statusline_field 3 "$sr")"; cmd="$(statusline_field 4 "$sr")"
+  if [ -f "$script" ] && ! grep -qx '# bottega-managed statusline' "$script" \
+    && [ "$cmd" != "$script" ]; then
+    echo "statusline: $script exists and is not managed by bottega; leaving it alone" >&2
+    return 1
+  fi
+  if [ "$klass" = maestro ] && [ "$ri" != unset ]; then
+    echo "statusline: already installed"
+    return 0
+  fi
+  if [ "$klass" = custom ] && [ "$ri" != unset ]; then
+    echo "statusline: already configured"
+    return 0
+  fi
+  if [ "$klass" = none ]; then plan="full"; else plan="refresh"; fi
+  if [ "$plan" = full ]; then
+    printf '{\n  "statusLine": {\n    "type": "command",\n    "command": "%s",\n    "refreshInterval": 10\n  }\n}\n' "$script"
+  else
+    printf '{\n  "statusLine": {\n    "refreshInterval": 10\n  }\n}\n'
+  fi
+  if [ "$yes" != 1 ]; then
+    printf 'Apply? [y/N] ' >&2
+    read -r ans || ans=""
+    case "$ans" in
+      y|Y|yes|YES) ;;
+      *) echo "statusline: nothing written" >&2; return 1 ;;
+    esac
+  fi
+  if [ "$plan" = full ] || [ "$klass" = maestro ]; then
+    if [ ! -f "$script" ] || ! grep -qx '# bottega-managed statusline' "$script" \
+      || [ "$(cat "$script")" != "$(statusline_script_body)" ]; then
+      statusline_write_script "$script" || { echo "statusline: cannot write $script" >&2; return 1; }
+    fi
+  fi
+  statusline_merge "$settings" "$plan" "$script" || { echo "statusline: cannot merge settings" >&2; return 1; }
+  echo "statusline: installed" >&2
+}
+
+statusline_status() {
+  local cfg settings sr sl="" ri="" klass=""
+  cfg="$(config_dir claude)"
+  if [ -z "$cfg" ]; then
+    echo 'maestro statusline: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' >&2
+    return 1
+  fi
+  settings="$cfg/settings.json"
+  if ! sr="$(statusline_read "$settings")"; then
+    echo "settings: unreadable"
+    return 1
+  fi
+  sl="$(statusline_field 1 "$sr")"; ri="$(statusline_field 2 "$sr")"
+  klass="$(statusline_field 3 "$sr")"
+  printf 'statusLine: %s\n' "$sl"
+  if [ "$ri" = unset ]; then
+    echo "refreshInterval: unset"
+  else
+    printf 'refreshInterval: set (%s)\n' "$ri"
+  fi
+  printf 'command: %s\n' "$klass"
+  if [ "$klass" = maestro ]; then
+    if [ -x "$SELF" ]; then
+      printf 'maestro path: %s (ok)\n' "$SELF"
+    else
+      printf 'maestro path: %s (missing)\n' "$SELF"
+    fi
+  fi
+}
+
+cmd_statusline() {
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    install) statusline_install "$@" ;;
+    status) statusline_status ;;
+    *) echo "usage: maestro statusline install [--yes] | status" >&2; return 1 ;;
+  esac
+}
+
 cmd_tools() {
   local sub="${1:-}"; shift || true
   case "$sub" in
@@ -3325,20 +3585,36 @@ cmd_tools() {
         command -v "$t" >/dev/null 2>&1 && echo "$t: installed" || echo "$t: installed but not on PATH yet (check ~/.local/bin, ~/go/bin, ~/.cargo/bin)"
       done ;;
     hint)
-      # SessionStart hook: one line when a tool is missing or an older maestro
-      # copy shadows the plugin. Never installs.
+      # SessionStart hook: one line when a tool is missing, an older maestro
+      # copy shadows the plugin, or the status line is not set up. Never writes.
       [ -n "${BOTTEGA_NO_TOOL_HINT:-}" ] && return 0
-      local missing warn msg tool_msg
+      local missing warn tools_msg status_msg body cfg sr sl="" ri="" tool_msg
       missing="$(tools_missing)"
       warn="$(maestro_path_warning)"
-      [ -n "$missing" ] || [ -n "$warn" ] || return 0
-      msg="$warn"
+      tools_msg="$warn"
       if [ -n "$missing" ]; then
         tool_msg="$(printf 'bottega: %s not installed; run maestro tools install (silence: BOTTEGA_NO_TOOL_HINT=1)' "$(echo "$missing" | sed 's/ /, /g')")"
-        if [ -n "$msg" ]; then msg="$msg; $tool_msg"; else msg="$tool_msg"; fi
+        if [ -n "$tools_msg" ]; then tools_msg="$tools_msg; $tool_msg"; else tools_msg="$tool_msg"; fi
       fi
-      msg="$(printf '%s' "$msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
-      printf '{"systemMessage":"%s"}\n' "$msg" ;;
+      status_msg=""
+      cfg="$(config_dir claude)"
+      if [ -n "$cfg" ] && sr="$(statusline_read "$cfg/settings.json")"; then
+        sl="$(statusline_field 1 "$sr")"; ri="$(statusline_field 2 "$sr")"
+        if [ "$sl" = unset ] || [ "$ri" = unset ]; then
+          status_msg='Status line not set up. Run: maestro statusline install'
+        fi
+      fi
+      [ -n "$tools_msg" ] || [ -n "$status_msg" ] || return 0
+      tools_msg="$(printf '%s' "$tools_msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+      status_msg="$(printf '%s' "$status_msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+      if [ -n "$tools_msg" ] && [ -n "$status_msg" ]; then
+        body="$tools_msg\\n$status_msg"
+      elif [ -n "$tools_msg" ]; then
+        body="$tools_msg"
+      else
+        body="$status_msg"
+      fi
+      printf '{"systemMessage":"%s"}\n' "$body" ;;
     *) echo "usage: maestro tools install [--yes] | hint" >&2; return 1 ;;
   esac
 }
@@ -3408,6 +3684,7 @@ case "$cmd" in
   hooks) cmd_hooks "$@" ;;
   skills) cmd_skills "$@" ;;
   tools) cmd_tools "$@" ;;
+  statusline) cmd_statusline "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

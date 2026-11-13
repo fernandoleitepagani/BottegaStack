@@ -10,9 +10,15 @@ the conversation.
 
 ## Where
 
-Return the handoff as your reply; it lives in chat, not in a file. When the run
-continues in a new session, the master keeps it in the conversation and points
-the next agent at the worktree, branch, and todo list.
+Write the handoff to `${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md`:
+`<repo>` is the basename of `git rev-parse --show-toplevel`, `<slug>` the run
+slug or a short task slug. Create the directory when `BOTTEGA_HANDOFF_DIR`
+points at a missing one, and write with `umask 077` so the file is mode `600`;
+overwriting an old handoff is fine. The file is disposable (`/tmp` may be
+tmpfs) and can be regenerated from the resumed chat with `claude --continue`.
+
+Reply with the path and one `NEXT:` line, so the next session starts with
+`/bottega:maestro implement the run described in <path>`.
 
 ## Include
 
@@ -42,6 +48,6 @@ the next agent at the worktree, branch, and todo list.
 ## Report
 
 ```
-HANDOFF: returned in this reply
+HANDOFF: <path>
 NEXT: <one line>
 ```

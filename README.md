@@ -99,8 +99,10 @@ Small work skips the spec and worktree: the master takes the light path with
 under `quick/<slug>/`. Pass findings back with
 `maestro build --here <slug> --revise <file|->`; `maestro build --status <slug>`
 reports progress once, `maestro watch <slug>` follows a run live, and
-`maestro watch --line` prints the newest open run as one status line (see
-[docs/SETUP.md](docs/SETUP.md) to wire it into Claude Code).
+`maestro watch --line` prints the newest open run as one status line.
+`maestro statusline install` wires it into Claude Code (backing up
+`~/.claude/settings.json` first), and `maestro statusline status` reports what
+is set; details in [docs/SETUP.md](docs/SETUP.md).
 `low` risk runs get a cheap headless first-pass review
 before the Claude reviewer. Headless builds report `tokens: in <n> out <n>` and
 `steps: <n>`; the only stop is the 30-minute builder timeout.
@@ -187,7 +189,7 @@ UI skills live in `skills/design/`; the rest are grouped by category under `skil
 | `review-pr` | Reviews a pull request as a merge decision. |
 | `runbook` | Investigates an incident step by step. |
 | `scaffold` | Creates new files that match the project's conventions. |
-| `session-handoff` | Packs the session into a note for a fresh agent. |
+| `session-handoff` | Packs the session into a handoff file under `${BOTTEGA_HANDOFF_DIR:-/tmp}` for a fresh agent. |
 | `session-retro` | Turns friction from a run into fixes. |
 | `show-me-your-work` | Keeps a log of each decision for later review. |
 | `simplify` | Removes extra code and useless comments before review. |
