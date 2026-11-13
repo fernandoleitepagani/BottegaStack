@@ -29,6 +29,14 @@
             "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/maestro\" tools hint"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}/bin/maestro\" skills sync --hook"
+          }
+        ]
       }
     ]
   }
