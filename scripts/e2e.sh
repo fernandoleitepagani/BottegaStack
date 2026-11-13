@@ -2072,6 +2072,145 @@ skills_nocfg() {
 skills_nocfg list
 skills_nocfg install teach
 skills_nocfg uninstall teach
+skills_nocfg sync
+
+# `maestro skills sync` (issue #27 run C, task 2): refresh the managed standalone
+# copies from files only, run at SessionStart. Every case has its own scratch
+# config dir and asserts structure, never timing.
+SY="$TMP/sync-dest"
+sync_fresh() { rm -rf "$SY"; mkdir -p "$SY"; }
+sync_cmd() { CLAUDE_CONFIG_DIR="$SY" "$M" skills sync "$@"; }
+sync_marker() { sed -n '1s/^bottega[[:space:]]*//p' "$SY/skills/$1/.bottega-managed" 2>/dev/null; }
+sync_count="$(grep -c . "$ROOT/skills/standalone.txt")"
+
+sync_fresh
+out="$(sync_cmd 2>&1)"; rc=$?
+all_marked=1
+while IFS= read -r name; do
+  [ -f "$SY/skills/$name/.bottega-managed" ] || all_marked=0
+done < "$ROOT/skills/standalone.txt"
+if [ "$rc" -eq 0 ] && [ "$all_marked" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^installed ')" -eq "$sync_count" ] \
+  && printf '%s\n' "$out" | grep -qxF "installed teach -> $SY/skills/teach" \
+  && same_tree "$ROOT/skills/workflow/teach" "$SY/skills/teach" \
+  && [ "$(sync_marker teach)" = "$plugin_version" ]; then
+  ok "skills sync installs missing skills"
+else
+  fail "skills sync installs missing skills"
+fi
+out="$(sync_cmd 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  ok "skills sync is a fast no-op when current"
+else
+  fail "skills sync is a fast no-op when current"
+fi
+
+# A stale marker refreshes the copy; the extra file and local edit are replaced.
+printf 'bottega 0.0.1\n' > "$SY/skills/teach/.bottega-managed"
+printf 'local edit\n' >> "$SY/skills/teach/SKILL.md"
+printf 'extra\n' > "$SY/skills/teach/extra.txt"
+out="$(sync_cmd 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$(printf '%s\n' "$out" | grep -c .)" -eq 1 ] \
+  && printf '%s\n' "$out" | grep -qxF "refreshed teach -> $SY/skills/teach" \
+  && same_tree "$ROOT/skills/workflow/teach" "$SY/skills/teach" \
+  && [ ! -e "$SY/skills/teach/extra.txt" ] \
+  && [ "$(sync_marker teach)" = "$plugin_version" ]; then
+  ok "skills sync refreshes stale markers"
+else
+  fail "skills sync refreshes stale markers"
+fi
+
+# Unmanaged dirs of two standalone names are left alone, named in one warning.
+sync_fresh
+sync_cmd >/dev/null 2>&1
+mkdir -p "$SY/skills/how" "$SY/skills/why"
+printf 'mine\n' > "$SY/skills/how/SKILL.md"
+printf 'mine\n' > "$SY/skills/why/SKILL.md"
+out="$(sync_cmd 2>"$TMP/sync.err")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ] \
+  && [ "$(grep -c 'unmanaged' "$TMP/sync.err")" -eq 1 ] \
+  && grep -qxF 'bottega skills: unmanaged copy left in place: how, why' "$TMP/sync.err" \
+  && [ "$(cat "$SY/skills/how/SKILL.md")" = mine ] && [ ! -e "$SY/skills/how/.bottega-managed" ] \
+  && [ "$(cat "$SY/skills/why/SKILL.md")" = mine ] && [ ! -e "$SY/skills/why/.bottega-managed" ]; then
+  ok "skills sync warns once and leaves an unmanaged dir"
+else
+  fail "skills sync warns once and leaves an unmanaged dir"
+fi
+
+# uninstall records an opt-out that sync honors; install clears the name from it,
+# and the file goes away once no name is left.
+sync_fresh
+sync_cmd >/dev/null 2>&1
+CLAUDE_CONFIG_DIR="$SY" "$M" skills uninstall teach how >/dev/null 2>&1
+opt_recorded="$(cat "$SY/skills/.bottega-optout" 2>/dev/null)"
+out="$(sync_cmd 2>&1)"; rc=$?
+opt_skipped=0
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -e "$SY/skills/teach" ] && [ ! -e "$SY/skills/how" ] && opt_skipped=1
+CLAUDE_CONFIG_DIR="$SY" "$M" skills install teach >/dev/null 2>&1
+opt_partial="$(cat "$SY/skills/.bottega-optout" 2>/dev/null)"
+rm -rf "$SY/skills/teach"
+out="$(sync_cmd 2>&1)"; rc=$?
+opt_reinstalled=0
+[ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qxF "installed teach -> $SY/skills/teach" && opt_reinstalled=1
+CLAUDE_CONFIG_DIR="$SY" "$M" skills install how >/dev/null 2>&1
+if [ "$opt_recorded" = "$(printf 'how\nteach')" ] && [ "$opt_skipped" -eq 1 ] \
+  && [ "$opt_partial" = how ] && [ "$opt_reinstalled" -eq 1 ] && [ ! -e "$SY/skills/.bottega-optout" ]; then
+  ok "skills sync honors the uninstall opt-out"
+else
+  fail "skills sync honors the uninstall opt-out"
+fi
+
+# A managed copy of a denied name goes, even with the name in the opt-out file;
+# the user's own dir of a denied name stays.
+sync_fresh
+sync_cmd >/dev/null 2>&1
+mkdir -p "$SY/skills/interview" "$SY/skills/summary"
+printf 'bottega 0.1.0\n' > "$SY/skills/interview/.bottega-managed"
+printf 'old\n' > "$SY/skills/interview/SKILL.md"
+printf 'mine\n' > "$SY/skills/summary/SKILL.md"
+printf 'interview\n' > "$SY/skills/.bottega-optout"
+out="$(sync_cmd 2>"$TMP/sync.err")"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qxF 'removed interview (denied)' \
+  && [ ! -e "$SY/skills/interview" ] && [ "$(cat "$SY/skills/summary/SKILL.md")" = mine ] \
+  && [ ! -s "$TMP/sync.err" ]; then
+  ok "skills sync removes managed copies of denied skills"
+else
+  fail "skills sync removes managed copies of denied skills"
+fi
+
+# --hook: one systemMessage line on a change or an unmanaged warning, silent on a
+# no-op, and silent exit 0 when the config dir is unusable (fail open).
+sync_fresh
+out="$(sync_cmd --hook 2>"$TMP/hook.err")"; rc=$?
+hook_first=0
+[ "$rc" -eq 0 ] && [ "$out" = "{\"systemMessage\":\"bottega skills: installed $sync_count, refreshed 0, removed 0 (denied)\"}" ] \
+  && [ ! -s "$TMP/hook.err" ] && hook_first=1
+out="$(sync_cmd --hook 2>"$TMP/hook.err")"; rc=$?
+hook_noop=0
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$TMP/hook.err" ] && hook_noop=1
+printf 'bottega 0.0.1\n' > "$SY/skills/teach/.bottega-managed"
+out="$(sync_cmd --hook 2>/dev/null)"; rc=$?
+hook_refresh=0
+[ "$rc" -eq 0 ] && [ "$out" = '{"systemMessage":"bottega skills: installed 0, refreshed 1, removed 0 (denied)"}' ] && hook_refresh=1
+rm -rf "$SY/skills/how"
+mkdir -p "$SY/skills/how" && printf 'mine\n' > "$SY/skills/how/SKILL.md"
+out="$(sync_cmd --hook 2>/dev/null)"; rc=$?
+hook_warn=0
+[ "$rc" -eq 0 ] && [ "$out" = '{"systemMessage":"bottega skills: unmanaged copy left in place: how"}' ] && hook_warn=1
+printf 'file\n' > "$TMP/not-a-dir"
+out="$(CLAUDE_CONFIG_DIR="$TMP/not-a-dir/x" "$M" skills sync --hook 2>"$TMP/hook.err")"; rc=$?
+hook_unusable=0
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$TMP/hook.err" ] && hook_unusable=1
+out="$(env -u HOME -u CLAUDE_CONFIG_DIR "$M" skills sync --hook 2>"$TMP/hook.err")"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$TMP/hook.err" ] && hook_unusable=1
+if [ "$hook_first" -eq 1 ] && [ "$hook_noop" -eq 1 ] && [ "$hook_refresh" -eq 1 ] \
+  && [ "$hook_warn" -eq 1 ] && [ "$hook_unusable" -eq 1 ]; then
+  ok "skills sync --hook is silent on a no-op and fails open"
+else
+  fail "skills sync --hook is silent on a no-op and fails open"
+fi
+sync_cmd --bogus >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "skills sync rejects an unknown option" || fail "skills sync rejects an unknown option"
 
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
