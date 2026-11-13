@@ -409,7 +409,7 @@ body
 body
 EOF
 "$M" spec build-verify "$TMP/build-verify-spec.md" >/dev/null 2>&1
-for bvt in 1 2 3; do "$M" worktree create build-verify "$bvt" >/dev/null 2>&1; done
+for bvt in 1 2 3; do "$M" worktree create build-verify "$bvt" --branch "bv-$bvt" >/dev/null 2>&1; done
 out="$(STUB_COMMIT='tests/pass_test.sh src/pass.sh' "$M" build build-verify 1 --block 2>&1)"; rc=$?
 if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'verify-task: PASS'; then
   ok "build --block passes verify-task"
