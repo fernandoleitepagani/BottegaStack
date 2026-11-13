@@ -866,6 +866,184 @@ else
   fail "build progress: review here"
 fi
 
+# `maestro verify-task` (Task 4): the five acceptance rules and the HEAD-bound
+# waiver. Its own repo and state dir, no stub: the task worktrees are committed
+# directly and the report and the check record are written where the command
+# reads them. Each broken-rule task breaks exactly one rule.
+VREPO="$TMP/verify-repo"
+VSTATE="$TMP/verify-state"
+mkdir -p "$VREPO/scripts" "$VREPO/.claude"
+( cd "$VREPO" \
+  && git init -q -b main && git commit -q --allow-empty -m init \
+  && git switch -q -c feat/verify \
+  && printf '#!/usr/bin/env bash\necho ok\n' > scripts/check && chmod +x scripts/check \
+  && printf '# Agents\n' > AGENTS.md && printf '{}\n' > .claude/settings.json \
+  && git add scripts/check AGENTS.md .claude/settings.json && git commit -q -m setup \
+  && BOTTEGA_STATE_DIR="$VSTATE" "$M" start "Verify run" ) >/dev/null 2>&1
+VRUN="verify-run"
+VDIR="$VSTATE/$VRUN"
+VWTS="$TMP/verify-repo-bottega/$VRUN"
+cat > "$TMP/verify-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: works. Proof: `true` -> exit 0
+### Task 1 - clean
+**Allowed files:** `src/app.sh`, `tests/app_test.sh`
+**Test first:** tests/app_test.sh
+body
+### Task 2 - report broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 3 - commits broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 4 - test first broken
+**Allowed files:** `src/app.sh`, `tests/app_test.sh`
+**Test first:** tests/app_test.sh
+body
+### Task 5 - allowed files broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 6 - check broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 7 - several broken
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 8 - test first none
+**Allowed files:** `src/app.sh`
+**Test first:** none
+body
+### Task 9 - test file named in Test first
+**Allowed files:** `src/app.sh`, `scripts/t.sh`
+**Test first:** scripts/t.sh
+body
+EOF
+( cd "$VREPO" && BOTTEGA_STATE_DIR="$VSTATE" "$M" spec "$VRUN" "$TMP/verify-spec.md" ) >/dev/null 2>&1
+for vt in 1 2 3 4 5 6 7 8 9; do
+  ( cd "$VREPO" && BOTTEGA_STATE_DIR="$VSTATE" "$M" worktree create "$VRUN" "$vt" ) >/dev/null 2>&1
+done
+vcommit() { # <task> <message> <path>...
+  local vt="$1" msg="$2" p
+  shift 2
+  for p in "$@"; do
+    mkdir -p "$(dirname "$VWTS/$vt/$p")"
+    printf 'v\n' > "$VWTS/$vt/$p"
+  done
+  ( cd "$VWTS/$vt" && git add "$@" && git commit -q -m "$msg" )
+}
+vreport() { mkdir -p "$VDIR/build"; printf 'STATUS: %s\n' "$2" > "$VDIR/build/$1.report.md"; }
+vcheck() { ( cd "$VWTS/$1" && BOTTEGA_STATE_DIR="$VSTATE" "$M" check "$VRUN" ) >/dev/null 2>&1; }
+vverify() { ( cd "$VREPO" && BOTTEGA_STATE_DIR="$VSTATE" "$M" verify-task "$VRUN" "$@" 2>&1 ); }
+
+vcommit 1 "test first" tests/app_test.sh
+vcommit 1 "implementation" src/app.sh
+vreport 1 DONE
+vcheck 1
+vcommit 2 "implementation" src/app.sh
+vcheck 2
+vreport 3 DONE
+vcheck 3
+vcommit 4 "implementation first" src/app.sh
+vcommit 4 "test after" tests/app_test.sh
+vreport 4 DONE
+vcheck 4
+vcommit 5 "outside allowed files" src/other.sh
+vreport 5 DONE
+vcheck 5
+vcommit 6 "implementation" src/app.sh
+vreport 6 DONE
+vcommit 7 "outside allowed files" src/other.sh
+vreport 7 BLOCKED
+vcommit 8 "implementation" src/app.sh
+vreport 8 DONE
+vcheck 8
+vcommit 9 "test first" scripts/t.sh
+vcommit 9 "implementation" src/app.sh
+vreport 9 DONE
+vcheck 9
+
+out="$(vverify 1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = 'verify-task: PASS' ]; then
+  ok "verify-task passes a clean task"
+else
+  fail "verify-task passes a clean task"
+fi
+# One rule broken alone: exit 1 and exactly one FAIL line for that rule.
+for vpair in report:2 commits:3 test-first:4 allowed-files:5 check:6; do
+  vrule="${vpair%%:*}"
+  vtask="${vpair##*:}"
+  out="$(vverify "$vtask")"; rc=$?
+  vone="$(printf '%s\n' "$out" | grep -c "^FAIL $vrule:")"
+  vtotal="$(printf '%s\n' "$out" | grep -c '^FAIL ')"
+  if [ "$rc" -eq 1 ] && [ "$vone" -eq 1 ] && [ "$vtotal" -eq 1 ]; then
+    ok "verify-task fails: $vrule"
+  else
+    fail "verify-task fails: $vrule"
+  fi
+done
+# Several broken rules: one FAIL line per broken rule and nothing else on stdout.
+out="$(vverify 7)"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL report:')" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL allowed-files:')" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL check:')" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^FAIL ')" -eq 3 ] \
+  && [ "$(printf '%s\n' "$out" | grep -vc '^FAIL ')" -eq 0 ]; then
+  ok "verify-task prints one line per failed rule"
+else
+  fail "verify-task prints one line per failed rule"
+fi
+# `Test first: none` skips the rule: an implementation-only first commit passes.
+out="$(vverify 8)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = 'verify-task: PASS' ]; then
+  ok "verify-task test-first skipped for none"
+else
+  fail "verify-task test-first skipped for none"
+fi
+# A test path that `is_test_path` does not match still counts when the task's
+# `Test first:` names it.
+out="$(vverify 9)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = 'verify-task: PASS' ]; then
+  ok "verify-task test-first counts files named in Test first"
+else
+  fail "verify-task test-first counts files named in Test first"
+fi
+# The waiver is bound to the worktree HEAD: empty reason exits 2 and records
+# nothing, a recorded waiver hides the failures, and a new commit drops it.
+vwaiver="$VDIR/build/7.verify-waiver"
+waiver_ok=1
+out="$(vverify 7 --waive "")"; rc=$?
+[ "$rc" -eq 2 ] && [ ! -e "$vwaiver" ] || waiver_ok=0
+out="$(vverify 7 --waive "user approved")"; rc=$?
+[ "$rc" -eq 0 ] && [ -f "$vwaiver" ] || waiver_ok=0
+out="$(vverify 7)"; rc=$?
+if [ "$rc" -ne 0 ] || ! printf '%s\n' "$out" | grep -qx 'verify-task: WAIVED (user approved)' \
+  || ! printf '%s\n' "$out" | grep -q '^FAIL '; then
+  waiver_ok=0
+fi
+( cd "$VWTS/7" && git commit -q --allow-empty -m "after waiver" )
+out="$(vverify 7)"; rc=$?
+if [ "$rc" -ne 1 ] || printf '%s\n' "$out" | grep -q 'verify-task: WAIVED'; then
+  waiver_ok=0
+fi
+[ "$waiver_ok" -eq 1 ] && ok "verify-task waiver holds for its HEAD only" || fail "verify-task waiver holds for its HEAD only"
+# Bad run and task ids exit 2 before anything is written.
+vstate_before="$(cd "$VSTATE" && find . -print | LC_ALL=C sort)"
+vverify '../x' 1 >/dev/null 2>&1; vrc_a=$?
+vverify 'run-a' '../x' >/dev/null 2>&1; vrc_b=$?
+vstate_after="$(cd "$VSTATE" && find . -print | LC_ALL=C sort)"
+if [ "$vrc_a" -eq 2 ] && [ "$vrc_b" -eq 2 ] && [ "$vstate_before" = "$vstate_after" ]; then
+  ok "verify-task rejects bad ids"
+else
+  fail "verify-task rejects bad ids"
+fi
+
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
 hook_in="{\"transcript_path\":\"$TMP/t.jsonl\",\"stop_hook_active\":false}"
