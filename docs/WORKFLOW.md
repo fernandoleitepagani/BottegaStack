@@ -410,6 +410,7 @@ maestro hooks install|uninstall [path]
 maestro skills list
 maestro skills install <name>... | --all
 maestro skills uninstall <name>... | --all
+maestro skills sync [--hook]
 
 maestro tools install [--yes] | hint
 maestro statusline install [--yes] | status

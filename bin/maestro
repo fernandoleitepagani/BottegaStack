@@ -40,6 +40,7 @@ Usage:
   maestro hooks install|uninstall [path]
   maestro skills list | install <name>... | install --all
   maestro skills uninstall <name>... | uninstall --all
+  maestro skills sync [--hook]
   maestro tools install [--yes] | hint
   maestro statusline install [--yes] | status
 
@@ -126,10 +127,14 @@ skills_usage() {
   cat <<'EOF'
 Usage: maestro skills list | install <name>... | install --all
        maestro skills uninstall <name>... | uninstall --all
+       maestro skills sync [--hook]
   list       print every standalone skill and whether it is installed
   install    copy the named standalone skills, plus the standalone skills they
              Load, into <config>/skills/
   uninstall  remove the named managed copies; never touches an unmanaged dir
+  sync       install missing standalone skills, refresh stale managed copies,
+             and remove managed copies of denied skills; file-only, no network;
+             --hook prints one systemMessage line on a change and fails open
   --all      install: exactly the skills in skills/standalone.txt;
              uninstall: every managed copy
 EOF
@@ -323,6 +328,48 @@ skills_validate() {
   done <<< "$names"
 }
 
+# The opt-out file <config>/skills/.bottega-optout lists the standalone names a
+# user uninstalled, one per line and C-sorted. Sync never reinstalls them; an
+# install clears the name. The file exists only while a name is recorded.
+skills_optout_add() {
+  local name="$1" dest file tmp
+  dest="$(skills_dest)" || return 1
+  file="$dest/.bottega-optout"
+  mkdir -p "$dest" || return 1
+  tmp="$(mktemp "$dest/.bottega-optout.XXXXXX")" || return 1
+  if ! { if [ -f "$file" ]; then cat "$file"; fi; printf '%s\n' "$name"; } | LC_ALL=C sort -u > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+}
+
+skills_optout_remove() {
+  local name="$1" dest file tmp
+  dest="$(skills_dest)" || return 1
+  file="$dest/.bottega-optout"
+  [ -f "$file" ] || return 0
+  tmp="$(mktemp "$dest/.bottega-optout.XXXXXX")" || return 1
+  if ! awk -v n="$name" '$0 != n && NF' "$file" > "$tmp"; then
+    rm -f "$tmp"
+    return 1
+  fi
+  if [ -s "$tmp" ]; then
+    mv "$tmp" "$file" || { rm -f "$tmp"; return 1; }
+  else
+    rm -f "$tmp" "$file" || return 1
+  fi
+}
+
+# Clear the opt-out for each name in a newline-separated list.
+skills_optout_clear() {
+  local name
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    skills_optout_remove "$name" || return 1
+  done <<< "$1"
+}
+
 # Install a newline-separated name list. The second argument holds the
 # newline-separated "<dep> <parent>" lines announced first. Every target is
 # checked before the first copy: an unmanaged entry aborts all.
@@ -373,6 +420,7 @@ skills_install() {
     skills_validate "$names" || return 1
     # --all installs exactly the listed set: no dependency expansion.
     skills_install_list "$names" "" || return 1
+    skills_optout_clear "$names" || return 1
     return 0
   fi
   for name in "$@"; do
@@ -395,6 +443,7 @@ skills_install() {
   skills_validate "$names" || return 1
   skills_closure "$@" || return 1
   skills_install_list "$SKILLS_CLOSURE" "$SKILLS_LOADED" || return 1
+  skills_optout_clear "$SKILLS_CLOSURE" || return 1
 }
 
 # Every managed copy in the destination, one name per line, C-sorted.
@@ -427,6 +476,7 @@ skills_uninstall_list() {
     if [ -e "$path" ] || [ -L "$path" ]; then
       rm -rf "$path" || return 1
       echo "removed $name"
+      skills_optout_add "$name" || { echo "maestro skills: failed to record the opt-out for $name" >&2; return 1; }
     else
       echo "$name is not installed"
     fi
@@ -469,9 +519,125 @@ skills_uninstall() {
   skills_uninstall_list "$names" || return 1
 }
 
+# `skills sync` keeps the managed copies current from files only, at every
+# SessionStart. It installs a missing standalone skill, refreshes a managed copy
+# whose marker version is not the plugin's, and removes managed copies of denied
+# skills (ignoring the opt-out). An unmanaged dir is never touched: those names
+# go into one warning. Names in the opt-out file are skipped without a word.
+
+# Sets SYNC_INSTALLED, SYNC_REFRESHED, SYNC_REMOVED and SYNC_UNMANAGED (a
+# comma-separated list). Prints one line per change unless the mode is `hook`.
+# Returns 1 when a copy or removal failed, after trying the rest.
+skills_sync_run() {
+  local mode="$1" dest current file optout deny name path ver action src failed=0
+  SYNC_INSTALLED=0
+  SYNC_REFRESHED=0
+  SYNC_REMOVED=0
+  SYNC_UNMANAGED=""
+  dest="$(skills_dest)" || return 1
+  current="$(maestro_version)"
+  file="$(skills_list_path)"
+  optout="$dest/.bottega-optout"
+  if [ ! -f "$file" ]; then
+    echo "maestro skills: no standalone skill list at $file" >&2
+    return 1
+  fi
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    if ! skill_name_ok "$name"; then
+      failed=1
+      continue
+    fi
+    if [ -f "$optout" ] && grep -qxF -- "$name" "$optout"; then continue; fi
+    path="$dest/$name"
+    if [ -e "$path" ] || [ -L "$path" ]; then
+      if ! skill_marked "$path"; then
+        SYNC_UNMANAGED="${SYNC_UNMANAGED:+$SYNC_UNMANAGED, }$name"
+        continue
+      fi
+      ver="$(sed -n '1s/^bottega[[:space:]]*//p' "$path/.bottega-managed" 2>/dev/null)"
+      if [ "$ver" = "$current" ]; then continue; fi
+      action=refreshed
+    else
+      action=installed
+    fi
+    if ! src="$(skill_src "$name")"; then
+      echo "maestro skills: unknown skill: $name" >&2
+      failed=1
+      continue
+    fi
+    if ! skill_copy "$name" "$src"; then
+      echo "maestro skills: failed to copy $name" >&2
+      failed=1
+      continue
+    fi
+    if [ "$action" = refreshed ]; then
+      SYNC_REFRESHED=$((SYNC_REFRESHED + 1))
+    else
+      SYNC_INSTALLED=$((SYNC_INSTALLED + 1))
+    fi
+    if [ "$mode" != hook ]; then echo "$action $name -> $path"; fi
+  done < "$file"
+  deny="$ROOT/skills/standalone-deny.txt"
+  if [ -f "$deny" ]; then
+    while IFS= read -r name || [ -n "$name" ]; do
+      [ -n "$name" ] || continue
+      skill_name_ok "$name" || continue
+      path="$dest/$name"
+      skill_marked "$path" || continue
+      if ! rm -rf "$path"; then
+        echo "maestro skills: failed to remove $name" >&2
+        failed=1
+        continue
+      fi
+      SYNC_REMOVED=$((SYNC_REMOVED + 1))
+      if [ "$mode" != hook ]; then echo "removed $name (denied)"; fi
+    done < "$deny"
+  fi
+  [ "$failed" -eq 0 ]
+}
+
+# SessionStart mode: silent on a no-op and on any failure (exit 0 either way);
+# one systemMessage line when something changed or an unmanaged copy is named.
+skills_sync_hook() {
+  local rc=0 msg
+  skills_sync_run hook >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -ne 0 ]; then return 0; fi
+  if [ $((SYNC_INSTALLED + SYNC_REFRESHED + SYNC_REMOVED)) -eq 0 ]; then
+    [ -n "$SYNC_UNMANAGED" ] || return 0
+    msg="bottega skills: unmanaged copy left in place: $SYNC_UNMANAGED"
+  else
+    msg="bottega skills: installed $SYNC_INSTALLED, refreshed $SYNC_REFRESHED, removed $SYNC_REMOVED (denied)"
+    if [ -n "$SYNC_UNMANAGED" ]; then msg="$msg; unmanaged copy left in place: $SYNC_UNMANAGED"; fi
+  fi
+  printf '{"systemMessage":"%s"}\n' "$msg"
+}
+
+skills_sync() {
+  local rc=0
+  if [ "$#" -eq 1 ] && [ "$1" = "--hook" ]; then
+    skills_sync_hook
+    return 0
+  fi
+  if [ "$#" -ne 0 ]; then
+    skills_usage >&2
+    return 2
+  fi
+  skills_sync_run manual || rc=$?
+  if [ -n "$SYNC_UNMANAGED" ]; then
+    echo "bottega skills: unmanaged copy left in place: $SYNC_UNMANAGED" >&2
+  fi
+  return "$rc"
+}
+
 cmd_skills() {
   local sub="${1:-}"
   shift || true
+  # sync runs before the config-dir check: its --hook mode must fail open.
+  if [ "$sub" = sync ]; then
+    skills_sync "$@"
+    return 0
+  fi
   # Every subcommand needs the config dir. Resolve it before dispatch: with no
   # CLAUDE_CONFIG_DIR and no HOME there is nowhere to write, and failing here
   # keeps a path like /skills from ever reaching a mkdir.
