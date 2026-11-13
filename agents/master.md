@@ -101,11 +101,15 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    **Progress.** Create one `TodoWrite` item per task; mark it `in_progress` at build start and `completed` on
    `STATUS: DONE`. Each headless build prints its own `progress:` lines as tasks finish; for a live view of a
    wave, run `maestro watch <slug>` in a pane (piped output prints a line only on change), and run
-   `maestro build --status <slug>` after each build. Never sleep-poll. Verify before accepting (principle `prove-it-works`: the
-   builder's report is present, commits exist, changed files inside `Allowed files`). `STATUS: BLOCKED` returns
-   to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a `review-code` verdict of approve.
-   A builder needing another file is `BLOCKED`; do not widen it.
-3. **Step 3 — Checks.** Run `maestro check <slug>` in each task worktree; it runs `scripts/check` and records
+   `maestro build --status <slug>` after each build. Never sleep-poll. Each DONE build with commits already runs
+   the worktree check and `maestro verify-task <slug> <task>`; it prints `verify-task: PASS`, or each
+   `FAIL <rule>: <detail>` plus `verify-task: FAIL; task stays BLOCKED (...)` and exits 1 (principle `prove-it-works`).
+   Fix the broken rule. To accept a failure anyway, ask the user with `AskUserQuestion`; on yes run
+   `maestro verify-task <slug> <task> --waive "<reason>"`, which holds for that worktree HEAD only.
+   `STATUS: BLOCKED` returns to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a
+   `review-code` verdict of approve. A builder needing another file is `BLOCKED`; do not widen it.
+3. **Step 3 — Checks.** The build already ran and recorded the worktree check. After further commits, run
+   `maestro check <slug>` in each task worktree; it runs `scripts/check` and records
    `checks/<sha>.result` (plus `.log`) for the current HEAD, then refreshes `checks.result` as the latest record.
    Checks and review can run per task worktree in parallel: `maestro gate` reads only the record for the current
    HEAD, so a check in another worktree does not make it stale. Post the output in chat. On failure load

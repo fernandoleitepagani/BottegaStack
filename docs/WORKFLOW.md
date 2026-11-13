@@ -103,6 +103,14 @@ check` records a per-HEAD result, so one worktree's check never invalidates
 another's gate. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
 is the only stop. Each build reports its token counts and step count.
 
+After a build reports `STATUS: DONE` with commits, `maestro build` runs
+`maestro check` in the task worktree and then `maestro verify-task <run> <task>`.
+`verify-task: PASS` accepts the task; any broken rule prints `FAIL <rule>:
+<detail>` and `verify-task: FAIL; task stays BLOCKED (...)` and exits 1. The
+master fixes the rule. To accept it anyway it asks for the user's yes with
+`AskUserQuestion`, then records the HEAD-bound waiver with `maestro verify-task
+<run> <task> --waive "<reason>"` (`verify-task: WAIVED (<reason>)`, exit 0).
+
 The master reads the task graph from the saved SPEC and inspects the ready set
 before building. It defaults to sequential. If two or more ready tasks touch
 disjoint files and have no dependency between them, it runs that wave in parallel
@@ -122,7 +130,8 @@ the task pass. A genuine test change needs approval and is recorded under
 
 ### Step 3: Checks
 
-The master runs `maestro check <run>`, which runs `scripts/check` (in the
+The build already ran and recorded the check in each task worktree. After further
+commits, the master runs `maestro check <run>`, which runs `scripts/check` (in the
 current worktree) and writes `checks/<sha>.result` with `RESULT`, `HEAD`, exit
 code, and duration plus the output to `checks/<sha>.log`, both keyed by the
 checked commit. It also writes the same record to `checks.result` as the latest
@@ -360,7 +369,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ## Commands
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
-`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `log`, `report`, `build`, `worktree`, `skills`, and
+`upgrade`, `start`, `hold`, `resume`, `spec`, `check`, `gate`, `verify`, `verify-task`, `log`, `report`, `build`, `worktree`, `skills`, and
 `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
@@ -462,6 +471,11 @@ level that can prevent it from recurring.
   for the worktree HEAD. It prints one `FAIL <rule>: <detail>` line per broken
   rule and exits 1; a waiver recorded for that HEAD with `--waive "<reason>"`
   hides the failures, prints `verify-task: WAIVED (<reason>)`, and exits 0.
+- `maestro build <run> <task>` runs that worktree check and `maestro
+  verify-task` itself after a `STATUS: DONE` report with commits: `verify-task:
+  PASS` accepts the task, and a failing rule exits 1 with the `FAIL <rule>` lines
+  and `verify-task: FAIL; task stays BLOCKED (...)`, so a build cannot report a
+  blocked task as accepted.
 
 ### Designed out
 

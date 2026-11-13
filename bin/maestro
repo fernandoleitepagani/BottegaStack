@@ -847,7 +847,7 @@ cmd_check() {
 # `ensure_check <slug> <statedir> <checkout>`: reuse a PASS record for the
 # checkout HEAD when the tracked tree is clean, else run `maestro check` in the
 # checkout. Prints the check output; returns 1 when the check fails, after the
-# tail of its log. Used before a review starts.
+# tail of its log. Used before a review starts and at the end of a DONE build.
 ensure_check() {
   local slug="$1" statedir="$2" checkout="$3" sha sha7 rc=0
   sha="$(git -C "$checkout" rev-parse HEAD 2>/dev/null || true)"
@@ -3013,7 +3013,7 @@ $(cat "$taskfile")"
   fi
   printf 'session=%s\nrevisions=%s\nagent=builder\n' "$sid" "$rev" > "$state"
 
-  local status="MISSING" commits secs=0
+  local status="MISSING" commits secs=0 verify_failed=0
   [ -s "$report" ] && status="$(grep -m1 -o 'STATUS: [A-Z_]*' "$report" || echo UNKNOWN)"
   commits="$(git -C "$wt" log --oneline "$(run_branch "$slug")..HEAD" 2>/dev/null | wc -l | tr -d ' ')"
   [ -n "$t0" ] && secs=$(( $(now_epoch) - t0 ))
@@ -3028,7 +3028,30 @@ $(cat "$taskfile")"
   echo "report: $report ($status)"
   echo "commits on $branch: $commits"
   echo "files changed:"; git -C "$wt" diff --name-only "$(run_branch "$slug")...HEAD" 2>/dev/null | sed 's/^/  /'
-  [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] || exit 1
+
+  # A DONE build with commits is accepted only when the worktree check passes
+  # and every task rule holds. A HEAD-bound waiver hides the rule failure, the
+  # same as `maestro verify-task`; otherwise the task stays BLOCKED.
+  if [ "$status" = "STATUS: DONE" ] && [ "${commits:-0}" -gt 0 ]; then
+    local vfail=0 whead wreason wdate
+    ensure_check "$slug" "$dir" "$wt" || true
+    verify_task_rules "$slug" "$task" "$dir" "$wt" || vfail=1
+    if [ "$vfail" -eq 0 ]; then
+      echo "verify-task: PASS"
+    elif [ -f "$bdir/$task.verify-waiver" ]; then
+      IFS="$(printf '\t')" read -r whead wreason wdate < "$bdir/$task.verify-waiver"
+      if [ "$whead" = "$(git -C "$wt" rev-parse HEAD)" ]; then
+        printf 'verify-task: WAIVED (%s)\n' "$wreason"
+      else
+        verify_failed=1
+        printf 'verify-task: FAIL; task stays BLOCKED (waive: maestro verify-task %s %s --waive "<reason>")\n' "$slug" "$task"
+      fi
+    else
+      verify_failed=1
+      printf 'verify-task: FAIL; task stays BLOCKED (waive: maestro verify-task %s %s --waive "<reason>")\n' "$slug" "$task"
+    fi
+  fi
+  [ "$rc" -eq 0 ] && [ "$status" != "MISSING" ] && [ "$verify_failed" -eq 0 ] || exit 1
 }
 
 # Internal: run the headless builder and record its exit code. Started detached

@@ -402,6 +402,11 @@ maestro watch --line
   attaches to a running build with the same bounded wait. Without either, the
   call waits up to `BOTTEGA_BUILD_WAIT` seconds and then prints `RUNNING` and
   exits 5.
+- A `STATUS: DONE` build with commits runs `maestro check` in the task worktree
+  and then `maestro verify-task <run> <task>`. It prints `verify-task: PASS`, or
+  each `FAIL <rule>: <detail>` plus `verify-task: FAIL; task stays BLOCKED (...)`
+  and exits 1. A HEAD-bound waiver prints `verify-task: WAIVED (<reason>)` and
+  exits 0.
 - Each run writes a settings profile (`build/<task>.settings.json`, no secrets)
   and passes it with `--settings`, so it outranks user and project settings. The
   profile blanks `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY` in settings
