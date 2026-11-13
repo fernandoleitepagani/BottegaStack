@@ -51,7 +51,9 @@ slice that fits one fresh context. Every task carries `Allowed files`,
 neither covers. If a contract field is empty or `## Sensors` is missing, the
 master sends the SPEC back to the planner before approval. If the SPEC has open
 questions, the master asks you and has it revised. On approval, the master saves
-it with `maestro spec <slug>`, which extracts `tasks/<n>.md` and prints the task
+it with `maestro spec <slug>`, which validates the AC lines first and rejects a
+malformed one (one AC per line, `Proof:` on the same line, unique ids) without
+overwriting the previous spec, then extracts `tasks/<n>.md` and prints the task
 count. You approve the spec and the first wave.
 
 `trivial` runs skip this step. A `bugfix` still commits a failing test first.
@@ -175,8 +177,11 @@ of running a third identical round.
 
 ### Step 6: Approval
 
-The master loads `approval` and reads the SPEC, the builder reports, checks, and
-review replies. It decides `APPROVE` or `ESCALATE` itself, with the
+The master loads `approval` and runs `maestro gate <slug> --proof` first: the
+gate lists each `Proof: none` criterion as `proof none: AC<n>: <reason>` and
+fails on a missing, failing, inconclusive, or stale proof (a waiver needs your
+yes). It reads the SPEC, the builder reports, checks, and review
+replies. It decides `APPROVE` or `ESCALATE` itself, with the
 acceptance-criteria mapping, risks, and an explainer. For `feature`, `refactor`,
 and `high` risk it adds a quiz; `trivial`, `bugfix`, and `low` risk get the
 explainer only. In every playbook it then presents the decision and asks for it
@@ -434,9 +439,15 @@ level that can prevent it from recurring.
 ### Already enforced
 
 - `maestro start` refuses a dirty tree, `main`, or a detached HEAD.
+- `maestro spec` validates the AC lines before saving (one AC per line,
+  `Proof:` on the same line, a reason for `Proof: none`, unique ids) and exits 1
+  with `maestro spec: line <n>: <reason>: <line>` per bad line, leaving the
+  previous spec and `tasks/` untouched.
 - `maestro check` writes a per-HEAD `checks/<sha>.result` and refreshes
   `checks.result`; `maestro gate` fails on a failed or stale result for the
-  current HEAD, a dirty tree, or, with `--proof`, an unmet Proof criterion.
+  current HEAD, a dirty tree, or, with `--proof`, a full run with no acceptance
+  criteria or an unmet Proof criterion; it lists each `Proof: none` criterion as
+  `proof none: AC<n>: <reason>` before its verdict.
 - `maestro verify record` refuses `--by builder` and a PASS without an evidence
   file; the latest row per criterion decides.
 
