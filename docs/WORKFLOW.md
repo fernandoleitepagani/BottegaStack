@@ -414,7 +414,17 @@ maestro skills sync [--hook]
 
 maestro tools install [--yes] | hint
 maestro statusline install [--yes] | status
+maestro release <version> [--yes]
 ```
+
+`maestro release <version>` cuts a release from `main` in a BottegaStack clone.
+It refuses (exit 1, nothing written) unless the tracked tree is clean,
+`## Unreleased` has entries, the version is greater than `plugin.json`'s, and
+`release/<version>` does not exist yet. It then makes that branch, bumps
+`plugin.json`, retitles `## Unreleased` to `## <version> — <date>`, and makes one
+commit of those two files. Without `--yes` it pushes nothing and prints the push
+and PR commands; `--yes` pushes the branch over HTTPS with the gh credential
+helper and runs `gh pr create --base main`. It never tags and never merges.
 
 Use `./bin/maestro` instead of `maestro` when running from a clone outside a
 session. Setup and troubleshooting are in [SETUP.md](SETUP.md).
