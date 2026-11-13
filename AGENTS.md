@@ -114,5 +114,6 @@ and `hooks`. (`guard` and `keyget` are internal hook entry points, not user comm
 ./bin/maestro skills list
 ./bin/maestro skills install <name>... | --all
 ./bin/maestro skills uninstall <name>... | --all
+./bin/maestro skills sync [--hook]
 ./bin/maestro statusline install [--yes] | status
 ```
