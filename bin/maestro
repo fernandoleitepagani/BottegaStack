@@ -759,8 +759,9 @@ cmd_spec() {
   echo "$count"
 }
 
-# `maestro check <run>`: run scripts/check from the repo root and record the
-# result in the state directory.
+# `maestro check <run>`: run scripts/check from the current worktree and record
+# the result under the state directory, keyed by HEAD so parallel worktrees keep
+# their own record. `checks.result` mirrors the latest record.
 cmd_check() {
   local slug="${1:-}"
   require_run_id "check" "$slug"
@@ -784,18 +785,22 @@ cmd_check() {
   sha="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   if [ "$code" -eq 0 ]; then result="PASS"; else result="FAIL"; fi
   mkdir -p "$dir"
-  {
-    echo "RESULT: $result"
-    echo "HEAD: $sha"
-    echo "EXIT: $code"
-    echo "SECONDS: $duration"
-  } > "$dir/checks.result"
+  (umask 077; mkdir -p "$dir/checks")
+  local record tmp
+  record="$(printf 'RESULT: %s\nHEAD: %s\nEXIT: %s\nSECONDS: %s' "$result" "$sha" "$code" "$duration")"
+  tmp="$dir/checks/.$sha.result.$$"
+  printf '%s\n' "$record" > "$tmp"
+  mv "$tmp" "$dir/checks/$sha.result"
+  tmp="$dir/checks.result.$$"
+  printf '%s\n' "$record" > "$tmp"
+  mv "$tmp" "$dir/checks.result"
   {
     printf '%s HEAD %s RESULT %s EXIT %s SECONDS %s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "$duration"
     echo '```'
     echo "$output"
     echo '```'
-  } >> "$dir/checks.log"
+  } > "$dir/checks/$sha.log"
+  printf '%s HEAD %s RESULT %s EXIT %s SECONDS %s\n' "$(date -Iseconds)" "$sha" "$result" "$code" "$duration" >> "$dir/checks.log"
   echo "check: $result (${duration}s, exit $code)"
   [ "$code" -eq 0 ]
 }
@@ -886,12 +891,20 @@ cmd_gate() {
     if [ "$rc" -eq 2 ]; then echo "maestro gate: not in a git repository" >&2; else echo "maestro gate: no such run: $slug" >&2; fi
     return 1
   }
-  file="$dir/checks.result"
-  [ -f "$file" ] || { echo "GATE: FAIL (no checks.result)"; return 1; }
   local result sha head
+  head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  file="$dir/checks/$head.result"
+  if [ ! -f "$file" ]; then
+    if [ -f "$dir/checks.result" ]; then
+      sha="$(grep -m1 '^HEAD:' "$dir/checks.result" | sed 's/^HEAD:[[:space:]]*//')"
+      echo "GATE: FAIL (checks stale: ${sha:-unknown} != $head)"
+    else
+      echo "GATE: FAIL (no checks.result)"
+    fi
+    return 1
+  fi
   result="$(grep -m1 '^RESULT:' "$file" | sed 's/^RESULT:[[:space:]]*//')"
   sha="$(grep -m1 '^HEAD:' "$file" | sed 's/^HEAD:[[:space:]]*//')"
-  head="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
   if [ "$result" != "PASS" ]; then
     echo "GATE: FAIL (checks result: ${result:-missing})"
     return 1

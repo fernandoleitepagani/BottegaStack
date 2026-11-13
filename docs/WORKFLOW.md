@@ -11,7 +11,7 @@ are the record. There is no database or state machine.
 0. SETUP     playbook, risk, run branch, state directory (or the light path)
 1. SPEC      interview -> SPEC (planner reply, saved by maestro spec) [approve]
 2. BUILD     one builder per ready task              [approve per wave]
-3. CHECKS    maestro check -> checks.result           (fail -> builder)
+3. CHECKS    maestro check -> checks/<sha>.result      (fail -> builder)
 4. REVIEW    one review-code review (code, UI, UX, security) [summary]
 5. FIX       review findings -> fresh builder -> checks -> re-review
 6. APPROVAL  master -> decision + quiz (feature/refactor/high)
@@ -96,7 +96,9 @@ The master runs each build itself as a background Bash task
 as tasks finish; a live view of a wave is `maestro watch <run>` in a pane, whose
 piped output prints one line only on a count or state change. The master also
 runs `maestro build --status <run>` (a one-shot reading) after each finished
-build and moves to checks as soon as the wave has joined. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
+build. Checks and review can run in each task worktree in parallel: `maestro
+check` records a per-HEAD result, so one worktree's check never invalidates
+another's gate. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
 is the only stop. Each build reports its token counts and step count.
 
 The master reads the task graph from the saved SPEC and inspects the ready set
@@ -118,16 +120,21 @@ the task pass. A genuine test change needs approval and is recorded under
 
 ### Step 3: Checks
 
-The master runs `maestro check <run>`, which runs `scripts/check`, writes
-`checks.result` with `RESULT`, `HEAD`, exit code, and duration and appends one
-line per run plus the output to `checks.log`, both in the state directory. The
-light path uses the same `maestro check <slug>` and `maestro gate <slug>`. A
-failure goes back to a fresh builder; no reviewer runs on a failing build.
+The master runs `maestro check <run>`, which runs `scripts/check` (in the
+current worktree) and writes `checks/<sha>.result` with `RESULT`, `HEAD`, exit
+code, and duration plus the output to `checks/<sha>.log`, both keyed by the
+checked commit. It also writes the same record to `checks.result` as the latest
+record and appends one summary line to `checks.log`. Check and review can run
+per task worktree in parallel: `maestro gate <run>` reads only the record for
+the current HEAD, so a check in another worktree does not make it stale; a new
+commit does. The light path uses the same `maestro check <slug>` and `maestro
+gate <slug>`. A failure goes back to a fresh builder; no reviewer runs on a
+failing build.
 
 ### Step 4: Review
 
 The master runs `maestro gate <run>` first. A failing, stale, or dirty gate stops
-the review. For `low` risk it first runs `maestro build --review <run> <task>
+the review; the gate is per HEAD, so each task worktree can review in parallel. For `low` risk it first runs `maestro build --review <run> <task>
 --block` (on the light path `maestro build --review --here <slug> --block`) on the headless model: no findings means no Claude reviewer runs, and
 any finding means the `review-code` reviewer below runs. `standard` and `high`
 risk are unchanged. It then spawns one `review-code` reviewer, which covers code,
@@ -394,10 +401,12 @@ session. Setup and troubleshooting are in [SETUP.md](SETUP.md).
 ## Checks, review, and verification
 
 `scripts/check` is the project check script. `maestro check <run>` runs it and
-writes `checks.result` and `checks.log` in the state directory. `maestro gate
-<run>` fails when the latest check failed, is stale, or the working tree is
-dirty, and warns when a branch changes tests and non-tests but no test-only commit
-precedes the first non-test commit.
+writes `checks/<sha>.result` and `checks/<sha>.log` for the current HEAD, then
+refreshes `checks.result` (the latest record) and appends a line to `checks.log`
+in the state directory. `maestro gate <run>` passes only when the record for the
+current HEAD is PASS; it fails on a failed or stale record for that HEAD or a
+dirty tree, and warns when a branch changes tests and non-tests but no test-only
+commit precedes the first non-test commit.
 
 `scripts/verify` is the app/browser driver. It reads `scripts/verify.conf`
 (`START_CMD`, `READY_URL`, `PORT`) and derives a port from the worktree path
@@ -424,8 +433,9 @@ level that can prevent it from recurring.
 ### Already enforced
 
 - `maestro start` refuses a dirty tree, `main`, or a detached HEAD.
-- `maestro check` writes `checks.result`; `maestro gate` fails on a failed or
-  stale result, a dirty tree, or, with `--proof`, an unmet Proof criterion.
+- `maestro check` writes a per-HEAD `checks/<sha>.result` and refreshes
+  `checks.result`; `maestro gate` fails on a failed or stale result for the
+  current HEAD, a dirty tree, or, with `--proof`, an unmet Proof criterion.
 - `maestro verify record` refuses `--by builder` and a PASS without an evidence
   file; the latest row per criterion decides.
 
