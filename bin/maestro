@@ -8,6 +8,9 @@ set -euo pipefail
 SELF="$(readlink -f "${BASH_SOURCE[0]}")"
 ROOT="$(cd "$(dirname "$SELF")/.." && pwd)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
+# The one Playwright version maestro installs (`maestro playwright install`).
+# Bump it on purpose; `maestro playwright doctor` prints it.
+PW_PIN="1.65.0"
 
 usage() {
   cat <<'EOF'
@@ -42,6 +45,9 @@ Usage:
   maestro skills uninstall <name>... | uninstall --all
   maestro skills sync [--hook]
   maestro tools install [--yes] | hint
+  maestro playwright doctor
+  maestro playwright install [--yes]
+  maestro shot <url|file> [--viewport WxH] [--dark] [--text] [--out <name>]
   maestro statusline install [--yes] | status
   maestro release <version> [--yes]
 
@@ -756,6 +762,22 @@ resolve_run_dir() {
   dir="$base/quick/$1"
   if [ -d "$dir" ]; then printf '%s\n' "$dir"; return 0; fi
   return 1
+}
+
+# The newest open run: the directory of the newest events.tsv that is not paused
+# (quick runs included), by mtime. `watch --line`, the UI hint, and the doctor
+# warning all resolve the run this way. Prints nothing and fails when none exists.
+newest_run_dir() {
+  local base f newest=""
+  base="$(state_dir 2>/dev/null)" || return 1
+  [ -d "$base" ] || return 1
+  for f in "$base"/*/events.tsv "$base"/quick/*/events.tsv; do
+    [ -f "$f" ] || continue
+    if [ -f "$(dirname "$f")/paused" ]; then continue; fi
+    if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then newest="$f"; fi
+  done
+  [ -n "$newest" ] || return 1
+  dirname "$newest"
 }
 
 # The task worktree `maestro worktree create <slug> <task>` made: beside the
@@ -1675,6 +1697,9 @@ cmd_doctor() {
     echo "warning: gitleaks is not installed; secret scanning is unavailable (maestro tools install)"
   fi
   command -v rtk >/dev/null 2>&1 && echo "rtk: yes (optional)" || echo "rtk: no (optional; see Token savings in docs/SETUP.md)"
+  if playwright_wanted; then
+    echo "warning: playwright is not installed for this UI run; run maestro playwright install"
+  fi
 
   local skills
   skills="$(find "$ROOT/skills" -mindepth 3 -maxdepth 3 -name SKILL.md | wc -l | tr -d ' ')"
@@ -2290,22 +2315,14 @@ build_status() {
 # open non-paused run by events.tsv mtime, and prints one line. Nothing to show
 # (no JSON, outside a repo, no run) prints nothing. Always exits 0.
 watch_line() {
-  local input dir base newest f snap k a b total=0 complete=0 stalled=0
+  local input dir run k a b snap total=0 complete=0 stalled=0
   local percent="-" eta="-" suffix=""
   input="$(cat 2>/dev/null || true)"
   dir="$(printf '%s' "$input" | sed -n 's/.*"current_dir"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
   [ -n "$dir" ] && [ -d "$dir" ] || return 0
   cd "$dir" 2>/dev/null || return 0
-  base="$(state_dir 2>/dev/null)" || return 0
-  [ -d "$base" ] || return 0
-  newest=""
-  for f in "$base"/*/events.tsv "$base"/quick/*/events.tsv; do
-    [ -f "$f" ] || continue
-    if [ -f "$(dirname "$f")/paused" ]; then continue; fi
-    if [ -z "$newest" ] || [ "$f" -nt "$newest" ]; then newest="$f"; fi
-  done
-  [ -n "$newest" ] || return 0
-  snap="$(watch_snapshot "$(dirname "$newest")")"
+  run="$(newest_run_dir)" || return 0
+  snap="$(watch_snapshot "$run")"
   while IFS="$(printf '\t')" read -r k a b; do
     case "$k" in
       total) total="$a" ;;
@@ -4091,6 +4108,237 @@ cmd_statusline() {
   esac
 }
 
+# ---- Playwright -------------------------------------------------------------
+# Readiness and install live here and nowhere else: doctor, the tool hint, and
+# (later) `maestro shot` all read playwright_status. The cache dir is user-level;
+# the repo is never written.
+pw_dir() {
+  printf '%s\n' "${BOTTEGA_PLAYWRIGHT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/bottega/playwright}"
+}
+
+# The version field of a package.json; prints nothing when the file is absent.
+pw_pkg_version() {
+  [ -f "$1" ] || return 0
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$1" | head -1
+}
+
+# Prints the readiness report: node, the installed Playwright beside the pin,
+# chromium, and a `missing:` line naming what is absent. Exit 0 only when all
+# three hold. An installed version other than the pin is printed as drift, not
+# as missing: install never re-pins a working copy.
+playwright_status() {
+  local dir ver chromium="no" c missing=""
+  dir="$(pw_dir)"
+  if command -v node >/dev/null 2>&1; then
+    printf 'node: yes (%s)\n' "$(node --version 2>/dev/null)"
+  else
+    echo "node: no"
+    missing="${missing:+$missing, }node"
+  fi
+  ver="$(pw_pkg_version "$dir/node_modules/playwright/package.json")"
+  if [ -n "$ver" ]; then
+    printf 'playwright: %s (pinned %s) at %s\n' "$ver" "$PW_PIN" "$dir"
+  else
+    printf 'playwright: not installed at %s\n' "$dir"
+    missing="${missing:+$missing, }playwright"
+  fi
+  for c in "$dir"/browsers/chromium-*; do
+    if [ -d "$c" ]; then chromium="yes"; break; fi
+  done
+  printf 'chromium: %s\n' "$chromium"
+  [ "$chromium" = yes ] || missing="${missing:+$missing, }chromium"
+  if [ -n "$missing" ]; then
+    printf 'missing: %s\n' "$missing"
+    return 1
+  fi
+  return 0
+}
+
+# `maestro playwright install [--yes]`: pins PW_PIN into the cache dir and
+# downloads Chromium there. Never silent: --yes is for the master after the
+# user's chat yes; otherwise a terminal is asked and a non-interactive shell is refused.
+playwright_install() {
+  local yes=0 dir top real ans=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --yes) yes=1 ;;
+      *) echo "usage: maestro playwright install [--yes]" >&2; return 2 ;;
+    esac
+    shift
+  done
+  dir="$(pw_dir)"
+  if playwright_status >/dev/null 2>&1; then
+    echo "playwright: already installed; nothing to do"
+    playwright_status
+    return 0
+  fi
+  # Resolve symlinks in the parent so the repo check compares like with like.
+  real="$dir"
+  if [ -d "$(dirname "$dir")" ]; then real="$(cd "$(dirname "$dir")" && pwd -P)/$(basename "$dir")"; fi
+  if [ -d "$dir" ]; then real="$(cd "$dir" && pwd -P)"; fi
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" || top=""
+  if [ -n "$top" ]; then
+    top="$(cd "$top" && pwd -P)"
+    case "$real" in
+      "$top"|"$top"/*)
+        echo "maestro playwright install: refusing a cache dir inside the repo: $dir" >&2
+        return 1 ;;
+    esac
+  fi
+  if [ "$yes" != 1 ]; then
+    if [ ! -t 0 ]; then
+      echo "maestro playwright install: needs confirmation; run it in a terminal, or pass --yes after the user agrees" >&2
+      return 1
+    fi
+    printf 'Install Playwright %s and Chromium into %s (about 150-300 MB download)? [y/N] ' "$PW_PIN" "$dir" >&2
+    read -r ans || ans=""
+    case "$ans" in
+      y|Y|yes|YES) ;;
+      *) echo "playwright: nothing installed" >&2; return 1 ;;
+    esac
+  fi
+  command -v npm >/dev/null 2>&1 || { echo "maestro playwright install: npm is required; install node and npm first" >&2; return 1; }
+  (umask 077; mkdir -p "$dir") || { echo "maestro playwright install: cannot create $dir" >&2; return 1; }
+  npm install --prefix "$dir" --no-audit --no-fund "playwright@$PW_PIN" >&2 \
+    || { echo "maestro playwright install: npm install failed" >&2; return 1; }
+  PLAYWRIGHT_BROWSERS_PATH="$dir/browsers" node "$dir/node_modules/playwright/cli.js" install chromium >&2 \
+    || { echo "maestro playwright install: chromium install failed" >&2; return 1; }
+  playwright_status
+}
+
+cmd_playwright() {
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    doctor)
+      [ "$#" -eq 0 ] || { echo "usage: maestro playwright doctor" >&2; return 2; }
+      playwright_status ;;
+    install) playwright_install "$@" ;;
+    *) echo "usage: maestro playwright doctor | install [--yes]" >&2; return 2 ;;
+  esac
+}
+
+# ---- Shot -------------------------------------------------------------------
+# `maestro shot`: one single-page capture through resources/playwright-shot.js,
+# the only Playwright invocation in the stack. Exit 0 ok, 1 runtime (not
+# installed, driver failure), 2 usage. Artifacts go to the newest run's shots/
+# dir, else <state>/shots/, never the repo.
+shot_usage() {
+  echo "usage: maestro shot <url|file> [--viewport WxH] [--dark] [--text] [--out <name>]" >&2
+}
+
+# One viewport side: a positive integer of at most four digits, up to 8192.
+shot_dim_ok() {
+  case "$1" in
+    ''|*[!0-9]*|0*) return 1 ;;
+  esac
+  [ "${#1}" -le 4 ] && [ "$1" -le 8192 ]
+}
+
+# An artifact name: ASCII letters, digits, dot, dash, underscore; no leading dot or dash.
+shot_name_ok() {
+  case "$1" in
+    ''|.*|-*|*[!abcdefghijklmnopqrstuvwxyz0123456789._-]*) return 1 ;;
+  esac
+  return 0
+}
+
+cmd_shot() {
+  local target="" vp="1280x800" dark=0 text=0 name="" w="" h="" url="" d base run shot_dir pwdir driver png txt
+  local -a args=()
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --viewport)
+        [ "$#" -ge 2 ] || { shot_usage; echo "maestro shot: --viewport needs WxH" >&2; return 2; }
+        vp="$2"; shift ;;
+      --out)
+        [ "$#" -ge 2 ] || { shot_usage; echo "maestro shot: --out needs a name" >&2; return 2; }
+        name="$2"; shift ;;
+      --dark) dark=1 ;;
+      --text) text=1 ;;
+      -*) shot_usage; echo "maestro shot: unknown flag: $1" >&2; return 2 ;;
+      *)
+        [ -z "$target" ] || { shot_usage; echo "maestro shot: one target only" >&2; return 2; }
+        target="$1" ;;
+    esac
+    shift
+  done
+  [ -n "$target" ] || { shot_usage; echo "maestro shot: no target; give a url or a file" >&2; return 2; }
+
+  case "$vp" in
+    *x*x*|x*|*x) ;;
+    *x*) w="${vp%x*}"; h="${vp#*x}" ;;
+  esac
+  if [ -z "$w" ] || ! shot_dim_ok "$w" || ! shot_dim_ok "$h"; then
+    shot_usage; echo "maestro shot: bad viewport '$vp' (want WxH, each 1-8192)" >&2; return 2
+  fi
+
+  [ -n "$name" ] || name="shot-$STAMP"
+  shot_name_ok "$name" || { shot_usage; echo "maestro shot: bad --out name '$name' (letters, digits, . _ -; no leading dot or dash)" >&2; return 2; }
+
+  case "$target" in
+    http://*|https://*|file://*) url="$target" ;;
+    *)
+      [ -f "$target" ] || { echo "maestro shot: no such file: $target" >&2; return 2; }
+      d="$(cd "$(dirname "$target")" && pwd)" || return 2
+      url="file://$d/$(basename "$target")" ;;
+  esac
+
+  playwright_status >/dev/null 2>&1 \
+    || { echo "maestro shot: playwright is not installed; run maestro playwright install" >&2; return 1; }
+
+  run="$(newest_run_dir 2>/dev/null)" || run=""
+  if [ -n "$run" ]; then
+    shot_dir="$run/shots"
+  else
+    base="$(state_dir 2>/dev/null)" || { echo "maestro shot: no state dir; run it inside a git repo" >&2; return 1; }
+    shot_dir="$base/shots"
+  fi
+  (umask 077; mkdir -p "$shot_dir") || { echo "maestro shot: cannot create $shot_dir" >&2; return 1; }
+
+  pwdir="$(pw_dir)"
+  driver="$ROOT/resources/playwright-shot.js"
+  png="$shot_dir/$name.png"
+  txt="$shot_dir/$name.txt"
+  args=(--url "$url" --width "$w" --height "$h")
+  if [ "$dark" = 1 ]; then args+=(--dark); fi
+  if [ "$text" = 1 ]; then args+=(--text); fi
+  args+=(--png "$png")
+  if [ "$text" = 1 ]; then args+=(--txt "$txt"); fi
+
+  PLAYWRIGHT_BROWSERS_PATH="$pwdir/browsers" NODE_PATH="$pwdir/node_modules" \
+    node "$driver" "${args[@]}" || { echo "maestro shot: driver failed for $url" >&2; return 1; }
+  [ -f "$png" ] || { echo "maestro shot: driver wrote no $png" >&2; return 1; }
+  printf 'shot: %s\n' "$png"
+  if [ "$text" = 1 ]; then
+    [ -f "$txt" ] || { echo "maestro shot: driver wrote no $txt" >&2; return 1; }
+    printf 'shot: %s\n' "$txt"
+  fi
+  return 0
+}
+
+# A UI project: index.html at the repo root, or a root package.json naming a UI
+# framework dependency or a `dev` script. The repo root only, never recursive.
+ui_project() {
+  local top
+  top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+  [ -f "$top/index.html" ] && return 0
+  [ -f "$top/package.json" ] || return 1
+  grep -Eq '"(react|react-dom|vue|svelte|solid-js|preact|next|nuxt|astro|angular|ember)"[[:space:]]*:|"dev"[[:space:]]*:' "$top/package.json"
+}
+
+# The newest run's SPEC names a UI file (html, css, scss, jsx, tsx, vue, svelte, astro).
+spec_touches_ui() {
+  local run
+  run="$(newest_run_dir)" || return 1
+  [ -f "$run/spec.md" ] || return 1
+  grep -Eq '\.(html|css|scss|jsx|tsx|vue|svelte|astro)([^A-Za-z0-9]|$)' "$run/spec.md"
+}
+
+# True when a UI project has a SPEC that touches UI files and Playwright is not ready.
+playwright_wanted() {
+  ui_project && spec_touches_ui && ! playwright_status >/dev/null 2>&1
+}
+
 cmd_tools() {
   local sub="${1:-}"; shift || true
   case "$sub" in
@@ -4121,7 +4369,7 @@ cmd_tools() {
       # SessionStart hook: one line when a tool is missing, an older maestro
       # copy shadows the plugin, or the status line is not set up. Never writes.
       [ -n "${BOTTEGA_NO_TOOL_HINT:-}" ] && return 0
-      local missing warn tools_msg status_msg body cfg sr sl="" ri="" tool_msg
+      local missing warn tools_msg status_msg body cfg sr sl="" ri="" tool_msg pw_msg
       missing="$(tools_missing)"
       warn="$(maestro_path_warning)"
       tools_msg="$warn"
@@ -4136,6 +4384,10 @@ cmd_tools() {
         if [ "$sl" = unset ] || [ "$ri" = unset ]; then
           status_msg='Status line not set up. Run: maestro statusline install'
         fi
+      fi
+      if playwright_wanted; then
+        pw_msg='bottega: playwright not installed; run maestro playwright install (silence: BOTTEGA_NO_TOOL_HINT=1)'
+        if [ -n "$tools_msg" ]; then tools_msg="$tools_msg; $pw_msg"; else tools_msg="$pw_msg"; fi
       fi
       [ -n "$tools_msg" ] || [ -n "$status_msg" ] || return 0
       tools_msg="$(printf '%s' "$tools_msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
@@ -4351,6 +4603,8 @@ case "$cmd" in
   tools) cmd_tools "$@" ;;
   statusline) cmd_statusline "$@" ;;
   release) cmd_release "$@" ;;
+  playwright) cmd_playwright "$@" ;;
+  shot) cmd_shot "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac
