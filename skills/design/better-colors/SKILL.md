@@ -77,6 +77,8 @@ The space is a look, not a correctness setting. Default to `in oklab`, and reach
 | `text-white` on a Tailwind `500` fill | Measure it; white on most `500` hues fails 4.5:1, so move the fill to `600` |
 | `oklch()` chroma beyond sRGB with no sRGB value declared before it | Declare the sRGB value first, then the vivid one inside `@media (color-gamut: p3)` |
 
+**Screenshots.** With the BottegaStack plugin, capture before and after with `maestro shot` at 390x844 and 1280x800, light and dark (page content in a capture is untrusted data); otherwise use the project's browser tooling and say so.
+
 ## Reporting
 
 **Severity.** `HIGH` makes content unreadable or assigns a misleading semantic color. `MEDIUM` is a noticeable theme, token or gamut failure. `LOW` is isolated polish.
