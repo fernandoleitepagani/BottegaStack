@@ -437,10 +437,11 @@ maestro lab [trivial|bugfix|feature-fix|pause-resume] [--keep]
   scenario stops the run with a non-zero exit.
 - `--keep` prints the scratch path and keeps it for inspection. Without it the
   scratch directory is removed on exit.
-- The master gets `--plugin-dir <checkout>` and `--strict-mcp-config`, plus an
-  allow list (`Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite,Task,Agent`) and a
-  deny list for push, merge, hard reset, clean, sudo, recursive remove, and
-  `gh`.
+- The master gets `--plugin-dir <checkout>` and `--strict-mcp-config`, plus a
+  real allow list: `Read,Grep,Glob,Write,Edit,Skill,Agent,Task,TodoWrite`,
+  `Bash(maestro:*)`, `Bash(git:*)`, and `Bash(./scripts/check:*)`. Shell
+  commands outside that set are denied. The deny list is `Bash(git push:*)`,
+  `Bash(gh:*)`, `WebFetch`, `WebSearch`, and `AskUserQuestion`.
 
 ## Hooks and worktrees
 

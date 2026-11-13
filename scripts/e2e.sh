@@ -1722,7 +1722,10 @@ if grep -qx 'ARG=--model' "$LAB_LOG" && grep -qx 'ARG=sonnet' "$LAB_LOG" \
 else
   fail "lab: master on sonnet low"
 fi
-if grep -qx 'ARG=--allowedTools' "$LAB_LOG" && grep -qx 'ARG=--disallowedTools' "$LAB_LOG"; then
+if grep -qx 'ARG=--allowedTools' "$LAB_LOG" \
+  && grep -qxF 'ARG=Read,Grep,Glob,Write,Edit,Skill,Agent,Task,TodoWrite,Bash(maestro:*),Bash(git:*),Bash(./scripts/check:*)' "$LAB_LOG" \
+  && grep -qx 'ARG=--disallowedTools' "$LAB_LOG" \
+  && grep -qxF 'ARG=Bash(git push:*),Bash(gh:*),WebFetch,WebSearch,AskUserQuestion' "$LAB_LOG"; then
   ok "lab: master allow and deny lists"
 else
   fail "lab: master allow and deny lists"
