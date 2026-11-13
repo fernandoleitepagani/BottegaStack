@@ -73,10 +73,11 @@ export PATH="$scratch/bin:$ROOT/bin:$PATH"
 export GIT_AUTHOR_NAME=lab GIT_AUTHOR_EMAIL=lab@example.invalid
 export GIT_COMMITTER_NAME=lab GIT_COMMITTER_EMAIL=lab@example.invalid
 
-# The master gets the tools it needs and the same destructive-command denies as
-# a builder; everything runs under the scratch HOME and temp dir.
-LAB_ALLOWED="Read,Grep,Glob,Edit,Write,Bash,Skill,TodoWrite,Task,Agent"
-LAB_DISALLOWED="Bash(git push:*),Bash(git merge:*),Bash(git reset --hard:*),Bash(git clean:*),Bash(sudo:*),Bash(rm -rf:*),Bash(gh:*)"
+# The master gets a real allow-list: the file tools, its subagents, and only
+# maestro, git, and the project check. Everything runs under the scratch HOME
+# and temp dir.
+LAB_ALLOWED="Read,Grep,Glob,Write,Edit,Skill,Agent,Task,TodoWrite,Bash(maestro:*),Bash(git:*),Bash(./scripts/check:*)"
+LAB_DISALLOWED="Bash(git push:*),Bash(gh:*),WebFetch,WebSearch,AskUserQuestion"
 
 run_one() {
   local name="$1" dir="$scratch/work/$1" rc=0
