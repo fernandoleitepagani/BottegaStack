@@ -351,12 +351,19 @@ else
   fail "gate --proof fails with zero ACs"
 fi
 # A quoted `Proof: none` in the AC prose is not the proof field (Task 5 fix): the
-# last `Proof:` on the line decides. AC1 quotes it first and then names a real
-# command, so it stays a required proof and is never listed as `proof none:`.
+# last `Proof:` outside backticks decides, so prose and the proof command may both
+# quote an earlier one. AC1 quotes it in prose and in its command, so it stays a
+# required proof and is never listed as `proof none:`.
 LASTPROOF_STATE="$TMP/last-proof-state"
 lpout="$( BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" start "Quoted proof" 2>&1 )"
 lpslug="$(printf '%s\n' "$lpout" | sed -n 's/^run: //p')"
-printf '# Spec\n## Acceptance criteria\n- AC1: quotes `Proof: none` in prose. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/last-proof-spec.md"
+cat > "$TMP/last-proof-spec.md" <<'EOF'
+# Spec
+## Acceptance criteria
+- AC1: quotes `Proof: none` in prose. Proof: `printf '%s\n' 'Proof: none criteria'` -> exit 0
+### Task 1 - one
+body
+EOF
 BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" spec "$lpslug" "$TMP/last-proof-spec.md" >/dev/null
 BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" check "$lpslug" >/dev/null 2>&1
 out="$( BOTTEGA_STATE_DIR="$LASTPROOF_STATE" "$M" gate "$lpslug" --proof 2>&1 )"; rc=$?
