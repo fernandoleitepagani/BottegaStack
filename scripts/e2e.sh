@@ -208,6 +208,47 @@ if [ "$rc" -eq 0 ] && [ "$out" = "2" ] && cmp -s "$TMP/spec-new.md" "$spec_dir/s
 else
   fail "spec saves without leftovers"
 fi
+# AC parser (Task 2): `maestro spec` rejects a malformed AC line and leaves the
+# previous spec.md and tasks/ byte-for-byte unchanged. One AC per line, `Proof:`
+# on the same line, and unique ids; every bad line is reported with its number.
+run_snapshot() {
+  ( cd "$1" && cat spec.md; find tasks -type f -print 2>/dev/null | LC_ALL=C sort \
+    | while IFS= read -r f; do printf '%s: ' "$f"; cat "$f"; done )
+}
+spec_before="$(run_snapshot "$spec_dir")"
+printf '# Spec\n## Acceptance criteria\n- AC1 works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/spec-malformed.md"
+out="$("$M" spec run-a "$TMP/spec-malformed.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] \
+  && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 3: not an AC line (expected "- AC<n>: <text> Proof: ..."): - AC1 works. Proof: `true` -> exit 0' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects a malformed AC line"
+else
+  fail "spec rejects a malformed AC line"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: works.\n### Task 1 - one\nbody\n' > "$TMP/spec-no-proof.md"
+out="$("$M" spec run-a "$TMP/spec-no-proof.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 3: no Proof:: - AC1: works.' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects a missing Proof"
+else
+  fail "spec rejects a missing Proof"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: judgment. Proof: none\n### Task 1 - one\nbody\n' > "$TMP/spec-none-reason.md"
+out="$("$M" spec run-a "$TMP/spec-none-reason.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 3: Proof: none needs a reason: - AC1: judgment. Proof: none' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects Proof: none without a reason"
+else
+  fail "spec rejects Proof: none without a reason"
+fi
+printf '# Spec\n## Acceptance criteria\n- AC1: one. Proof: `true` -> exit 0\n- AC1: two. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/spec-duplicate.md"
+out="$("$M" spec run-a "$TMP/spec-duplicate.md" 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro spec: line 4: duplicate AC1 (first on line 3): - AC1: two. Proof: `true` -> exit 0' \
+  && [ "$(run_snapshot "$spec_dir")" = "$spec_before" ]; then
+  ok "spec rejects a duplicate AC id"
+else
+  fail "spec rejects a duplicate AC id"
+fi
 # `build` and `gate` refuse a run whose spec.md is 0 bytes, before any model
 # call or check lookup. An isolated state dir keeps the empty run out of the
 # other cases.
@@ -263,6 +304,31 @@ expect_not "verify PASS needs evidence" "$M" verify record run-a AC1 PASS --by r
 expect_not "gate --proof INCONCLUSIVE" "$M" gate run-a --proof
 "$M" verify record run-a AC1 PASS --by reviewer --evidence "$TMP/ev.txt" >/dev/null
 expect "gate --proof PASS" "$M" gate run-a --proof
+# `Proof: none` criteria are listed before the gate result, whether it passes
+# or fails (Task 2); run-a has AC2 with `Proof: none (taste)`.
+out="$("$M" gate run-a --proof 2>&1)"; rc=$?
+none_line="$(printf '%s\n' "$out" | grep -n '^proof none: AC2: ' | head -1 | cut -d: -f1)"
+gate_line="$(printf '%s\n' "$out" | grep -n '^GATE:' | head -1 | cut -d: -f1)"
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx 'proof none: AC2: (taste)' \
+  && [ -n "$none_line" ] && [ -n "$gate_line" ] && [ "$none_line" -lt "$gate_line" ]; then
+  ok "gate --proof lists Proof: none criteria"
+else
+  fail "gate --proof lists Proof: none criteria"
+fi
+# A full run whose saved SPEC has no AC lines fails `gate --proof`; a light path
+# (no SPEC) keeps its old behaviour. An isolated state dir keeps this run clean.
+ZEROAC_STATE="$TMP/zero-ac-state"
+zout="$( BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" start "Zero ACs" 2>&1 )"
+zslug="$(printf '%s\n' "$zout" | sed -n 's/^run: //p')"
+printf '# Spec\n## Acceptance criteria\nNo criteria here.\n### Task 1 - one\nbody\n' > "$TMP/zero-ac-spec.md"
+BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" spec "$zslug" "$TMP/zero-ac-spec.md" >/dev/null
+BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" check "$zslug" >/dev/null 2>&1
+out="$( BOTTEGA_STATE_DIR="$ZEROAC_STATE" "$M" gate "$zslug" --proof 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qx 'GATE: FAIL (proof: SPEC has no acceptance criteria)'; then
+  ok "gate --proof fails with zero ACs"
+else
+  fail "gate --proof fails with zero ACs"
+fi
 git commit -q --allow-empty -m next
 "$M" check run-a >/dev/null
 expect_not "gate --proof stale" "$M" gate run-a --proof
@@ -1978,7 +2044,7 @@ if [ "$rc" -eq 0 ] && [ -n "$paused_slug" ] && [ -d "$paused_dir" ]; then
 else
   fail "start paused run"
 fi
-printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none\n### Task 1 - one\nbody\n' > "$TMP/paused-spec.md"
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none (summary only)\n### Task 1 - one\nbody\n' > "$TMP/paused-spec.md"
 "$M" spec "$paused_slug" "$TMP/paused-spec.md" >/dev/null
 expect "close paused keeps state" "$M" report --close "$paused_slug" --playbook feature --risk standard --outcome paused
 if [ -d "$paused_dir" ] && [ -f "$paused_dir/spec.md" ] && [ -f "$paused_dir/paused" ]; then
