@@ -77,6 +77,16 @@ for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md BACKLOG.md mistakes.md REVIEW.md 
   fi
 done
 
+# The Playwright driver is the only code that loads Playwright (`maestro shot`).
+# Keep it from disappearing; syntax-check it when node is present.
+if [ ! -f "$ROOT/resources/playwright-shot.js" ]; then
+  echo "FAIL missing resource: resources/playwright-shot.js"
+  fail=1
+elif command -v node >/dev/null 2>&1 && ! node --check "$ROOT/resources/playwright-shot.js" >/dev/null 2>&1; then
+  echo "FAIL syntax error: resources/playwright-shot.js"
+  fail=1
+fi
+
 if [ -f "$ROOT/resources/claude-settings.json" ]; then
   if command -v python3 >/dev/null 2>&1; then
     if ! python3 -m json.tool "$ROOT/resources/claude-settings.json" >/dev/null 2>&1; then
