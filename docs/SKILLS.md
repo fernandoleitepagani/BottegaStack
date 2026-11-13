@@ -85,8 +85,8 @@ skill. The other playbooks are files beside it at
 ## Vendored skills
 
 Copied from upstream, with their own licenses (see the license file in each skill folder):
-`wizard`, `writing-for-agents`, `codebase-design`, `domain-modeling` (mattpocock/skills),
-`wayfinder (mattpocock/skills)`, and `web-design-guidelines` (vercel-labs/agent-skills), `frontend-design` (anthropics/skills,
+`wizard`, `writing-for-agents`, `codebase-design`, `domain-modeling`, and `wayfinder` (mattpocock/skills),
+`web-design-guidelines` (vercel-labs/agent-skills), `frontend-design` (anthropics/skills,
 Apache-2.0), `better-ui`, `better-accessibility`, `better-colors`, `better-interface`,
 `better-layout`, `better-typography`, `better-writing`, `interface-review` (jakubkrehel/skills, MIT), and `agentation` (benjitaylor/agentation,
 PolyForm Shield 1.0.0). Other skills are original or adapted. `animation` is original, written
@@ -109,6 +109,12 @@ an entry is exempt from the direct pattern test only, and its `Load`s still
 count. Lint fails when an entry names no skill, repeats, or exempts a skill the
 pattern does not flag.
 
+`skills/standalone-deny.txt` takes skills out of the set, one name per line,
+even when they pass the rule or are allow-listed; the deny filter runs after
+the fixed point, so a skill that `Load`s a denied one stays. Lint fails when an
+entry names no skill, repeats, or also appears in the allow file. It holds the
+three stack-role skills: `interview`, `summary`, and `session-handoff`.
+
 `skills/standalone.txt` is the generated set, one name per line, C-sorted;
 `maestro skills install <name>... | --all` copies from it. Never edit it by
 hand: after adding or editing a skill run
@@ -118,10 +124,12 @@ stale or missing and names that command. The allow file is checked the same
 way. The number of standalone skills is not fixed, so docs and scripts read
 the list instead of counting it.
 
-Some standalone skills, for example `interview`, `summary`,
-`ketchup`, and `domain-modeling`, are written for the full stack and mention
-the master, the planner, or `maestro` commands. Installed alone they still
-work, but those references only apply when the plugin is enabled too.
+The stack-role skills `interview`, `summary`, and `session-handoff` are written for the full stack, so they are plugin-only: the
+deny file keeps them out of the standalone set and `maestro skills` never
+copies them. Some standalone skills, for example `ketchup` and
+`domain-modeling`, still mention the master, the planner, or `maestro`
+commands. Installed alone they work, but those references only apply when the
+plugin is enabled too.
 
 ## Add a skill
 

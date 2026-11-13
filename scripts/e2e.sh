@@ -1570,6 +1570,18 @@ else
   fail "standalone scan applies the rule"
 fi
 
+# Deny list (skills/standalone-deny.txt): a denied name leaves the scan output
+# even when it is clean or allow-listed; the Loads of a denied skill still count
+# in the fixed point, so `f` stays.
+printf 'a\nh\n' > "$SCAN/skills/standalone-deny.txt"
+deny_out="$("$SCAN/scripts/standalone-skills.sh" 2>&1)"; deny_rc=$?
+if [ "$deny_rc" -eq 0 ] && [ "$deny_out" = "f" ]; then
+  ok "standalone scan honours the deny list"
+else
+  fail "standalone scan honours the deny list"
+fi
+rm -f "$SCAN/skills/standalone-deny.txt"
+
 # A full copy lets lint pass as it does in the repo; each mutation is checked in
 # place. The checked-in list must match the scan before lint can pass.
 SL="$TMP/standalone-lint"
@@ -1633,6 +1645,46 @@ else
   fail "lint fails on a duplicate allow entry"
 fi
 cp "$allow_backup" "$SL/skills/standalone-allow.txt"
+
+# Deny-file validation mirrors the allow file: a real skill, no duplicate, and
+# no name in both lists. Each case rewrites the deny file in the lint copy.
+printf 'no-such-skill\n' > "$SL/skills/standalone-deny.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-deny.txt: no such skill: no-such-skill'; then
+  ok "lint fails on an unknown deny entry"
+else
+  fail "lint fails on an unknown deny entry"
+fi
+printf 'interview\ninterview\n' > "$SL/skills/standalone-deny.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-deny.txt: duplicate entry: interview'; then
+  ok "lint fails on a duplicate deny entry"
+else
+  fail "lint fails on a duplicate deny entry"
+fi
+printf 'ketchup\n' > "$SL/skills/standalone-deny.txt"
+lint_out="$( cd "$SL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/standalone-deny.txt: also in skills/standalone-allow.txt: ketchup'; then
+  ok "lint fails on a deny entry that is also allowed"
+else
+  fail "lint fails on a deny entry that is also allowed"
+fi
+rm -f "$SL/skills/standalone-deny.txt"
+
+# The checked-in deny list names the three stack-role skills; with it in place
+# the repo lint passes and the scan prints 33 standalone names.
+deny_real="$(cat "$ROOT/skills/standalone-deny.txt" 2>/dev/null)"
+real_count="$("$ROOT/scripts/standalone-skills.sh" 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$deny_real" = "$(printf 'interview\nsummary\nsession-handoff')" ] \
+  && [ "$real_count" = 33 ] \
+  && ( cd "$ROOT" && bash scripts/lint.sh 2>&1 ) | grep -qx 'lint: PASS'; then
+  ok "repo deny list drops the stack-role skills and lint passes"
+else
+  fail "repo deny list drops the stack-role skills and lint passes"
+fi
 
 # Vendored skills (skills/vendored.txt) need a non-empty LICENSE in their folder.
 # A fresh copy gets one fixture skill with no LICENSE: lint must name it, then
@@ -2051,6 +2103,146 @@ skills_nocfg() {
 skills_nocfg list
 skills_nocfg install teach
 skills_nocfg uninstall teach
+skills_nocfg sync
+
+# `maestro skills sync` (issue #27 run C, task 2): refresh the managed standalone
+# copies from files only, run at SessionStart. Every case has its own scratch
+# config dir and asserts structure, never timing.
+SY="$TMP/sync-dest"
+sync_fresh() { rm -rf "$SY"; mkdir -p "$SY"; }
+sync_cmd() { CLAUDE_CONFIG_DIR="$SY" "$M" skills sync "$@"; }
+sync_marker() { sed -n '1s/^bottega[[:space:]]*//p' "$SY/skills/$1/.bottega-managed" 2>/dev/null; }
+sync_count="$(grep -c . "$ROOT/skills/standalone.txt")"
+
+sync_fresh
+out="$(sync_cmd 2>&1)"; rc=$?
+all_marked=1
+while IFS= read -r name; do
+  [ -f "$SY/skills/$name/.bottega-managed" ] || all_marked=0
+done < "$ROOT/skills/standalone.txt"
+if [ "$rc" -eq 0 ] && [ "$all_marked" -eq 1 ] \
+  && [ "$(printf '%s\n' "$out" | grep -c '^installed ')" -eq "$sync_count" ] \
+  && printf '%s\n' "$out" | grep -qxF "installed teach -> $SY/skills/teach" \
+  && same_tree "$ROOT/skills/workflow/teach" "$SY/skills/teach" \
+  && [ "$(sync_marker teach)" = "$plugin_version" ]; then
+  ok "skills sync installs missing skills"
+else
+  fail "skills sync installs missing skills"
+fi
+out="$(sync_cmd 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ]; then
+  ok "skills sync is a fast no-op when current"
+else
+  fail "skills sync is a fast no-op when current"
+fi
+
+# A stale marker refreshes the copy; the extra file and local edit are replaced.
+printf 'bottega 0.0.1\n' > "$SY/skills/teach/.bottega-managed"
+printf 'local edit\n' >> "$SY/skills/teach/SKILL.md"
+printf 'extra\n' > "$SY/skills/teach/extra.txt"
+out="$(sync_cmd 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$(printf '%s\n' "$out" | grep -c .)" -eq 1 ] \
+  && printf '%s\n' "$out" | grep -qxF "refreshed teach -> $SY/skills/teach" \
+  && same_tree "$ROOT/skills/workflow/teach" "$SY/skills/teach" \
+  && [ ! -e "$SY/skills/teach/extra.txt" ] \
+  && [ "$(sync_marker teach)" = "$plugin_version" ]; then
+  ok "skills sync refreshes stale markers"
+else
+  fail "skills sync refreshes stale markers"
+fi
+
+# Unmanaged dirs of two standalone names are left alone, named in one warning.
+sync_fresh
+sync_cmd >/dev/null 2>&1
+rm -rf "$SY/skills/how" "$SY/skills/why"
+mkdir -p "$SY/skills/how" "$SY/skills/why"
+printf 'mine\n' > "$SY/skills/how/SKILL.md"
+printf 'mine\n' > "$SY/skills/why/SKILL.md"
+out="$(sync_cmd 2>"$TMP/sync.err")"; rc=$?
+if [ "$rc" -eq 0 ] && [ -z "$out" ] \
+  && [ "$(grep -c 'unmanaged' "$TMP/sync.err")" -eq 1 ] \
+  && grep -qxF 'bottega skills: unmanaged copy left in place: how, why' "$TMP/sync.err" \
+  && [ "$(cat "$SY/skills/how/SKILL.md")" = mine ] && [ ! -e "$SY/skills/how/.bottega-managed" ] \
+  && [ "$(cat "$SY/skills/why/SKILL.md")" = mine ] && [ ! -e "$SY/skills/why/.bottega-managed" ]; then
+  ok "skills sync warns once and leaves an unmanaged dir"
+else
+  fail "skills sync warns once and leaves an unmanaged dir"
+fi
+
+# uninstall records an opt-out that sync honors; install clears the name from it,
+# and the file goes away once no name is left.
+sync_fresh
+sync_cmd >/dev/null 2>&1
+CLAUDE_CONFIG_DIR="$SY" "$M" skills uninstall teach how >/dev/null 2>&1
+opt_recorded="$(cat "$SY/skills/.bottega-optout" 2>/dev/null)"
+out="$(sync_cmd 2>&1)"; rc=$?
+opt_skipped=0
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -e "$SY/skills/teach" ] && [ ! -e "$SY/skills/how" ] && opt_skipped=1
+CLAUDE_CONFIG_DIR="$SY" "$M" skills install teach >/dev/null 2>&1
+opt_partial="$(cat "$SY/skills/.bottega-optout" 2>/dev/null)"
+rm -rf "$SY/skills/teach"
+out="$(sync_cmd 2>&1)"; rc=$?
+opt_reinstalled=0
+[ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qxF "installed teach -> $SY/skills/teach" && opt_reinstalled=1
+CLAUDE_CONFIG_DIR="$SY" "$M" skills install how >/dev/null 2>&1
+if [ "$opt_recorded" = "$(printf 'how\nteach')" ] && [ "$opt_skipped" -eq 1 ] \
+  && [ "$opt_partial" = how ] && [ "$opt_reinstalled" -eq 1 ] && [ ! -e "$SY/skills/.bottega-optout" ]; then
+  ok "skills sync honors the uninstall opt-out"
+else
+  fail "skills sync honors the uninstall opt-out"
+fi
+
+# A managed copy of a denied name goes, even with the name in the opt-out file;
+# the user's own dir of a denied name stays.
+sync_fresh
+sync_cmd >/dev/null 2>&1
+mkdir -p "$SY/skills/interview" "$SY/skills/summary"
+printf 'bottega 0.1.0\n' > "$SY/skills/interview/.bottega-managed"
+printf 'old\n' > "$SY/skills/interview/SKILL.md"
+printf 'mine\n' > "$SY/skills/summary/SKILL.md"
+printf 'interview\n' > "$SY/skills/.bottega-optout"
+out="$(sync_cmd 2>"$TMP/sync.err")"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qxF 'removed interview (denied)' \
+  && [ ! -e "$SY/skills/interview" ] && [ "$(cat "$SY/skills/summary/SKILL.md")" = mine ] \
+  && [ ! -s "$TMP/sync.err" ]; then
+  ok "skills sync removes managed copies of denied skills"
+else
+  fail "skills sync removes managed copies of denied skills"
+fi
+
+# --hook: one systemMessage line on a change or an unmanaged warning, silent on a
+# no-op, and silent exit 0 when the config dir is unusable (fail open).
+sync_fresh
+out="$(sync_cmd --hook 2>"$TMP/hook.err")"; rc=$?
+hook_first=0
+[ "$rc" -eq 0 ] && [ "$out" = "{\"systemMessage\":\"bottega skills: installed $sync_count, refreshed 0, removed 0 (denied)\"}" ] \
+  && [ ! -s "$TMP/hook.err" ] && hook_first=1
+out="$(sync_cmd --hook 2>"$TMP/hook.err")"; rc=$?
+hook_noop=0
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$TMP/hook.err" ] && hook_noop=1
+printf 'bottega 0.0.1\n' > "$SY/skills/teach/.bottega-managed"
+out="$(sync_cmd --hook 2>/dev/null)"; rc=$?
+hook_refresh=0
+[ "$rc" -eq 0 ] && [ "$out" = '{"systemMessage":"bottega skills: installed 0, refreshed 1, removed 0 (denied)"}' ] && hook_refresh=1
+rm -rf "$SY/skills/how"
+mkdir -p "$SY/skills/how" && printf 'mine\n' > "$SY/skills/how/SKILL.md"
+out="$(sync_cmd --hook 2>/dev/null)"; rc=$?
+hook_warn=0
+[ "$rc" -eq 0 ] && [ "$out" = '{"systemMessage":"bottega skills: unmanaged copy left in place: how"}' ] && hook_warn=1
+printf 'file\n' > "$TMP/not-a-dir"
+out="$(CLAUDE_CONFIG_DIR="$TMP/not-a-dir/x" "$M" skills sync --hook 2>"$TMP/hook.err")"; rc=$?
+hook_unusable=0
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$TMP/hook.err" ] && hook_unusable=1
+out="$(env -u HOME -u CLAUDE_CONFIG_DIR "$M" skills sync --hook 2>"$TMP/hook.err")"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && [ ! -s "$TMP/hook.err" ] && hook_unusable=1
+if [ "$hook_first" -eq 1 ] && [ "$hook_noop" -eq 1 ] && [ "$hook_refresh" -eq 1 ] \
+  && [ "$hook_warn" -eq 1 ] && [ "$hook_unusable" -eq 1 ]; then
+  ok "skills sync --hook is silent on a no-op and fails open"
+else
+  fail "skills sync --hook is silent on a no-op and fails open"
+fi
+sync_cmd --bogus >/dev/null 2>&1; rc=$?
+[ "$rc" -eq 2 ] && ok "skills sync rejects an unknown option" || fail "skills sync rejects an unknown option"
 
 # Tool hint (SessionStart): silent when tools exist or when silenced.
 mkdir -p "$TMP/notools" && ln -sf "$(command -v git)" "$TMP/notools/git"
@@ -2880,6 +3072,147 @@ expect "worktree create --branch" "$M" worktree create prog u1 --branch feat/uni
 expect "worktree prune" "$M" worktree prune run-a --force
 "$M" worktree prune prog >/dev/null 2>&1
 git show-ref --verify --quiet refs/heads/feat/unit-1 && ok "named branch kept" || fail "named branch kept"
+
+# `maestro release <version> [--yes]` (issue #27 run C, task 3): the guard, the
+# bump-retitle-branch-commit step, and the --yes push and PR. Each case is its
+# own fixture repo on main with a plugin.json, a CHANGELOG, and a bare origin.
+# The bare remote's pre-receive hook logs one line per push, and a stub gh logs
+# its arguments; refusals must leave the tree byte-identical and push nothing.
+REL="$TMP/release"
+mkdir -p "$REL"
+cat > "$TMP/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+echo "ARGS: $*" >> "${GHLOG:-/dev/null}"
+echo "https://github.com/example/bottega/pull/1"
+EOF
+chmod +x "$TMP/bin/gh"
+rel_today="$(date +%Y-%m-%d)"
+rel_commit() {  # rel_commit <dir> <message>
+  git -C "$1" add -A && git -C "$1" commit -q -m "$2"
+}
+rel_fixture() {  # rel_fixture <name> [version]: a BottegaStack-shaped repo on main with a bare origin
+  local dir="$REL/$1" bare="$REL/$1.git"
+  rm -rf "$dir" "$bare" "$REL/$1.pushes"
+  mkdir -p "$dir/.claude-plugin"
+  printf '{\n  "name": "bottega",\n  "version": "%s"\n}\n' "${2:-0.7.0}" > "$dir/.claude-plugin/plugin.json"
+  printf '# Changelog\n\n## Unreleased\n- New: a fixture change.\n\n## 0.6.0 — 2026-01-01\n- Old entry.\n' > "$dir/CHANGELOG.md"
+  printf 'tracked\n' > "$dir/README.md"
+  git init -q "$dir" && git -C "$dir" symbolic-ref HEAD refs/heads/main
+  rel_commit "$dir" init
+  git init -q --bare "$bare"
+  git -C "$dir" remote add origin "$bare"
+  git -C "$dir" push -q origin main
+  printf '#!/bin/sh\necho push >> "%s"\n' "$REL/$1.pushes" > "$bare/hooks/pre-receive"
+  chmod +x "$bare/hooks/pre-receive"
+}
+rel_state() {  # rel_state <dir>: everything a refused release must leave unchanged
+  (cd "$1" && git rev-parse HEAD && git branch --show-current && git for-each-ref \
+    && git status --porcelain --untracked-files=all \
+    && find . -path ./.git -prune -o -type f -print | LC_ALL=C sort | xargs cksum) 2>&1
+}
+rel_refuse() {  # rel_refuse <label> <fixture> <reason> <release args...>: exit 1, one stderr line, tree unchanged
+  local label="$1" name="$2" reason="$3" dir before err rc after
+  shift 3
+  dir="$REL/$name"
+  before="$(rel_state "$dir")"
+  err="$(cd "$dir" && "$M" release "$@" 2>&1 >/dev/null)"; rc=$?
+  after="$(rel_state "$dir")"
+  if [ "$rc" -eq 1 ] && [ "$err" = "maestro release: refusing: $reason" ] \
+    && [ "$before" = "$after" ] && [ ! -e "$REL/$name.pushes" ]; then
+    ok "release refuses $label"
+  else
+    fail "release refuses $label"
+  fi
+}
+
+rel_fixture ok
+printf 'scratch\n' > "$REL/ok/scratch.txt"
+rel_ok_out="$(cd "$REL/ok" && GHLOG="$REL/ok.gh" "$M" release 0.7.1 2>"$REL/ok.err")"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && [ "$(git -C "$REL/ok" branch --show-current)" = release/0.7.1 ] \
+  && grep -qx '  "version": "0.7.1"' "$REL/ok/.claude-plugin/plugin.json" \
+  && grep -qxF "## 0.7.1 — $rel_today" "$REL/ok/CHANGELOG.md" \
+  && ! grep -qxF '## Unreleased' "$REL/ok/CHANGELOG.md" \
+  && [ "$(git -C "$REL/ok" rev-list --count main..release/0.7.1)" = 1 ] \
+  && [ "$(git -C "$REL/ok" diff --name-only main release/0.7.1)" = "$(printf '.claude-plugin/plugin.json\nCHANGELOG.md')" ] \
+  && [ ! -e "$REL/ok.pushes" ] && [ ! -e "$REL/ok.gh" ] \
+  && printf '%s\n' "$rel_ok_out" | grep -q 'push .*release/0.7.1' \
+  && printf '%s\n' "$rel_ok_out" | grep -q 'gh pr create --base main --head release/0.7.1'; then
+  ok "release bumps, retitles, commits, and pushes nothing"
+else
+  fail "release bumps, retitles, commits, and pushes nothing"
+fi
+
+rel_fixture yes
+rel_main_before="$(git -C "$REL/yes.git" rev-parse refs/heads/main)"
+yes_out="$(cd "$REL/yes" && GHLOG="$REL/yes.gh" "$M" release 0.7.1 --yes 2>"$REL/yes.err")"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && git -C "$REL/yes.git" rev-parse --verify -q refs/heads/release/0.7.1 >/dev/null \
+  && [ "$(wc -l < "$REL/yes.pushes" 2>/dev/null | tr -d ' ')" = 1 ] \
+  && [ "$(grep -c '^ARGS: pr create ' "$REL/yes.gh" 2>/dev/null)" = 1 ] \
+  && grep -q '^ARGS: pr create --base main --head release/0.7.1 ' "$REL/yes.gh" \
+  && [ -z "$(git -C "$REL/yes.git" for-each-ref refs/tags)" ] && [ -z "$(git -C "$REL/yes" tag)" ] \
+  && [ "$(git -C "$REL/yes.git" rev-parse refs/heads/main)" = "$rel_main_before" ] \
+  && printf '%s\n' "$yes_out" | grep -qxF 'https://github.com/example/bottega/pull/1'; then
+  ok "release --yes pushes and opens the PR only"
+else
+  fail "release --yes pushes and opens the PR only"
+fi
+
+rel_fixture ssh
+git -C "$REL/ssh" remote set-url origin git@github.com:example/bottega.git
+ssh_out="$(cd "$REL/ssh" && "$M" release 0.7.1 2>/dev/null)"; rc=$?
+if [ "$rc" -eq 0 ] && [ ! -e "$REL/ssh.pushes" ] \
+  && printf '%s\n' "$ssh_out" | grep -q 'https://github.com/example/bottega.git' \
+  && ! printf '%s\n' "$ssh_out" | grep -q 'git@github.com'; then
+  ok "release prints the HTTPS push URL for an ssh origin"
+else
+  fail "release prints the HTTPS push URL for an ssh origin"
+fi
+
+rel_fixture numeric
+(cd "$REL/numeric" && "$M" release 0.10.0 >/dev/null 2>&1); rc=$?
+if [ "$rc" -eq 0 ] && grep -qx '  "version": "0.10.0"' "$REL/numeric/.claude-plugin/plugin.json"; then
+  ok "release compares versions numerically"
+else
+  fail "release compares versions numerically"
+fi
+
+rel_fixture dirty
+printf 'edit\n' >> "$REL/dirty/README.md"
+rel_refuse "dirty tree" dirty "working tree has uncommitted tracked changes" 0.7.1
+
+rel_fixture branch
+git -C "$REL/branch" checkout -q -b feat/x
+rel_refuse "non-main" branch "must run on main (on feat/x)" 0.7.1
+
+rel_fixture empty
+printf '# Changelog\n\n## Unreleased\n\n## 0.6.0 — 2026-01-01\n- Old entry.\n' > "$REL/empty/CHANGELOG.md"
+rel_commit "$REL/empty" "empty unreleased"
+rel_refuse "empty Unreleased" empty "## Unreleased has no entries in CHANGELOG.md" 0.7.1
+
+rel_fixture lower 0.9.0
+rel_refuse "lower version" lower "version 0.8.9 is not greater than 0.9.0" 0.8.9
+
+rel_fixture malformed
+rel_refuse "malformed version" malformed "malformed version: v0.7.1" v0.7.1
+
+rel_fixture exists
+git -C "$REL/exists" branch release/0.7.1
+rel_refuse "existing branch" exists "branch release/0.7.1 already exists" 0.7.1
+
+rel_fixture noorigin
+git -C "$REL/noorigin" remote remove origin
+rel_refuse "--yes without origin" noorigin "no origin remote" 0.7.1 --yes
+
+mkdir -p "$REL/plain"
+printf 'x\n' > "$REL/plain/README.md"
+git init -q "$REL/plain" && git -C "$REL/plain" symbolic-ref HEAD refs/heads/main && rel_commit "$REL/plain" init
+rel_refuse "non-Bottega checkout" plain "not a BottegaStack checkout" 0.7.1
+
+(cd "$REL/ok" && "$M" release >/dev/null 2>&1); rc=$?
+[ "$rc" -eq 2 ] && ok "release needs a version" || fail "release needs a version"
+"$M" release --help >/dev/null 2>&1 && ok "release --help" || fail "release --help"
 
 echo
 if [ "$fails" -gt 0 ]; then

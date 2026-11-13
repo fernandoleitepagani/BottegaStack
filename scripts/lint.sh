@@ -66,6 +66,39 @@ if [ -f "$allow_file" ]; then
   done < "$allow_file"
 fi
 
+# Deny entries (skills/standalone-deny.txt) remove a skill from the standalone
+# set even when it is allowed, so each must be a real skill, listed once, and
+# absent from the allow file.
+deny_file="$ROOT/skills/standalone-deny.txt"
+seen_deny=""
+if [ -f "$deny_file" ]; then
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    if printf '%s' "$seen_deny" | grep -qxF -- "$name"; then
+      echo "FAIL skills/standalone-deny.txt: duplicate entry: $name"
+      fail=1
+      continue
+    fi
+    seen_deny="${seen_deny}${name}"$'\n'
+    dir=""
+    for d in "$ROOT"/skills/*/"$name"; do
+      if [ -d "$d" ] && [ -f "$d/SKILL.md" ]; then
+        dir="$d"
+        break
+      fi
+    done
+    if [ -z "$dir" ]; then
+      echo "FAIL skills/standalone-deny.txt: no such skill: $name"
+      fail=1
+      continue
+    fi
+    if [ -f "$allow_file" ] && grep -qxF -- "$name" "$allow_file"; then
+      echo "FAIL skills/standalone-deny.txt: also in skills/standalone-allow.txt: $name"
+      fail=1
+    fi
+  done < "$deny_file"
+fi
+
 # Vendored skills (skills/vendored.txt) keep their upstream license in the
 # folder. An entry must name a skill folder, and that folder needs a non-empty
 # LICENSE* file.

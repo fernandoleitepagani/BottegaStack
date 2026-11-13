@@ -16,14 +16,12 @@ figure-it-out
 frontend-design
 how
 interface-review
-interview
 ketchup
 library-reference
 linux-sysadmin
 podman-operator
 principles
 review-pr
-summary
 teach
 unslop
 untrusted-content

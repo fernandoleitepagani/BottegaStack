@@ -164,6 +164,7 @@ maestro skills install teach        # also installs the standalone skills it Loa
 maestro skills install --all        # the whole standalone list
 maestro skills uninstall teach      # remove a managed copy
 maestro skills uninstall --all
+maestro skills sync                 # install missing, refresh stale, remove denied
 ```
 
 Copies go to `${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/<name>/` and carry a
@@ -173,22 +174,41 @@ list and the hint. Re-running `maestro skills install <name>...` refreshes that
 copy; `install` refuses an unmarked directory of the same name and installs
 nothing.
 
-A copy is a snapshot: it does not update when the plugin does. After a plugin
-update, re-run `maestro skills install <name>...` (or `--all`) to refresh it.
+`maestro skills sync` keeps the copies current from files only, with no network
+and no model. It installs a standalone skill that is missing, refreshes a
+managed copy whose marker version is not the plugin's, and removes managed
+copies of denied skills. A second run that finds nothing to do prints nothing.
+The SessionStart hook runs `maestro skills sync --hook` in every session: it
+prints one line only when it changed something or found an unmanaged copy,
+never blocks a session, and stays silent on any failure.
 
-Some standalone skills, for example `interview`, `summary`,
-`ketchup`, and `domain-modeling`, are written for the full stack and mention
-the master, the planner, or `maestro` commands. Installed alone they still
-work, but those references only apply when the plugin is enabled too.
+Claude Code has no plugin-install hook, so after a plugin install or update the
+first session performs the sync. Run `maestro skills sync` by hand to refresh
+the copies at once.
+
+To opt a skill out, `maestro skills uninstall <name>` records it in
+`${CLAUDE_CONFIG_DIR:-$HOME/.claude}/skills/.bottega-optout`, and sync never
+reinstalls it. `maestro skills install <name>` clears the name from that file.
+Only names that `uninstall` actually removed are recorded.
+
+`skills/standalone-deny.txt` lists the stack-role skills `interview`,
+`summary`, and `session-handoff`, which are plugin-only. Sync
+removes a managed copy of a denied skill left by an older version, even when
+the name is in the opt-out file. It never removes a skill you wrote yourself.
+
+Some standalone skills, for example `ketchup` and `domain-modeling`, mention the
+master, the planner, or `maestro` commands. Installed alone they still work, but
+those references only apply when the plugin is enabled too.
 
 With the plugin also enabled, both `/teach` (the standalone copy) and
 `/bottega:teach` (the plugin's own namespace) appear; they are the same skill.
 `uninstall` removes only marked copies, so leaving the plugin enabled keeps the
 namespaced one.
 
-A managed copy of a skill that later leaves the standalone list cannot be
-removed by name, because the name is now unknown or non-standalone; use
-`maestro skills uninstall --all` to remove marked copies.
+The next sync removes a managed copy of a denied skill. Any other managed copy
+that leaves the standalone list cannot be removed by name, because the name is
+now unknown or non-standalone; use `maestro skills uninstall --all` to remove
+marked copies.
 
 ## Doctor
 

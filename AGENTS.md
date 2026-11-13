@@ -50,7 +50,8 @@ A personal agentic development workflow, shipped as the Claude Code plugin
   category directory. Prefer references, scripts, and assets over one long file.
 - Every skill has a trigger-rich description and a Gotchas section where useful.
 - After adding or editing a skill, run `./scripts/standalone-skills.sh --write`;
-  lint fails when `skills/standalone.txt` is stale.
+  lint fails when `skills/standalone.txt` is stale. Stack-role skills listed in
+  `skills/standalone-deny.txt` stay out of the standalone set.
 - `commands/maestro.md` is a thin command that loads `agents/master.md` at run
   time; edit the master prompt only in `agents/master.md`.
 - No secrets, tokens, or personal data in the repo.
@@ -78,7 +79,7 @@ Prefer the highest item that actually prevents recurrence.
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 `upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `verify-task`, `log`, `report`, `build`, `watch`, `lab`, `worktree`, `skills`, `statusline`,
-`playwright`, `shot`, and `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
+`release`, `playwright`, `shot`, and `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
 ./bin/maestro doctor
@@ -113,7 +114,9 @@ BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 ./bin/maestro skills list
 ./bin/maestro skills install <name>... | --all
 ./bin/maestro skills uninstall <name>... | --all
+./bin/maestro skills sync [--hook]
 ./bin/maestro statusline install [--yes] | status
+./bin/maestro release <version> [--yes]
 ./bin/maestro playwright doctor
 ./bin/maestro playwright install [--yes]
 ./bin/maestro shot <url|file> [--viewport WxH] [--dark] [--text] [--out <name>]
