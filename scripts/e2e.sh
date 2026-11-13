@@ -279,6 +279,21 @@ if [ "$race_bad" -eq 0 ]; then
   fi
 fi
 [ "$race_ok" -eq 1 ] && ok "concurrent light build names the collected task" || fail "concurrent light build names the collected task"
+# Both callers name a finished report that exists, and exactly one caller
+# collects the rc: the other prints the already-collected reply. A loser that
+# sees the run marker gone before the report is written prints no report line.
+race_report_files=1
+race_collect_count=0
+for f in "$TMP/race-a.out" "$TMP/race-b.out"; do
+  race_report="$(sed -n 's/^report: \([^ ]*\).*/\1/p' "$f" | head -1)"
+  [ -n "$race_report" ] && [ -f "$race_report" ] || race_report_files=0
+  grep -qx 'already collected by another caller' "$f" && race_collect_count=$((race_collect_count + 1))
+done
+if [ "$race_report_files" -eq 1 ] && [ "$race_collect_count" -eq 1 ]; then
+  ok "concurrent light build report exists for both callers"
+else
+  fail "concurrent light build report exists for both callers"
+fi
 # A collected light build is finished, never queued: a READY report and a failed
 # (empty) report both count as 1/1 done, and READY shows the report status.
 STUB_STATUS=READY "$M" build --here stat-ready --task "ready" --block >/dev/null 2>&1
