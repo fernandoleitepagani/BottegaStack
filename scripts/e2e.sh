@@ -2568,7 +2568,7 @@ done
 # it logs its argv and writes the --png/--txt files, so these steps prove the
 # wrapper's contract (exit codes, output path, driver argv) without a browser.
 SHOT_STUBS="$TMP/shot-node"
-SHOT_LOG="$TMP/shot-driver.log"
+export SHOT_LOG="$TMP/shot-driver.log"
 mkdir -p "$SHOT_STUBS"
 cat > "$SHOT_STUBS/node" <<'EOF'
 #!/bin/sh
