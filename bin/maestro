@@ -40,6 +40,7 @@ Usage:
   maestro skills list | install <name>... | install --all
   maestro skills uninstall <name>... | uninstall --all
   maestro tools install [--yes] | hint
+  maestro statusline install [--yes] | status
 
 Any command with --help or -h prints this help and changes nothing.
 
@@ -3350,6 +3351,200 @@ tools_install_rtk_script() {
   rm -f "$f"; return 1
 }
 
+# One settings reader for the SessionStart hint and `maestro statusline`.
+# Prints four tab-separated fields: statusLine (set|unset), refreshInterval
+# (<n>|unset), command class (maestro|custom|none), and the command. A missing
+# file reads as empty settings; unreadable or invalid JSON, or a missing
+# python3, returns 1. `maestro` means the command is <config>/statusline.sh and
+# that file carries the bottega marker.
+statusline_read() {
+  local file="$1" cfg
+  cfg="$(dirname "$file")"
+  command -v python3 >/dev/null 2>&1 || return 1
+  python3 -c '
+import json, os, sys
+path, cfg = sys.argv[1], sys.argv[2]
+if not os.path.exists(path):
+    sys.stdout.write("unset\tunset\tnone\n")
+    sys.exit(0)
+try:
+    with open(path) as f:
+        data = json.load(f)
+except (OSError, ValueError):
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+cmd, sl_set, ri = "", "unset", "unset"
+sl = data.get("statusLine")
+if isinstance(sl, dict):
+    cmd = sl.get("command") if isinstance(sl.get("command"), str) else ""
+    r = sl.get("refreshInterval")
+    if isinstance(r, int) and not isinstance(r, bool):
+        ri = str(r)
+if cmd:
+    sl_set = "set"
+klass = "none"
+if cmd:
+    if cmd == os.path.join(cfg, "statusline.sh"):
+        try:
+            with open(cmd) as f:
+                marked = "# bottega-managed statusline" in f.read()
+        except OSError:
+            marked = False
+        klass = "maestro" if marked else "custom"
+    else:
+        klass = "custom"
+sys.stdout.write("%s\t%s\t%s\t%s\n" % (sl_set, ri, klass, cmd))
+' "$file" "$cfg"
+}
+
+# One tab-separated field from `statusline_read`, without a heredoc (bash 3.2
+# cannot parse a heredoc inside a command substitution).
+statusline_field() {
+  printf '%s\n' "$2" | cut -f"$1"
+}
+
+# The managed status-line script: shell, marker, absolute maestro path, 700.
+statusline_script_body() {
+  local qp
+  qp="$(printf '%s' "$SELF" | sed "s/'/'\\\\''/g")"
+  printf '#!/bin/sh\n# bottega-managed statusline\np=%s\n[ -x "$p" ] || exit 0\nexec "$p" watch --line\n' "'$qp'"
+}
+
+statusline_write_script() {
+  local script="$1" tmp="$1.tmp.$$"
+  statusline_script_body > "$tmp" || { rm -f "$tmp"; return 1; }
+  chmod 700 "$tmp" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$script"
+}
+
+statusline_merge() {
+  local settings="$1" plan="$2" script="$3" tmp="$1.tmp.$$"
+  if [ -f "$settings" ]; then
+    cp -p "$settings" "$settings.bak.$(date +%s)" || return 1
+    cp -p "$settings" "$tmp" || { rm -f "$tmp"; return 1; }
+  fi
+  python3 -c '
+import json, sys
+path, tmp, plan, script = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+try:
+    with open(path) as f:
+        data = json.load(f)
+except FileNotFoundError:
+    data = {}
+except (OSError, ValueError):
+    sys.exit(1)
+if not isinstance(data, dict):
+    sys.exit(1)
+sl = data.get("statusLine")
+if not isinstance(sl, dict):
+    sl = {}
+if plan == "full":
+    sl["type"] = "command"
+    sl["command"] = script
+    sl["refreshInterval"] = 10
+else:
+    sl["refreshInterval"] = 10
+data["statusLine"] = sl
+with open(tmp, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+' "$settings" "$tmp" "$plan" "$script" || { rm -f "$tmp"; return 1; }
+  mv "$tmp" "$settings"
+}
+
+statusline_install() {
+  local yes=0 cfg settings script sr sl="" ri="" klass="" cmd="" plan="" ans=""
+  [ "${1:-}" = "--yes" ] && yes=1
+  cfg="$(config_dir claude)"
+  if [ -z "$cfg" ]; then
+    echo 'maestro statusline: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' >&2
+    return 1
+  fi
+  settings="$cfg/settings.json"
+  script="$cfg/statusline.sh"
+  if ! sr="$(statusline_read "$settings")"; then
+    echo "statusline: cannot read settings: $settings" >&2
+    return 1
+  fi
+  sl="$(statusline_field 1 "$sr")"; ri="$(statusline_field 2 "$sr")"
+  klass="$(statusline_field 3 "$sr")"; cmd="$(statusline_field 4 "$sr")"
+  if [ -f "$script" ] && ! grep -qx '# bottega-managed statusline' "$script" \
+    && [ "$cmd" != "$script" ]; then
+    echo "statusline: $script exists and is not managed by bottega; leaving it alone" >&2
+    return 1
+  fi
+  if [ "$klass" = maestro ] && [ "$ri" != unset ]; then
+    echo "statusline: already installed"
+    return 0
+  fi
+  if [ "$klass" = custom ] && [ "$ri" != unset ]; then
+    echo "statusline: already configured"
+    return 0
+  fi
+  if [ "$klass" = none ]; then plan="full"; else plan="refresh"; fi
+  if [ "$plan" = full ]; then
+    printf '{\n  "statusLine": {\n    "type": "command",\n    "command": "%s",\n    "refreshInterval": 10\n  }\n}\n' "$script"
+  else
+    printf '{\n  "statusLine": {\n    "refreshInterval": 10\n  }\n}\n'
+  fi
+  if [ "$yes" != 1 ]; then
+    printf 'Apply? [y/N] ' >&2
+    read -r ans || ans=""
+    case "$ans" in
+      y|Y|yes|YES) ;;
+      *) echo "statusline: nothing written" >&2; return 1 ;;
+    esac
+  fi
+  if [ "$plan" = full ] || [ "$klass" = maestro ]; then
+    if [ ! -f "$script" ] || ! grep -qx '# bottega-managed statusline' "$script" \
+      || [ "$(cat "$script")" != "$(statusline_script_body)" ]; then
+      statusline_write_script "$script" || { echo "statusline: cannot write $script" >&2; return 1; }
+    fi
+  fi
+  statusline_merge "$settings" "$plan" "$script" || { echo "statusline: cannot merge settings" >&2; return 1; }
+  echo "statusline: installed" >&2
+}
+
+statusline_status() {
+  local cfg settings sr sl="" ri="" klass=""
+  cfg="$(config_dir claude)"
+  if [ -z "$cfg" ]; then
+    echo 'maestro statusline: cannot find the Claude config dir; set CLAUDE_CONFIG_DIR or HOME' >&2
+    return 1
+  fi
+  settings="$cfg/settings.json"
+  if ! sr="$(statusline_read "$settings")"; then
+    echo "settings: unreadable"
+    return 1
+  fi
+  sl="$(statusline_field 1 "$sr")"; ri="$(statusline_field 2 "$sr")"
+  klass="$(statusline_field 3 "$sr")"
+  printf 'statusLine: %s\n' "$sl"
+  if [ "$ri" = unset ]; then
+    echo "refreshInterval: unset"
+  else
+    printf 'refreshInterval: set (%s)\n' "$ri"
+  fi
+  printf 'command: %s\n' "$klass"
+  if [ "$klass" = maestro ]; then
+    if [ -x "$SELF" ]; then
+      printf 'maestro path: %s (ok)\n' "$SELF"
+    else
+      printf 'maestro path: %s (missing)\n' "$SELF"
+    fi
+  fi
+}
+
+cmd_statusline() {
+  local sub="${1:-}"; shift || true
+  case "$sub" in
+    install) statusline_install "$@" ;;
+    status) statusline_status ;;
+    *) echo "usage: maestro statusline install [--yes] | status" >&2; return 1 ;;
+  esac
+}
+
 cmd_tools() {
   local sub="${1:-}"; shift || true
   case "$sub" in
@@ -3377,20 +3572,36 @@ cmd_tools() {
         command -v "$t" >/dev/null 2>&1 && echo "$t: installed" || echo "$t: installed but not on PATH yet (check ~/.local/bin, ~/go/bin, ~/.cargo/bin)"
       done ;;
     hint)
-      # SessionStart hook: one line when a tool is missing or an older maestro
-      # copy shadows the plugin. Never installs.
+      # SessionStart hook: one line when a tool is missing, an older maestro
+      # copy shadows the plugin, or the status line is not set up. Never writes.
       [ -n "${BOTTEGA_NO_TOOL_HINT:-}" ] && return 0
-      local missing warn msg tool_msg
+      local missing warn tools_msg status_msg body cfg sr sl="" ri="" tool_msg
       missing="$(tools_missing)"
       warn="$(maestro_path_warning)"
-      [ -n "$missing" ] || [ -n "$warn" ] || return 0
-      msg="$warn"
+      tools_msg="$warn"
       if [ -n "$missing" ]; then
         tool_msg="$(printf 'bottega: %s not installed; run maestro tools install (silence: BOTTEGA_NO_TOOL_HINT=1)' "$(echo "$missing" | sed 's/ /, /g')")"
-        if [ -n "$msg" ]; then msg="$msg; $tool_msg"; else msg="$tool_msg"; fi
+        if [ -n "$tools_msg" ]; then tools_msg="$tools_msg; $tool_msg"; else tools_msg="$tool_msg"; fi
       fi
-      msg="$(printf '%s' "$msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
-      printf '{"systemMessage":"%s"}\n' "$msg" ;;
+      status_msg=""
+      cfg="$(config_dir claude)"
+      if [ -n "$cfg" ] && sr="$(statusline_read "$cfg/settings.json")"; then
+        sl="$(statusline_field 1 "$sr")"; ri="$(statusline_field 2 "$sr")"
+        if [ "$sl" = unset ] || [ "$ri" = unset ]; then
+          status_msg='Status line not set up. Run: maestro statusline install'
+        fi
+      fi
+      [ -n "$tools_msg" ] || [ -n "$status_msg" ] || return 0
+      tools_msg="$(printf '%s' "$tools_msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+      status_msg="$(printf '%s' "$status_msg" | sed 's/\\/\\\\/g; s/"/\\"/g')"
+      if [ -n "$tools_msg" ] && [ -n "$status_msg" ]; then
+        body="$tools_msg\\n$status_msg"
+      elif [ -n "$tools_msg" ]; then
+        body="$tools_msg"
+      else
+        body="$status_msg"
+      fi
+      printf '{"systemMessage":"%s"}\n' "$body" ;;
     *) echo "usage: maestro tools install [--yes] | hint" >&2; return 1 ;;
   esac
 }
@@ -3460,6 +3671,7 @@ case "$cmd" in
   hooks) cmd_hooks "$@" ;;
   skills) cmd_skills "$@" ;;
   tools) cmd_tools "$@" ;;
+  statusline) cmd_statusline "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

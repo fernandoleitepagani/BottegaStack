@@ -99,8 +99,10 @@ Small work skips the spec and worktree: the master takes the light path with
 under `quick/<slug>/`. Pass findings back with
 `maestro build --here <slug> --revise <file|->`; `maestro build --status <slug>`
 reports progress once, `maestro watch <slug>` follows a run live, and
-`maestro watch --line` prints the newest open run as one status line (see
-[docs/SETUP.md](docs/SETUP.md) to wire it into Claude Code).
+`maestro watch --line` prints the newest open run as one status line.
+`maestro statusline install` wires it into Claude Code (backing up
+`~/.claude/settings.json` first), and `maestro statusline status` reports what
+is set; details in [docs/SETUP.md](docs/SETUP.md).
 `low` risk runs get a cheap headless first-pass review
 before the Claude reviewer. Headless builds report `tokens: in <n> out <n>` and
 `steps: <n>`; the only stop is the 30-minute builder timeout.

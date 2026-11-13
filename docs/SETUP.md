@@ -4,7 +4,7 @@
 
 - Claude Code with plugin support.
 - `gh` for PR helpers.
-- `python3` for `maestro upgrade` (settings merge).
+- `python3` for `maestro upgrade` and `maestro statusline` (settings merge).
 - Optional: `gitleaks` for the secret pre-commit hook.
 - Optional: `agent-browser` for browser checks.
 
@@ -71,18 +71,42 @@ A plugin cannot change your global Claude Code config, so set these yourself:
   there yourself.
 - The plugin does not install a launcher into `~/.local/bin`. `maestro` is on
   `PATH` only inside a session.
-- The plugin does not configure the status line. Point Claude Code's status
-  line at the builder watcher in `~/.claude/settings.json`:
+- The plugin does not configure the status line by itself. Run
+  `maestro statusline install` to point it at the builder watcher. It prints
+  the exact JSON it will merge, asks `Apply? [y/N]`, and `--yes` skips the
+  prompt. It backs up `~/.claude/settings.json` to
+  `settings.json.bak.<epoch>` first, keeps every other key, writes
+  `~/.claude/statusline.sh` (mode 700, marker `# bottega-managed statusline`,
+  an absolute path to this `maestro`), and sets `"refreshInterval": 10`; it
+  never replaces a custom `statusLine.command`, and an unmanaged existing
+  `statusline.sh` is refused. A second run prints `statusline: already
+  installed` and writes nothing. `maestro statusline status` reports what is
+  set and is read-only:
+
+  ```
+  statusLine: set
+  refreshInterval: set (10)
+  command: maestro
+  maestro path: /path/to/plugin/bin/maestro (ok)
+  ```
+
+  The JSON it merges looks like:
 
   ```json
   {
     "statusLine": {
       "type": "command",
-      "command": "maestro watch --line",
+      "command": "/path/to/plugin/bin/maestro watch --line",
       "refreshInterval": 10
     }
   }
   ```
+
+  The script calls the absolute path because whether Claude Code puts the
+  plugin's `bin/` on a status-line shell's `PATH` or expands
+  `${CLAUDE_PLUGIN_ROOT}` there is unverified: settling that needs an
+  interactive session, and the absolute path works either way. Keep
+  `refreshInterval` between 5 and 30 seconds.
 
   `maestro watch --line` reads Claude Code's JSON (`workspace.current_dir`) on
   stdin and prints `<done>/<total> tasks · ~<percent>% · ETA <minutes>m`, plus
@@ -92,11 +116,9 @@ A plugin cannot change your global Claude Code config, so set these yourself:
   repository, with no run, or with bad stdin it prints nothing. It always exits
   0.
 
-  Set `refreshInterval` between 5 and 30 seconds. Each refresh is local and
-  cheap: one `events.tsv` pass and one `steps.tsv` read, with no model call and
-  no network, and it runs only while the session is open. Status-line commands
-  run in a plain shell, so `maestro` must be on `PATH` there; use the absolute
-  path to the plugin's `bin/maestro` when it is not.
+  Each refresh is local and cheap: one `events.tsv` pass and one `steps.tsv`
+  read, with no model call and no network, and it runs only while the session
+  is open.
 
 ### Builder key
 
