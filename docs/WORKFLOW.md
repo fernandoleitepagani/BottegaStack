@@ -135,12 +135,16 @@ failing build.
 
 ### Step 4: Review
 
-The master runs `maestro gate <run>` first. A failing, stale, or dirty gate stops
-the review; the gate is per HEAD, so each task worktree can review in parallel. For `low` risk it first runs `maestro build --review <run> <task>
---block` (on the light path `maestro build --review --here <slug> --block`) on the headless model: no findings means no Claude reviewer runs, and
-any finding means the `review-code` reviewer below runs. `standard` and `high`
-risk are unchanged. It then spawns one `review-code` reviewer, which covers code,
-UI, UX, and security in one pass and returns one verdict:
+`maestro build --review <run> <task>` checks before it reviews: it runs
+`maestro check` in the task worktree, or reuses a fresh PASS record for the
+current HEAD, and starts no reviewer when the check fails. The check is per
+HEAD, so each task worktree can review in parallel. For `low` risk the master
+runs `maestro build --review <run> <task> --block` (on the light path
+`maestro build --review --here <slug> --block`) on the headless model: no
+findings means no Claude reviewer runs, and any finding means the `review-code`
+reviewer below runs. `standard` and `high` risk are unchanged. It then spawns
+one `review-code` reviewer, which covers code, UI, UX, and security in one pass
+and returns one verdict:
 
 - **Code** — correctness, simplicity, conventions, tests, and spec fidelity.
 - **UI** — visual consistency, design-system fit, spacing, responsive layout,

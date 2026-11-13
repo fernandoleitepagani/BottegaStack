@@ -378,6 +378,50 @@ expect "worktree create" "$M" worktree create run-a 1
 expect "build" "$M" build run-a 1 --block
 expect "build --revise" sh -c "echo 'fix it' | '$M' build run-a 1 --revise - --block"
 expect "build --review" "$M" build --review run-a 1 --block
+# `build --review` checks before it reviews (Task 3): a new HEAD runs the check
+# in the worktree, a fresh PASS record is reused without another checks.log line,
+# and a failing check stops the reviewer before it writes anything.
+WT_REVIEW="$TMP/repo-bottega/run-a/1"
+BDIR_REVIEW="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/build/1.report.md' | head -1)")"
+RUN_REVIEW="$(dirname "$BDIR_REVIEW")"
+git -C "$WT_REVIEW" commit -q --allow-empty -m "review check head"
+STUB_REVIEW="$TMP/stub-review.log"
+: > "$STUB_REVIEW"
+out="$(STUBLOG="$STUB_REVIEW" "$M" build --review run-a 1 --block 2>&1)"; rc=$?
+review_head="$(git -C "$WT_REVIEW" rev-parse HEAD)"
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^check: PASS' \
+  && grep -qx 'RESULT: PASS' "$RUN_REVIEW/checks/$review_head.result" \
+  && grep -q -- '--agent bottega:review-code' "$STUB_REVIEW"; then
+  ok "build --review runs the check first"
+else
+  fail "build --review runs the check first"
+fi
+checks_before="$(wc -l < "$RUN_REVIEW/checks.log" | tr -d ' ')"
+: > "$STUB_REVIEW"
+out="$(STUBLOG="$STUB_REVIEW" "$M" build --review run-a 1 --block 2>&1)"; rc=$?
+checks_after="$(wc -l < "$RUN_REVIEW/checks.log" | tr -d ' ')"
+review_sha7="$(git -C "$WT_REVIEW" rev-parse HEAD | cut -c1-7)"
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -qx "check: reused PASS record $review_sha7" \
+  && [ "$checks_before" = "$checks_after" ]; then
+  ok "build --review reuses a fresh check"
+else
+  fail "build --review reuses a fresh check"
+fi
+git -C "$WT_REVIEW" commit -q --allow-empty -m "failing check head"
+printf '#!/usr/bin/env bash\nexit 1\n' > "$WT_REVIEW/scripts/check"
+chmod +x "$WT_REVIEW/scripts/check"
+rm -f "$BDIR_REVIEW/1.review2.md"
+: > "$STUB_REVIEW"
+out="$(STUBLOG="$STUB_REVIEW" "$M" build --review run-a 1 --block 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'check: FAIL' \
+  && ! grep -q -- '--agent bottega:review-code' "$STUB_REVIEW" \
+  && [ ! -e "$BDIR_REVIEW/1.review2.md" ]; then
+  ok "build --review refuses a failing check"
+else
+  fail "build --review refuses a failing check"
+fi
+printf '#!/usr/bin/env bash\necho ok\n' > "$WT_REVIEW/scripts/check"
+chmod +x "$WT_REVIEW/scripts/check"
 expect "build --here" "$M" build --here q1 --task "small fix" --block
 out="$("$M" build --here qsum --task "summary" --block 2>&1)"
 printf '%s\n' "$out" | grep -qx 'session: s1' && ok "light summary prints session" || fail "light summary prints session"
@@ -461,6 +505,23 @@ out="$("$M" build --status stat-fail)"
 printf '%s\n' "$out" | grep -q 'Builders 1/1 done' && ok "light status failed is done" || fail "light status failed is done"
 printf '%s\n' "$out" | grep -q '0 queued' && ok "light status failed is never queued" || fail "light status failed is never queued"
 expect "build --review --here" "$M" build --review --here q1 --block
+# The light path follows the same rule: a failing check in the current checkout
+# stops the reviewer. Swap the repo's check, then restore it.
+"$M" build --here rev-here --task "review input" --block >/dev/null 2>&1
+printf '#!/usr/bin/env bash\nexit 1\n' > "$REPO/scripts/check"
+chmod +x "$REPO/scripts/check"
+STUB_HERE="$TMP/stub-review-here.log"
+: > "$STUB_HERE"
+out="$(STUBLOG="$STUB_HERE" "$M" build --review --here rev-here --block 2>&1)"; rc=$?
+printf '#!/usr/bin/env bash\necho ok\n' > "$REPO/scripts/check"
+chmod +x "$REPO/scripts/check"
+if [ "$rc" -ne 0 ] && printf '%s\n' "$out" | grep -q 'check: FAIL' \
+  && ! grep -q -- '--agent bottega:review-code' "$STUB_HERE"; then
+  ok "build --review --here refuses a failing check"
+else
+  fail "build --review --here refuses a failing check"
+fi
+"$M" report --close rev-here >/dev/null 2>&1
 "$M" build --status run-a | grep -q "done" && ok "build --status" || fail "build --status"
 grep -q -- "--agent bottega:builder" "$STUBLOG" && ok "runner uses bottega:builder" || fail "runner uses bottega:builder"
 grep -q -- "--agent bottega:review-code" "$STUBLOG" && ok "runner uses bottega:review-code" || fail "runner uses bottega:review-code"
@@ -714,6 +775,11 @@ WSTATE="$TMP/watch-state"
 mkdir -p "$WREPO"
 ( cd "$WREPO" && git init -q -b main && git commit -q --allow-empty -m init \
   && git switch -q -c feat/watch && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Watch seed" ) >/dev/null 2>&1
+# `build --review` runs the check first, so `worktree create` copies a passing
+# scripts/check into the task worktree.
+mkdir -p "$WREPO/scripts"
+printf '#!/usr/bin/env bash\necho ok\n' > "$WREPO/scripts/check"
+chmod +x "$WREPO/scripts/check"
 WROOT="$(dirname "$(find "$WSTATE" -type d -name watch-seed 2>/dev/null | head -1)")"
 mk_watch_run() { # <slug> <tasks>
   local slug="$1" n="$2" i=1
