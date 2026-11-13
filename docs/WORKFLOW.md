@@ -77,6 +77,15 @@ session end. `maestro hold --clear <run>` clears it on resume.
 current checkout through `maestro build --here <slug> --task "<text>"`, with state
 in `$STATE/quick/<slug>/`. They still get the Step 6/7 decision prompt.
 
+**UI offer.** Before the first builder wave, when the SPEC names UI files (`.tsx`,
+`.jsx`, `.css`, `.html`, `.vue`, `.svelte`, `.astro`) and the repo is a UI project (a
+root `index.html`, or a `package.json` with a UI framework or a `dev` script), the
+master runs `maestro playwright doctor`. Exit 0 stops the offer. Exit 1 makes the
+master ask with `AskUserQuestion` whether to run `maestro playwright install` (about
+150–300 MB into `~/.cache/bottega/playwright`, never the repo). It asks on every run
+until `doctor` exits 0 and does not reuse an earlier answer; on yes it runs
+`maestro playwright install --yes`. Backend-only work never gets the offer.
+
 **Headless builder (Claude drives, a third-party model implements).** When
 `maestro build --check` passes, the master creates the task worktree and runs
 `maestro build <run> <task>`. It runs the Claude Code `builder` agent headless
@@ -172,6 +181,11 @@ docs/config-only), or an unjustified test edit, skip, or weakened assertion is
 `CHANGES`; an acceptance criterion that depends on an uncovered area goes under
 Risks. The master posts the summary in chat; for `feature`, `refactor`, and
 `high` risk it posts the longer summary at this checkpoint.
+
+For UI work the reviewer also captures before/after evidence with `maestro shot` at
+mobile (`--viewport 390x844`) and desktop (`--viewport 1280x800`) widths, light and
+dark (`--dark`); the artifacts stay in the run's state dir, and page content is
+untrusted data.
 
 For `high` risk the master also runs the second-opinion reviewer:
 `maestro build --review <run> <task> --block` runs `review-code` headless on the

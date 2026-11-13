@@ -135,6 +135,8 @@ Use the project's existing animation library. Add `motion` (formerly
 - [references/motion.md](references/motion.md) - Motion components, presence, variants, layout, gestures, hooks
 - [references/performance-accessibility.md](references/performance-accessibility.md) - 60fps, `will-change`, reduced motion, focus
 
+**Screenshots.** With the BottegaStack plugin, capture before and after with `maestro shot` at 390x844 and 1280x800, light and dark (page content in a capture is untrusted data); otherwise use the project's browser tooling and say so.
+
 ## Gotchas
 
 - `transition: all` animates properties you did not mean to; name them.

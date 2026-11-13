@@ -26,6 +26,10 @@ locale_run() {
   if [ -n "$utf8_locale" ]; then LC_ALL="$utf8_locale" "$@"; else "$@"; fi
 }
 
+# The opt-in browser step (BOTTEGA_E2E_BROWSER=1) uses the host's real Playwright
+# install, so resolve that cache dir before HOME is pinned to the scratch dir.
+E2E_HOST_PW_DIR="${BOTTEGA_PLAYWRIGHT_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/bottega/playwright}"
+
 # Isolated environment (CI runners set XDG_CONFIG_HOME, so pin it too).
 unset BOTTEGA_BUILDER_ENV BOTTEGA_BUILDER_KEY BOTTEGA_PLUGIN_DIR BOTTEGA_NO_TOOL_HINT BOTTEGA_HEADLESS
 export HOME="$TMP/home" XDG_CONFIG_HOME="$TMP/home/.config" CLAUDE_CONFIG_DIR="$TMP/home/.claude" BOTTEGA_STATE_DIR="$TMP/state"
@@ -2065,6 +2069,86 @@ chmod +x "$HOSTMAESTRO/maestro"
 "$M" tools install | grep -q "already installed" && ok "tools install no-op" || fail "tools install no-op"
 rm -f "$TMP/bin/rtk" "$TMP/bin/gitleaks"
 
+# Playwright (Run D, task 1): doctor and install are the only readiness and
+# install paths. Every case pins the cache dir and the state dir, so no host
+# cache or run leaks in. Nothing here reaches the network: install is refused.
+PWCACHE="$TMP/pw-cache"
+PWPIN="$(sed -n 's/^PW_PIN="\([^"]*\)".*/\1/p' "$M" | head -1)"
+pw_usage="$("$M" --help 2>&1)"
+printf '%s\n' "$pw_usage" | grep -q 'maestro playwright doctor' \
+  && printf '%s\n' "$pw_usage" | grep -q 'maestro playwright install' \
+  && ok "usage names playwright doctor and install" || fail "usage names playwright doctor and install"
+
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$TMP/pw-absent" "$M" playwright doctor 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^playwright: not installed' \
+  && printf '%s\n' "$out" | grep -q '^missing: .*playwright'; then
+  ok "playwright doctor fails cleanly without playwright"
+else
+  fail "playwright doctor fails cleanly without playwright"
+fi
+
+PWFAKE="$TMP/pw-fake"
+mkdir -p "$PWFAKE/node_modules/playwright" "$PWFAKE/browsers/chromium-1000"
+printf '{"name":"playwright","version":"%s"}\n' "$PWPIN" > "$PWFAKE/node_modules/playwright/package.json"
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$PWFAKE" "$M" playwright doctor 2>&1)"; rc=$?
+if [ -n "$PWPIN" ] && [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^node: yes' \
+  && printf '%s\n' "$out" | grep -q "^playwright: $PWPIN" && printf '%s\n' "$out" | grep -qx 'chromium: yes'; then
+  ok "playwright doctor reports node, pinned version, and chromium"
+else
+  fail "playwright doctor reports node, pinned version, and chromium"
+fi
+
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" playwright install </dev/null 2>"$TMP/pw-install.err")"; rc=$?
+if [ "$rc" -ne 0 ] && [ -z "$out" ] && grep -qi 'confirmation' "$TMP/pw-install.err" && [ ! -e "$PWCACHE" ]; then
+  ok "playwright install refuses without confirmation"
+else
+  fail "playwright install refuses without confirmation"
+fi
+
+# pw_fixture <name> <package.json body or -> <file the SPEC names>: a git repo at
+# $TMP/pw-<name>, a run whose SPEC names that file, and an events.tsv so the run
+# is the newest one (watch's rule). Its state dir is $TMP/pw-<name>-state.
+pw_fixture() {
+  local d="$TMP/pw-$1" st="$TMP/pw-$1-state" sdir
+  mkdir -p "$d" && ( cd "$d" && git init -q -b main && git commit -q --allow-empty -m init )
+  [ "$2" = - ] || printf '%s\n' "$2" > "$d/package.json"
+  # start refuses main, so the fixture works on a branch; the run is then real.
+  ( cd "$d" && git checkout -q -b feat/pw && BOTTEGA_STATE_DIR="$st" "$M" start pw-run ) >/dev/null 2>&1
+  printf '# Spec\n## Acceptance criteria\n- AC1: renders. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `%s`\n' "$3" > "$TMP/pw-$1.spec.md"
+  ( cd "$d" && BOTTEGA_STATE_DIR="$st" "$M" spec pw-run "$TMP/pw-$1.spec.md" ) >/dev/null 2>&1
+  sdir="$(cd "$d" && BOTTEGA_STATE_DIR="$st" "$M" doctor 2>/dev/null | sed -n 's/^state: //p')"
+  : > "$sdir/pw-run/events.tsv"
+}
+pw_fixture ui '{"name":"ui","dependencies":{"react":"^18.2.0"},"scripts":{"dev":"vite"}}' 'src/Button.tsx'
+pw_fixture backend '{"name":"api","dependencies":{"express":"^4.19.0"},"scripts":{"start":"node server.js"}}' 'api/routes.tsx'
+pw_fixture react-backend '{"name":"ui","dependencies":{"react":"^18.2.0"},"scripts":{"dev":"vite"}}' 'server/handlers.go'
+pw_fixture bare - 'src/App.tsx'
+
+hint_ui="$(cd "$TMP/pw-ui" && BOTTEGA_STATE_DIR="$TMP/pw-ui-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" tools hint 2>/dev/null)"
+hint_ui_off="$(cd "$TMP/pw-ui" && BOTTEGA_NO_TOOL_HINT=1 BOTTEGA_STATE_DIR="$TMP/pw-ui-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" tools hint 2>/dev/null)"
+doctor_ui="$(cd "$TMP/pw-ui" && BOTTEGA_STATE_DIR="$TMP/pw-ui-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" doctor 2>&1)"
+if printf '%s' "$hint_ui" | grep -q 'maestro playwright install' && [ -z "$hint_ui_off" ] \
+  && printf '%s\n' "$doctor_ui" | grep -q 'maestro playwright install'; then
+  ok "hint offers playwright only for ui work"
+else
+  fail "hint offers playwright only for ui work"
+fi
+
+pw_mention=0
+for pw_case in backend react-backend bare; do
+  pw_hint="$(cd "$TMP/pw-$pw_case" && BOTTEGA_STATE_DIR="$TMP/pw-$pw_case-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" tools hint 2>/dev/null)"
+  pw_doc="$(cd "$TMP/pw-$pw_case" && BOTTEGA_STATE_DIR="$TMP/pw-$pw_case-state" BOTTEGA_PLAYWRIGHT_DIR="$PWCACHE" "$M" doctor 2>&1)"
+  if printf '%s' "$pw_hint" | grep -q 'maestro playwright install' \
+    || printf '%s\n' "$pw_doc" | grep -q 'maestro playwright install'; then
+    pw_mention=1
+  fi
+done
+if [ "$pw_mention" = 0 ]; then
+  ok "hint stays silent on backend-only work"
+else
+  fail "hint stays silent on backend-only work"
+fi
+
 # Status line (AC9-AC11): one settings reader drives the SessionStart hint and
 # `maestro statusline`. Each fixture is its own scratch CLAUDE_CONFIG_DIR.
 SL="$TMP/statusline"
@@ -2322,6 +2406,9 @@ tools hint
 statusline
 statusline install
 statusline status
+playwright
+playwright doctor
+playwright install
 guard
 guard stop
 guard builder
@@ -2405,6 +2492,248 @@ if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^Usage:' && ! printf '%s\n
   ok "doctor --help stays usage only with two copies"
 else
   fail "doctor --help stays usage only with two copies"
+fi
+
+# Playwright (`maestro playwright doctor|install`, AC1, AC2, AC7). The cache dir is
+# always a scratch dir and node and npm are stubbed, so readiness is deterministic
+# on any host and nothing touches the network.
+PW_STUBS="$TMP/pw-node"
+mkdir -p "$PW_STUBS"
+printf '#!/bin/sh\necho v22.0.0\n' > "$PW_STUBS/node"
+printf '#!/bin/sh\necho 10.0.0\n' > "$PW_STUBS/npm"
+chmod +x "$PW_STUBS/node" "$PW_STUBS/npm"
+PW_PATH="$PW_STUBS:$PATH"
+
+PW_MISSING="$TMP/pw-missing"
+out="$(BOTTEGA_PLAYWRIGHT_DIR="$PW_MISSING" "$M" playwright doctor 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q '^playwright: not installed' \
+  && printf '%s\n' "$out" | grep -qx 'chromium: no' && printf '%s\n' "$out" | grep -q '^node: '; then
+  ok "playwright doctor fails cleanly without playwright"
+else
+  fail "playwright doctor fails cleanly without playwright"
+fi
+
+PW_READY="$TMP/pw-ready"
+mkdir -p "$PW_READY/node_modules/playwright" "$PW_READY/browsers/chromium-1234"
+printf '{"name":"playwright","version":"9.9.9"}\n' > "$PW_READY/node_modules/playwright/package.json"
+out="$(PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" playwright doctor 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^node: yes' \
+  && printf '%s\n' "$out" | grep -q '^playwright: 9.9.9' && printf '%s\n' "$out" | grep -qx 'chromium: yes'; then
+  ok "playwright doctor reports node, version, and chromium"
+else
+  fail "playwright doctor reports node, version, and chromium"
+fi
+out="$(PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" playwright install 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q 'already installed'; then
+  ok "playwright install is a no-op when doctor passes"
+else
+  fail "playwright install is a no-op when doctor passes"
+fi
+
+PW_INSTALL="$TMP/pw-install"
+out="$(PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_INSTALL" "$M" playwright install </dev/null 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'confirmation' && [ ! -e "$PW_INSTALL" ]; then
+  ok "playwright install refuses without confirmation"
+else
+  fail "playwright install refuses without confirmation"
+fi
+out="$(cd "$REPO" && PATH="$PW_PATH" BOTTEGA_PLAYWRIGHT_DIR="$REPO/.pw-cache" "$M" playwright install --yes 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -q 'inside the repo' && [ ! -e "$REPO/.pw-cache" ]; then
+  ok "playwright install refuses a cache dir inside the repo"
+else
+  fail "playwright install refuses a cache dir inside the repo"
+fi
+printf '%s\n' "$("$M" --help)" | grep -q 'maestro playwright doctor' \
+  && printf '%s\n' "$("$M" --help)" | grep -q 'maestro playwright install' \
+  && ok "usage lists playwright doctor and install" || fail "usage lists playwright doctor and install"
+
+# UI-project detection (AC7): one run per fixture repo, each with a build event so
+# the newest run is the one resolved. The hint and doctor name the install only
+# for UI work; backend-only work and BOTTEGA_NO_TOOL_HINT=1 stay quiet.
+PW_NONE="$TMP/pw-none"
+pw_repo() {  # pw_repo <dir> <package.json|none> <spec task body>
+  local dir="$1" manifest="$2" body="$3" out slug state
+  mkdir -p "$dir" && ( cd "$dir" && git init -q -b main && git commit -q --allow-empty -m init && git checkout -q -b feat/ui ) || return 1
+  [ "$manifest" = none ] || printf '%s\n' "$manifest" > "$dir/package.json"
+  ( cd "$dir" && git add -A && git commit -q --allow-empty -m manifest ) || return 1
+  out="$(cd "$dir" && "$M" start "UI work" 2>/dev/null)" || return 1
+  slug="$(printf '%s\n' "$out" | sed -n 's/^run: //p')"
+  state="$(printf '%s\n' "$out" | sed -n 's/^state: //p')"
+  [ -n "$slug" ] && [ -d "$state" ] || return 1
+  printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: none (summary only)\n### Task 1 - work\n%s\n' "$body" \
+    | ( cd "$dir" && "$M" spec "$slug" ) >/dev/null 2>&1 || return 1
+  printf '1\t%s\t1\tbuilder\tstart\tfixture\n' "$slug" > "$state/events.tsv"
+}
+pw_repo "$TMP/pw-ui" '{"name":"ui","dependencies":{"react":"18.3.1"}}' 'Allowed files: src/App.tsx' || fail "playwright fixture: ui"
+pw_repo "$TMP/pw-api" '{"name":"api","dependencies":{"express":"4.19.2"}}' 'Allowed files: src/server.ts' || fail "playwright fixture: api"
+pw_repo "$TMP/pw-ui-api" '{"name":"ui","dependencies":{"react":"18.3.1"}}' 'Allowed files: src/api.ts' || fail "playwright fixture: ui api"
+pw_repo "$TMP/pw-spec-only" none 'Allowed files: src/App.tsx' || fail "playwright fixture: spec only"
+
+ui_hint="$(cd "$TMP/pw-ui" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" tools hint 2>/dev/null)"
+ui_doctor="$(cd "$TMP/pw-ui" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" doctor 2>&1)"
+if printf '%s\n' "$ui_hint" | grep -qF 'maestro playwright install'; then
+  ok "hint offers playwright only for ui work"
+else
+  fail "hint offers playwright only for ui work"
+fi
+if printf '%s\n' "$ui_doctor" | grep -qF 'maestro playwright install'; then
+  ok "doctor offers playwright for ui work"
+else
+  fail "doctor offers playwright for ui work"
+fi
+silent=1
+for pw_case in pw-api pw-ui-api pw-spec-only; do
+  case_hint="$(cd "$TMP/$pw_case" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" tools hint 2>/dev/null)"
+  case_doctor="$(cd "$TMP/$pw_case" && BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" doctor 2>&1)"
+  if printf '%s\n%s\n' "$case_hint" "$case_doctor" | grep -qF 'maestro playwright install'; then silent=0; fi
+done
+[ "$silent" = 1 ] && ok "hint stays silent on backend-only work" || fail "hint stays silent on backend-only work"
+[ -z "$(cd "$TMP/pw-ui" && BOTTEGA_NO_TOOL_HINT=1 BOTTEGA_PLAYWRIGHT_DIR="$PW_NONE" "$M" tools hint 2>/dev/null)" ] \
+  && ok "hint silenced for ui work by BOTTEGA_NO_TOOL_HINT" || fail "hint silenced for ui work by BOTTEGA_NO_TOOL_HINT"
+
+# `maestro shot` (AC3-AC6). A stub `node` on PATH stands in for the driver seam:
+# it logs its argv and writes the --png/--txt files, so these steps prove the
+# wrapper's contract (exit codes, output path, driver argv) without a browser.
+SHOT_STUBS="$TMP/shot-node"
+export SHOT_LOG="$TMP/shot-driver.log"
+mkdir -p "$SHOT_STUBS"
+cat > "$SHOT_STUBS/node" <<'EOF'
+#!/bin/sh
+# Stub node: --version answers like node; any other call is the driver.
+[ "${1:-}" = "--version" ] && { echo v22.0.0; exit 0; }
+echo "NODE: $*" >> "$SHOT_LOG"
+[ -n "${SHOT_FAIL:-}" ] && { echo "driver: stub failure" >&2; exit 1; }
+prev=""
+for shot_arg in "$@"; do
+  case "$prev" in
+    --png) printf 'png\n' > "$shot_arg" ;;
+    --txt) printf 'txt\n' > "$shot_arg" ;;
+  esac
+  prev="$shot_arg"
+done
+exit 0
+EOF
+chmod +x "$SHOT_STUBS/node"
+SHOT_PATH="$SHOT_STUBS:$PATH"
+SHOT_FIX="$TMP/shot-fixture"
+mkdir -p "$SHOT_FIX"
+printf '%s\n' '<!doctype html><title>fixture</title><p>SHOT-FIXTURE-MARKER</p>' > "$SHOT_FIX/index.html"
+SHOT_REPO="$TMP/shot-repo"
+pw_repo "$SHOT_REPO" none 'Allowed files: src/App.tsx' || fail "shot fixture: run repo"
+SHOT_RUN="$(dirname "$(ls "$BOTTEGA_STATE_DIR"/shot-repo-*/*/events.tsv 2>/dev/null | head -1)")"
+
+# No install: refuse with the pointer, exit 1, and write nothing.
+shot_before="$(find "$BOTTEGA_STATE_DIR" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+out="$(cd "$SHOT_REPO" && PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_MISSING" "$M" shot "$SHOT_FIX/index.html" 2>&1)"; rc=$?
+shot_after="$(find "$BOTTEGA_STATE_DIR" -name '*.png' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qxF 'maestro shot: playwright is not installed; run maestro playwright install' \
+  && [ "$shot_before" = "$shot_after" ] && [ ! -e "$SHOT_RUN/shots" ] && [ ! -s "$SHOT_LOG" ]; then
+  ok "shot refuses without playwright"
+else
+  fail "shot refuses without playwright"
+fi
+
+# Usage and reason errors exit 2 before any driver call, with a ready install so
+# the exit code comes from the arguments alone.
+shot_try() {  # shot_try <args...>: runs maestro shot with a ready install; sets shot_rc and shot_out
+  shot_out="$(cd "$SHOT_REPO" && PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" shot "$@" 2>&1)"; shot_rc=$?
+}
+: > "$SHOT_LOG"
+shot_usage_bad=0
+shot_try; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+shot_try "$SHOT_FIX/index.html" --bogus; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+shot_try "$SHOT_FIX/missing.html"; [ "$shot_rc" -eq 2 ] && printf '%s\n' "$shot_out" | grep -q 'no such file' || shot_usage_bad=1
+shot_try "$SHOT_FIX/index.html" --viewport abc; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+shot_try "$SHOT_FIX/index.html" --viewport 0x0; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+shot_try "$SHOT_FIX/index.html" --viewport 1280; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+shot_try "$SHOT_FIX/index.html" --viewport 9000x800; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+shot_try "$SHOT_FIX/index.html" --out ../escape; [ "$shot_rc" -eq 2 ] || shot_usage_bad=1
+if [ "$shot_usage_bad" = 0 ] && [ ! -s "$SHOT_LOG" ]; then
+  ok "shot usage errors exit 2"
+else
+  fail "shot usage errors exit 2"
+fi
+
+# Artifacts land in the newest run's shots/ dir, printed one per line, never in the repo.
+: > "$SHOT_LOG"
+out="$(cd "$SHOT_REPO" && PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" shot "$SHOT_FIX/index.html" --out mobile --viewport 390x844 --dark --text 2>&1)"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qxF "shot: $SHOT_RUN/shots/mobile.png" \
+  && printf '%s\n' "$out" | grep -qxF "shot: $SHOT_RUN/shots/mobile.txt" \
+  && [ -f "$SHOT_RUN/shots/mobile.png" ] && [ -f "$SHOT_RUN/shots/mobile.txt" ] \
+  && [ -z "$(git -C "$SHOT_REPO" status --porcelain)" ] \
+  && [ -z "$(find "$SHOT_REPO" -path "$SHOT_REPO/.git" -prune -o \( -name '*.png' -o -name '*.txt' \) -print)" ]; then
+  ok "shot writes into the run state dir"
+else
+  fail "shot writes into the run state dir"
+fi
+
+# With no run yet, artifacts go to <state>/<repo>/shots/ instead.
+SHOT_BARE="$TMP/shot-bare"
+mkdir -p "$SHOT_BARE" && git -C "$SHOT_BARE" init -q -b main
+bare_out="$(cd "$SHOT_BARE" && PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" shot "$SHOT_FIX/index.html" --out bare 2>&1)"; rc=$?
+bare_line="$(printf '%s\n' "$bare_out" | sed -n 's/^shot: //p')"
+bare_ok=0
+case "$bare_line" in
+  "$BOTTEGA_STATE_DIR"/shot-bare-*/shots/bare.png) [ -f "$bare_line" ] && bare_ok=1 ;;
+esac
+if [ "$rc" -eq 0 ] && [ "$bare_ok" = 1 ] && [ -z "$(git -C "$SHOT_BARE" status --porcelain)" ]; then
+  ok "shot without a run writes into the state shots dir"
+else
+  fail "shot without a run writes into the state shots dir"
+fi
+
+# The driver gets the viewport, dark, text, and both artifact paths exactly.
+: > "$SHOT_LOG"
+(cd "$SHOT_REPO" && PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" shot "$SHOT_FIX/index.html" --out mobile --viewport 390x844 --dark --text >/dev/null 2>&1)
+if grep -Eq -- '--url file://.* --width 390 --height 844 --dark --text --png .*/mobile\.png --txt .*/mobile\.txt' "$SHOT_LOG"; then
+  driver_full=1
+else
+  driver_full=0
+fi
+: > "$SHOT_LOG"
+(cd "$SHOT_REPO" && PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" shot "$SHOT_FIX/index.html" --out plain >/dev/null 2>&1)
+if grep -Eq -- '--width 1280 --height 800 --png .*/plain\.png$' "$SHOT_LOG" \
+  && ! grep -q -- '--dark' "$SHOT_LOG" && ! grep -q -- '--txt' "$SHOT_LOG"; then
+  driver_default=1
+else
+  driver_default=0
+fi
+if [ "$driver_full" = 1 ] && [ "$driver_default" = 1 ]; then
+  ok "shot passes viewport, dark, and text to the driver"
+else
+  fail "shot passes viewport, dark, and text to the driver"
+fi
+
+# A driver failure exits 1 and leaves no artifact behind.
+: > "$SHOT_LOG"
+out="$(cd "$SHOT_REPO" && SHOT_FAIL=1 PATH="$SHOT_PATH" BOTTEGA_PLAYWRIGHT_DIR="$PW_READY" "$M" shot "$SHOT_FIX/index.html" --out broken 2>&1)"; rc=$?
+if [ "$rc" -eq 1 ] && grep -q '^NODE:' "$SHOT_LOG" && printf '%s\n' "$out" | grep -q 'driver: stub failure' \
+  && [ ! -e "$SHOT_RUN/shots/broken.png" ]; then
+  ok "shot driver failure exits 1"
+else
+  fail "shot driver failure exits 1"
+fi
+printf '%s\n' "$("$M" --help)" | grep -q 'maestro shot' \
+  && ok "usage lists shot" || fail "usage lists shot"
+
+# Opt-in real-browser step (AC10): a real Chromium captures a fixture page at two
+# widths from the host's install. CI never sets BOTTEGA_E2E_BROWSER, so the step
+# is a deterministic skip there.
+if [ "${BOTTEGA_E2E_BROWSER:-}" = 1 ]; then
+  BROWSER_PAGE="$TMP/browser/fixture.html"
+  mkdir -p "$TMP/browser"
+  printf '%s\n' '<!doctype html><title>fixture</title><h1>maestro shot fixture</h1><p>BROWSER-SHOT-MARKER</p>' > "$BROWSER_PAGE"
+  browser_ok=1
+  (cd "$SHOT_REPO" && BOTTEGA_PLAYWRIGHT_DIR="$E2E_HOST_PW_DIR" "$M" shot "$BROWSER_PAGE" --viewport 390x844 --text --out fixture-mobile >/dev/null 2>&1) || browser_ok=0
+  (cd "$SHOT_REPO" && BOTTEGA_PLAYWRIGHT_DIR="$E2E_HOST_PW_DIR" "$M" shot "$BROWSER_PAGE" --viewport 1280x800 --dark --out fixture-desktop >/dev/null 2>&1) || browser_ok=0
+  for browser_png in "$SHOT_RUN/shots/fixture-mobile.png" "$SHOT_RUN/shots/fixture-desktop.png"; do
+    [ "$(od -An -v -t x1 -N 8 "$browser_png" 2>/dev/null | tr -d ' \n')" = 89504e470d0a1a0a ] || browser_ok=0
+  done
+  grep -q 'BROWSER-SHOT-MARKER' "$SHOT_RUN/shots/fixture-mobile.txt" 2>/dev/null || browser_ok=0
+  if [ "$browser_ok" = 1 ]; then ok "browser shot fixture page"; else fail "browser shot fixture page"; fi
+else
+  ok "browser shot skipped without BOTTEGA_E2E_BROWSER"
 fi
 
 # Logs, findings, close, trust.
