@@ -384,6 +384,7 @@ maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
 maestro build --status <run>
+maestro verify-task <run> <task> [--waive "<reason>"]
 maestro watch <run>
 maestro watch --line
 ```
@@ -496,6 +497,7 @@ maestro worktree prune <run> [--force]
 | `maestro gate --proof` fails | A criterion has no PASS for the current HEAD: run its `Proof:` and `maestro verify record` it, or waive it with the user's approval. |
 | `maestro gate` says dirty | Commit or stash changes, or use `--allow-dirty`. |
 | `maestro build` or `maestro gate` says `spec.md is empty` | Re-run `maestro spec <run> <file>`; `spec` refuses an empty source and never overwrites the spec it is reading. |
+| `maestro verify-task` says `FAIL <rule>` | Fix that rule (`report`, `commits`, `test-first`, `allowed-files`, or `check`) and re-run it. To accept it anyway, first get the user's yes, then run `maestro verify-task <run> <task> --waive "<reason>"`; the waiver holds only for the current worktree HEAD. |
 | `maestro doctor` reports an unresolved skill | Add the skill under `skills/<category>/<name>/` or fix the name in the agent. |
 | Claude settings missing | Run `maestro init`. |
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |

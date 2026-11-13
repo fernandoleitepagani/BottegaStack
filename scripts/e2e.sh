@@ -881,7 +881,7 @@ mkdir -p "$VREPO/scripts" "$VREPO/.claude"
   && git add scripts/check AGENTS.md .claude/settings.json && git commit -q -m setup \
   && BOTTEGA_STATE_DIR="$VSTATE" "$M" start "Verify run" ) >/dev/null 2>&1
 VRUN="verify-run"
-VDIR="$VSTATE/$VRUN"
+VDIR="$(find "$VSTATE" -type d -name "$VRUN" | head -1)"
 VWTS="$TMP/verify-repo-bottega/$VRUN"
 cat > "$TMP/verify-spec.md" <<'EOF'
 # Spec
@@ -933,9 +933,9 @@ vcommit() { # <task> <message> <path>...
   shift 2
   for p in "$@"; do
     mkdir -p "$(dirname "$VWTS/$vt/$p")"
-    printf 'v\n' > "$VWTS/$vt/$p"
+    printf 'v %s\n' "$vt" > "$VWTS/$vt/$p"
   done
-  ( cd "$VWTS/$vt" && git add "$@" && git commit -q -m "$msg" )
+  ( cd "$VWTS/$vt" && git add "$@" && git commit -q -m "$msg (task $vt)" )
 }
 vreport() { mkdir -p "$VDIR/build"; printf 'STATUS: %s\n' "$2" > "$VDIR/build/$1.report.md"; }
 vcheck() { ( cd "$VWTS/$1" && BOTTEGA_STATE_DIR="$VSTATE" "$M" check "$VRUN" ) >/dev/null 2>&1; }

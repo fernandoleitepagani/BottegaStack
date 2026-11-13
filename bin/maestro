@@ -26,6 +26,7 @@ Usage:
   maestro log <run> [<phase> <decision> <why> <evidence> <result>]
   maestro verify record <run> <AC> PASS|FAIL|INCONCLUSIVE --by <role> [--evidence <file>] [--note <text>]
   maestro verify waive <run> <AC> "<reason>" | list <run>
+  maestro verify-task <run> <task> [--waive "<reason>"]
   maestro report [--retro] [--exit-code] | --close <run> [--playbook <p>] [--risk <r>] [--outcome <o>] | --finding <run> "<title>" | --trust [n]
   maestro build <run> <task> [--revise <file|->] [--block|--wait]
   maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
@@ -997,6 +998,196 @@ cmd_gate() {
   fi
   gate_commit_order_warning "$slug"
   echo "GATE: PASS"
+}
+
+# ---- Task acceptance rules --------------------------------------------------
+# A built task is accepted only when its report is DONE, it has commits, its
+# test came before the implementation, every changed file is allowed, and the
+# check passed for the worktree HEAD. `maestro build` and `maestro verify-task`
+# share this check; the waiver is recorded by `maestro verify-task --waive`.
+
+# The field text of a task line: the line containing <label> up to, but not
+# including, the next `**<Label>:**` line or heading.
+task_field_text() {
+  awk -v label="$2" '
+    index($0, label) { on = 1 }
+    on {
+      if (seen && ($0 ~ /^[[:space:]]*\*\*[^*]+:\*\*/ || $0 ~ /^#+[[:space:]]/)) exit
+      print
+      seen = 1
+    }
+  ' "$1"
+}
+
+# `verify_task_rules <slug> <task> <dir> <wt>`: print one
+# `FAIL <rule>: <detail>` line per broken rule and return 1 when any rule
+# failed. Callers own the PASS, WAIVED, and hard-fail lines.
+verify_task_rules() {
+  local slug="$1" task="$2" dir="$3" wt="$4"
+  local failed=0 rb report count tf tf_lc head
+  local p pat off="" allowed_files okpat c any all_test failure saw_test_only
+  rb="$(run_branch "$slug")"
+
+  # 1. The builder reported DONE. A BLOCKED or FAILED report never passes.
+  report="$dir/build/$task.report.md"
+  if [ ! -f "$report" ]; then
+    echo "FAIL report: no builder report"
+    failed=1
+  elif grep -qE '^STATUS: (BLOCKED|FAILED)' "$report"; then
+    echo "FAIL report: $(grep -m1 -E '^STATUS: (BLOCKED|FAILED)' "$report")"
+    failed=1
+  elif ! grep -qx 'STATUS: DONE' "$report"; then
+    echo "FAIL report: no STATUS: DONE"
+    failed=1
+  fi
+
+  # 2. The worktree has at least one commit on top of the run branch.
+  count="$(git -C "$wt" rev-list --count "$rb..HEAD" 2>/dev/null || echo 0)"
+  if [ "${count:-0}" -eq 0 ]; then
+    echo "FAIL commits: no commits on $rb"
+    failed=1
+  fi
+
+  # 3. The failing test came first. `Test first: none` or `n/a` skips the rule;
+  # a path named in the field counts as a test even when is_test_path misses it.
+  tf="$(grep -m1 'Test first:' "$dir/tasks/$task.md" 2>/dev/null \
+    | sed 's/.*Test first:[[:space:]]*//' | sed 's/^\*\*[[:space:]]*//' \
+    | tr -d '`' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/\*\*[[:space:]]*$//' || true)"
+  tf_lc="$(printf '%s' "$tf" | tr '[:upper:]' '[:lower:]')"
+  case "$tf_lc" in
+    none*|n/a*) ;;
+    '') ;;
+    *)
+      failure=""; saw_test_only=0
+      while IFS= read -r c; do
+        [ -n "$c" ] || continue
+        any=0; all_test=1
+        while IFS= read -r p; do
+          [ -n "$p" ] || continue
+          any=1
+          if ! is_test_path "$p"; then
+            case "$tf" in
+              *"$p"*) ;;
+              *) all_test=0 ;;
+            esac
+          fi
+        done < <(git -C "$wt" show --format= --name-only "$c" 2>/dev/null)
+        if [ "$any" = "1" ] && [ "$all_test" = "1" ]; then
+          saw_test_only=1
+        elif [ "$any" = "1" ] && [ "$saw_test_only" = "0" ] && [ -z "$failure" ]; then
+          failure="${c:0:7}"
+        fi
+      done < <(git -C "$wt" rev-list --reverse --no-merges "$rb..HEAD" 2>/dev/null)
+      if [ -n "$failure" ]; then
+        echo "FAIL test-first: $failure changes non-test files before any test-only commit"
+        failed=1
+      fi
+      ;;
+  esac
+
+  # 4. Every changed file is an `Allowed files` pattern: equal, a glob match, or
+  # under a pattern ending in `/`. Patterns are the backticked spans.
+  allowed_files="$(task_field_text "$dir/tasks/$task.md" 'Allowed files:' \
+    | grep -o '`[^`]*`' | tr -d '`' || true)"
+  if [ -z "$allowed_files" ]; then
+    echo "FAIL allowed-files: task lists no backticked Allowed files"
+    failed=1
+  else
+    off=""
+    while IFS= read -r p; do
+      [ -n "$p" ] || continue
+      okpat=0
+      while IFS= read -r pat; do
+        [ -n "$pat" ] || continue
+        case "$pat" in
+          */)
+            case "$p" in "$pat"*) okpat=1 ;; esac ;;
+        esac
+        [ "$okpat" = "1" ] && continue
+        [ "$p" = "$pat" ] && { okpat=1; continue; }
+        case "$p" in $pat) okpat=1 ;; esac
+      done < <(printf '%s\n' "$allowed_files")
+      if [ "$okpat" = "0" ]; then
+        if [ -z "$off" ]; then off="$p"; else off="$off, $p"; fi
+      fi
+    done < <(git -C "$wt" diff --name-only "$rb...HEAD" 2>/dev/null)
+    if [ -n "$off" ]; then
+      echo "FAIL allowed-files: $off not in Allowed files"
+      failed=1
+    fi
+  fi
+
+  # 5. The check passed for this worktree HEAD.
+  head="$(git -C "$wt" rev-parse HEAD 2>/dev/null || true)"
+  if [ -z "$head" ] || [ ! -f "$dir/checks/$head.result" ] \
+    || ! grep -qx 'RESULT: PASS' "$dir/checks/$head.result"; then
+    echo "FAIL check: no PASS record for ${head:0:7}"
+    failed=1
+  fi
+
+  [ "$failed" -eq 0 ]
+}
+
+# `maestro verify-task <run> <task> [--waive "<reason>"]`: apply the five rules
+# to a task worktree, print the failures, and honor a waiver recorded for the
+# current worktree HEAD. Exit 0 pass/waived/waiver recorded, 1 rule failure or
+# unknown run/task/worktree, 2 usage or bad id.
+cmd_verify_task() {
+  local slug="" task="" waive="" have_waive=0 head=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --waive)
+        [ "$#" -ge 2 ] || { echo 'maestro verify-task: --waive needs a reason' >&2; exit 2; }
+        waive="$2"; have_waive=1; shift 2 ;;
+      -*)
+        echo "maestro verify-task: unknown flag: $1" >&2; exit 2 ;;
+      *)
+        if [ -z "$slug" ]; then slug="$1"
+        elif [ -z "$task" ]; then task="$1"
+        else echo 'usage: maestro verify-task <run> <task> [--waive "<reason>"]' >&2; exit 2
+        fi
+        shift ;;
+    esac
+  done
+  [ -n "$slug" ] && [ -n "$task" ] \
+    || { echo 'usage: maestro verify-task <run> <task> [--waive "<reason>"]' >&2; exit 2; }
+  require_run_id "verify-task" "$slug"
+  require_run_id "verify-task" "$task"
+  if [ "$have_waive" = "1" ] && [ -z "$waive" ]; then
+    echo 'maestro verify-task: --waive needs a reason' >&2
+    exit 2
+  fi
+
+  local dir wt
+  dir="$(run_state_dir "$slug")" || { echo "maestro verify-task: not in a git repository" >&2; exit 1; }
+  [ -d "$dir" ] || { echo "maestro verify-task: no such run: $slug" >&2; exit 1; }
+  [ -f "$dir/tasks/$task.md" ] || { echo "maestro verify-task: no such task: $task" >&2; exit 1; }
+  wt="$(task_worktree "$slug" "$task")" || { echo "maestro verify-task: not in a git repository" >&2; exit 1; }
+  [ -d "$wt" ] || { echo "maestro verify-task: no worktree $wt (run: maestro worktree create $slug $task)" >&2; exit 1; }
+
+  if [ "$have_waive" = "1" ]; then
+    head="$(git -C "$wt" rev-parse HEAD)"
+    (umask 077; mkdir -p "$dir/build")
+    printf '%s\t%s\t%s\n' "$head" "$waive" "$(date -Iseconds)" > "$dir/build/$task.verify-waiver"
+    printf 'verify-task: waiver recorded for %s: %s\n' "${head:0:7}" "$waive"
+    return 0
+  fi
+
+  local failed=0 whead wreason wdate
+  verify_task_rules "$slug" "$task" "$dir" "$wt" || failed=1
+  if [ "$failed" -eq 1 ]; then
+    if [ -f "$dir/build/$task.verify-waiver" ]; then
+      IFS="$(printf '\t')" read -r whead wreason wdate < "$dir/build/$task.verify-waiver"
+      head="$(git -C "$wt" rev-parse HEAD)"
+      if [ "$whead" = "$head" ]; then
+        printf 'verify-task: WAIVED (%s)\n' "$wreason"
+        return 0
+      fi
+    fi
+    return 1
+  fi
+  echo "verify-task: PASS"
+  return 0
 }
 
 # ---- Proof of acceptance criteria ------------------------------------------
@@ -3804,6 +3995,7 @@ case "$cmd" in
   check) cmd_check "$@" ;;
   gate) cmd_gate "$@" ;;
   verify) cmd_verify "$@" ;;
+  verify-task) cmd_verify_task "$@" ;;
   log) cmd_log "$@" ;;
   report) cmd_report "$@" ;;
   build) cmd_build "$@" ;;

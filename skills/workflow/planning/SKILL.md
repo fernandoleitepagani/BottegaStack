@@ -46,8 +46,8 @@ External behaviour, not implementation; the modules tested, seams, prior art.
 **What to build:** the end-to-end behaviour, from the user's perspective.
 **Blocked by:** <task numbers/titles> or "None (can start immediately)".
 **Files and interfaces:** modules, types, or contracts; no stale line numbers.
-**Allowed files:** exact paths this task may create or modify. No others.
-**Test first:** the failing test or check that proves the task before the fix.
+**Allowed files:** backticked exact paths this task may create or modify. No others.
+**Test first:** the failing test or check that proves the task, naming the test file.
 **Done when:** the observable result and the command that proves it.
 **Acceptance criteria:**
 - [ ] <criterion>
@@ -64,7 +64,7 @@ External behaviour, not implementation; the modules tested, seams, prior art.
 ```
 ## Task rules
 - A task is a tracer bullet: a narrow but complete vertical slice (data, logic, UI, tests), demoable or verifiable alone and one context window.
-- Fill `Allowed files`, `Test first`, and `Done when`; an empty field means not ready.
+- Fill `Allowed files`, `Test first`, and `Done when`; an empty field means not ready. Write every `Allowed files` path in backticks, and make `Test first` name the test file.
 - Prefactoring comes first; a task with no blockers can start immediately. Wide refactors use expand-contract.
 - Inline decision-rich prototype code only when a decision depends on it; no stale paths or line numbers.
 ## Rules
