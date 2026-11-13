@@ -216,6 +216,43 @@ expect_not "gate --proof stale" "$M" gate run-a --proof
 "$M" verify waive run-a AC1 "user approved" >/dev/null
 expect "gate --proof waived" "$M" gate run-a --proof
 
+# Check records are keyed per HEAD (Task 2): two task worktrees at different
+# commits in the shared state directory keep their own result, so a check in B
+# no longer makes A's gate stale. A new commit in A still does.
+expect "worktree create A" "$M" worktree create run-a p1
+expect "worktree create B" "$M" worktree create run-a p2
+WT_A="$TMP/repo-bottega/run-a/p1"
+WT_B="$TMP/repo-bottega/run-a/p2"
+sha_a="$(git -C "$WT_A" rev-parse HEAD)"
+git -C "$WT_B" commit -q --allow-empty -m parallel
+sha_b="$(git -C "$WT_B" rev-parse HEAD)"
+expect "check worktree A" sh -c "cd '$WT_A' && '$M' check run-a"
+expect "check worktree B" sh -c "cd '$WT_B' && '$M' check run-a"
+checks_dir="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a/checks.result' -type f | head -1)")"
+out="$( cd "$WT_A" && "$M" gate run-a 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = "GATE: PASS" ] \
+  && [ -f "$checks_dir/checks/$sha_a.result" ] && [ -f "$checks_dir/checks/$sha_b.result" ]; then
+  ok "check record per HEAD survives a parallel worktree"
+else
+  fail "check record per HEAD survives a parallel worktree"
+fi
+grep -qx "HEAD: $sha_b" "$checks_dir/checks.result" && ok "check refreshes checks.result to the latest record" || fail "check refreshes checks.result to the latest record"
+git -C "$WT_A" commit -q --allow-empty -m after-check
+out="$( cd "$WT_A" && "$M" gate run-a 2>&1 )"; rc=$?
+if [ "$rc" -eq 1 ] && printf '%s\n' "$out" | grep -qE '^GATE: FAIL \(checks stale: [0-9a-f]+ != [0-9a-f]+\)$'; then
+  ok "gate stale after a new commit"
+else
+  fail "gate stale after a new commit"
+fi
+mkdir -p "$checks_dir/../no-record"
+out="$("$M" gate no-record 2>&1)"; rc=$?
+rmdir "$checks_dir/../no-record" 2>/dev/null || true
+if [ "$rc" -eq 1 ] && [ "$out" = "GATE: FAIL (no checks.result)" ]; then
+  ok "gate fails with no check record"
+else
+  fail "gate fails with no check record"
+fi
+
 # Builds through the stub.
 : > "$STUBLOG"
 expect "worktree create" "$M" worktree create run-a 1

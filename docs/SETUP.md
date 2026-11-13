@@ -319,8 +319,10 @@ $STATE/<slug>/            full run
   tasks/<n>.md            text of each `### Task <n>` section
   events.tsv              build events: time run task role kind step
   build/<task>.*          prompt, run/rc logs, builder report, reviews
-  checks.log              one line per check plus its output
-  checks.result           RESULT, HEAD, EXIT, SECONDS
+  checks/<sha>.result     RESULT, HEAD, EXIT, SECONDS for that commit
+  checks/<sha>.log        that check's output
+  checks.result           latest record, a copy of the newest checks/<sha>.result
+  checks.log              one summary line per check
 $STATE/quick/<slug>/      light path (no run, spec, or worktree)
   run, rc, events.tsv, prompt, report.md, builder.log, settings.json
 $STATE/steps.tsv          history of finished rev-0 builds, for estimates
@@ -454,7 +456,10 @@ maestro worktree prune <run> [--force]
 
 - `hooks` installs or removes the gitleaks pre-commit hook and the pre-push hook that runs `scripts/check`; the pre-commit hook resolves `maestro` from `PATH`, the install-time path, then the newest plugin cache copy, and warns instead of silently skipping the Bottega-file check.
 - `worktree create` creates one worktree per task for parallel builders and
-  prints a port. `worktree prune` removes them and deletes their merged local task branches; `--force` discards uncommitted
+  prints a port. Checks and review can run in each worktree in parallel:
+  `maestro check` records `checks/<sha>.result` per HEAD, so a check in one
+  worktree never makes another's gate stale. `worktree prune` removes them and
+  deletes their merged local task branches; `--force` discards uncommitted
   changes.
 
 ## Troubleshooting
