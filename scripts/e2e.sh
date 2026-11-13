@@ -1634,6 +1634,33 @@ else
 fi
 cp "$allow_backup" "$SL/skills/standalone-allow.txt"
 
+# Vendored skills (skills/vendored.txt) need a non-empty LICENSE in their folder.
+# A fresh copy gets one fixture skill with no LICENSE: lint must name it, then
+# pass once the LICENSE exists.
+VL="$TMP/vendored-lint"
+mkdir -p "$VL"
+cp -R "$ROOT/." "$VL/"
+chmod +x "$VL/scripts/standalone-skills.sh" 2>/dev/null
+mkdir -p "$VL/skills/cat/vendorfixture"
+printf -- '---\nname: vendorfixture\ndescription: fixture\n---\nclean\n' > "$VL/skills/cat/vendorfixture/SKILL.md"
+"$VL/scripts/standalone-skills.sh" --write >/dev/null 2>&1
+printf 'vendorfixture\n' > "$VL/skills/vendored.txt"
+lint_out="$( cd "$VL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -ne 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'FAIL skills/vendored.txt: no non-empty LICENSE file: vendorfixture'; then
+  ok "lint fails when a vendored skill has no license"
+else
+  fail "lint fails when a vendored skill has no license"
+fi
+printf 'MIT License\n' > "$VL/skills/cat/vendorfixture/LICENSE"
+lint_out="$( cd "$VL" && bash scripts/lint.sh 2>&1 )"; lint_rc=$?
+if [ "$lint_rc" -eq 0 ] \
+  && printf '%s\n' "$lint_out" | grep -qx 'lint: PASS'; then
+  ok "lint passes once the vendored skill has a license"
+else
+  fail "lint passes once the vendored skill has a license"
+fi
+
 # `maestro skills` (issue #27, task 2): list the checked-in standalone set and
 # copy named skills into the config dir with a marker. No --all or dependency
 # expansion yet. Every call uses a scratch CLAUDE_CONFIG_DIR.

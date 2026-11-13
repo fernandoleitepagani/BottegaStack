@@ -375,7 +375,7 @@ Other skills are invoked directly by name, not through `/maestro`:
 ```
 /wizard
 /backlog-triage
-/wayfinding
+/wayfinder
 /improve-architecture
 /review-pr
 ```

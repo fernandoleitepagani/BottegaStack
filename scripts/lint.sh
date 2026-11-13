@@ -66,6 +66,39 @@ if [ -f "$allow_file" ]; then
   done < "$allow_file"
 fi
 
+# Vendored skills (skills/vendored.txt) keep their upstream license in the
+# folder. An entry must name a skill folder, and that folder needs a non-empty
+# LICENSE* file.
+vendored_file="$ROOT/skills/vendored.txt"
+if [ -f "$vendored_file" ]; then
+  while IFS= read -r name || [ -n "$name" ]; do
+    [ -n "$name" ] || continue
+    dir=""
+    for d in "$ROOT"/skills/*/"$name"; do
+      if [ -d "$d" ] && [ -f "$d/SKILL.md" ]; then
+        dir="$d"
+        break
+      fi
+    done
+    if [ -z "$dir" ]; then
+      echo "FAIL skills/vendored.txt: no such skill: $name"
+      fail=1
+      continue
+    fi
+    licensed=""
+    for lf in "$dir"/LICENSE*; do
+      if [ -s "$lf" ]; then
+        licensed=1
+        break
+      fi
+    done
+    if [ -z "$licensed" ]; then
+      echo "FAIL skills/vendored.txt: no non-empty LICENSE file: $name"
+      fail=1
+    fi
+  done < "$vendored_file"
+fi
+
 # Templates for the on-demand project files. `maestro seed <Name>` copies these
 # lazily; init does not create them, so the lint only checks the templates.
 for f in AGENTS.md SPEC.md PLAN.md GLOSSARY.md BACKLOG.md mistakes.md REVIEW.md \

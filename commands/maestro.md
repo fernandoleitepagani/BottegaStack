@@ -26,7 +26,7 @@ starts with `quick`, pick `trivial` or a small `bugfix`. Otherwise, load
 Otherwise, start at **Step 0 — Explore and set up**.
 
 Other skills are invoked directly by name, not through `/maestro`: for example
-`/wizard`, `/backlog-triage`, `/wayfinding`, `/improve-architecture`, and
+`/wizard`, `/backlog-triage`, `/wayfinder`, `/improve-architecture`, and
 `/review-pr`.
 
 @${CLAUDE_PLUGIN_ROOT}/agents/master.md
