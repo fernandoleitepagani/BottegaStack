@@ -99,6 +99,17 @@ printf '%s\n' "$out" | grep -qx "version: $plugin_version" && ok "doctor prints 
 f=$(grep -oE '@\$\{CLAUDE_PLUGIN_ROOT\}/[^ ]+' "$ROOT/commands/maestro.md" | sed 's#@${CLAUDE_PLUGIN_ROOT}/##')
 [ -n "$f" ] && [ -f "$ROOT/$f" ] && ok "/maestro includes $f" || fail "/maestro includes the master"
 
+# Monitor and `build --status --every` were designed out (Task 3): the master
+# and docs drive progress with `maestro watch` instead.
+if grep -nE 'Monitor|--every' "$ROOT/agents/master.md" "$ROOT/commands/maestro.md" \
+  "$ROOT/docs/WORKFLOW.md" "$ROOT/docs/SETUP.md" "$ROOT/skills/workflow/playbooks/SKILL.md" \
+  "$ROOT/README.md" "$ROOT/AGENTS.md" >/dev/null 2>&1; then
+  fail "docs: no Monitor or --every"
+else
+  ok "docs: no Monitor or --every"
+fi
+grep -q 'maestro watch' "$ROOT/agents/master.md" && ok "docs: master names maestro watch" || fail "docs: master names maestro watch"
+
 # `start` validates before it writes (issue #16): a refused start leaves the
 # repo byte-for-byte unchanged in a fresh repo, since auto-init would otherwise
 # run before the branch and cleanliness rules.
@@ -293,7 +304,12 @@ grep -q -- "--plugin-dir /some/checkout" "$STUBLOG" && ok "BOTTEGA_PLUGIN_DIR" |
 expect "check light" "$M" check q1
 find "$BOTTEGA_STATE_DIR" -path '*/quick/q1/checks.result' -type f | grep -q . && ok "check light records in the quick dir" || fail "check light records in the quick dir"
 expect "gate light" "$M" gate q1
-"$M" build --status q1 --every 1 | grep -q 'Builders 1/1 done' && ok "build --status light --every" || fail "build --status light --every"
+out="$("$M" build --status q1 --every 5 2>&1)"; rc=$?
+if [ "$rc" -eq 2 ] && printf '%s\n' "$out" | grep -q 'maestro watch'; then
+  ok "status: --every removed"
+else
+  fail "status: --every removed"
+fi
 git commit -q --allow-empty -m light-next
 expect_not "gate light stale" "$M" gate q1
 expect "check light again" "$M" check q1
@@ -375,12 +391,259 @@ else
 fi
 for s in tiers tiers2 fail1 fail2 stat-ready stat-fail race; do "$M" report --close "$s" >/dev/null 2>&1; done
 
+# Event log (Task 1): every headless flavour appends start/step/end to the run's
+# events.tsv with six tab-separated fields, and creates no .progress file.
+SDIR="$(dirname "$(find "$BOTTEGA_STATE_DIR" -path '*/run-a' -type d | head -1)")"
+events_ok() { # <name> <events> <task> <role>
+  local name="$1" ev="$2" task="$3" role="$4" starts steps ends bad
+  if [ ! -f "$ev" ]; then fail "$name"; return; fi
+  starts="$(awk -F'\t' -v t="$task" -v r="$role" '$5 == "start" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$ev")"
+  steps="$(awk -F'\t' -v t="$task" -v r="$role" '$5 == "step" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$ev")"
+  ends="$(awk -F'\t' -v t="$task" -v r="$role" '$5 == "end" && $3 == t && $4 == r { n++ } END { print n + 0 }' "$ev")"
+  bad="$(awk -F'\t' -v t="$task" -v r="$role" '$3 == t && $4 == r && (NF != 6 || tolower($0) ~ /token/) { n++ } END { print n + 0 }' "$ev")"
+  if [ "$starts" -ge 1 ] && [ "$steps" -ge 1 ] && [ "$ends" -eq 1 ] && [ "$bad" -eq 0 ]; then
+    ok "$name"
+  else
+    fail "$name"
+  fi
+}
+expect "events: worktree for run task" "$M" worktree create run-a 2
+expect "events: build run task" "$M" build run-a 2 --block
+expect "events: build review" "$M" build --review run-a 2 --block
+expect "events: build here" "$M" build --here ev-here --task "events" --block
+expect "events: build review here" "$M" build --review --here ev-here --block
+events_ok "events: run task start/step/end" "$SDIR/run-a/events.tsv" 2 builder
+events_ok "events: run review start/step/end" "$SDIR/run-a/events.tsv" 2 reviewer
+events_ok "events: here start/step/end" "$SDIR/quick/ev-here/events.tsv" - builder
+events_ok "events: here review start/step/end" "$SDIR/quick/ev-here/events.tsv" - reviewer
+if awk -F'\t' 'NF != 6 || tolower($0) ~ /token/ { bad++ } END { exit bad ? 1 : 0 }' "$SDIR/run-a/events.tsv"; then
+  ok "events: six fields, no token fields"
+else
+  fail "events: six fields, no token fields"
+fi
+if find "$BOTTEGA_STATE_DIR" -name '*.progress' -print -quit | grep -q .; then
+  fail "events: no .progress file"
+else
+  ok "events: no .progress file"
+fi
+
+# `build --status` counts step events, not lines in a .progress file.
+EVDIR="$SDIR/quick/ev-status"
+mkdir -p "$EVDIR"
+printf 'rev=0\nsid=\n' > "$EVDIR/run"
+printf '1000\tev-status\t-\tbuilder\tstart\trev=0\n1001\tev-status\t-\tbuilder\tstep\tRead: a.txt\n1002\tev-status\t-\tbuilder\tstep\tBash: ls\n' > "$EVDIR/events.tsv"
+out="$("$M" build --status ev-status 2>&1)"
+if printf '%s\n' "$out" | grep -q 'Builders 0/1 done · 1 running' \
+  && printf '%s\n' "$out" | grep -q 'ev-status: 2 steps, last Bash: ls'; then
+  ok "status: steps come from events"
+else
+  fail "status: steps come from events"
+fi
+out="$("$M" build --here ev-steps --task "count steps" --block 2>&1)"
+printf '%s\n' "$out" | grep -qx 'steps: 1' && ok "status: steps line counts step events" || fail "status: steps line counts step events"
+
+# steps.tsv history: only a rev-0 builder build ending STATUS: DONE appends,
+# and the history outlives `report --close`.
+history="$SDIR/steps.tsv"
+hcount() { if [ -f "$history" ]; then wc -l < "$history" | tr -d ' '; else echo 0; fi; }
+before="$(hcount)"
+"$M" build --here hist-ok --task "history" --block >/dev/null 2>&1
+after="$(hcount)"
+if [ "$after" -eq $((before + 1)) ] \
+  && awk -F'\t' -v n="$after" 'NR == n { ok = (NF == 5 && $2 == "builder" && $4 + 0 > 0 && $5 + 0 >= 0) } END { exit ok ? 0 : 1 }' "$history"; then
+  ok "history: DONE build appends one line"
+else
+  fail "history: DONE build appends one line"
+fi
+before="$(hcount)"
+STUB_FAIL=1 "$M" build --here hist-fail --task "history fail" --block >/dev/null 2>&1
+[ "$(hcount)" -eq "$before" ] && ok "history: failed build appends nothing" || fail "history: failed build appends nothing"
+"$M" build --here hist-rev --task "history base" --block >/dev/null 2>&1
+before="$(hcount)"
+echo 'fix it' | "$M" build --here hist-rev --revise - --block >/dev/null 2>&1
+[ "$(hcount)" -eq "$before" ] && ok "history: revision appends nothing" || fail "history: revision appends nothing"
+"$M" build --here hist-close --task "history close" --block >/dev/null 2>&1
+before="$(hcount)"
+"$M" report --close hist-close >/dev/null 2>&1
+if [ ! -d "$SDIR/quick/hist-close" ] && [ "$(hcount)" -eq "$before" ]; then
+  ok "history: survives report --close"
+else
+  fail "history: survives report --close"
+fi
+# Close the light runs this section opened so the hook tests below see a quiet
+# state directory (guard stop only blocks while a run is open).
+for s in ev-here ev-steps ev-status hist-ok hist-fail hist-rev; do "$M" report --close "$s" >/dev/null 2>&1; done
+
+# `maestro watch --line` (Task 2): one status line from the newest open run.
+# Fixtures use fixed event times (BOTTEGA_NOW) and mtimes so the numbers are
+# exact. Its own repo and state dir keep the other open runs out of the pick.
+LREPO="$TMP/line-repo"
+LSTATE="$TMP/line-state"
+mkdir -p "$LREPO"
+( cd "$LREPO" && git init -q -b main && git commit -q --allow-empty -m init \
+  && git checkout -q -b work && BOTTEGA_STATE_DIR="$LSTATE" "$M" start "Line seed" ) >/dev/null 2>&1
+LROOT="$(dirname "$(find "$LSTATE" -type d -name line-seed 2>/dev/null | head -1)")"
+line() { printf '{"workspace":{"current_dir":"%s"}}' "$1" | BOTTEGA_NOW="${2:-10000}" BOTTEGA_STATE_DIR="$LSTATE" "$M" watch --line; }
+mk_line_run() { # <slug> <tasks>
+  local slug="$1" n="$2" i=1
+  mkdir -p "$LROOT/$slug/tasks" "$LROOT/$slug/build"
+  while [ "$i" -le "$n" ]; do : > "$LROOT/$slug/tasks/$i.md"; i=$((i + 1)); done
+}
+mk_line_run line-4 4
+printf 'STATUS: DONE\n' > "$LROOT/line-4/build/1.report.md"
+printf 'sid=\n' > "$LROOT/line-4/build/2.run"
+printf '9000\tline-4\t1\tbuilder\tstart\trev=0\n9100\tline-4\t1\tbuilder\tstep\tRead: a.txt\n9200\tline-4\t1\tbuilder\tend\trc=0 DONE\n9970\tline-4\t2\tbuilder\tstart\trev=0\n9980\tline-4\t2\tbuilder\tstep\tBash: ls\n9990\tline-4\t2\tbuilder\tstep\tRead: b.txt\n' > "$LROOT/line-4/events.tsv"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '1/4 tasks' ]; then
+  ok "line: tasks without samples"
+else
+  fail "line: tasks without samples"
+fi
+# Three builder samples for the path of the newest builder sample; other paths
+# and the reviewer role do not count.
+printf '100\tbuilder\t/some/repo\t10\t120\n200\tbuilder\t/some/repo\t10\t120\n250\tbuilder\t/elsewhere\t50\t600\n300\tbuilder\t/some/repo\t10\t120\n320\treviewer\t/some/repo\t99\t900\n' > "$LROOT/steps.tsv"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '1/4 tasks · ~30% · ETA 6m' ]; then
+  ok "line: percent and ETA"
+else
+  fail "line: percent and ETA"
+fi
+mk_line_run line-stall 2
+printf 'sid=\n' > "$LROOT/line-stall/build/1.run"
+printf '9500\tline-stall\t1\tbuilder\tstart\trev=0\n9600\tline-stall\t1\tbuilder\tstep\tBash: ls\n' > "$LROOT/line-stall/events.tsv"
+touch -t 209001010000 "$LROOT/line-4/events.tsv"
+touch -t 209901010000 "$LROOT/line-stall/events.tsv"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '0/2 tasks · ~5% · ETA 2m · stalled' ]; then
+  ok "line: stalled and newest run"
+else
+  fail "line: stalled and newest run"
+fi
+: > "$LROOT/line-stall/paused"
+out="$(line "$LREPO")"; rc=$?
+if [ "$rc" -eq 0 ] && [ "$out" = '1/4 tasks · ~30% · ETA 6m' ]; then
+  ok "line: paused run skipped"
+else
+  fail "line: paused run skipped"
+fi
+out="$(printf 'not json' | BOTTEGA_STATE_DIR="$LSTATE" "$M" watch --line 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: bad stdin prints nothing" || fail "line: bad stdin prints nothing"
+mkdir -p "$TMP/not-a-repo"
+out="$(line "$TMP/not-a-repo" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: outside git prints nothing" || fail "line: outside git prints nothing"
+rm -rf "$LROOT/line-4" "$LROOT/line-stall"
+out="$(line "$LREPO" 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && [ -z "$out" ] && ok "line: no run prints nothing" || fail "line: no run prints nothing"
+
+# `maestro watch <run>` (Task 3): a TTY frame, change-only lines in a pipe, and
+# the exit rules. Fixed BOTTEGA_NOW and mtimes keep the numbers exact. Its own
+# repo and state dir keep the other runs out of the fixture.
+WREPO="$TMP/watch-repo"
+WSTATE="$TMP/watch-state"
+mkdir -p "$WREPO"
+( cd "$WREPO" && git init -q -b main && git commit -q --allow-empty -m init \
+  && git switch -q -c feat/watch && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Watch seed" ) >/dev/null 2>&1
+WROOT="$(dirname "$(find "$WSTATE" -type d -name watch-seed 2>/dev/null | head -1)")"
+mk_watch_run() { # <slug> <tasks>
+  local slug="$1" n="$2" i=1
+  mkdir -p "$WROOT/$slug/tasks" "$WROOT/$slug/build"
+  while [ "$i" -le "$n" ]; do : > "$WROOT/$slug/tasks/$i.md"; i=$((i + 1)); done
+}
+mk_watch_run watch-4 4
+printf 'STATUS: DONE\n' > "$WROOT/watch-4/build/1.report.md"
+printf 'sid=\n' > "$WROOT/watch-4/build/2.run"
+printf '9000\twatch-4\t1\tbuilder\tstart\trev=0\n9100\twatch-4\t1\tbuilder\tstep\tRead: a.txt\n9200\twatch-4\t1\tbuilder\tend\trc=0 DONE\n9970\twatch-4\t2\tbuilder\tstart\trev=0\n9980\twatch-4\t2\tbuilder\tstep\tBash: ls\n9990\twatch-4\t2\tbuilder\tstep\tRead: b.txt\n' > "$WROOT/watch-4/events.tsv"
+printf '100\tbuilder\t/some/repo\t10\t120\n200\tbuilder\t/some/repo\t10\t120\n300\tbuilder\t/some/repo\t10\t120\n' > "$WROOT/steps.tsv"
+out="$( cd "$WREPO" && BOTTEGA_NOW=10000 BOTTEGA_WATCH_TTY=1 BOTTEGA_WATCH_ONCE=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-4 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] \
+  && printf '%s\n' "$out" | grep -qx 'Watch watch-4: 1/4 tasks · ~30% · ETA 6m (estimate) · elapsed 16m' \
+  && printf '%s\n' "$out" | grep -qx '  1  done  1 steps' \
+  && printf '%s\n' "$out" | grep -qx '  2  running  2 steps, last Read: b.txt' \
+  && [ "$(printf '%s\n' "$out" | grep -c '^  [0-9]')" -eq 4 ]; then
+  ok "watch: frame"
+else
+  fail "watch: frame"
+fi
+out="$( cd "$WREPO" && BOTTEGA_NOW=10000 BOTTEGA_WATCH_TTY=0 BOTTEGA_WATCH_ONCE=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-4 2>&1 )"; rc=$?
+[ "$rc" -eq 0 ] && [ "$out" = 'progress: 1/4 tasks · ~30% · ETA 6m' ] && ok "watch: non-TTY progress line" || fail "watch: non-TTY progress line"
+# A stable running run polls but prints its line only once.
+( cd "$WREPO" && exec env BOTTEGA_NOW=10000 BOTTEGA_WATCH_TTY=0 BOTTEGA_WATCH_EVERY=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-4 ) > "$TMP/watch-nontty.out" 2>&1 &
+watch_pid=$!
+sleep 3
+kill "$watch_pid" 2>/dev/null
+wait "$watch_pid" 2>/dev/null
+[ "$(grep -c '^progress:' "$TMP/watch-nontty.out")" -eq 1 ] && ok "watch: non-TTY prints changes only" || fail "watch: non-TTY prints changes only"
+mk_watch_run watch-done 1
+printf 'STATUS: DONE\n' > "$WROOT/watch-done/build/1.report.md"
+out="$( cd "$WREPO" && BOTTEGA_WATCH_TTY=0 BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-done 2>&1 )"; rc=$?
+[ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' && ok "watch: done exits 0" || fail "watch: done exits 0"
+mk_watch_run watch-hold 2
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" hold watch-hold "human needed" ) >/dev/null 2>&1
+out="$( cd "$WREPO" && BOTTEGA_WATCH_TTY=0 BOTTEGA_WATCH_ONCE=1 \
+  BOTTEGA_STATE_DIR="$WSTATE" "$M" watch watch-hold 2>&1 )"; rc=$?
+[ "$rc" -eq 0 ] && [ "$out" = 'HOLD: human needed' ] && ok "watch: hold exits 0" || fail "watch: hold exits 0"
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" watch no-such-watch 2>&1 )"; rc=$?
+[ "$rc" -eq 2 ] && ok "watch: unknown run exits 2" || fail "watch: unknown run exits 2"
+rm -rf "$WROOT/watch-4" "$WROOT/watch-done" "$WROOT/watch-hold"
+
+# Every headless build flavour prints `progress:` lines while it waits (Task 3).
+# Its own state dir keeps the counts to one task; the final summary is unchanged.
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" start "Progress run" ) >/dev/null 2>&1
+printf '# Spec\n## Acceptance criteria\n- AC1: works. Proof: `true` -> exit 0\n### Task 1 - one\nbody\n' > "$TMP/progress-spec.md"
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" spec progress-run "$TMP/progress-spec.md" ) >/dev/null 2>&1
+( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" worktree create progress-run 1 ) >/dev/null 2>&1
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build progress-run 1 --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -qx 'task: 1' \
+  && printf '%s\n' "$out" | grep -q '^steps: ' \
+  && printf '%s\n' "$out" | grep -q '^report: '; then
+  ok "build progress: run task"
+else
+  fail "build progress: run task"
+fi
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build --review progress-run 1 --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -qx 'review: progress-run 1' \
+  && printf '%s\n' "$out" | grep -q '^steps: '; then
+  ok "build progress: review"
+else
+  fail "build progress: review"
+fi
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build --here prog-here --task "progress" --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -qx 'task: prog-here' \
+  && printf '%s\n' "$out" | grep -q '^steps: '; then
+  ok "build progress: here"
+else
+  fail "build progress: here"
+fi
+out="$( cd "$WREPO" && BOTTEGA_STATE_DIR="$WSTATE" "$M" build --review --here prog-here --block 2>&1 )"; rc=$?
+if [ "$rc" -eq 0 ] && printf '%s\n' "$out" | grep -q '^progress: 1/1 tasks' \
+  && printf '%s\n' "$out" | grep -q '^review: prog-here' \
+  && printf '%s\n' "$out" | grep -q '^steps: '; then
+  ok "build progress: review here"
+else
+  fail "build progress: review here"
+fi
+
 # Hooks.
 printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 3","status":"pending","activeForm":"x"}]}}]}}' > "$TMP/t.jsonl"
 hook_in="{\"transcript_path\":\"$TMP/t.jsonl\",\"stop_hook_active\":false}"
 echo "$hook_in" | "$M" guard stop | grep -q '"block"' && ok "stop hook blocks with an open run" || fail "stop hook blocks with an open run"
 echo '{"tool_input":{"subagent_type":"bottega:builder"}}' | "$M" guard builder | grep -q deny && ok "builder guard (namespaced)" || fail "builder guard (namespaced)"
-echo '{"tool_input":{"subagent_type":"bottega:explorer"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
+echo '{"tool_input":{"subagent_type":"bottega:builder","model":"opus","effort":"high"}}' | "$M" guard builder | grep -q 'headless builder is configured' && ok "builder guard: headless denial kept" || fail "builder guard: headless denial kept"
+echo '{"tool_input":{"subagent_type":"bottega:explorer","model":"haiku","effort":"low"}}' | "$M" guard builder | grep -q deny && fail "guard ignores other agents" || ok "guard ignores other agents"
+# Every bottega agent call must name both model and effort; anything else is a
+# routing mistake the hook refuses. Non-bottega agents and unreadable input pass.
+echo '{"tool_input":{"subagent_type":"bottega:planner","effort":"high"}}' | "$M" guard builder | grep -q deny && ok "agent guard: missing model denied" || fail "agent guard: missing model denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"opus"}}' | "$M" guard builder | grep -q deny && ok "agent guard: missing effort denied" || fail "agent guard: missing effort denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"","effort":"high"}}' | "$M" guard builder | grep -q deny && ok "agent guard: empty model denied" || fail "agent guard: empty model denied"
+echo '{"tool_input":{"subagent_type":"bottega:planner","model":"opus","effort":"high"}}' | "$M" guard builder | grep -q deny && fail "agent guard: model and effort allowed" || ok "agent guard: model and effort allowed"
+echo 'not json' | "$M" guard builder | grep -q deny && fail "agent guard: bad json fails open" || ok "agent guard: bad json fails open"
+echo '{"tool_input":{"subagent_type":"general-purpose"}}' | "$M" guard builder | grep -q deny && fail "agent guard: ignores non-bottega agents" || ok "agent guard: ignores non-bottega agents"
 
 # A hold records an escalation, lets the Stop hook end the session, and shows in
 # `build --status` (issue #23). An isolated state dir keeps the other open runs
@@ -529,6 +792,50 @@ if [ "$rc" -eq 1 ] && [ -z "$out" ] && grep -qxF 'maestro resume: no such run: n
 else
   fail "resume unknown run names the run on stderr"
 fi
+
+# Stop-hook evidence (AC10): with every todo complete, an open run must record a
+# passing check and, when the SPEC has Proof criteria, a PASS/WAIVED row per
+# criterion plus a reviewer/second-opinion row. Each reason names the command
+# that records the evidence. An isolated state dir keeps other runs out.
+printf '%s\n' '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Step 1","status":"completed","activeForm":"x"}]}}]}}' > "$TMP/t-done.jsonl"
+hook_done="{\"transcript_path\":\"$TMP/t-done.jsonl\",\"stop_hook_active\":false}"
+ESTATE="$TMP/evidence-state"
+ev_out="$(BOTTEGA_STATE_DIR="$ESTATE" "$M" start "Evidence run" 2>&1)"; rc=$?
+ev_slug="$(printf '%s\n' "$ev_out" | sed -n 's/^run: //p')"
+[ "$rc" -eq 0 ] && [ -n "$ev_slug" ] && ok "stop evidence: start fixture" || fail "stop evidence: start fixture"
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+if printf '%s\n' "$out" | grep -q '"block"' && printf '%s\n' "$out" | grep -qF "maestro check $ev_slug"; then
+  ok "stop evidence: no check blocks"
+else
+  fail "stop evidence: no check blocks"
+fi
+BOTTEGA_STATE_DIR="$ESTATE" "$M" check "$ev_slug" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop evidence: silent with a passing check" || fail "stop evidence: silent with a passing check"
+cat > "$TMP/evidence-spec.md" <<'EOF'
+## Acceptance criteria
+- AC1: the run works. Proof: `true` -> ok.
+EOF
+BOTTEGA_STATE_DIR="$ESTATE" "$M" spec "$ev_slug" "$TMP/evidence-spec.md" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+if printf '%s\n' "$out" | grep -q '"block"' && printf '%s\n' "$out" | grep -qF "maestro verify record $ev_slug AC1"; then
+  ok "stop evidence: no proof blocks"
+else
+  fail "stop evidence: no proof blocks"
+fi
+printf 'true\n' > "$TMP/evidence.txt"
+BOTTEGA_STATE_DIR="$ESTATE" "$M" verify record "$ev_slug" AC1 PASS --by master --evidence "$TMP/evidence.txt" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+if printf '%s\n' "$out" | grep -q '"block"' && printf '%s\n' "$out" | grep -q 'reviewer or second-opinion'; then
+  ok "stop evidence: no review blocks"
+else
+  fail "stop evidence: no review blocks"
+fi
+BOTTEGA_STATE_DIR="$ESTATE" "$M" verify record "$ev_slug" AC1 PASS --by reviewer --evidence "$TMP/evidence.txt" >/dev/null 2>&1
+out="$(echo "$hook_done" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop evidence: silent with evidence" || fail "stop evidence: silent with evidence"
+out="$(echo "{\"transcript_path\":\"$TMP/t-done.jsonl\",\"stop_hook_active\":true}" | BOTTEGA_STATE_DIR="$ESTATE" "$M" guard stop 2>&1)"
+[ -z "$out" ] && ok "stop evidence: stop_hook_active is silent" || fail "stop evidence: stop_hook_active is silent"
 
 # The git hooks resolve maestro without the plugin bin/ on PATH (issue #3):
 # PATH, then the install-time record, then the newest plugin cache copy.
@@ -1184,6 +1491,10 @@ build
 build --init
 build --check
 build --status
+watch
+watch --line
+lab
+lab trivial
 build --here q
 build --review
 worktree
@@ -1343,6 +1654,88 @@ if [ "$rc" -eq 1 ] && [ "$out" = "maestro build --review: no such run: no-such-r
 else
   fail "review unknown run fails before the model"
 fi
+
+# `maestro lab` is opt-in: it runs the real master on sonnet/low in a scratch
+# HOME, config, state, and temp dir, with the builder stubbed. CI and the
+# release gate never call a model, so these cases inject a fake master with
+# BOTTEGA_LAB_CLAUDE; the wrapper and its isolation are under test, not a model.
+LAB="$TMP/lab"
+mkdir -p "$LAB"
+LAB_LOG="$LAB/master.log"
+export LAB_LOG
+LAB_FAKE_MASTER="$LAB/fake-master"
+cat > "$LAB_FAKE_MASTER" <<'EOF'
+#!/usr/bin/env bash
+# Fake master: record the wrapper facts, then run the scenario's builder side
+# effect so the scenario's expect script passes without a model.
+{
+  for lab_arg in "$@"; do
+    printf 'ARG=%s\n' "$lab_arg"
+  done
+  printf 'HOME=%s\n' "$HOME"
+  printf 'XDG_CONFIG_HOME=%s\n' "$XDG_CONFIG_HOME"
+  printf 'CLAUDE_CONFIG_DIR=%s\n' "$CLAUDE_CONFIG_DIR"
+  printf 'BOTTEGA_STATE_DIR=%s\n' "$BOTTEGA_STATE_DIR"
+  printf 'TMPDIR=%s\n' "$TMPDIR"
+  printf 'CLAUDE=%s\n' "$(command -v claude)"
+  printf 'BUILDER_ENV=%s\n' "$(tr '\n' ' ' < "${XDG_CONFIG_HOME:-$HOME/.config}/bottega/builder.env" 2>/dev/null)"
+  if [ -s "${XDG_CONFIG_HOME:-$HOME/.config}/bottega/builder.key" ]; then
+    printf 'KEY_EXISTS=yes\n'
+  else
+    printf 'KEY_EXISTS=no\n'
+  fi
+  printf 'OAUTH=%s\n' "${CLAUDE_CODE_OAUTH_TOKEN:+yes}"
+} >> "$LAB_LOG"
+[ -n "${BOTTEGA_LAB_BUILDER:-}" ] && [ -f "$BOTTEGA_LAB_BUILDER" ] && bash "$BOTTEGA_LAB_BUILDER"
+exit 0
+EOF
+chmod +x "$LAB_FAKE_MASTER"
+
+out="$(env -u CLAUDE_CODE_OAUTH_TOKEN -u ANTHROPIC_API_KEY "$M" lab trivial 2>&1)"; rc=$?
+if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -q 'CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY'; then
+  ok "lab: refuses without auth"
+else
+  fail "lab: refuses without auth"
+fi
+
+: > "$LAB_LOG"
+out="$(BOTTEGA_LAB_CLAUDE="$LAB_FAKE_MASTER" CLAUDE_CODE_OAUTH_TOKEN=lab-token "$M" lab trivial --keep 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && ok "lab: trivial scenario passes with a fake master" || fail "lab: trivial scenario passes with a fake master"
+grep -q '^HOME=.*/maestro-lab\.' "$LAB_LOG" && ok "lab: scratch HOME" || fail "lab: scratch HOME"
+if grep -q '^XDG_CONFIG_HOME=.*/maestro-lab\.' "$LAB_LOG" \
+  && grep -q '^CLAUDE_CONFIG_DIR=.*/maestro-lab\.' "$LAB_LOG" \
+  && grep -q '^BOTTEGA_STATE_DIR=.*/maestro-lab\.' "$LAB_LOG" \
+  && grep -q '^TMPDIR=.*/maestro-lab\.' "$LAB_LOG"; then
+  ok "lab: scratch config, state, and temp"
+else
+  fail "lab: scratch config, state, and temp"
+fi
+if grep -q '^BUILDER_ENV=.*ANTHROPIC_BASE_URL=http://stub.invalid' "$LAB_LOG" && grep -qx '^KEY_EXISTS=yes' "$LAB_LOG"; then
+  ok "lab: fake builder env and key"
+else
+  fail "lab: fake builder env and key"
+fi
+grep -q '^CLAUDE=.*/maestro-lab\.[^/]*/bin/claude$' "$LAB_LOG" && ok "lab: stub claude first on PATH" || fail "lab: stub claude first on PATH"
+if grep -qx 'ARG=--model' "$LAB_LOG" && grep -qx 'ARG=sonnet' "$LAB_LOG" \
+  && grep -qx 'ARG=--effort' "$LAB_LOG" && grep -qx 'ARG=low' "$LAB_LOG"; then
+  ok "lab: master on sonnet low"
+else
+  fail "lab: master on sonnet low"
+fi
+if grep -qx 'ARG=--allowedTools' "$LAB_LOG" \
+  && grep -qxF 'ARG=Read,Grep,Glob,Write,Edit,Skill,Agent,Task,TodoWrite,Bash(maestro:*),Bash(git:*),Bash(./scripts/check:*)' "$LAB_LOG" \
+  && grep -qx 'ARG=--disallowedTools' "$LAB_LOG" \
+  && grep -qxF 'ARG=Bash(git push:*),Bash(gh:*),WebFetch,WebSearch,AskUserQuestion' "$LAB_LOG"; then
+  ok "lab: master allow and deny lists"
+else
+  fail "lab: master allow and deny lists"
+fi
+if grep -qx 'ARG=--plugin-dir' "$LAB_LOG" && grep -qx 'ARG=--strict-mcp-config' "$LAB_LOG"; then
+  ok "lab: master loads the plugin with no MCP"
+else
+  fail "lab: master loads the plugin with no MCP"
+fi
+grep -qx '^OAUTH=yes' "$LAB_LOG" && ok "lab: auth env passed through" || fail "lab: auth env passed through"
 
 # Worktrees: named branches survive prune; merged task branches go.
 expect "worktree create --branch" "$M" worktree create prog u1 --branch feat/unit-1

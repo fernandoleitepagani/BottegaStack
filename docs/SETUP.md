@@ -71,6 +71,32 @@ A plugin cannot change your global Claude Code config, so set these yourself:
   there yourself.
 - The plugin does not install a launcher into `~/.local/bin`. `maestro` is on
   `PATH` only inside a session.
+- The plugin does not configure the status line. Point Claude Code's status
+  line at the builder watcher in `~/.claude/settings.json`:
+
+  ```json
+  {
+    "statusLine": {
+      "type": "command",
+      "command": "maestro watch --line",
+      "refreshInterval": 10
+    }
+  }
+  ```
+
+  `maestro watch --line` reads Claude Code's JSON (`workspace.current_dir`) on
+  stdin and prints `<done>/<total> tasks · ~<percent>% · ETA <minutes>m`, plus
+  ` · stalled` when a running builder has logged no event for two minutes. It
+  picks the newest open, non-paused run by `events.tsv` mtime. With fewer than
+  three `steps.tsv` samples it prints only `<done>/<total> tasks`; outside a git
+  repository, with no run, or with bad stdin it prints nothing. It always exits
+  0.
+
+  Set `refreshInterval` between 5 and 30 seconds. Each refresh is local and
+  cheap: one `events.tsv` pass and one `steps.tsv` read, with no model call and
+  no network, and it runs only while the session is open. Status-line commands
+  run in a plain shell, so `maestro` must be on `PATH` there; use the absolute
+  path to the plugin's `bin/maestro` when it is not.
 
 ### Builder key
 
@@ -292,11 +318,13 @@ state directory. The directory is created mode 700.
 $STATE/<slug>/            full run
   spec.md                 the approved SPEC
   tasks/<n>.md            text of each `### Task <n>` section
-  build/<task>.*          prompt, run/rc/progress logs, builder report, reviews
+  events.tsv              build events: time run task role kind step
+  build/<task>.*          prompt, run/rc logs, builder report, reviews
   checks.log              one line per check plus its output
   checks.result           RESULT, HEAD, EXIT, SECONDS
 $STATE/quick/<slug>/      light path (no run, spec, or worktree)
-  run, rc, progress, prompt, report.md, builder.log, settings.json
+  run, rc, events.tsv, prompt, report.md, builder.log, settings.json
+$STATE/steps.tsv          history of finished rev-0 builds, for estimates
 ```
 
 Nothing is written into the repo or a worktree. The chat and the PR (or merge
@@ -330,12 +358,14 @@ maestro build <run> <task> [--revise <file|->] [--block|--wait]
 maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
-maestro build --status <run> [--every <seconds>]
+maestro build --status <run>
+maestro watch <run>
+maestro watch --line
 ```
 
 - `--here` is the light path: it needs no run, SPEC, or worktree, builds in the
   current checkout on the current branch, and keeps state in
-  `$STATE/quick/<slug>/` (`run`, `rc`, `progress`, `prompt`, `report.md`,
+  `$STATE/quick/<slug>/` (`run`, `rc`, `events.tsv`, `prompt`, `report.md`,
   `builder.log`, `settings.json`).
 - `--review` runs the read-only `review-code` agent in the task worktree on the
   third-party model and puts the findings in
@@ -369,9 +399,49 @@ maestro build --status <run> [--every <seconds>]
   the stack with `--plugin-dir`; the `eval` playbook uses it to run a variant.
 - The builder gets a slim tool set (Bash, Edit, Glob, Grep, Read, Skill, Write,
   TodoWrite) and no MCP servers.
-- `build/<task>.progress` gets one line per builder tool call; `maestro build`
-  prints the last one while the build is still `RUNNING`, then prints `tokens: in
-  <n> out <n>` and `steps: <n>` at the end.
+- The run's `events.tsv` gets one line per build event, with six tab-separated
+  fields (`time run task role kind step`; `time` is epoch seconds): `start` when
+  the builder starts (with `rev=<n>`), one `step` per tool call, and `end` with
+  its exit code and report status. It replaces the old `.progress` files.
+  `maestro build` prints the last
+  step while the build is still `RUNNING`, then `tokens: in <n> out <n>` and
+  `steps: <n>` (the number of `step` events) at the end.
+- A first (rev-0) builder build that ends `STATUS: DONE` also appends a line to
+  `$STATE/steps.tsv` (`time role path steps seconds`); failed builds and
+  revisions add nothing. The file sits in the state root, so it outlives
+  `report --close`.
+
+## Lab
+
+`maestro lab` is an opt-in end-to-end rehearsal of the real master. It never
+runs from `scripts/check`, `scripts/validate.sh`, or CI: those drive every
+command with a fake master and a stub builder, so they spend no model and use no
+network. Run the lab by hand when you changed the master prompt, the playbooks,
+or the workflow hooks.
+
+```bash
+maestro lab [trivial|bugfix|feature-fix|pause-resume] [--keep]
+```
+
+- The master runs on `sonnet` with `low` effort. It needs
+  `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` in the environment; the lab
+  passes it through unread and exits 3 when neither is set.
+- The builder is stubbed (`lab/stub-claude`), so only the master calls a model.
+  The scratch `builder.env` points at `http://stub.invalid`, so an unstubbed
+  builder call fails fast instead of reaching a real endpoint.
+- Everything is isolated: `HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`,
+  `XDG_DATA_HOME`, `CLAUDE_CONFIG_DIR`, `BOTTEGA_STATE_DIR`, and `TMPDIR` move
+  under one scratch directory, and the stub `claude` is first on `PATH`.
+- With no scenario it runs all four. Each scenario has a fixture, a master
+  prompt, a stub-builder side effect, and an `expect` assertion; a failed
+  scenario stops the run with a non-zero exit.
+- `--keep` prints the scratch path and keeps it for inspection. Without it the
+  scratch directory is removed on exit.
+- The master gets `--plugin-dir <checkout>` and `--strict-mcp-config`, plus a
+  real allow list: `Read,Grep,Glob,Write,Edit,Skill,Agent,Task,TodoWrite`,
+  `Bash(maestro:*)`, `Bash(git:*)`, and `Bash(./scripts/check:*)`. Shell
+  commands outside that set are denied. The deny list is `Bash(git push:*)`,
+  `Bash(gh:*)`, `WebFetch`, `WebSearch`, and `AskUserQuestion`.
 
 ## Hooks and worktrees
 

@@ -92,11 +92,11 @@ it is not, the Claude `builder` is the fallback.
 
 The master runs each build itself as a background Bash task
 (`maestro build <run> <task> --block`), so no relay model is involved. It keeps a
-`TodoWrite` item per task and, once per wave, runs
-`maestro build --status <run> --every 180` through `Monitor`, posting each line
-(`Builders 2/5 done · 2 running · 1 queued`) unchanged; without `Monitor` it runs
-`--status` once per finished build. It moves to checks as soon as the wave has
-joined. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
+`TodoWrite` item per task. Every headless build prints its own `progress:` lines
+as tasks finish; a live view of a wave is `maestro watch <run>` in a pane, whose
+piped output prints one line only on a count or state change. The master also
+runs `maestro build --status <run>` (a one-shot reading) after each finished
+build and moves to checks as soon as the wave has joined. A build stops at the 30-minute timeout (`BOTTEGA_BUILD_TIMEOUT`); that
 is the only stop. Each build reports its token counts and step count.
 
 The master reads the task graph from the saved SPEC and inspects the ready set
@@ -280,10 +280,12 @@ guessed (principle `prove-it-works`).
 
 There are no tier variants of an agent. The master picks the model and effort per
 call with the Agent tool's `model` and `effort` parameters; each agent's
-frontmatter is the default. The routing comes from
-`~/.claude/rules/bottega-models.md` when present, written by `/maestro-models`.
-Each line is `role: value, effort`, where `value` is a Claude alias (`haiku`,
-`sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`, or `high`:
+frontmatter is the default. The plugin's `PreToolUse` hook denies a `bottega:`
+agent call that omits `model` or `effort`, so the routing is not optional. The
+routing comes from `~/.claude/rules/bottega-models.md` when present, written by
+`/maestro-models`. Each line is `role: value, effort`, where `value` is a Claude
+alias (`haiku`, `sonnet`, `opus`) or `headless`, and `effort` is `low`, `medium`,
+or `high`:
 
 ```
 explorer: haiku, low
@@ -296,10 +298,10 @@ planner: opus, high
 master: opus, medium
 ```
 
-Without the file the same defaults apply; `planner` and `master` keep their own
-models. The headless runner reads the `builder` line for `build` and `--here`,
-and the `second-opinion` line for `--review`, passing only the effort as
-`--effort`; a malformed line is ignored.
+Without the file the same defaults apply; `master` keeps its own model. The
+headless runner reads the `builder` line for `build` and `--here`, and the
+`second-opinion` line for `--review`, passing only the effort as `--effort`; a
+malformed line is ignored.
 
 ## Skills
 
@@ -368,7 +370,9 @@ maestro build <run> <task> [--revise <file|->] [--block|--wait]
 maestro build --here <slug> --task "<text>" [--revise <file|->] [--block|--wait]
 maestro build --review <run> <task> [--block|--wait]
 maestro build --review --here <slug> [--block|--wait]
-maestro build --status <run> [--every <seconds>]
+maestro build --status <run>
+maestro watch <run>
+maestro watch --line
 maestro build --init | --check
 
 maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
@@ -409,6 +413,45 @@ Risk decides how much review runs: `low` is automated checks plus AI review,
 `standard` is the default, and `high` adds adversarial review, `simplify`, the
 high-risk reviewer model, the second-opinion reviewer, and a mandatory quiz. The
 human still makes the final decision.
+
+## What the code enforces
+
+The workflow is prose, but some rules are code. Each rule moves to the highest
+level that can prevent it from recurring.
+
+### Already enforced
+
+- `maestro start` refuses a dirty tree, `main`, or a detached HEAD.
+- `maestro check` writes `checks.result`; `maestro gate` fails on a failed or
+  stale result, a dirty tree, or, with `--proof`, an unmet Proof criterion.
+- `maestro verify record` refuses `--by builder` and a PASS without an evidence
+  file; the latest row per criterion decides.
+
+### Designed out
+
+- Build progress is a log, not a polling rule: `events.tsv` feeds `maestro
+  watch` and `build --status`.
+- There is no separate progress file; the raw builder stream is the record.
+
+### Hook
+
+- `hooks/hooks.json` runs `maestro guard stop` on Stop and `maestro guard
+  builder` on Agent/Task.
+- The Stop hook keeps the turn going while a todo item is open. Once every item
+  is complete, each open, non-held, non-paused run needs a passing
+  `checks.result` and, when the SPEC has Proof criteria, a PASS/WAIVED row per
+  criterion plus a reviewer or second-opinion row. The reason names the command
+  that records the evidence.
+- The builder guard denies a Bottega agent call that omits `model` or `effort`.
+
+### Advisory
+
+Later candidates, not enforced yet:
+
+- SPEC-shape validation.
+- An Allowed-files gate on builder writes.
+- Push and merge hooks.
+- Refusing more than three identical build rounds.
 
 ## Run state
 

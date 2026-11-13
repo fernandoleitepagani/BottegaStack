@@ -98,9 +98,19 @@ Small work skips the spec and worktree: the master takes the light path with
 `maestro build --here <slug> --task "<text>"`; state lives in the state directory
 under `quick/<slug>/`. Pass findings back with
 `maestro build --here <slug> --revise <file|->`; `maestro build --status <slug>`
-reports progress. `low` risk runs get a cheap headless first-pass review
+reports progress once, `maestro watch <slug>` follows a run live, and
+`maestro watch --line` prints the newest open run as one status line (see
+[docs/SETUP.md](docs/SETUP.md) to wire it into Claude Code).
+`low` risk runs get a cheap headless first-pass review
 before the Claude reviewer. Headless builds report `tokens: in <n> out <n>` and
 `steps: <n>`; the only stop is the 30-minute builder timeout.
+
+`maestro lab [trivial|bugfix|feature-fix|pause-resume]` is an opt-in end-to-end
+rehearsal. It runs the real master on sonnet/low in a scratch HOME, config,
+state, and temp dir, with the builder stubbed, so only the master spends tokens.
+It needs `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`, and `--keep` keeps
+the scratch dir for inspection. The lab never runs in CI or from
+`scripts/check`; see [docs/SETUP.md](docs/SETUP.md#lab).
 
 Other skills are invoked directly by name, for example `/wizard`,
 `/backlog-triage`, `/wayfinding`, `/improve-architecture`, and `/review-pr`.
@@ -120,6 +130,7 @@ Other skills are invoked directly by name, for example `/wizard`,
 | `/maestro` | Starts or continues the workflow. |
 | `/maestro-models` | Picks the model and effort for each role. |
 | `maestro` CLI | Runs the mechanical steps: runs, checks, gates, proofs, builds, worktrees, logs. |
+| `maestro lab` | Opt-in rehearsal of the real master on sonnet/low in a scratch, stubbed environment. |
 | Hooks | Keep a run going while todo items are open and stop the wrong builder from starting. |
 | Playbooks | The pipelines: trivial, bugfix, feature, refactor, investigate, perf, prototype, ship, autopilot, pause, eval, pr-babysit. |
 

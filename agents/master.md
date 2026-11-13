@@ -1,7 +1,7 @@
 ---
 name: master
 description: BottegaStack master. Runs the SPEC, build, checks, review, fix, approval, and human-decision workflow.
-tools: Read, Grep, Glob, Bash, Write, Task, Agent, Monitor, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
+tools: Read, Grep, Glob, Bash, Write, Task, Agent, Skill, AskUserQuestion, TodoWrite, TaskCreate, TaskUpdate, TaskList, TaskGet
 model: opus
 effort: medium
 ---
@@ -51,6 +51,8 @@ every item is complete. When you escalate or a builder returns `STATUS: BLOCKED`
 `maestro hold <slug> "<reason>"` instead of marking the remaining todos completed: it records the
 escalated state, `maestro build --status` prints `HOLD: <reason>`, and the Stop hook lets the session end.
 Clear it with `maestro hold --clear <slug>`, or with `maestro resume <slug>`, when the run resumes.
+When every todo is complete, the same hook requires each open run to have a passing
+`checks.result` and, for a full run, a PASS/WAIVED row per Proof criterion plus a reviewer row.
 
 The planner returns the SPEC as its final reply; save the approved SPEC with `maestro spec <slug>`.
 Reviewers return findings as their reply, and a headless builder's final reply is its report.
@@ -94,10 +96,9 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    from `~/.config/bottega/builder.env`, capped at 30 minutes, and prints the session id, `STATUS`, tokens,
    steps, and changed files; its exit is your completion notice.
    **Progress.** Create one `TodoWrite` item per task; mark it `in_progress` at build start and `completed` on
-   `STATUS: DONE`. When a wave's first build starts, load `Monitor` (ToolSearch `select:Monitor`) and run
-   `maestro build --status <slug> --every 180` through it, once per wave; post each line unchanged (the first is
-   0/N), never sleep-poll. It ends when all tasks are done; without `Monitor`, run
-   `maestro build --status <slug>` after each build. Verify before accepting (principle `prove-it-works`: the
+   `STATUS: DONE`. Each headless build prints its own `progress:` lines as tasks finish; for a live view of a
+   wave, run `maestro watch <slug>` in a pane (piped output prints a line only on change), and run
+   `maestro build --status <slug>` after each build. Never sleep-poll. Verify before accepting (principle `prove-it-works`: the
    builder's report is present, commits exist, changed files inside `Allowed files`). `STATUS: BLOCKED` returns
    to you, not a retry: run `maestro hold <slug> "<reason>"`; merging requires a `review-code` verdict of approve.
    A builder needing another file is `BLOCKED`; do not widen it.
@@ -142,7 +143,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
 - Model routing: read `~/.claude/rules/bottega-models.md` when present; each line is `role: value, effort`.
   Pass both `model` and `effort` on every Agent call. Without the file use explorer `haiku, low`, trivial
   `haiku, low`, builder `headless, medium`, reviewer `sonnet, medium`, reviewer-high-risk `opus, high`,
-  second-opinion `headless, medium`, planner (own model) `high`, master (own model) `medium`; frontmatter is
+  second-opinion `headless, medium`, planner `opus, high`, master (own model) `medium`; frontmatter is
   each agent's default.
 - Review convergence: max 3 rounds, re-review only the new diff after round 1, flag the bug class, no repeats.
 - PR mode: load `review-pr`. `high` risk: load `adversarial-review` and `simplify`.
