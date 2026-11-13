@@ -196,8 +196,10 @@ not duplicate a side effect.
 
 The master runs `maestro report --retro --exit-code` and loads `session-retro` to
 propose one environment change. If the scan exits 1, findings repeat across runs;
-on repeated findings it proposes Gotchas patches. It loads `session-handoff` if
-the run continues elsewhere. Once the PR or merge is confirmed, it runs
+on repeated findings it proposes Gotchas patches. If the run continues elsewhere
+it loads `session-handoff`, which writes
+`${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md` and replies with the
+path and a `NEXT:` line. Once the PR or merge is confirmed, it runs
 `maestro worktree prune <slug>` and `maestro report --close <slug>` to remove the
 worktrees and the state directory, then stops.
 

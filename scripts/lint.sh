@@ -117,6 +117,15 @@ if ! grep -q 'Step 0' "$ROOT/agents/master.md"; then
   fail=1
 fi
 
+# session-handoff writes the handoff to an env-overridable path. The skill and
+# the master prompt must both name it, or one of them sends the next session to
+# the wrong place.
+if ! grep -q 'BOTTEGA_HANDOFF_DIR' "$ROOT/skills/workflow/session-handoff/SKILL.md" 2>/dev/null \
+   || ! grep -q 'BOTTEGA_HANDOFF_DIR' "$ROOT/agents/master.md" 2>/dev/null; then
+  echo "FAIL session-handoff and agents/master.md disagree on the handoff path"
+  fail=1
+fi
+
 # Command files must not reference a step the master does not have.
 for cmd_file in "$ROOT/commands/maestro.md"; do
   [ -f "$cmd_file" ] || continue

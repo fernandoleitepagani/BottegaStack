@@ -943,6 +943,22 @@ done
 cp "$ROOT/hooks/hooks.json" "$LB/hooks/hooks.json"
 if lint_rejects_hooks; then fail "lint accepts plugin-root hook commands"; else ok "lint accepts plugin-root hook commands"; fi
 
+# session-handoff writes the handoff to ${BOTTEGA_HANDOFF_DIR:-/tmp}; the master
+# prompt must name the same location or the next session looks elsewhere.
+HB="$TMP/handofflint"
+mkdir -p "$HB/scripts" "$HB/agents" "$HB/skills/workflow/session-handoff"
+cp "$ROOT/scripts/lint.sh" "$HB/scripts/lint.sh"
+cp "$ROOT/agents/master.md" "$HB/agents/master.md"
+cp "$ROOT/skills/workflow/session-handoff/SKILL.md" "$HB/skills/workflow/session-handoff/SKILL.md"
+sed 's/BOTTEGA_HANDOFF_DIR/HANDOFF_DIR_ENV/g' "$HB/agents/master.md" > "$HB/agents/master.md.tmp"
+mv "$HB/agents/master.md.tmp" "$HB/agents/master.md"
+lint_drift() {
+  ( cd "$HB" && bash scripts/lint.sh 2>&1 ) | grep -q '^FAIL session-handoff and agents/master.md disagree on the handoff path'
+}
+if lint_drift; then ok "lint rejects handoff skill/master drift"; else fail "lint rejects handoff skill/master drift"; fi
+cp "$ROOT/agents/master.md" "$HB/agents/master.md"
+if lint_drift; then fail "lint accepts matching handoff paths"; else ok "lint accepts matching handoff paths"; fi
+
 # Standalone skills (issue #27): decision 6. A direct pattern match or a Load of
 # a non-standalone skill removes a skill; the allow file exempts a skill from
 # the direct test only. `lint` keeps the checked-in list and allow file honest.

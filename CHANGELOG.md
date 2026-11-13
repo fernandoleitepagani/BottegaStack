@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fixes: `session-handoff` writes the handoff to `${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md` (mode 600, disposable) instead of keeping it only in chat, replies with `HANDOFF: <path>` and a `NEXT:` line, and the master prompt names the same file as its one allowed write outside the repo; the docs, playbooks, and README say so too, and `scripts/lint.sh` fails when the skill and `agents/master.md` disagree on the path.
 
 ## 0.7.0 — 2026-11-12
 

@@ -187,7 +187,7 @@ UI skills live in `skills/design/`; the rest are grouped by category under `skil
 | `review-pr` | Reviews a pull request as a merge decision. |
 | `runbook` | Investigates an incident step by step. |
 | `scaffold` | Creates new files that match the project's conventions. |
-| `session-handoff` | Packs the session into a note for a fresh agent. |
+| `session-handoff` | Packs the session into a handoff file under `${BOTTEGA_HANDOFF_DIR:-/tmp}` for a fresh agent. |
 | `session-retro` | Turns friction from a run into fixes. |
 | `show-me-your-work` | Keeps a log of each decision for later review. |
 | `simplify` | Removes extra code and useless comments before review. |
