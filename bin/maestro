@@ -43,6 +43,7 @@ Usage:
   maestro skills sync [--hook]
   maestro tools install [--yes] | hint
   maestro statusline install [--yes] | status
+  maestro release <version> [--yes]
 
 Any command with --help or -h prints this help and changes nothing.
 
@@ -4153,6 +4154,137 @@ cmd_tools() {
 
 
 
+# ---- Release ----------------------------------------------------------------
+# `maestro release <version> [--yes]`: cut a release from main in the current
+# BottegaStack checkout. Every rule is checked before any write; then it makes
+# release/<v>, bumps plugin.json, retitles `## Unreleased`, and commits both
+# files once. Nothing is pushed without --yes; --yes pushes the branch and opens
+# the PR with gh. It never tags and never merges.
+release_refuse() { echo "maestro release: refusing: $*" >&2; exit 1; }
+
+# A dotted number: 0.7.1 yes; v0.7.1, 0.7.1-rc1, and an empty string no.
+release_version_ok() { printf '%s\n' "$1" | grep -Eq '^[0-9]+(\.[0-9]+)*$'; }
+
+# version_gt <a> <b>: exit 0 when a > b, comparing field by field as numbers
+# (0.7.10 > 0.7.9), with missing fields counting as 0. No sort -V: not in bash 3.2.
+version_gt() {
+  local a="$1" b="$2" x y
+  while [ -n "$a" ] || [ -n "$b" ]; do
+    x="${a%%.*}"; y="${b%%.*}"
+    if [ "$x" = "$a" ]; then a=""; else a="${a#*.}"; fi
+    if [ "$y" = "$b" ]; then b=""; else b="${b#*.}"; fi
+    x=$((10#${x:-0})); y=$((10#${y:-0}))
+    [ "$x" -gt "$y" ] && return 0
+    [ "$x" -lt "$y" ] && return 1
+  done
+  return 1
+}
+
+# The number of `- ` bullets under the first `## Unreleased` heading.
+release_bullets() {
+  awk '/^## Unreleased/{f=1;next} /^## /{f=0} f&&/^- /{c++} END{print c+0}' "$1"
+}
+
+# The HTTPS form of an origin URL, so the push uses the gh credential helper:
+# git@github.com:Owner/Repo.git and ssh://git@github.com/Owner/Repo.git map to
+# https://github.com/Owner/Repo.git; any other URL is used as it is.
+release_push_url() {
+  case "$1" in
+    git@github.com:*) printf 'https://github.com/%s\n' "${1#git@github.com:}" ;;
+    ssh://git@github.com/*) printf 'https://github.com/%s\n' "${1#ssh://git@github.com/}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+# Undo a half-made release (the files are restored from HEAD, the branch goes)
+# and stop; the caller has pushed nothing at this point.
+release_abort() {
+  git checkout -q HEAD -- .claude-plugin/plugin.json CHANGELOG.md >/dev/null 2>&1 || true
+  git checkout -q main >/dev/null 2>&1 || true
+  git branch -q -D "release/$version" >/dev/null 2>&1 || true
+  rm -f ".claude-plugin/plugin.json.release.$$" "CHANGELOG.md.release.$$"
+  echo "maestro release: $1" >&2
+  exit 1
+}
+
+cmd_release() {
+  local version="" yes=0 current branch origin_url push_to today
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --yes) yes=1; shift ;;
+      -*) echo "maestro release: unknown flag: $1" >&2; exit 2 ;;
+      *)
+        [ -z "$version" ] || { echo 'usage: maestro release <version> [--yes]' >&2; exit 2; }
+        version="$1"; shift ;;
+    esac
+  done
+  [ -n "$version" ] || { echo 'usage: maestro release <version> [--yes]' >&2; exit 2; }
+
+  # Checkout shape: the clone this runs in, never an installed plugin copy.
+  local repo
+  repo="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$repo" ] || release_refuse "not a BottegaStack checkout"
+  cd "$repo"
+  [ -f .claude-plugin/plugin.json ] && [ -f CHANGELOG.md ] || release_refuse "not a BottegaStack checkout"
+
+  release_version_ok "$version" || release_refuse "malformed version: $version"
+  current="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .claude-plugin/plugin.json | head -1 || true)"
+  release_version_ok "$current" || release_refuse "plugin.json has no usable version"
+  version_gt "$version" "$current" || release_refuse "version $version is not greater than $current"
+
+  branch="$(git branch --show-current 2>/dev/null || true)"
+  [ "$branch" = main ] || release_refuse "must run on main (on ${branch:-detached HEAD})"
+  [ -z "$(git status --porcelain --untracked-files=no)" ] \
+    || release_refuse "working tree has uncommitted tracked changes"
+  [ "$(release_bullets CHANGELOG.md)" -gt 0 ] \
+    || release_refuse "## Unreleased has no entries in CHANGELOG.md"
+  if git show-ref --verify --quiet "refs/heads/release/$version"; then
+    release_refuse "branch release/$version already exists"
+  fi
+
+  origin_url="$(git config --get remote.origin.url 2>/dev/null || true)"
+  if [ "$yes" -eq 1 ]; then
+    [ -n "$origin_url" ] || release_refuse "no origin remote"
+    command -v gh >/dev/null 2>&1 || release_refuse "--yes needs the gh CLI on PATH"
+  fi
+  push_to="$(release_push_url "${origin_url:-origin}")"
+
+  # Write: one branch, two files replaced through temp files, one commit.
+  today="$(date +%Y-%m-%d)"
+  git checkout -q -b "release/$version" || release_refuse "could not create branch release/$version"
+  awk -v v="$version" '
+    !done && /"version"[[:space:]]*:/ {
+      sub(/"version"[[:space:]]*:[[:space:]]*"[^"]*"/, "\"version\": \"" v "\"")
+      done = 1
+    }
+    { print }
+  ' .claude-plugin/plugin.json > .claude-plugin/plugin.json.release.$$ \
+    && mv .claude-plugin/plugin.json.release.$$ .claude-plugin/plugin.json \
+    || release_abort "could not bump .claude-plugin/plugin.json"
+  awk -v t="## $version — $today" '
+    !done && /^## Unreleased[[:space:]]*$/ { print t; done = 1; next }
+    { print }
+  ' CHANGELOG.md > CHANGELOG.md.release.$$ \
+    && mv CHANGELOG.md.release.$$ CHANGELOG.md \
+    || release_abort "could not retitle CHANGELOG.md"
+  git add .claude-plugin/plugin.json CHANGELOG.md \
+    && git commit -q -m "release $version" \
+    || release_abort "could not commit the release"
+
+  if [ "$yes" -eq 0 ]; then
+    echo "release $version: committed on release/$version ($(git rev-parse --short HEAD)); nothing is pushed."
+    echo "push and open the PR:"
+    echo "  git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push $push_to release/$version"
+    echo "  gh pr create --base main --head release/$version --title \"Release $version\" --body \"Release $version; see CHANGELOG.\""
+    echo "or run: maestro release $version --yes"
+    return 0
+  fi
+  git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push -q "$push_to" "release/$version" \
+    || { echo "maestro release: push failed; release/$version stays local" >&2; exit 1; }
+  gh pr create --base main --head "release/$version" --title "Release $version" --body "Release $version; see CHANGELOG." \
+    || { echo "maestro release: pushed release/$version but gh pr create failed; open the PR by hand" >&2; exit 1; }
+}
+
 # `maestro lab [scenario] [--keep]`: opt-in end-to-end rehearsal. lab/run.sh
 # builds a scratch HOME, config, state, and temp dir, stubs the builder, and
 # runs the real master on sonnet/low. It never runs from scripts/check,
@@ -4218,6 +4350,7 @@ case "$cmd" in
   skills) cmd_skills "$@" ;;
   tools) cmd_tools "$@" ;;
   statusline) cmd_statusline "$@" ;;
+  release) cmd_release "$@" ;;
   help|--help|-h|"") usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac
