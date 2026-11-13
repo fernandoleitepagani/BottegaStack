@@ -755,6 +755,53 @@ else
   fail "build --here rejects an uppercase slug under a UTF-8 locale"
 fi
 
+# Every run-taking command shares one run-id check (issue #37): a malformed or
+# traversal-style id is refused with `bad run id`, exit 2, before the command
+# resolves or writes anything.
+RUNID_STATE="$TMP/run-id-state"
+mkdir -p "$RUNID_STATE"
+runid_snapshot() {
+  {
+    [ -d "$RUNID_STATE" ] && find "$RUNID_STATE" | LC_ALL=C sort
+    [ -d "$TMP/repo-bottega" ] && find "$TMP/repo-bottega" | LC_ALL=C sort
+  } 2>/dev/null
+  return 0
+}
+runid_check() {
+  local label="$1" id="$2" rc
+  shift 2
+  BOTTEGA_STATE_DIR="$RUNID_STATE" BOTTEGA_WATCH_ONCE=1 "$M" "$@" >/dev/null 2>"$TMP/run-id.err"
+  rc=$?
+  if [ "$rc" -eq 2 ] && grep -q 'bad run id' "$TMP/run-id.err"; then
+    return 0
+  fi
+  echo "FAIL run id $label $id"
+  runid_fails=$((runid_fails + 1))
+}
+runid_before="$(runid_snapshot)"
+runid_fails=0
+for runid in '..' 'a/b' '' '-x'; do
+  runid_check spec "$runid" spec "$runid"
+  runid_check check "$runid" check "$runid"
+  runid_check gate "$runid" gate "$runid"
+  runid_check "verify list" "$runid" verify list "$runid"
+  runid_check log "$runid" log "$runid"
+  runid_check hold "$runid" hold "$runid" reason
+  runid_check resume "$runid" resume "$runid"
+  runid_check build "$runid" build "$runid" 1
+  runid_check "build --here" "$runid" build --here "$runid" --task x
+  runid_check "build --review" "$runid" build --review "$runid" 1
+  runid_check "build --status" "$runid" build --status "$runid"
+  runid_check watch "$runid" watch "$runid"
+  runid_check "worktree create" "$runid" worktree create "$runid" 1
+  runid_check "worktree prune" "$runid" worktree prune "$runid"
+  runid_check "report --close" "$runid" report --close "$runid"
+  runid_check "report --finding" "$runid" report --finding "$runid" title
+done
+runid_after="$(runid_snapshot)"
+[ "$runid_before" = "$runid_after" ] && ok "bad run ids write nothing" || fail "bad run ids write nothing"
+[ "$runid_fails" -eq 0 ] && ok "run id rejected everywhere" || fail "run id rejected everywhere"
+
 # Two open runs, only one on hold: the Stop hook still blocks.
 HSTATE2="$TMP/hold-state-two"
 BOTTEGA_STATE_DIR="$HSTATE2" "$M" start "Hold two a" >/dev/null 2>&1
