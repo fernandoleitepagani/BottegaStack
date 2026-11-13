@@ -59,7 +59,7 @@ workflow skills it needs. `/maestro-models` writes the model routing rule.
 | `review-pr` | Review a pull request as a merge decision: intent, diff, CI, risk, tests, security, and revert plan. |
 | `runbook` | Investigate an incident, alert, or "why is this broken" symptom with a structured runbook. |
 | `scaffold` | Create a new component, service, route, migration, or test fixture that matches the project's existing conventions. |
-| `session-handoff` | Compact a BottegaStack session into a handoff reply for a fresh agent. |
+| `session-handoff` | Compact a BottegaStack session into a handoff file under `${BOTTEGA_HANDOFF_DIR:-/tmp}` for a fresh agent. |
 | `session-retro` | Retrospective on a BottegaStack run. Turn repeated mistakes and friction into rules, lint, tests, or skill edits. |
 | `show-me-your-work` | Keep a one-row-per-decision log (`maestro log`) for unattended or long runs, audit it against the transcript, and end with a cross-model Attention section. |
 | `simplify` | Remove unnecessary complexity from a change before review, including a comment pass: delete narration and workaround comments, encode claimed constraints. |
@@ -119,10 +119,9 @@ way. The number of standalone skills is not fixed, so docs and scripts read
 the list instead of counting it.
 
 Some standalone skills, for example `interview`, `summary`, `wayfinding`,
-`session-handoff`, `ketchup`, and `domain-modeling`, are written for the full
-stack and mention the master, the planner, or `maestro` commands. Installed
-alone they still work, but those references only apply when the plugin is
-enabled too.
+`ketchup`, and `domain-modeling`, are written for the full stack and mention
+the master, the planner, or `maestro` commands. Installed alone they still
+work, but those references only apply when the plugin is enabled too.
 
 ## Add a skill
 

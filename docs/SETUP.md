@@ -155,10 +155,9 @@ A copy is a snapshot: it does not update when the plugin does. After a plugin
 update, re-run `maestro skills install <name>...` (or `--all`) to refresh it.
 
 Some standalone skills, for example `interview`, `summary`, `wayfinding`,
-`session-handoff`, `ketchup`, and `domain-modeling`, are written for the full
-stack and mention the master, the planner, or `maestro` commands. Installed
-alone they still work, but those references only apply when the plugin is
-enabled too.
+`ketchup`, and `domain-modeling`, are written for the full stack and mention
+the master, the planner, or `maestro` commands. Installed alone they still
+work, but those references only apply when the plugin is enabled too.
 
 With the plugin also enabled, both `/teach` (the standalone copy) and
 `/bottega:teach` (the plugin's own namespace) appear; they are the same skill.
@@ -329,7 +328,9 @@ $STATE/steps.tsv          history of finished rev-0 builds, for estimates
 
 Nothing is written into the repo or a worktree. The chat and the PR (or merge
 commit) carry the human-readable record: interview answers, summaries,
-handoffs, decisions, reviews, and builder reports.
+decisions, reviews, and builder reports. A session handoff is the one file:
+`session-handoff` writes it to
+`${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md`.
 
 - `BOTTEGA_STATE_DIR` overrides the base directory. Set it to a persistent
   location if runs must survive a reboot or if `/tmp` has a small quota: the
@@ -472,7 +473,7 @@ maestro worktree prune <run> [--force]
 | `gitleaks` missing | Install it, or leave the hook to skip cleanly. |
 | Git hooks missing | Run `maestro hooks install [path]`. |
 | `maestro upgrade` fails | Install `python3`. |
-| Context full | Load `session-handoff`, write `PLAN.md`, start a fresh session. |
+| Context full | Load `session-handoff` (writes `${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md`), write `PLAN.md`, start a fresh session. |
 
 ## Claude smoke test
 

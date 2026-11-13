@@ -23,7 +23,6 @@ linux-sysadmin
 podman-operator
 principles
 review-pr
-session-handoff
 summary
 teach
 unslop

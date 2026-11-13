@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased
+- Fixes: `session-handoff` writes the handoff to `${BOTTEGA_HANDOFF_DIR:-/tmp}/<repo>-handoff-<slug>.md` (mode 600, disposable) instead of keeping it only in chat, replies with `HANDOFF: <path>` and a `NEXT:` line, and the master prompt names the same file as its one allowed write outside the repo; the docs, playbooks, and README say so too, and `scripts/lint.sh` fails when the skill and `agents/master.md` disagree on the path.
 
 - Fixes: two `maestro build --here` callers sharing one build now both exit 0 and each prints `task: <slug>` plus a `report: <path>` whose file exists, with exactly one caller collecting the rc; `build_collect` claims the result with an atomic rename (`mv` to `$rcfile.collecting.$$`) so a second caller reports `already collected by another caller` instead of reading a removed rc, and the run marker is removed only after the report is written, so the waiter no longer races ahead of it (issue #34).
 - Fixes: every run-taking command (`spec`, `check`, `gate`, `verify`, `log`, `hold`, `resume`, `build` including `--here`, `--review`, and `--status`, `watch`, `worktree create|prune`, and `report --close|--finding`) shares one run-id validator and rejects an empty, leading-hyphen, or traversal-style id with `maestro <cmd>: bad run id: <id>` on stderr, exit 2, before it resolves or writes any state; `resolve_run_dir` and `run_state_dir` return 3 for a bad id so callers can tell it from "not a git repository" (issue #37).
