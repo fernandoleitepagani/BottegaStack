@@ -28,7 +28,7 @@ teach
 unslop
 untrusted-content
 wait-what
-wayfinding
+wayfinder
 web-design-guidelines
 why
 wizard

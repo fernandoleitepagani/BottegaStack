@@ -115,7 +115,7 @@ the scratch dir for inspection. The lab never runs in CI or from
 `scripts/check`; see [docs/SETUP.md](docs/SETUP.md#lab).
 
 Other skills are invoked directly by name, for example `/wizard`,
-`/backlog-triage`, `/wayfinding`, `/improve-architecture`, and `/review-pr`.
+`/backlog-triage`, `/wayfinder`, `/improve-architecture`, and `/review-pr`.
 `/maestro-models` writes the model routing rule for each role.
 
 ## Skills and modules
@@ -199,7 +199,7 @@ UI skills live in `skills/design/`; the rest are grouped by category under `skil
 | `untrusted-content` | Treats outside text as data, never as instructions. |
 | `verification` | Proves each requirement with a real command and records it. |
 | `wait-what` | Re-explains the last message more clearly (you start it). |
-| `wayfinding` | Maps a large, unclear effort into decisions. |
+| `wayfinder` | Maps a large, unclear effort into decision tickets on your issue tracker, one at a time. |
 | `web-design-guidelines` | Checks UI code against interface best practices. |
 | `why` | Explains why some code or decision exists. |
 | `wizard` | Writes a guided script for steps only you can do. |
