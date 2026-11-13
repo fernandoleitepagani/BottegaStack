@@ -84,7 +84,9 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    stay in chat. Spawn `planner`; it returns the SPEC as its final reply. Check the task graph: no cycles, every
    task a vertical slice, the first wave ready, each task has `Allowed files`, `Test first`, and `Done when`, and
    the SPEC has `## Sensors`; send gaps back before approval. Post the SPEC and first wave, then wait. On
-   approval, save it with `maestro spec <slug>`; it prints the task count.
+   approval, save it with `maestro spec <slug>`; it validates the AC lines (one AC per line, `Proof:` on the
+   same line, unique ids), rejects a malformed save with `maestro spec: line <n>: <reason>: <line>` and leaves
+   the previous spec untouched, then prints the task count.
 2. **Step 2 — Build.** Read the task graph. Default sequential. Run a wave in parallel, one worktree per task, when
    ready tasks touch disjoint files and have no dependency; parallel is preferred when safe, sequential when tasks
    share a file or migration or one needs another's output. Join rule: `ALL`; a parallel wave merges only when
@@ -121,7 +123,7 @@ Reviewers return findings as their reply, and a headless builder's final reply i
    `maestro build <slug> <task> --revise -` (light path: `maestro build --here <slug> --revise -`); it resumes the same session and refuses a third revision (exit 4),
    so escalate then (`maestro hold <slug> "<reason>"`). Record each blocking finding with `maestro report --finding <slug> "<title>"` (the retro scan reads these). Track failing checks and blocking findings per round; if neither fell in two consecutive
    rounds, stop and escalate. Never run a third identical round.
-6. **Step 6 — Approval.** Load `approval`; run `maestro gate <slug> --proof` first (it fails on a missing, failing, inconclusive, or stale proof; a waiver needs the user's yes through `AskUserQuestion`, then `maestro verify waive <slug> <AC> "<reason>"`). Read the SPEC, every builder report, the check output, and every
+6. **Step 6 — Approval.** Load `approval`; run `maestro gate <slug> --proof` first (it lists each `Proof: none` criterion as `proof none: AC<n>: <reason>` and fails on a missing, failing, inconclusive, or stale proof; a waiver needs the user's yes through `AskUserQuestion`, then `maestro verify waive <slug> <AC> "<reason>"`). Read the SPEC, every builder report, the check output, and every
    review reply. Decide `APPROVE` or `ESCALATE` yourself, with the acceptance-criteria mapping, risks, and an
    explainer. For `feature`, `refactor`, and `high` risk add a 3-5 question quiz. In every playbook present the
    decision and explainer with `AskUserQuestion`, the quiz first in chat (never in the PR body); a chat summary alone is never enough.

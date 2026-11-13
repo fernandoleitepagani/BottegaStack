@@ -749,6 +749,21 @@ cmd_spec() {
       exit 1
     fi
   fi
+  # Validate the temporary file before anything is replaced: one AC per line,
+  # `Proof:` on the same line, a reason for `Proof: none`, and unique ids. Every
+  # bad line is reported with its number; on any error spec.md and tasks/ stay
+  # untouched.
+  local bad=0 n id kind detail badline
+  while IFS="$(printf '\t')" read -r n id kind detail; do
+    [ "$kind" = "bad" ] || continue
+    badline="$(sed -n "${n}p" "$tmp")"
+    printf 'maestro spec: line %s: %s: %s\n' "$n" "$detail" "$badline" >&2
+    bad=1
+  done < <(spec_ac_rows "$tmp")
+  if [ "$bad" -eq 1 ]; then
+    rm -f "$tmp"
+    exit 1
+  fi
   # Write through a temp file in the same directory so the rename is atomic and
   # a failed save never leaves a partial spec.md.
   mv "$tmp" "$spec" || { rm -f "$tmp"; echo "maestro spec: could not write: $spec" >&2; exit 1; }
@@ -932,7 +947,20 @@ cmd_gate() {
     return 1
   fi
   if [ "$proof" = "1" ]; then
-    local pmsg
+    local pmsg rows
+    case "$dir" in
+      */quick/*) ;;
+      *)
+        # A full run must have at least one AC line; a light path has no SPEC.
+        rows="$(spec_ac_rows "$dir/spec.md" | awk -F'\t' '$3 == "proof" || $3 == "none"' | wc -l | tr -d ' ')"
+        if [ "${rows:-0}" -eq 0 ]; then
+          echo "GATE: FAIL (proof: SPEC has no acceptance criteria)"
+          return 1
+        fi
+        # Opted-out criteria are visible before the verdict, pass or fail.
+        spec_ac_rows "$dir/spec.md" | awk -F'\t' '$3 == "none" { print "proof none: " $2 ": " $4 }'
+        ;;
+    esac
     pmsg="$(verify_unmet "$slug" "$head")" || { echo "GATE: FAIL (proof: $pmsg)"; return 1; }
   fi
   gate_commit_order_warning "$slug"
@@ -944,13 +972,66 @@ cmd_gate() {
 # `Proof: none` opts a criterion out. Rows live in $STATE/<run>/verify/index.tsv:
 # time, AC, result, HEAD, by, evidence, note. The latest row per AC wins.
 
+# One row per candidate AC line, tab-separated:
+#   line<TAB>id<TAB>proof|none|bad<TAB>command-or-reason-or-error
+# A candidate starts like a list item naming an AC id (`^[-*0-9. ]*AC[0-9]+`).
+# A line is valid when it matches `- AC<n>: <text> Proof: <text>`; `Proof: none`
+# needs a reason. Ids are unique. `maestro spec` refuses bad rows; the gate reads
+# the `proof` and `none` rows. One awk pass keeps the parser in one place.
+spec_ac_rows() {
+  local spec="$1"
+  [ -f "$spec" ] || return 0
+  awk '
+    function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+    /^[-*0-9. ]*AC[0-9]+/ {
+      line = $0
+      match(line, /AC[0-9]+/)
+      id = substr(line, RSTART, RLENGTH)
+      if (line !~ /^- AC[0-9]+: /) {
+        print NR "\t" id "\tbad\tnot an AC line (expected \"- AC<n>: <text> Proof: ...\")"
+        next
+      }
+      if (!match(line, /Proof:/)) {
+        print NR "\t" id "\tbad\tno Proof:"
+        next
+      }
+      ptext = trim(substr(line, RSTART + 6))
+      if (ptext == "") {
+        print NR "\t" id "\tbad\tempty Proof:"
+        next
+      }
+      rest = ptext
+      if (substr(rest, 1, 1) == "`") rest = substr(rest, 2)
+      if (rest == "none" || rest ~ /^none[ \t(]/ || rest ~ /^none`/) {
+        reason = trim(substr(rest, 5))
+        if (substr(reason, 1, 1) == "`") reason = trim(substr(reason, 2))
+        if (reason == "") {
+          print NR "\t" id "\tbad\tProof: none needs a reason"
+          next
+        }
+        if (id in seen) {
+          print NR "\t" id "\tbad\tduplicate " id " (first on line " seen[id] ")"
+          next
+        }
+        seen[id] = NR
+        print NR "\t" id "\tnone\t" reason
+        next
+      }
+      if (id in seen) {
+        print NR "\t" id "\tbad\tduplicate " id " (first on line " seen[id] ")"
+        next
+      }
+      seen[id] = NR
+      print NR "\t" id "\tproof\t" ptext
+    }
+  ' "$spec"
+}
+
 # Criteria ids that need proof, one per line.
 verify_required_acs() {
   local spec="$1"
   [ -f "$spec" ] || return 0
-  grep -E '^[-*0-9. ]*AC[0-9]+[:.)]' "$spec" \
-    | grep -E 'Proof:' | grep -viE 'Proof:[[:space:]]*`?none' \
-    | sed -E 's/^[-*0-9. ]*(AC[0-9]+).*/\1/' | sort -u
+  spec_ac_rows "$spec" | awk -F'\t' '$3 == "proof" { print $2 }' | sort -u
 }
 
 # Print nothing and return 0 when every required criterion has a PASS row for
