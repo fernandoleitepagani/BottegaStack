@@ -1960,6 +1960,29 @@ build_mark_stale() {
   [ -f "$2" ] || [ -z "$(find "$1" -mmin +360 2>/dev/null)" ] || echo 1 > "$2"
 }
 
+# build_lost_collect <rcfile> <what> <report> <marker> <limit>: another caller
+# won the collect claim. Wait (bounded) for it to finish: it removes the claimed
+# rc file and the run marker only after the report is written, so the report
+# path this prints always names an existing file. Then print the reply and exit 0.
+build_lost_collect() {
+  local rcfile="$1" what="$2" report="$3" marker="${4:-}" limit="$5" waited=0 owned
+  while [ "$waited" -lt "$limit" ]; do
+    if ls "$rcfile".collecting.* >/dev/null 2>&1; then
+      owned=1
+    else
+      owned=0
+      [ -n "$marker" ] && [ -f "$marker" ] && owned=1
+    fi
+    [ "$owned" -eq 1 ] || break
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo "$what"
+  echo "already collected by another caller"
+  [ -n "$report" ] && [ -f "$report" ] && echo "report: $report"
+  exit 0
+}
+
 # build_wait_or_exit <rcfile> <block> <events> <task> <role> <what> <again> [run-marker] [report]:
 # wait; if another caller collected the result, say so and exit 0; if the build
 # is still going, print where it stands and exit 5.
@@ -1969,10 +1992,7 @@ build_wait_or_exit() {
   build_wait "$rcfile" "$(build_wait_limit "$block")" "$marker" "$tickdir"
   [ -f "$rcfile" ] && return 0
   if [ -n "$marker" ] && [ ! -f "$marker" ]; then
-    echo "$what"
-    echo "already collected by another caller"
-    [ -n "$report" ] && [ -f "$report" ] && echo "report: $report"
-    exit 0
+    build_lost_collect "$rcfile" "$what" "$report" "$marker" "$(build_wait_limit "$block")"
   fi
   echo "RUNNING $what (still going; call again: $again)"
   echo "steps so far: $(build_steps "$events" "$task" "$role")"
@@ -2036,15 +2056,20 @@ build_failure_note() {
   return 0
 }
 
-# build_collect <rcfile> <run> <log> <out>: print the exit code and turn the log
-# into the final reply at <out>.
+# build_collect <rcfile> <run> <log> <out>: claim the rc file, print the exit
+# code, and turn the log into the final reply at <out>. The rename is atomic, so
+# when two callers attach to one build exactly one collects; the loser returns 1
+# and its caller prints the already-collected reply. The run marker is removed
+# last, after the report is written, so a waiting caller never sees a finished
+# build whose report is still missing.
 build_collect() {
-  local rc
-  rc="$(cat "$1")"
-  rm -f "$1" "$2"
+  local claimed="$1.collecting.$$" rc
+  mv "$1" "$claimed" 2>/dev/null || return 1
+  rc="$(cat "$claimed")"
   cap_log "$3"
   build_result_text "$3" "$4"
   build_failure_note "$rc" "$3" "$4"
+  rm -f "$claimed" "$1" "$2"
   printf '%s\n' "$rc"
 }
 
@@ -2367,7 +2392,8 @@ Write no report file: end your final reply with the report in the format of the 
   build_wait_or_exit "$rcfile" "$block" "$events" - builder "task: $slug" "maestro build --here $slug --task \"<text>\" --wait" "$run" "$report"
 
   local rc status="MISSING" commits=0 secs=0
-  rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$report")" \
+    || build_lost_collect "$rcfile" "task: $slug" "$report" "$run" "$(build_wait_limit "$block")"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
@@ -2501,7 +2527,8 @@ EOF
   build_wait_or_exit "$rcfile" "$block" "$events" "$evtask" reviewer "review: $slug $task" "$again"
 
   local rc
-  rc="$(build_collect "$rcfile" "$run" "$log" "$findings")"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$findings")" \
+    || build_lost_collect "$rcfile" "review: $slug $task" "$findings" "" "$(build_wait_limit "$block")"
 
   echo "review: $slug $task"
   build_usage_lines reviewer "$rc" "$log" "$events" "$evtask"
@@ -2615,7 +2642,8 @@ $(cat "$taskfile")"
   build_wait_or_exit "$rcfile" "$block" "$events" "$task" builder "task: $task" "maestro build $slug $task --wait" "$run" "$report"
 
   local rc
-  rc="$(build_collect "$rcfile" "$run" "$log" "$report")"
+  rc="$(build_collect "$rcfile" "$run" "$log" "$report")" \
+    || build_lost_collect "$rcfile" "task: $task" "$report" "$run" "$(build_wait_limit "$block")"
   if [ -z "$sid" ]; then
     sid="$(grep -o '"session_id":"[^"]*"' "$log" | head -1 | cut -d'"' -f4 || true)"
   fi
