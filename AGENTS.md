@@ -79,7 +79,7 @@ Prefer the highest item that actually prevents recurrence.
 
 BottegaStack has these top-level commands: `doctor`, `init`, `seed`,
 `upgrade`, `start`, `spec`, `check`, `gate`, `verify`, `verify-task`, `log`, `report`, `build`, `watch`, `lab`, `worktree`, `skills`, `statusline`,
-and `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
+`release`, and `hooks`. (`guard` and `keyget` are internal hook entry points, not user commands.)
 
 ```bash
 ./bin/maestro doctor
@@ -116,4 +116,5 @@ and `hooks`. (`guard` and `keyget` are internal hook entry points, not user comm
 ./bin/maestro skills uninstall <name>... | --all
 ./bin/maestro skills sync [--hook]
 ./bin/maestro statusline install [--yes] | status
+./bin/maestro release <version> [--yes]
 ```
