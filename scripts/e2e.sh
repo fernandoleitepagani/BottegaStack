@@ -2081,6 +2081,8 @@ pw_fixture() {
   local d="$TMP/pw-$1" st="$TMP/pw-$1-state" sdir
   mkdir -p "$d" && ( cd "$d" && git init -q -b main && git commit -q --allow-empty -m init )
   [ "$2" = - ] || printf '%s\n' "$2" > "$d/package.json"
+  # start refuses main, so the fixture works on a branch; the run is then real.
+  ( cd "$d" && git checkout -q -b feat/pw && BOTTEGA_STATE_DIR="$st" "$M" start pw-run ) >/dev/null 2>&1
   printf '# Spec\n## Acceptance criteria\n- AC1: renders. Proof: none (taste)\n### Task 1 - one\nbody\n**Allowed files:** `%s`\n' "$3" > "$TMP/pw-$1.spec.md"
   ( cd "$d" && BOTTEGA_STATE_DIR="$st" "$M" spec pw-run "$TMP/pw-$1.spec.md" ) >/dev/null 2>&1
   sdir="$(cd "$d" && BOTTEGA_STATE_DIR="$st" "$M" doctor 2>/dev/null | sed -n 's/^state: //p')"
@@ -2522,7 +2524,7 @@ pw_repo() {  # pw_repo <dir> <package.json|none> <spec task body>
   local dir="$1" manifest="$2" body="$3" out slug state
   mkdir -p "$dir" && ( cd "$dir" && git init -q -b main && git commit -q --allow-empty -m init && git checkout -q -b feat/ui ) || return 1
   [ "$manifest" = none ] || printf '%s\n' "$manifest" > "$dir/package.json"
-  ( cd "$dir" && git add -A && git commit -q -m manifest ) || return 1
+  ( cd "$dir" && git add -A && git commit -q --allow-empty -m manifest ) || return 1
   out="$(cd "$dir" && "$M" start "UI work" 2>/dev/null)" || return 1
   slug="$(printf '%s\n' "$out" | sed -n 's/^run: //p')"
   state="$(printf '%s\n' "$out" | sed -n 's/^state: //p')"
@@ -2559,7 +2561,7 @@ done
   && ok "hint silenced for ui work by BOTTEGA_NO_TOOL_HINT" || fail "hint silenced for ui work by BOTTEGA_NO_TOOL_HINT"
 
 # Logs, findings, close, trust.
-expect "log""$M" log run-a frame "a decision" "a reason" "commit x" done
+expect "log" "$M" log run-a frame "a decision" "a reason" "commit x" done
 "$M" log run-a | grep -q "a decision" && ok "log prints" || fail "log prints"
 "$M" report --finding run-a "Missing null check" >/dev/null
 "$M" report --finding run-b "missing null check" >/dev/null
