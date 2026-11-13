@@ -10,5 +10,6 @@ codebase-design
 domain-modeling
 frontend-design
 interface-review
+wayfinder
 wizard
 writing-for-agents
