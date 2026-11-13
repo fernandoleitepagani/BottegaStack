@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Stub for the headless builder in `maestro lab`. It never calls a model: it
+# runs the scenario's builder side effect and emits the stream-json result the
+# build runner expects. BOTTEGA_LAB_PROMPT carries the -p prompt, so a scenario
+# can tell a revision from a first build.
+set -u
+
+prompt=""
+prev=""
+for arg in "$@"; do
+  [ "$prev" = "-p" ] && prompt="$arg"
+  prev="$arg"
+done
+export BOTTEGA_LAB_PROMPT="$prompt"
+
+if [ -n "${BOTTEGA_LAB_BUILDER:-}" ] && [ -f "$BOTTEGA_LAB_BUILDER" ]; then
+  bash "$BOTTEGA_LAB_BUILDER" || exit 1
+fi
+
+echo '{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","input":{"command":"lab stub builder"}}]}}'
+printf '{"type":"result","result":"STATUS: DONE\\nlab stub builder","usage":{"input_tokens":1,"output_tokens":1},"session_id":"lab"}\n'
+exit 0

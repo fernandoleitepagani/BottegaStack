@@ -33,6 +33,7 @@ Usage:
   maestro build --init | --check
   maestro build --status <run>
   maestro watch <run> | --line
+  maestro lab [trivial|bugfix|feature-fix|pause-resume] [--keep]
   maestro worktree create <run> <task> [--branch <name> [--base <ref>]]
   maestro worktree prune <run> [--force]
   maestro hooks install|uninstall [path]
@@ -64,6 +65,11 @@ Headless builder:
   quick/<slug>/.
   `maestro build --review <run> <task>` (or `--review --here <slug>` on the light path) runs the read-only `review-code` agent
   in the task worktree and writes build/<task>.review2.md.
+
+Lab (opt-in, never in CI):
+  `maestro lab` runs the real master on sonnet/low against a scenario in a
+  scratch HOME, config, state, and temp dir. The builder is stubbed, so only the
+  master calls a model. It needs CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY.
 
 The skills stay organized by category; the plugin manifest points at each
 category directory so Claude Code discovers the skills inside.
@@ -3339,6 +3345,19 @@ cmd_tools() {
 
 
 
+# `maestro lab [scenario] [--keep]`: opt-in end-to-end rehearsal. lab/run.sh
+# builds a scratch HOME, config, state, and temp dir, stubs the builder, and
+# runs the real master on sonnet/low. It never runs from scripts/check,
+# scripts/validate.sh, or CI.
+cmd_lab() {
+  local runner="$ROOT/lab/run.sh"
+  if [ ! -f "$runner" ]; then
+    echo "maestro lab: missing $runner" >&2
+    exit 1
+  fi
+  exec bash "$runner" "$@"
+}
+
 # Parse top-level command and flags.
 cmd="${1:-}"
 shift || true
@@ -3380,6 +3399,7 @@ case "$cmd" in
   report) cmd_report "$@" ;;
   build) cmd_build "$@" ;;
   watch) cmd_watch "$@" ;;
+  lab) cmd_lab "$@" ;;
   guard) cmd_guard "$@" ;;
   _build-exec) cmd_build_exec "$@" ;;
   keyget) cmd_keyget ;;

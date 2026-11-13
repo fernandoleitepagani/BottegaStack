@@ -1493,6 +1493,8 @@ build --check
 build --status
 watch
 watch --line
+lab
+lab trivial
 build --here q
 build --review
 worktree
@@ -1652,6 +1654,85 @@ if [ "$rc" -eq 1 ] && [ "$out" = "maestro build --review: no such run: no-such-r
 else
   fail "review unknown run fails before the model"
 fi
+
+# `maestro lab` is opt-in: it runs the real master on sonnet/low in a scratch
+# HOME, config, state, and temp dir, with the builder stubbed. CI and the
+# release gate never call a model, so these cases inject a fake master with
+# BOTTEGA_LAB_CLAUDE; the wrapper and its isolation are under test, not a model.
+LAB="$TMP/lab"
+mkdir -p "$LAB"
+LAB_LOG="$LAB/master.log"
+export LAB_LOG
+LAB_FAKE_MASTER="$LAB/fake-master"
+cat > "$LAB_FAKE_MASTER" <<'EOF'
+#!/usr/bin/env bash
+# Fake master: record the wrapper facts, then run the scenario's builder side
+# effect so the scenario's expect script passes without a model.
+{
+  for lab_arg in "$@"; do
+    printf 'ARG=%s\n' "$lab_arg"
+  done
+  printf 'HOME=%s\n' "$HOME"
+  printf 'XDG_CONFIG_HOME=%s\n' "$XDG_CONFIG_HOME"
+  printf 'CLAUDE_CONFIG_DIR=%s\n' "$CLAUDE_CONFIG_DIR"
+  printf 'BOTTEGA_STATE_DIR=%s\n' "$BOTTEGA_STATE_DIR"
+  printf 'TMPDIR=%s\n' "$TMPDIR"
+  printf 'CLAUDE=%s\n' "$(command -v claude)"
+  printf 'BUILDER_ENV=%s\n' "$(tr '\n' ' ' < "${XDG_CONFIG_HOME:-$HOME/.config}/bottega/builder.env" 2>/dev/null)"
+  if [ -s "${XDG_CONFIG_HOME:-$HOME/.config}/bottega/builder.key" ]; then
+    printf 'KEY_EXISTS=yes\n'
+  else
+    printf 'KEY_EXISTS=no\n'
+  fi
+  printf 'OAUTH=%s\n' "${CLAUDE_CODE_OAUTH_TOKEN:+yes}"
+} >> "$LAB_LOG"
+[ -n "${BOTTEGA_LAB_BUILDER:-}" ] && [ -f "$BOTTEGA_LAB_BUILDER" ] && bash "$BOTTEGA_LAB_BUILDER"
+exit 0
+EOF
+chmod +x "$LAB_FAKE_MASTER"
+
+out="$(env -u CLAUDE_CODE_OAUTH_TOKEN -u ANTHROPIC_API_KEY "$M" lab trivial 2>&1)"; rc=$?
+if [ "$rc" -eq 3 ] && printf '%s\n' "$out" | grep -q 'CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY'; then
+  ok "lab: refuses without auth"
+else
+  fail "lab: refuses without auth"
+fi
+
+: > "$LAB_LOG"
+out="$(BOTTEGA_LAB_CLAUDE="$LAB_FAKE_MASTER" CLAUDE_CODE_OAUTH_TOKEN=lab-token "$M" lab trivial --keep 2>&1)"; rc=$?
+[ "$rc" -eq 0 ] && ok "lab: trivial scenario passes with a fake master" || fail "lab: trivial scenario passes with a fake master"
+grep -q '^HOME=.*/maestro-lab\.' "$LAB_LOG" && ok "lab: scratch HOME" || fail "lab: scratch HOME"
+if grep -q '^XDG_CONFIG_HOME=.*/maestro-lab\.' "$LAB_LOG" \
+  && grep -q '^CLAUDE_CONFIG_DIR=.*/maestro-lab\.' "$LAB_LOG" \
+  && grep -q '^BOTTEGA_STATE_DIR=.*/maestro-lab\.' "$LAB_LOG" \
+  && grep -q '^TMPDIR=.*/maestro-lab\.' "$LAB_LOG"; then
+  ok "lab: scratch config, state, and temp"
+else
+  fail "lab: scratch config, state, and temp"
+fi
+if grep -q '^BUILDER_ENV=.*ANTHROPIC_BASE_URL=http://stub.invalid' "$LAB_LOG" && grep -qx '^KEY_EXISTS=yes' "$LAB_LOG"; then
+  ok "lab: fake builder env and key"
+else
+  fail "lab: fake builder env and key"
+fi
+grep -q '^CLAUDE=.*/maestro-lab\.[^/]*/bin/claude$' "$LAB_LOG" && ok "lab: stub claude first on PATH" || fail "lab: stub claude first on PATH"
+if grep -qx 'ARG=--model' "$LAB_LOG" && grep -qx 'ARG=sonnet' "$LAB_LOG" \
+  && grep -qx 'ARG=--effort' "$LAB_LOG" && grep -qx 'ARG=low' "$LAB_LOG"; then
+  ok "lab: master on sonnet low"
+else
+  fail "lab: master on sonnet low"
+fi
+if grep -qx 'ARG=--allowedTools' "$LAB_LOG" && grep -qx 'ARG=--disallowedTools' "$LAB_LOG"; then
+  ok "lab: master allow and deny lists"
+else
+  fail "lab: master allow and deny lists"
+fi
+if grep -qx 'ARG=--plugin-dir' "$LAB_LOG" && grep -qx 'ARG=--strict-mcp-config' "$LAB_LOG"; then
+  ok "lab: master loads the plugin with no MCP"
+else
+  fail "lab: master loads the plugin with no MCP"
+fi
+grep -qx '^OAUTH=yes' "$LAB_LOG" && ok "lab: auth env passed through" || fail "lab: auth env passed through"
 
 # Worktrees: named branches survive prune; merged task branches go.
 expect "worktree create --branch" "$M" worktree create prog u1 --branch feat/unit-1
