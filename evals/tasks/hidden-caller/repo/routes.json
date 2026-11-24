@@ -1,0 +1,3 @@
+{
+  "actions": ["create-user", "delete-user", "export-csv"]
+}

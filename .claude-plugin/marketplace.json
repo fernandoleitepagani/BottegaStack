@@ -1,14 +1,14 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "bottega",
-  "description": "The BottegaStack plugin: playbooks, agents, skills, commands, and the bottega CLI.",
+  "description": "Bottega v2: a Claude Code port of pstack.",
   "owner": {
     "name": "BottegaStack"
   },
   "plugins": [
     {
       "name": "bottega",
-      "description": "A personal agentic development workflow for Claude Code.",
+      "description": "One entry skill (/maestro), playbooks, principles, and deliberate subagents for verified work.",
       "source": "./"
     }
   ]

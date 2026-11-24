@@ -1,0 +1,10 @@
+{
+  "kind": "bug-fix",
+  "prompt": "customers with a discount code are being overcharged. a 10% discount on a 100 subtotal should charge 108 but we charge 110. find the cause and fix it.",
+  "grade": [
+    {"name": "hidden tests pass", "run": "python3 -m unittest -q hidden_check_invoice"},
+    {"name": "visible tests pass", "run": "python3 -m unittest -q test_invoice"}
+  ],
+  "hidden": {"check_invoice.py": "hidden_check_invoice.py"},
+  "expect": {"max_changed_lines": 12, "touch_only": ["invoice.py", "test_invoice.py", "test_*.py"]}
+}

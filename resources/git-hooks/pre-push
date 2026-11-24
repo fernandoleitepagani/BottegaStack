@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# bottega-managed
-set -euo pipefail
-if [ -x ./scripts/check ]; then
-  ./scripts/check
-else
-  echo "maestro: scripts/check not found; skipping pre-push checks" >&2
-fi

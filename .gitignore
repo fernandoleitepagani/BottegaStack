@@ -1,13 +1,4 @@
-.claude/settings.json.maestro-backup-*
-
-# Secrets
-.env
-.env.*
-
-# OS/editor
-.DS_Store
-.idea/
-.vscode/
-
-# Dependencies
-node_modules/
+.bottega/
+evals/results/
+__pycache__/
+*.pyc

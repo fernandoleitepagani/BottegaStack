@@ -1,0 +1,10 @@
+{
+  "kind": "refactoring",
+  "prompt": "rename handle_export_csv to handle_export_report everywhere and update the callers. behavior has to stay the same.",
+  "grade": [
+    {"name": "visible tests pass", "run": "python3 -m unittest -q test_handlers"},
+    {"name": "hidden tests pass", "run": "python3 -m unittest -q hidden_check_dispatch"}
+  ],
+  "hidden": {"check_dispatch.py": "hidden_check_dispatch.py"},
+  "expect": {"max_changed_lines": 25, "touch_only": ["handlers.py", "cli.py", "routes.json", "dispatch.py", "test_*.py"]}
+}

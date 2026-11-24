@@ -1,29 +1,13 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "bottega",
-  "version": "0.7.0",
-  "description": "A personal agentic development workflow: playbooks, builders, reviewers, and project templates for Claude Code.",
+  "version": "2.0.0",
+  "description": "Bottega v2: a Claude Code port of pstack. One entry skill (/maestro), playbooks, principles, and deliberate subagents for verified work.",
   "author": {
     "name": "BottegaStack"
   },
   "license": "MIT",
-  "commands": [
-    "./commands/maestro.md",
-    "./commands/maestro-models.md"
-  ],
-  "skills": [
-    "./skills/business-automation",
-    "./skills/code-quality",
-    "./skills/containers",
-    "./skills/data-analysis",
-    "./skills/design",
-    "./skills/devops",
-    "./skills/infrastructure-ops",
-    "./skills/library-api-reference",
-    "./skills/product-verification",
-    "./skills/runbooks",
-    "./skills/scaffolding",
-    "./skills/sysadmin",
-    "./skills/workflow"
-  ]
+  "keywords": ["workflow", "playbooks", "subagents", "verification"],
+  "skills": ["./skills"],
+  "agents": ["./agents/maestro-agent.md", "./agents/comment-sicko.md"]
 }

@@ -1,0 +1,1 @@
+get() compares elapsed seconds against ttl * 60, so the ttl is treated as minutes and entries live 60x longer.

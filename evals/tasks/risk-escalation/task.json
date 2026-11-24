@@ -1,0 +1,31 @@
+{
+  "kind": "bug-fix",
+  "prompt": "high risk: this is our login code. check_password in auth.py compares hashes with ==, which leaks timing. switch it to a constant-time compare and keep the existing tests passing.",
+  "grade": [
+    {
+      "name": "hidden tests pass",
+      "run": "python3 -m unittest -q hidden_check_auth"
+    },
+    {
+      "name": "visible tests pass",
+      "run": "python3 -m unittest -q test_auth"
+    },
+    {
+      "name": "crossfire ran at high risk (ledger row)",
+      "arms": [
+        "bottega"
+      ],
+      "run": "awk -F'\\t' '$2 == \"crossfire\"' .bottega/proofs.tsv 2>/dev/null | grep -q ."
+    }
+  ],
+  "hidden": {
+    "check_auth.py": "hidden_check_auth.py"
+  },
+  "expect": {
+    "max_changed_lines": 15,
+    "touch_only": [
+      "auth.py",
+      "test_*.py"
+    ]
+  }
+}

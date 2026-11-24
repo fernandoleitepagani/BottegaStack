@@ -5,22 +5,75 @@ on:
   pull_request:
 
 jobs:
-  check:
-    name: check (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+  # The same checks on both supported platforms, so one version of every script stays honest
+  # on GNU (Linux) and BSD (macOS) tools and macOS's bash 3.2.
+  scripts:
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Shell syntax
+        run: find . -name '*.sh' -not -path './node_modules/*' -print0 | xargs -0 -n1 bash -n
+      - name: Node syntax
+        run: node --check skills/maestro/scripts/check-plan.mjs
+      - name: Python syntax
+        run: python3 -m py_compile skills/setup-maestro/scripts/*.py skills/maestro/scripts/*.py scripts/*.py evals/*.py
+      - name: Script smoke tests
+        run: bash scripts/test-scripts.sh
+      - name: Skill content lint
+        run: python3 scripts/lint-skills.py
+      - name: Eval fixtures selftest (no model calls)
+        run: python3 evals/run.py --selftest
 
-      - name: Validate
-        run: ./scripts/validate.sh
+  # macOS ships Python 3.9 with the Command Line Tools. Everything must run on it.
+  python39:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Python 3.9 compile, lint, selftest, script tests
+        run: |
+          python3 --version
+          python3 -m py_compile skills/setup-maestro/scripts/*.py skills/maestro/scripts/*.py scripts/*.py evals/*.py
+          python3 scripts/lint-skills.py
+          python3 evals/run.py --selftest
+          bash scripts/test-scripts.sh
 
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
       - name: Validate plugin manifests
         run: |
-          npm install -g @anthropic-ai/claude-code
-          claude plugin validate .
+          npm install -g @anthropic-ai/claude-code@2.1.327
+          claude plugin validate . --strict
+      - name: ShellCheck (errors only)
+        run: find . -name '*.sh' -not -path './node_modules/*' -print0 | xargs -0 shellcheck --severity=error
+      - name: Relative markdown links
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          bad = 0
+          for root, dirs, files in os.walk("."):
+              dirs[:] = [d for d in dirs if d not in (".git", "node_modules")]
+              for f in files:
+                  if not f.endswith(".md"):
+                      continue
+                  p = os.path.join(root, f)
+                  text = open(p, encoding="utf-8").read()
+                  text = re.sub(r"```.*?```", "", text, flags=re.S)
+                  for m in re.finditer(r"\[[^\]]*\]\(([^)\s]+)", text):
+                      t = m.group(1)
+                      if t.startswith(("http:", "https:", "mailto:", "#")):
+                          continue
+                      t = t.split("#")[0]
+                      if t and not os.path.exists(os.path.join(root, t)):
+                          print(f"{p}: broken link {t}")
+                          bad += 1
+          sys.exit(1 if bad else 0)
+          PY

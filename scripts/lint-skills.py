@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Repo lint for bottega skill content. Run from the repo root. Exit 1 on any problem.
+
+Checks that prose alone can't keep in sync:
+- every skills/<dir>/SKILL.md has frontmatter whose name matches <dir> and a description
+- disable-model-invocation is true everywhere except the skills in AUTO_INVOKE
+- SKILLS-INDEX.md lists each non-principle skill exactly once, and nothing that doesn't exist
+- delegate.md's Principles index names each principle-* skill exactly once
+- maestro's Models-per-role table (references/subagents.md) and setup-maestro's rule shape list the same roles
+- the README and guide counts of playbooks and principles match the files
+"""
+import os
+import re
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SKILLS = os.path.join(ROOT, "skills")
+AUTO_INVOKE = {"setup-maestro"}
+NOT_INDEXED = {"maestro"}
+problems = []
+
+
+def read(*parts):
+    with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
+        return f.read()
+
+
+def frontmatter(text):
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    if not m:
+        return None
+    fm = {}
+    for line in m.group(1).splitlines():
+        k, sep, v = line.partition(":")
+        if sep:
+            fm[k.strip()] = v.strip()
+    return fm
+
+
+def kebab(title):
+    return re.sub(r"[^a-z0-9-]", "", title.lower().replace(" ", "-"))
+
+
+skills = sorted(d for d in os.listdir(SKILLS) if os.path.isfile(os.path.join(SKILLS, d, "SKILL.md")))
+for d in sorted(os.listdir(SKILLS)):
+    if os.path.isdir(os.path.join(SKILLS, d)) and d not in skills:
+        problems.append(f"skills/{d}: no SKILL.md")
+
+for s in skills:
+    fm = frontmatter(read("skills", s, "SKILL.md"))
+    where = f"skills/{s}/SKILL.md"
+    if fm is None:
+        problems.append(f"{where}: missing frontmatter")
+        continue
+    if fm.get("name") != s:
+        problems.append(f"{where}: name '{fm.get('name')}' does not match directory")
+    if not fm.get("description"):
+        problems.append(f"{where}: missing description")
+    dmi = fm.get("disable-model-invocation") == "true"
+    if s in AUTO_INVOKE and dmi:
+        problems.append(f"{where}: must stay model-invocable")
+    if s not in AUTO_INVOKE and not dmi:
+        problems.append(f"{where}: missing disable-model-invocation: true")
+
+principles = [s for s in skills if s.startswith("principle-")]
+others = [s for s in skills if not s.startswith("principle-") and s not in NOT_INDEXED]
+
+index = re.findall(r"^- `([a-z0-9-]+)`", read("skills", "maestro", "SKILLS-INDEX.md"), re.M)
+for s in others:
+    n = index.count(s)
+    if n != 1:
+        problems.append(f"SKILLS-INDEX.md: '{s}' listed {n} times, want 1")
+for s in set(index) - set(others):
+    problems.append(f"SKILLS-INDEX.md: '{s}' is not a bundled skill")
+
+delegate = read("skills", "maestro", "references", "delegate.md")
+section = delegate.split("## Principles", 1)[1].split("\n## ", 1)[0]
+named = []
+for title, explicit in re.findall(r"^- \*\*([^*]+?)\.?\*\*(?: \(\*\*(principle-[a-z0-9-]+)\*\*\))?", section, re.M):
+    named.append(explicit or "principle-" + kebab(title.rstrip(".")))
+for p in principles:
+    n = named.count(p)
+    if n != 1:
+        problems.append(f"delegate.md Principles: '{p}' named {n} times, want 1")
+for p in set(named) - set(principles):
+    problems.append(f"delegate.md Principles: '{p}' has no skill")
+
+maestro = read("skills", "maestro", "references", "subagents.md")
+table = maestro.split("**Models per role.**", 1)[1].split("**Effort ceiling.**", 1)[0]
+table_roles = [r.strip() for r in re.findall(r"^\| ([^|]+?) \|", table, re.M) if r.strip() not in ("Role", "---")]
+shape = read("skills", "setup-maestro", "SKILL.md").split("### 5.", 1)[1].split("```", 2)[1]
+shape_roles = [l.split(":", 1)[0].strip() for l in shape.splitlines() if l and not l.startswith("#") and ":" in l]
+if table_roles != shape_roles:
+    problems.append(f"role tables differ: maestro {table_roles} vs setup-maestro {shape_roles}")
+
+n_playbooks = len([f for f in os.listdir(os.path.join(SKILLS, "maestro", "playbooks")) if f.endswith(".md")])
+words = {20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five"}
+for path, kind, want in [
+    ("README.md", "playbooks", n_playbooks),
+    ("docs/guide/02-maestro.md", "playbooks", n_playbooks),
+    ("README.md", "principles", len(principles)),
+    ("docs/guide/08-principles.md", "principles", len(principles)),
+]:
+    text = read(*path.split("/"))
+    for m in re.finditer(r"\b(\d+|twenty(?:-\w+)?)\s+(?:" + ("short skills|" if kind == "principles" else "") + kind + r")", text):
+        got = m.group(1)
+        if got not in (str(want), words.get(want, "")):
+            problems.append(f"{path}: says '{m.group(0)}', there are {want} {kind}")
+
+# Bundled file references: a backticked or linked path to a bundled .md or script resolves from
+# the file's own dir, the maestro skill dir (`references/`, `playbooks/`, `scripts/`), or the
+# skills dir. Runtime paths (.bottega/, ~/, a user project's files) are not bundled, so skipped.
+MAESTRO = os.path.join(SKILLS, "maestro")
+REF = re.compile(r"(?:`|\]\()((?:<maestro dir>/|<skills dir>/|\.\./|references/|playbooks/|scripts/)(?:[\w.-]+/)*[\w.-]+\.(?:md|sh|py|mjs))[`)#]")
+for base_dir in (SKILLS, os.path.join(ROOT, "agents")):
+    for dirpath, _, files in os.walk(base_dir):
+        for f in files:
+            if not f.endswith(".md"):
+                continue
+            path = os.path.join(dirpath, f)
+            rel = os.path.relpath(path, ROOT)
+            parts = os.path.relpath(dirpath, SKILLS).split(os.sep)
+            skill_root = os.path.join(SKILLS, parts[0]) if base_dir == SKILLS and parts[0] != "." else MAESTRO
+            for n, line in enumerate(open(path, encoding="utf-8"), 1):
+                for m in REF.finditer(line):
+                    ref = m.group(1)
+                    if ref.startswith("<maestro dir>/"):
+                        cands = [os.path.join(MAESTRO, ref[len("<maestro dir>/"):])]
+                    elif ref.startswith("<skills dir>/"):
+                        cands = [os.path.join(SKILLS, ref[len("<skills dir>/"):])]
+                    else:  # relative: from this file, from its skill's root, or from maestro (agents)
+                        cands = [os.path.join(dirpath, ref), os.path.join(skill_root, ref), os.path.join(MAESTRO, ref)]
+                    if not any(os.path.exists(c) for c in cands):
+                        problems.append(f"{rel}:{n}: '{ref}' does not resolve to a bundled file")
+
+for p in problems:
+    print(p)
+print(f"{len(skills)} skills, {len(principles)} principles, {n_playbooks} playbooks, {len(problems)} problems")
+sys.exit(1 if problems else 0)

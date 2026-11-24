@@ -1,0 +1,22 @@
+{
+  "kind": "light-route",
+  "prompt": "fix the typos in the README install section.",
+  "grade": [
+    {
+      "name": "typos fixed",
+      "run": "grep -q '## Install' README.md && grep -q 'requirements.txt' README.md"
+    },
+    {
+      "name": "only README changed",
+      "run": "test \"$(git status --porcelain -- . ':!.bottega' | awk '{print $2}')\" = README.md"
+    },
+    {
+      "name": "no subagents spawned",
+      "tool_absent": "Agent"
+    }
+  ],
+  "hidden": {},
+  "expect": {
+    "max_changed_lines": 4
+  }
+}
