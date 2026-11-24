@@ -54,7 +54,14 @@ if [ -z "${SECURITY_SCAN_NO_GITLEAKS:-}" ] && command -v gitleaks >/dev/null 2>&
 	fi
 else
 	# name<TAB>extended regex. Kept narrow on purpose: a noisy scan gets ignored.
-	rules=$(cat <<'EOF'
+	# Added lines with their new-file line numbers, from the diff plus untracked files.
+	added_file="$out_dir/.added.tsv"
+	rules_file="$out_dir/.rules.tsv"
+	# The added lines can hold the very secrets being scanned for: owner-only, removed on exit.
+	trap 'rm -f "$added_file" "$rules_file"' EXIT
+	umask 077
+	# Written straight to the file: bash 3.2 misparses quotes in a heredoc inside $( ).
+	cat > "$rules_file" <<'EOF'
 aws-access-key	AKIA[0-9A-Z]{16}
 github-token	gh[pousr]_[A-Za-z0-9]{36,}
 anthropic-key	sk-ant-[A-Za-z0-9_-]{20,}
@@ -66,14 +73,6 @@ private-key	-----BEGIN ([A-Z]+ )?PRIVATE KEY-----
 jwt	eyJ[A-Za-z0-9_-]{10,}[.]eyJ[A-Za-z0-9_-]{10,}[.][A-Za-z0-9_-]{10,}
 assigned-secret	([Pp]ass(word|wd)|PASS(WORD|WD)|[Ss]ecret|SECRET|[Aa]pi_?[Kk]ey|API_?KEY|[Tt]oken|TOKEN)["']?[[:space:]]*[:=][[:space:]]*["'][^"'[:space:]]{12,}["']
 EOF
-)
-	# Added lines with their new-file line numbers, from the diff plus untracked files.
-	added_file="$out_dir/.added.tsv"
-	rules_file="$out_dir/.rules.tsv"
-	# The added lines can hold the very secrets being scanned for: owner-only, removed on exit.
-	trap 'rm -f "$added_file" "$rules_file"' EXIT
-	umask 077
-	printf '%s\n' "$rules" > "$rules_file"
 	{ git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$mb" | awk '
 		/^\+\+\+ b\// { file = substr($0, 7); next }
 		/^@@/ { split($3, a, ","); line = substr(a[1], 2) + 0; next }
