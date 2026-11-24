@@ -31,7 +31,7 @@
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
-log="$here/../../show-me-your-work/scripts/log.sh"
+log="$here/log.sh"
 risk=normal
 start=""
 proofs_in=""

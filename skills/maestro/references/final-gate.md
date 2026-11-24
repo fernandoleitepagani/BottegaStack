@@ -1,6 +1,6 @@
 # Final gate
 
-Read at the start of every playbook run, and do these steps before its final report. The light route skips this file. Read-only playbooks (Investigation, Forensics, Prototype) skip the ledger and the check script, and still state their evidence in the reply.
+Read at the start of every playbook run, and do these steps before its final report. The light route skips this file. Read-only playbooks (Investigate, Prototype) skip the ledger and the check script, and still state their evidence in the reply.
 
 `<maestro dir>` is the absolute directory of the maestro `SKILL.md`, and `<skills dir>` is its parent.
 
@@ -28,7 +28,7 @@ Run it from the checkout that holds the change.
 - **Proof.** One `--proof` per declared condition, with its exact text. Only a condition's latest proof counts, so after a fix round log the new result for the same condition. A WAIVED row's evidence starts with `user:` and quotes the user's words, for example `"user: \"skip the docs check\""`. Never waive on your own.
 - **Exit 0** allows APPROVE. **Exit 1** means ESCALATE: a latest proof is FAIL or INCONCLUSIVE, or crossfire's latest verdict is not PASS. **Exit 2** means a step is missing: do it, then rerun without repeating the proofs already logged. Never end a run on exit 2. A missing crossfire row means run crossfire.
 
-At high risk (from `--start` or this call), run the crossfire skill on the finished diff first. It logs its own `crossfire` row. To log a row by hand, use `<skills dir>/show-me-your-work/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
+At high risk (from `--start` or this call), run the crossfire skill on the finished diff first. It logs its own `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
 
 ## 2. Write the decision
 
@@ -39,8 +39,8 @@ Write it as the first block of the report:
 - **Open risks.** What is unproven and who would notice.
 - **Needs from you.** Only for ESCALATE: the exact decision, with the options.
 
-ESCALATE when the check exits 1, the fix-round cap was hit, or a high-risk finding is unresolved. ESCALATE stops before marking a PR ready or merging. Autopilot playbooks may push draft branches earlier.
+ESCALATE when the check exits 1, the fix-round cap was hit, or a high-risk finding is unresolved. ESCALATE stops before marking a PR ready or merging. An Unattended run may push draft branches earlier.
 
 ## 3. Close out
 
-Unless the user already said what to do, end with one line: `Next: open a PR, commit only, rework <what>, or reject. Reply with one.` Autopilot, autonomous-run, and babysit playbooks skip it and follow their own merge rules. When `.bottega/followups.md` has unchecked lines, add one line offering the **file-followups** skill.
+Unless the user already said what to do, end with one line: `Next: open a PR, commit only, rework <what>, or reject. Reply with one.` The Unattended playbook skips it and follows its own merge rules. `open a PR` continues with the **pr** skill (open mode). When `.bottega/followups.md` has unchecked lines, add one line offering the **file-followups** skill.

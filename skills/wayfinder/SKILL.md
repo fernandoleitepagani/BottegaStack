@@ -43,7 +43,7 @@ The map is an index. A decision lives in its ticket only. Open tickets are found
 
 HITL needs a live human. The agent never answers the human's side.
 
-- **Research** (AFK): a fact outside the working directory. A subagent resolves it with the **how** and **why** skills (`../how/SKILL.md`, `../why/SKILL.md`) plus docs, and records findings in the ticket.
+- **Research** (AFK): a fact outside the working directory. A subagent resolves it with the **understand** skill (`../understand/SKILL.md`, how and why modes) plus docs, and records findings in the ticket.
 - **Prototype** (HITL): a cheap concrete artifact to react to. Follow the Prototype playbook (`../maestro/playbooks/prototype.md`). Link it, do not paste it.
 - **Grilling** (HITL, the default): conversation through `AskUserQuestion`, one question at a time.
 - **Task** (HITL or AFK): manual work that unblocks a decision (sign up, provision, move data). Record what was done and resulting facts.
@@ -58,7 +58,7 @@ Do not chart what you cannot see. If you can state a question sharply, make it a
 2. **Map the frontier** breadth-first. If no fog appears and one session suffices, skip the map and ask how to proceed.
 3. Create the map: Destination and Notes filled, fog sketched.
 4. Create the specifiable tickets, then wire blocking in a second pass.
-5. Resolve `research` tickets in parallel with fresh subagents (haiku high), results written into the ticket.
+5. Resolve `research` tickets in parallel with fresh subagents (role: explorer in `../maestro/references/subagents.md`; more than 3 follows its fan-out rule), results written into the ticket.
 6. Stop. Charting resolves nothing by hand.
 
 ## Work through the map

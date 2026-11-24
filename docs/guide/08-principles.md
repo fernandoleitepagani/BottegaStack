@@ -1,6 +1,6 @@
 # Steer with principle names
 
-bottega ships 21 principles as individual skills. `/maestro` reads their index at the start of every multi-step task, applies the ones the task triggers, and names each applied principle in its reply along with the decision it changed.
+bottega ships 19 principles in four reference files (core, architecture, verification, delegation). `/maestro` reads their index at the start of every multi-step task, applies the ones the task triggers, and names each applied principle in its reply along with the decision it changed.
 
 You don't invoke principles. You use their names to steer. Each name points at a complete rule the agent has already read, so one phrase redirects the work more precisely than a paragraph of instructions.
 
@@ -30,36 +30,34 @@ Each phrase lands because the rule behind it is specific. The agent still has to
 
 The core principles decide how much to build and when to rethink the design:
 
-- [Delete First](../../skills/principle-delete-first/SKILL.md) prefers deletion and the smallest change that solves the problem.
-- [Shape Before Logic](../../skills/principle-shape-before-logic/SKILL.md) chooses the core data structures before writing logic.
-- [Redesign from First Principles](../../skills/principle-redesign-from-first-principles/SKILL.md) integrates a new requirement as if it had been there from day one.
-- [Attack the Premise](../../skills/principle-attack-the-premise/SKILL.md) writes down the premise that two or more failed fixes shared and tests it directly before the next fix.
-- [Minimize Reader Load](../../skills/principle-minimize-reader-load/SKILL.md) collapses layers and hidden state a reader must hold in their head.
-- [Outcome-Oriented Execution](../../skills/principle-outcome-oriented-execution/SKILL.md) converges rewrites on the target design instead of preserving throwaway compatibility states.
-- [Experience First](../../skills/principle-experience-first/SKILL.md) chooses the user's result over implementation convenience.
-- [Exhaust the Design Space](../../skills/principle-exhaust-the-design-space/SKILL.md) builds two or three competing prototypes when there's no precedent.
-- [Mechanize It](../../skills/principle-mechanize-it/SKILL.md) builds the script that does or proves the work, so a reviewer can rerun it. When an agent keeps doing the same thing by hand, have it write the tool or skill it wishes it had. If a script can do a step the same way every time, use the script, and save agents for the judgment calls.
+- [Delete First](../../skills/maestro/references/principles/core.md) prefers deletion and the smallest change that solves the problem.
+- [Shape Before Logic](../../skills/maestro/references/principles/core.md) chooses the core data structures before writing logic.
+- [Redesign from First Principles](../../skills/maestro/references/principles/core.md) integrates a new requirement as if it had been there from day one.
+- [Attack the Premise](../../skills/maestro/references/principles/core.md) writes down the premise that two or more failed fixes shared and tests it directly before the next fix.
+- [Minimize Reader Load](../../skills/maestro/references/principles/core.md) collapses layers and hidden state a reader must hold in their head.
+- [Outcome-Oriented Execution](../../skills/maestro/references/principles/core.md) converges rewrites on the target design instead of preserving throwaway compatibility states.
+- [Exhaust the Design Space](../../skills/maestro/references/principles/core.md) builds two or three competing prototypes when there's no precedent.
+- [Mechanize It](../../skills/maestro/references/principles/core.md) builds the script that does or proves the work, so a reviewer can rerun it. When an agent keeps doing the same thing by hand, have it write the tool or skill it wishes it had. If a script can do a step the same way every time, use the script, and save agents for the judgment calls.
 
 The architecture principles decide where state, validation, and compatibility live:
 
-- [Boundary Discipline](../../skills/principle-boundary-discipline/SKILL.md) validates at the boundary and trusts internal types.
-- [Type System Discipline](../../skills/principle-type-system-discipline/SKILL.md) makes illegal states unrepresentable.
-- [Make Operations Idempotent](../../skills/principle-make-operations-idempotent/SKILL.md) converges retries on the same end state.
-- [Migrate Callers Then Delete Legacy APIs](../../skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md) migrates and deletes in one wave.
-- [Separate Before Serializing Shared State](../../skills/principle-separate-before-serializing-shared-state/SKILL.md) removes the sharing before adding coordination.
+- [Boundary Discipline](../../skills/maestro/references/principles/architecture.md) validates at the boundary and trusts internal types.
+- [Type System Discipline](../../skills/maestro/references/principles/architecture.md) makes illegal states unrepresentable.
+- [Make Operations Idempotent](../../skills/maestro/references/principles/architecture.md) converges retries on the same end state.
+- [Migrate Callers Then Delete Legacy APIs](../../skills/maestro/references/principles/architecture.md) migrates and deletes in one wave.
+- [Separate Before Serializing Shared State](../../skills/maestro/references/principles/architecture.md) removes the sharing before adding coordination.
 
 The verification principles define what counts as proof:
 
-- [Prove It Works](../../skills/principle-prove-it-works/SKILL.md) verifies the real artifact, not a proxy.
-- [Fix Root Causes](../../skills/principle-fix-root-causes/SKILL.md) reproduces and traces to the cause before changing code.
-- [Sequence Work into Verifiable Units](../../skills/principle-sequence-verifiable-units/SKILL.md) ends each small unit in a check before starting the next.
-- [Test Behavior, Not Implementation](../../skills/principle-test-behavior-not-implementation/SKILL.md) asserts what the code's users can observe, so a test fails when that behavior breaks and survives a change to the internals.
-- [Explain the Number](../../skills/principle-explain-the-number/SKILL.md) names what limits a measured number and rules out that it measured something else, before anyone trusts or reports it. [`/benchmark-checklist`](../../skills/benchmark-checklist/SKILL.md) turns it into seven questions you answer from real runs.
+- [Prove It Works](../../skills/maestro/references/principles/verification.md) verifies the real artifact, not a proxy.
+- [Fix Root Causes](../../skills/maestro/references/principles/verification.md) reproduces and traces to the cause before changing code.
+- [Sequence Work into Verifiable Units](../../skills/maestro/references/principles/verification.md) ends each small unit in a check before starting the next.
+- [Test Behavior, Not Implementation](../../skills/maestro/references/principles/verification.md) asserts what the code's users can observe, so a test fails when that behavior breaks and survives a change to the internals.
 
 The delegation principles keep parallel work sane:
 
-- [Guard the Context Window](../../skills/principle-guard-the-context-window/SKILL.md) routes bulk reading to subagents and keeps findings in the main chat.
-- [Never Block on the Human](../../skills/principle-never-block-on-the-human/SKILL.md) proceeds on reversible work and presents the result.
+- [Guard the Context Window](../../skills/maestro/references/principles/delegation.md) routes bulk reading to subagents and keeps findings in the main chat.
+- [Never Block on the Human](../../skills/maestro/references/principles/delegation.md) proceeds on reversible work and presents the result.
 
 And one meta principle:
 

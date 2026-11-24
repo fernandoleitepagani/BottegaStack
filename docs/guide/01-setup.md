@@ -27,7 +27,7 @@ Models are `opus`, `sonnet`, and `haiku`. Each role also takes an effort: `low`,
 
 You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-maestro` keeps any role whose value differs from the default. When a default changes, a rule written before the change still pins the old default, so delete those role lines, or delete the file, then run `/setup-maestro` again.
 
-A model that Claude Code rejects falls back to the role default. For a panel role the value is a list, and one subagent runs per entry, so the list length sets the panel size. Setup also configures `swarm workers`, the default model for every `/swarm` worker.
+A model that Claude Code rejects falls back to the role default. For a panel role the value is a list, and one subagent runs per entry, so the list length sets the panel size. Setup also configures `swarm workers`, the default model for every `/parallel` worker.
 
 ## Accept the verification offers, or don't
 

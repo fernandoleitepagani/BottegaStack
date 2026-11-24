@@ -5,7 +5,7 @@ set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 maestro="$root/skills/maestro/scripts"
-logsh="$root/skills/show-me-your-work/scripts/log.sh"
+logsh="$root/skills/maestro/scripts/log.sh"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fails=0
@@ -127,6 +127,12 @@ for flag in "" --no-sizes; do
 	if "$maestro/worktree-audit.sh" $flag 2>/dev/null | grep -q "hold-wip"; then pass "worktree-audit ${flag:-(sizes)}: wip worktree held"
 	else fail "worktree-audit ${flag:-(sizes)}: wip worktree held"; fi
 done
+git worktree add -q -b spaced "../with space" && echo junk > "../with space/new.txt"
+git worktree add -q -b runstate ../runstate && mkdir -p ../runstate/.bottega && echo x > ../runstate/.bottega/proofs.tsv
+out=$("$maestro/worktree-audit.sh" --no-sizes 2>/dev/null)
+printf '%s\n' "$out" | grep -F "with space" | grep -q "scratch:1" && pass "worktree-audit: path with a space, untracked file counted" || fail "worktree-audit: path with a space, untracked file counted"
+printf '%s\n' "$out" | grep -F "with space" | grep -qv "safe" && pass "worktree-audit: untracked files keep a worktree out of safe" || fail "worktree-audit: untracked files keep a worktree out of safe"
+printf '%s\n' "$out" | grep -F "/runstate" | grep -q "bottega-state" && pass "worktree-audit: ignored .bottega run state is flagged" || fail "worktree-audit: ignored .bottega run state is flagged"
 
 echo
 [ "$fails" -eq 0 ] && echo "all script tests passed" || echo "$fails script test(s) failed"

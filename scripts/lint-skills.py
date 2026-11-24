@@ -61,8 +61,12 @@ for s in skills:
     if s not in AUTO_INVOKE and not dmi:
         problems.append(f"{where}: missing disable-model-invocation: true")
 
-principles = [s for s in skills if s.startswith("principle-")]
-others = [s for s in skills if not s.startswith("principle-") and s not in NOT_INDEXED]
+PRINC = os.path.join(SKILLS, "maestro", "references", "principles")
+principles = []
+for g in sorted(os.listdir(PRINC)):
+    for t in re.findall(r"^## (.+)$", read("skills", "maestro", "references", "principles", g), re.M):
+        principles.append((g[:-3], t.strip()))
+others = [s for s in skills if s not in NOT_INDEXED]
 
 index = re.findall(r"^- `([a-z0-9-]+)`", read("skills", "maestro", "SKILLS-INDEX.md"), re.M)
 for s in others:
@@ -74,18 +78,23 @@ for s in set(index) - set(others):
 
 delegate = read("skills", "maestro", "references", "delegate.md")
 section = delegate.split("## Principles", 1)[1].split("\n## ", 1)[0]
-named = []
-for title, explicit in re.findall(r"^- \*\*([^*]+?)\.?\*\*(?: \(\*\*(principle-[a-z0-9-]+)\*\*\))?", section, re.M):
-    named.append(explicit or "principle-" + kebab(title.rstrip(".")))
-for p in principles:
-    n = named.count(p)
-    if n != 1:
-        problems.append(f"delegate.md Principles: '{p}' named {n} times, want 1")
-for p in set(named) - set(principles):
-    problems.append(f"delegate.md Principles: '{p}' has no skill")
+named = {}
+group = None
+for line in section.splitlines():
+    m = re.match(r"^\*\*(\w+)\*\*$", line)
+    if m:
+        group = m.group(1).lower()
+    m = re.match(r"^- \*\*([^*]+?)\.?\*\*", line)
+    if m:
+        named[m.group(1).rstrip(".")] = group
+for g, t in principles:
+    if named.get(t) != g:
+        problems.append(f"delegate.md Principles: '{t}' should be listed under {g}, found {named.get(t)}")
+for t in set(named) - {t for _, t in principles}:
+    problems.append(f"delegate.md Principles: '{t}' has no section in principles/")
 
 n_playbooks = len([f for f in os.listdir(os.path.join(SKILLS, "maestro", "playbooks")) if f.endswith(".md")])
-words = {20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five"}
+words = {10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five"}
 for path, kind, want in [
     ("README.md", "playbooks", n_playbooks),
     ("docs/guide/02-maestro.md", "playbooks", n_playbooks),
@@ -93,7 +102,7 @@ for path, kind, want in [
     ("docs/guide/08-principles.md", "principles", len(principles)),
 ]:
     text = read(*path.split("/"))
-    for m in re.finditer(r"\b(\d+|twenty(?:-\w+)?)\s+(?:" + ("short skills|" if kind == "principles" else "") + kind + r")", text):
+    for m in re.finditer(r"\b(\d+|twenty(?:-\w+)?|ten|eleven|twelve|thirteen)\s+(?:" + ("short skills|" if kind == "principles" else "") + kind + r")", text):
         got = m.group(1)
         if got not in (str(want), words.get(want, "")):
             problems.append(f"{path}: says '{m.group(0)}', there are {want} {kind}")

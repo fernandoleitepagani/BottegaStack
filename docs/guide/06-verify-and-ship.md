@@ -1,6 +1,6 @@
 # Verify the result and open a PR
 
-"It compiles" is not evidence. The [Prove It Works principle](../../skills/principle-prove-it-works/SKILL.md) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, vetting a measured number, generating a verification skill for your app, opening the PR, and driving it to merged.
+"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/references/principles/verification.md) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, vetting a measured number, generating a verification skill for your app, opening the PR, and driving it to merged.
 
 Verification is the slowest step in most agent work, because it's the step that usually waits on a human. Make the agent able to do it, and you stop being the bottleneck. Skip it, and running more agents only gets you more unchecked work to review.
 
@@ -26,27 +26,7 @@ Match the check to the change:
 
 Ask for the proof as an artifact you can inspect yourself: the failing test and then the passing one, the command output, the trace, the stored value. If the fix already merged, ask for the same check again on main. An artifact beats a plausible explanation, because you can challenge it without replaying the whole run.
 
-For a small diff you don't fully trust, [`/blast-radius`](../../skills/blast-radius/SKILL.md) finds what it could break elsewhere. It finds the one fact that makes the change safe and proves that fact by running code, not by arguing for it.
-
-## Vet a measured number with `/benchmark-checklist`
-
-A before-and-after number is the easiest evidence to get wrong by accident. A warm cache, a debug build on one side, or work that never ran inside the timed region can each produce a convincing speedup. Before you report or act on a number, type:
-
-```text
-/benchmark-checklist vet the export speedup before it goes in the pr
-```
-
-[`/benchmark-checklist`](../../skills/benchmark-checklist/SKILL.md) asks seven questions and wants evidence from a run for each:
-
-1. What limits the number, and why isn't it double?
-2. Did every side run tuned the way production runs?
-3. Does the result break a physical limit, like disk bandwidth or core count?
-4. Did anything error or return wrong output?
-5. Does it reproduce over alternating runs, with a median and a range?
-6. Does it matter end to end, on the path a user waits on?
-7. Did the work actually happen inside the timed region?
-
-The verdict comes back as faster, slower, no measurable difference, or inconclusive, with the run count, range, and limiter. It says inconclusive when it can't name the limiter or a side ran untuned. `/maestro` already runs the checklist inside the Perf issue and Hillclimb playbooks, so you type it yourself when you measured something outside them, or when someone else's number looks too good. It's the working form of the [Explain the Number principle](../../skills/principle-explain-the-number/SKILL.md).
+For a small diff you don't fully trust, ask for [`/crossfire`](../../skills/crossfire/SKILL.md). Its adversaries look for breakage outside the diff and prove the one fact the change is safe because of.
 
 ## Create a project verification skill
 
@@ -70,9 +50,9 @@ From then on, "verify it with the project's skill" is a step any agent can execu
 /maestro repro this with /verify-<app>. if it repros on main, fix it and show me the output as proof.
 ```
 
-Once the verify skill works, a [`/swarm`](../../skills/swarm/SKILL.md) can split a full pass by feature-map entry and aggregate the results. A swarm of verifiers also confirms a perf win over a big enough sample, or fuzzes the app for regressions before a PR ships.
+Once the verify skill works, a [`/parallel`](../../skills/parallel/SKILL.md) can split a full pass by feature-map entry and aggregate the results. A swarm of verifiers also confirms a perf win over a big enough sample, or fuzzes the app for regressions before a PR ships.
 
-Treat the verification skill as infrastructure, not a one-off. Commit it, so every person and every agent on the team drives the app the same way. Then [mechanize it](../../skills/principle-mechanize-it/SKILL.md). When agents keep writing throwaway scripts to click through the app, ask for a small control CLI that the skill calls instead. Agents spend fewer tokens, and every run becomes repeatable. A CLI that agents use well has these traits:
+Treat the verification skill as infrastructure, not a one-off. Commit it, so every person and every agent on the team drives the app the same way. Then [mechanize it](../../skills/maestro/references/principles/core.md). When agents keep writing throwaway scripts to click through the app, ask for a small control CLI that the skill calls instead. Agents spend fewer tokens, and every run becomes repeatable. A CLI that agents use well has these traits:
 
 - A few composable commands, each doing real work, rather than many thin ones.
 - A `--dry-run` option on anything destructive.
@@ -99,25 +79,25 @@ Apps change, and feature maps go out of date. Run this regularly, for example on
 /maestro open the pr. small ordered commits, evidence in the description.
 ```
 
-The [Opening a PR playbook](../../skills/maestro/playbooks/opening-a-pr.md) works from a worktree, rebases the work into small ordered commits, cleans the diff, unslops the prose, and returns the PR link. Five narrow PRs beat one fat one, and stacked follow-ups beat a growing branch.
+The [`pr` skill](../../skills/pr/SKILL.md) works from a worktree, rebases the work into small ordered commits, cleans the diff, unslops the prose, and returns the PR link. Five narrow PRs beat one fat one, and stacked follow-ups beat a growing branch.
 
-## Drive the PR to merge-ready with Babysit
+## Drive the PR to merge-ready with `/pr` babysit
 
-An open PR starts collecting blockers immediately. Checks fail, reviewers comment, trunk moves. Hand that churn to the [Babysit playbook](../../skills/maestro/playbooks/babysit.md):
+An open PR starts collecting blockers immediately. Checks fail, reviewers comment, trunk moves. Hand that churn to the [`pr` skill's babysit mode](../../skills/pr/SKILL.md):
 
 ```text
 /maestro babysit this pr. get it green.
 ```
 
-Babysit watches the PR with `gh` (`gh pr checks`, `gh pr view`, and the PR comments API) polled under `/loop`, and takes blockers in order: conflicts, then review threads, then CI. Every known fix batches into one push, so the checks restart once instead of after every fix. The comment triage is skeptical, because humans and bots file real catches and noise in the same list. A real finding gets a fix, and noise gets dismissed with the disproof posted on the thread. When all you want is status, ask smaller and Babysit answers without starting the loop:
+`/pr` babysit watches the PR with `gh` (`gh pr checks`, `gh pr view`, and the PR comments API) polled under `/loop`, and takes blockers in order: conflicts, then review threads, then CI. Every known fix batches into one push, so the checks restart once instead of after every fix. The comment triage is skeptical, because humans and bots file real catches and noise in the same list. A real finding gets a fix, and noise gets dismissed with the disproof posted on the thread. When all you want is status, ask smaller and Babysit answers without starting the loop:
 
 ```text
 /maestro check on pr 123. anything outstanding?
 ```
 
-Babysit stops at merge-ready. It never merges, even with everything green, because merging is a different decision.
+`/pr` babysit stops at merge-ready. It never merges, even with everything green, because merging is a different decision.
 
-## Land the stack with Shipping
+## Land the stack with `/pr` land
 
 Green is not the same as safe. When you're ready to land, say so:
 
@@ -125,6 +105,6 @@ Green is not the same as safe. When you're ready to land, say so:
 /maestro land the stack.
 ```
 
-The [Shipping playbook](../../skills/maestro/playbooks/shipping.md) verifies each PR independently before it arms anything. One fresh agent per PR proves the behavior live, and the agent that judges a change is never the one that wrote it. Then Shipping lands only the contiguous verified run from the bottom, one PR at a time through GitHub with `gh`, and reports the first PR that breaks the chain. A verified PR sitting above an unverified one waits, because merging it would pull the gap in underneath.
+The [`pr` skill's land mode](../../skills/pr/SKILL.md) verifies each PR independently before it arms anything. One fresh agent per PR proves the behavior live, and the agent that judges a change is never the one that wrote it. Then Shipping lands only the contiguous verified run from the bottom, one PR at a time through GitHub with `gh`, and reports the first PR that breaks the chain. A verified PR sitting above an unverified one waits, because merging it would pull the gap in underneath.
 
 Next: [Run work while you sleep](./07-overnight.md).

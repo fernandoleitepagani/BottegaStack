@@ -26,23 +26,6 @@ jobs:
       - name: Eval fixtures selftest (no model calls)
         run: python3 evals/run.py --selftest
 
-  # macOS ships Python 3.9 with the Command Line Tools. Everything must run on it.
-  python39:
-    # setup-python has no 3.9 build for the newest Ubuntu image; 22.04 still ships one.
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.9"
-      - name: Python 3.9 compile, lint, selftest, script tests
-        run: |
-          python3 --version
-          python3 -m py_compile scripts/*.py evals/*.py
-          python3 scripts/lint-skills.py
-          python3 evals/run.py --selftest
-          bash scripts/test-scripts.sh
-
   validate:
     runs-on: ubuntu-latest
     steps:

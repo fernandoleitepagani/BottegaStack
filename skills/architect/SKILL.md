@@ -1,12 +1,19 @@
 ---
 name: architect
-description: "Sketch types, signatures, and module structure before code, then stay in the loop while implementation fills in. Use for /architect, 'architect this', 'design this', or non-trivial work where jumping to code would lock in the wrong shape."
+description: "Sketch types, signatures, and module structure before code, then stay in the loop while implementation fills in. Scan mode finds deepening opportunities across a codebase. Use for /architect, 'architect this', 'design this', 'improve the architecture', 'scan for refactors', or non-trivial work where jumping to code would lock in the wrong shape."
 disable-model-invocation: true
 ---
 
 # Architect
 
 Sketch types, function signatures, class shapes, and module boundaries with `not implemented` bodies and pseudocode. Synthesize across multiple model perspectives, then fill in code against the chosen sketch.
+
+## Modes
+
+- **Sketch** (default): Phases A-E below, for one piece of work.
+- **Scan:** look across the codebase for refactors that turn shallow modules into deep ones, report them as HTML, then interview the user on one. Follow `references/scan.md` (report template in `references/scan-report.md`). A chosen candidate continues into Phase B here.
+
+Shared vocabulary for both: `references/codebase-design/vocabulary.md` (module, interface, depth, seam, adapter, leverage, locality, the deletion test) with `references/codebase-design/DEEPENING.md`, and `references/domain-modeling/glossary-and-adrs.md` for keeping `GLOSSARY.md` and ADRs current. Both folders are by Matt Pocock (MIT, see their `LICENSE` files).
 
 ## Start
 
@@ -20,17 +27,17 @@ Open a todo list with one entry per phase before starting.
 
 ## Phase A: Ground the problem
 
-Build a real mental model of every system the new code touches. Run the **how** skill over the relevant subsystems. Naming a file isn't grounding. Produce the architectural explanation `how` prescribes. If the design redefines ownership or layering, also run the **why** skill on the existing shape so the rationale becomes a constraint, not a guess.
+Build a real mental model of every system the new code touches. Run the **understand** skill (how mode) over the relevant subsystems. Naming a file isn't grounding. Produce the architectural explanation `how` prescribes. If the design redefines ownership or layering, also run its why mode on the existing shape so the rationale becomes a constraint, not a guess.
 
 Skip Phase A only when the work is genuinely greenfield with no surrounding system to integrate.
 
 ## Phase B: Sketch
 
-Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
+Run the **parallel** skill in bakeoff mode with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
 
-Take the runners from the `architect runners` line in the `bottega-models.md` rule, in place of the `arena runners` line. The risk rule is the **arena** skill's Phase A step 3: normal risk runs 2 runners (`sonnet` low, `haiku` high), high risk up to 4. If the rule or that line is missing, use those defaults.
+Take the runners from the `runners` role in `../maestro/references/subagents.md`. The risk rule is the **parallel** skill (bakeoff mode)'s Phase A step 3: normal risk runs 2 runners (`sonnet` low, `haiku` high), high risk up to 4. If the rule or that line is missing, use those defaults.
 
-Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
+Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **Exhaust the Design Space** principle made concrete. Whole-shape alternatives, not point fixes inside one shape.
 
 Screen every candidate against [`references/design-red-flags.md`](references/design-red-flags.md) before synthesis. Assume the next contributor is an agent that sees only the files it opened, copies the nearest example, and takes the shortest path that compiles. Prefer the design where a change that looks right from one file is right for the whole repo.
 
@@ -44,7 +51,7 @@ Default: proceed directly to implementation with the synthesized design. No huma
 
 Opt in to a checkpoint when the invoker explicitly asks: "/architect with checkpoint," "stop and show me before implementing," or similar. Then surface the synthesized design and pause for sign-off.
 
-The synthesis can ship as its own commit either way, as the "scaffold first" mode of the **shape-before-logic** principle skill. Planned and scoped breakage during fill-in is fine, per the **outcome-oriented-execution** principle skill. For adversarial pressure on the design before implementing, run the **crossfire** skill on the synthesized sketch.
+The synthesis can ship as its own commit either way, as the "scaffold first" mode of the **Shape Before Logic** principle. Planned and scoped breakage during fill-in is fine, per the **Outcome-Oriented Execution** principle. For adversarial pressure on the design before implementing, run the **crossfire** skill on the synthesized sketch.
 
 If the human pushes back on the shape (in a checkpoint or after the fact), treat that as Phase A evidence. Re-ground and re-run Phase B before writing more code.
 
@@ -54,7 +61,7 @@ Replace `not implemented` bodies with code, pseudocode with logic. The synthesiz
 
 ## Phase E: Scrap when the architecture is wrong
 
-If implementation keeps producing friction the sketch can't absorb, throw the sketch out. Don't bolt fixes onto a wrong design, per the **redesign-from-first-principles** and **fix-root-causes** principle skills.
+If implementation keeps producing friction the sketch can't absorb, throw the sketch out. Don't bolt fixes onto a wrong design, per the **redesign-from-first-principles** and **Fix Root Causes** principles.
 
 The signal is a *pattern*, not single instances. Tells:
 
@@ -69,9 +76,9 @@ Use judgment. A few edge cases don't condemn an architecture. Some problems are 
 
 When you scrap:
 
-1. Re-run the **how** skill over what's been built.
+1. Re-run the **understand** skill (how mode) over what's been built.
 2. Redesign as if the new constraints had been day-one assumptions, per redesign-from-first-principles.
-3. Subtract before adding, per the **delete-first** principle skill. The new sketch should be smaller than the old one before it grows.
+3. Subtract before adding, per the **Delete First** principle. The new sketch should be smaller than the old one before it grows.
 4. Return to Phase B and re-run arena.
 
 ## Outputs

@@ -6,11 +6,11 @@ Shared rules for the `/maestro` orchestrator and every `maestro-agent` delegate.
 
 - Do the one task in your brief. The orchestrator owns the playbook, the todo list, the plan, and every other spawn. Never run a playbook and never act as the orchestrator.
 - Restate the goal from your brief in one line before you start.
-- Stay inside the scope the brief names. Anything outside it goes in your report under **Out of scope**, not into the diff.
+- Stay inside the scope the brief names. Anything outside it goes in your report under **Open**, not into the diff.
 
 ## Principles
 
-Each entry names when it applies. Before you apply one, read its leaf in full at `../../principle-<title>/SKILL.md` (title in kebab case, other punctuation dropped, unless the entry gives the name).
+Each entry names when it applies. Before you apply one, read its section in full in `principles/<group>.md` next to this file (`core.md`, `architecture.md`, `verification.md`, `delegation.md`, matching the group headings below).
 
 **Core**
 
@@ -20,7 +20,6 @@ Each entry names when it applies. Before you apply one, read its leaf in full at
 - **Attack the Premise.** Two fixes sharing one premise have failed.
 - **Minimize Reader Load.** Code that's hard to trace.
 - **Outcome-Oriented Execution.** A planned rewrite or migration with phases.
-- **Experience First.** A product, UX, or scope tradeoff.
 - **Exhaust the Design Space.** A novel decision with no precedent.
 - **Mechanize It.** Repetitive work, or an instruction written twice.
 
@@ -36,9 +35,8 @@ Each entry names when it applies. Before you apply one, read its leaf in full at
 
 - **Prove It Works.** Before declaring done (see **Verification** below).
 - **Fix Root Causes.** Debugging.
-- **Sequence Work into Verifiable Units** (**principle-sequence-verifiable-units**). Multi-step work, and stacking commits or PRs.
+- **Sequence Work into Verifiable Units.** Multi-step work, and stacking commits or PRs.
 - **Test Behavior, Not Implementation.** Writing, changing, or keeping a test.
-- **Explain the Number.** Measuring, or trusting a measured number.
 
 **Delegation**
 
@@ -53,7 +51,16 @@ Each entry names when it applies. Before you apply one, read its leaf in full at
 
 ## Comments
 
-Keep a comment only for a non-obvious *why* the code can't show. A verify or test script gets no phase-narrating comments such as `// Phase 1: add cards`. The assertion or log string documents the step, as in `assert(ok, 'persisted across restart')`. This applies to every file you produce.
+Write no comments by default. A comment is allowed only for:
+
+1. A license or copyright header.
+2. A constraint the code can't show: an external API quirk, a spec or RFC link, an issue link, or a workaround for a named upstream bug.
+3. A formatter or linter directive (`prettier-ignore`, `eslint-disable-next-line` with its reason).
+4. Doc comments on a public API that callers read.
+
+Everything else goes: comments that restate the code, narrate steps (`// Phase 1: add cards`), leftover TODOs, commented-out code, and decorative banners. If code seems to need a comment saying *what* it does, rename or reshape the code instead. Test and verify scripts carry no narration; the assertion or log string documents the step (`assert(ok, 'persisted across restart')`). This applies to every file you produce.
+
+**Self-check before review or a PR.** Run `git diff <base> | grep -nE '^\+.*(//|#|/\*|<!--)'` and remove every added comment outside the four cases. Report how many you removed. Leave comments on lines the diff did not change.
 
 ## Verification
 

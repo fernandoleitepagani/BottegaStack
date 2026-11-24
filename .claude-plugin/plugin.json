@@ -9,5 +9,5 @@
   "license": "MIT",
   "keywords": ["workflow", "playbooks", "subagents", "verification"],
   "skills": ["./skills"],
-  "agents": ["./agents/maestro-agent.md", "./agents/comment-sicko.md"]
+  "agents": ["./agents/maestro-agent.md"]
 }

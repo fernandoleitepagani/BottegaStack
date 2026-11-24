@@ -34,7 +34,7 @@ git rev-parse --git-dir >/dev/null 2>&1 || { echo "error: not a git repo: $repo"
 
 # Main worktree is the first entry; everything else is a candidate. Claude Code
 # worktrees (.claude/worktrees/) appear here too, since git lists them.
-main_wt=$(git worktree list --porcelain | awk '/^worktree /{print $2; exit}')
+main_wt=$(git worktree list --porcelain | sed -n 's/^worktree //p' | head -n 1)
 
 if [ -z "$base" ]; then
 	for cand in "$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main origin/master; do
@@ -66,8 +66,10 @@ fi
 # cannot read this repo's PRs.
 prs=$(mktemp)
 trap 'rm -f "$prs"' EXIT
-gh pr list --author "@me" --state all --limit 1000 --json number,state,headRefName \
-	--jq '.[] | "\(.headRefName)\t#\(.number)/\(.state | ascii_downcase)"' > "$prs" 2>/dev/null || : > "$prs"
+if ! gh pr list --author "@me" --state all --limit 1000 --json number,state,headRefName \
+	--jq '.[] | "\(.headRefName)\t#\(.number)/\(.state | ascii_downcase)"' > "$prs" 2>/dev/null; then
+	: > "$prs"; echo "warn: could not read PRs with gh; the PR column is blank" >&2
+fi
 
 # Transcripts dir: ~/.claude/projects/<slug>/ holds <session>.jsonl, with
 # subagents in <session>/subagents/. The slug is the workspace path with "/" and
@@ -84,7 +86,7 @@ now=$(date +%s)
 echo "# base: $base"
 printf "SIZE\tAGE\tMERGED\tDIRTY\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
 
-git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt; do
+git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt; do
 	[ "$wt" = "$main_wt" ] && continue
 
 	size=-
@@ -97,19 +99,28 @@ git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt;
 	# real signal; merge-base only catches fast-forward/rebase merges.
 	git merge-base --is-ancestor "$head" "$base" 2>/dev/null && merged=YES || merged=no
 
-	# Distinguish real WIP (tracked edits) from disposable untracked scratch.
-	porcelain=$(git -C "$wt" status --porcelain 2>/dev/null)
-	if [ -z "$porcelain" ]; then dirty=clean
-	elif printf '%s\n' "$porcelain" | grep -qv '^??'; then
-		dirty="wip:$(printf '%s\n' "$porcelain" | grep -cv '^??')"
-	else dirty="scratch:$(printf '%s\n' "$porcelain" | grep -c '^??')"; fi
+	# Tracked edits (wip), untracked files (scratch), and ignored run state (.bottega/)
+	# are all lost when the worktree is removed, so each one keeps it out of `safe`.
+	if porcelain=$(git -C "$wt" status --porcelain 2>/dev/null); then
+		n_wip=$(printf '%s\n' "$porcelain" | grep -v '^??' | grep -c .)
+		n_new=$(printf '%s\n' "$porcelain" | grep -c '^??')
+		dirty=""
+		[ "$n_wip" -gt 0 ] && dirty="wip:$n_wip"
+		[ "$n_new" -gt 0 ] && dirty="${dirty:+$dirty,}scratch:$n_new"
+		if [ -d "$wt/.bottega" ] && [ -n "$(ls -A "$wt/.bottega" 2>/dev/null | grep -v '^\.gitignore$')" ]; then
+			dirty="${dirty:+$dirty,}bottega-state"
+		fi
+		[ -z "$dirty" ] && dirty=clean
+	else dirty=unknown; fi
 
 	branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD 2>/dev/null || echo "")
 	if [ -z "$branch" ]; then remote=detached
 	elif git -C "$wt" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
 		[ "$(git -C "$wt" rev-parse "origin/$branch" 2>/dev/null)" = "$head" ] \
 			&& remote=pushed \
-			|| remote="ahead$(git -C "$wt" rev-list --count "origin/$branch..HEAD" 2>/dev/null)"
+			|| { ab=$(git -C "$wt" rev-list --left-right --count "HEAD...origin/$branch" 2>/dev/null); \
+				ahead=${ab%%[[:space:]]*}; behind=${ab##*[[:space:]]}; \
+				if [ "${ahead:-0}" -gt 0 ]; then remote="ahead$ahead"; else remote="behind${behind:-0}"; fi; }
 	else remote=no-remote; fi
 
 	pr=$([ -n "$branch" ] && awk -F'\t' -v b="$branch" '$1 == b { print $2; exit }' "$prs")
@@ -119,18 +130,19 @@ git worktree list --porcelain | awk '/^worktree /{print $2}' | while read -r wt;
 	# followed by "/" or a quote so feat-482 does not match feat-482-r37.
 	last="-"; last_ts=0
 	if [ -d "$transcripts" ]; then
-		f=$(grep_files "$wt" "$transcripts" \
-			| xargs stat "${stat_fmt[@]}" 2>/dev/null | sort -rn | head -1)
+		f=$(grep_files "$wt" "$transcripts" | while IFS= read -r t; do stat "${stat_fmt[@]}" "$t" 2>/dev/null; done \
+			| sort -rn | head -1)
 		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
 			last=$(fmt_day "$last_ts" 2>/dev/null); fi
 	fi
 	recent=$([ "$last_ts" -gt 0 ] 2>/dev/null && [ $(( (now - last_ts) / 86400 )) -le 4 ] && echo yes || echo no)
 
-	case "$dirty" in wip:*) bucket=hold-wip ;; *)
-		case "$pr" in */open|*/draft) bucket=hold-open-pr ;; *)
+	case "$dirty" in wip:*|unknown) bucket=hold-wip ;; *)
+		case "$pr" in */open) bucket=hold-open-pr ;; *)
 			# Safe only when the work is in the base or a merged PR, and no local
 			# commit is missing from the remote. A closed, unmerged PR is review.
 			if [ "$recent" = yes ]; then bucket=verify-recent-chat
+			elif [ "$dirty" != clean ]; then bucket=review
 			elif case "$remote" in ahead*) true ;; *) false ;; esac; then bucket=review
 			elif [ "$merged" = YES ]; then bucket=safe
 			elif case "$pr" in */merged) true ;; *) false ;; esac; then bucket=safe

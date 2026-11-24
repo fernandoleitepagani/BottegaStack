@@ -3,34 +3,18 @@
 One line per bundled skill: `name (~SKILL.md tokens, +references loaded only when a step needs them)`, then when to use it. Read a skill at `../<name>/SKILL.md`. Ask the user before reading one no maestro trigger names.
 
 ## Understand
-- `how` (~0.6k, +1k refs): how code works, walkthroughs before a change, placement and ownership questions.
-- `why` (~2.2k, +11k refs): why code is shaped this way, design rationale, regressions, postmortems. Git and `gh` evidence by default.
-- `blast-radius` (~1k): what a change could break outside the diff, proven with a run.
-- `recall` (~1.3k): rebuild recent working context from chat history and live state.
-- `ketchup` (~1.6k): catch the user up on what changed and what decisions wait on them.
+- `understand` (~1.6k, +12k refs): how code works, why it is shaped that way, recall of recent work, and catching the user up.
 
 ## Design and parallel work
-- `architect` (~1.4k, +2.3k refs): sketch types and module shape before code that crosses a function boundary.
-- `arena` (~1.1k): parallel candidates, pick a base, graft the best parts (normal: 2 runners; high risk: up to 4 plus a judge).
-- `swarm` (~0.6k): fan out N workers for coverage, races, or partitions; one consolidated report.
-- `crossfire` (~1.0k): adversarial review that keeps only run-proven findings. Solo at high risk, panel for contested designs.
+- `architect` (~1.2k, +9k refs): sketch types and module shape before code that crosses a function boundary; scan mode finds deepening opportunities across the codebase (with deep-module vocabulary, GLOSSARY.md and ADR guides).
+- `parallel` (~1.2k): fan out agents and return one result: coverage (slices), race (winner rule), bakeoff (pick a base, graft the rest; 2 runners, up to 4 plus a judge at high risk).
+- `crossfire` (~1.9k): adversarial review in budgeted rounds that keeps only run-proven findings, then writes the fix brief for a fresh delegate (max 2 fix rounds). Solo at high risk, panel for contested designs, PR mode for a merge decision.
 - `figure-it-out` (~1k): design a bespoke playbook when none fits.
 - `wayfinder` (~1.1k): plan foggy work too big for one session as a map of decision tickets.
-- `domain-modeling` (~0.8k, +1.5k refs): sharpen domain terms, write `GLOSSARY.md` and ADRs.
-- `codebase-design` (~1.6k, +1.6k refs): deep-module vocabulary for interfaces, seams, and testability.
-- `improve-architecture` (~1.5k, +1.7k refs): whole-codebase scan for deepening opportunities, HTML report, then decide one.
 
 ## Quality and review
-- `diagnosis` (~0.9k): turn a failed check or review findings into a fix brief; max 2 fix rounds.
-- `no-comments` (~0.7k): comment review via the comment-sicko agent, then fix accepted findings.
-- `tdd` (~0.8k): only when asked for TDD or a cheap local test path exists.
 - `correct` (~0.6k): make a mistake agents repeat in this repo impossible (architecture, types, lint, tests).
 - `unslop` (~1.5k): cut AI tells from any writing.
-- `technical-writing` (~2.3k): docs, READMEs, PR bodies, commit messages.
-- `benchmark-checklist` (~1.3k): vet a perf number before reporting or acting on it.
-
-## Review and incidents
-- `review-pr` (~0.5k): review a PR as a merge decision: intent, diff, CI, risk, tests, security, revert plan.
 
 ## UI and design (agents write the code; the user checks the rendered UI)
 - `frontend-design` (~2.4k): visual direction for new or reshaped UI.
@@ -47,12 +31,11 @@ One line per bundled skill: `name (~SKILL.md tokens, +references loaded only whe
 - `create-verification-skill` (~1.7k, +1.4k refs): generate a project `verify-<app>` skill that drives the app through CLI, API, process, or tests.
 - `maintain-verification-skill` (~1.3k): keep that skill and its feature map honest.
 
-## Run records and follow-ups
-- `show-me-your-work` (~1.7k): decision trail for long or unattended runs.
-- `file-followups` (~0.9k): file `.bottega/followups.md` items as GitHub issues after one confirmation.
+## PRs and run records
+- `pr` (~1.9k, +2k refs): open a PR or stack, babysit it to merge-ready, land a verified stack, refresh an old PR, file follow-ups as issues.
 
 ## Setup
 - `setup-maestro` (~0.9k): choose models and effort per role.
 
 ## Principles
-21 `principle-<name>` skills, ~0.1k to 0.4k each. The maestro delegate brief (`references/delegate.md`) indexes them; read a leaf before applying it.
+19 principles in four files under `references/principles/` (core, architecture, verification, delegation), about 0.3k tokens each. The maestro delegate brief (`references/delegate.md`) indexes them; read a principle's section before applying it.

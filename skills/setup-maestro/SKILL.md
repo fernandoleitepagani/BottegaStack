@@ -31,7 +31,7 @@ The default role table is **Models per role** in `../maestro/references/subagent
 - `small` sets every opus and sonnet effort to `low`, normal and high risk alike. Haiku stays `high`.
 - `large` sets opus and sonnet to `medium` in both columns. Never `high` on them.
 
-**(c) Show the roles and confirm.** Show every role with its normal and high-risk value. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering `opus`, `sonnet`, and `haiku` with an effort. Use `AskUserQuestion`. Panel roles (`arena runners`, `architect runners`) are lists: one subagent runs per entry, so the list length sets the runner count. The normal list has 2 entries and no cross-judge. The high list has up to 4 entries and the `arena cross-judge` runs. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
+**(c) Show the roles and confirm.** Show every role with its normal and high-risk value. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering `opus`, `sonnet`, and `haiku` with an effort. Use `AskUserQuestion`. The `runners` role is a list: one subagent runs per entry, so the list length sets the runner count (2 at normal risk with no judge, up to 4 at high risk with the `judge`).
 
 ### 4. Validate
 
@@ -46,7 +46,7 @@ Write `~/.claude/rules/bottega-models.md` with a `# budget` line and one line pe
 # Delete a line to fall back to the skill default. Read by /maestro and the skills it routes to.
 # budget: standard
 orchestrator: opus low | opus medium
-arena runners: sonnet low, haiku high | sonnet medium, sonnet medium, haiku high, haiku high
+runners: sonnet low, haiku high | sonnet medium, sonnet medium, haiku high, haiku high
 ```
 
 ### 6. Retire an old status line

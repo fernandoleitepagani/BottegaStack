@@ -1,6 +1,6 @@
 ---
 name: maestro-agent
-description: Delegate subagent for code-writing and helper tasks spawned during a `/maestro` run. Use for delegates, not as the runner for `/maestro` itself. Spawn a fresh `maestro-agent` for each new task, and resume one only in the strict cases that maestro's `references/subagents.md` (**Fresh subagents by default**) names. Reads the maestro delegate brief in full before any work.
+description: Delegate subagent for code-writing and helper tasks spawned during a `/maestro` run. Use for delegates, not as the runner for `/maestro` itself. Spawn a fresh `maestro-agent` for each new task, and resume one only in the strict cases that maestro's `references/subagents.md` (**Fresh subagents by default**) names. Reads the maestro delegate brief in full before any work, including its comments rule and self-check.
 background: true
 ---
 

@@ -1,10 +1,10 @@
 # Design before you write code
 
-One attempt at a hard design locks in the first shape the model thought of. `/architect` settles types and boundaries before implementation. `/arena` runs several attempts at the same brief and merges the best parts. `/crossfire` has independent reviewers try to break the result. When the job is coverage rather than design synthesis, `/swarm` fans out slices or races and aggregates their results.
+One attempt at a hard design locks in the first shape the model thought of. `/architect` settles types and boundaries before implementation. `/parallel` runs several attempts at the same brief and merges the best parts. `/crossfire` has independent reviewers try to break the result. When the job is coverage rather than design synthesis, `/parallel` fans out slices or races and aggregates their results.
 
 The two most common design mistakes are taking the agent's first design and polishing a plan that no code has tested. This page fixes both. You plan through code. Prototypes answer the open questions, a README or tutorial sets the target, and the written plan comes last.
 
-![Three robots draft competing bridge models at their own tables under /architect, /arena, and /crossfire panels, while a judge robot with a clipboard inspects skeptically.](./images/design.jpg)
+![Three robots draft competing bridge models at their own tables under /architect, /parallel, and /crossfire panels, while a judge robot with a clipboard inspects skeptically.](./images/design.jpg)
 
 ## Settle the shape with `/architect`
 
@@ -12,7 +12,7 @@ The two most common design mistakes are taking the agent's first design and poli
 /architect design the import pipeline before writing any code. i care most about how callers use it.
 ```
 
-[`/architect`](../../skills/architect/SKILL.md) grounds itself first, running `/how` over the code the design touches and `/why` when it moves ownership or layers. Then it runs `/arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
+[`/architect`](../../skills/architect/SKILL.md) grounds itself first, running `/understand how` over the code the design touches and `/understand why` when it moves ownership or layers. Then it runs `/parallel` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
 
 By default it proceeds straight from the synthesized design into implementation. If you want to see the design first, say so:
 
@@ -22,13 +22,13 @@ By default it proceeds straight from the synthesized design into implementation.
 
 The design isn't sacred once code starts. If implementation shows the same workaround in unrelated places, or types that only compile with `any` or forced casts, `/architect` treats that as proof the design is wrong. It scraps the sketch and starts over instead of patching around it.
 
-## Fan out attempts with `/arena`
+## Fan out attempts with `/parallel`
 
 ```text
-/arena take my prompt to the arena verbatim. i want to compare their proposals with yours.
+/parallel take my prompt to the arena verbatim. i want to compare their proposals with yours.
 ```
 
-[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. At normal risk there are two runners (sonnet low and haiku high) and no cross-judge, so the coordinator picks the base alone. At high risk there are up to four runners (two sonnet medium, two haiku high) and one read-only cross-judge on sonnet low, a different Claude tier than the parent, so its independence is weaker than across vendors. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
+[`/parallel`](../../skills/parallel/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. At normal risk there are two runners (sonnet low and haiku high) and no cross-judge, so the coordinator picks the base alone. At high risk there are up to four runners (two sonnet medium, two haiku high) and one read-only cross-judge on sonnet low, a different Claude tier than the parent, so its independence is weaker than across vendors. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
 
 ```mermaid
 flowchart LR
@@ -47,18 +47,18 @@ flowchart LR
 The panel comes from your [`/setup-maestro`](../../skills/setup-maestro/SKILL.md) configuration, and you can adjust it per task. Ask for more candidates when the decision matters, fewer when it doesn't:
 
 ```text
-/arena this, 4 candidates. the cache key format is expensive to change later.
+/parallel this, 4 candidates. the cache key format is expensive to change later.
 ```
 
-## Cover slices and races with `/swarm`
+## Cover slices and races with `/parallel`
 
 ```text
-/swarm check every package under packages/ against its check.sh. one worker per package. one report.
+/parallel check every package under packages/ against its check.sh. one worker per package. one report.
 ```
 
-[`/swarm`](../../skills/swarm/SKILL.md) fans N workers across independent slices, coverage matrices, gauntlet lanes, exploration partitions, or declared race arms. Each worker gets its own scope and check, then reports `PASS`, `ISSUES`, or `BLOCKED`. The parent waits for the workers and returns one compact report with any gaps or dropouts.
+[`/parallel`](../../skills/parallel/SKILL.md) fans N workers across independent slices, coverage matrices, gauntlet lanes, exploration partitions, or declared race arms. Each worker gets its own scope and check, then reports `PASS`, `ISSUES`, or `BLOCKED`. The parent waits for the workers and returns one compact report with any gaps or dropouts.
 
-Reach for it when parallelism buys coverage or lets independent checks race. `/arena` gives every worker the same design or code brief, then picks a base and grafts the best parts. `/swarm` covers slices or runs a race with a selection rule declared up front. It does not use the base-selection and grafting ceremony.
+Reach for it when parallelism buys coverage or lets independent checks race. `/parallel` gives every worker the same design or code brief, then picks a base and grafts the best parts. `/parallel` covers slices or runs a race with a selection rule declared up front. It does not use the base-selection and grafting ceremony.
 
 ## Break it with `/crossfire`
 
@@ -96,17 +96,17 @@ For a package or API that other code will use, start with the doc a user would r
 /maestro write a tutorial for how i would use the new config package first. then explain why it beats the current one.
 ```
 
-Writing the tutorial first forces the caller's view. You describe the API to a hypothetical user and work back to the implementation. The doc also becomes a concrete target the agent checks its own work against. Name [`/technical-writing`](../../skills/technical-writing/SKILL.md) when the doc itself matters, so a tutorial stays a tutorial instead of drifting into reference and explanation at once.
+Writing the tutorial first forces the caller's view. You describe the API to a hypothetical user and work back to the implementation. The doc also becomes a concrete target the agent checks its own work against. Run [`/unslop`](../../skills/unslop/SKILL.md) on it when the doc itself matters.
 
 ## Plan after the design settles
 
-bottega has no planning skill, on purpose. When you do want a written plan, ask for it once the design is settled:
+bottega has no spec-writing skill, on purpose (`wayfinder` maps foggy work into decisions, not a spec). When you do want a written plan, ask for it once the design is settled:
 
 ```text
 /maestro turn this design into a plan. small verifiable PRs, each with its own verification steps.
 ```
 
-The [Multi-phase plan playbook](../../skills/maestro/playbooks/multi-phase-plan.md) settles any remaining open questions by prototype, then writes one section per PR, each ending in proof that the change works. A passing test suite alone doesn't count as that proof. The plan is the deliverable. The playbook doesn't implement it, and it names which execution playbook should run it next.
+`/maestro` routes this to [`figure-it-out`](../../skills/figure-it-out/SKILL.md), which settles open questions by prototype and writes the phases, each ending in a check that proves it works. A passing test suite alone doesn't count as that proof. An [Unattended](../../skills/maestro/playbooks/unattended.md) queue can then run the PRs.
 
 For a migration, state the bar in the prompt:
 
@@ -121,9 +121,9 @@ For a migration, state the bar in the prompt:
 You might be wondering whether every change needs this. No. Most changes need none of it. A rough ladder:
 
 - A small, finished change you're unsure about needs `/crossfire` alone.
-- A change that crosses function boundaries or moves ownership earns `/architect`, which brings `/arena` with it.
-- A standalone decision where independent attempts would help, like naming, formats, or an algorithm, is `/arena` directly.
-- A coverage matrix, set of parallel checks, or race with declared arms is `/swarm`.
+- A change that crosses function boundaries or moves ownership earns `/architect`, which brings `/parallel` with it.
+- A standalone decision where independent attempts would help, like naming, formats, or an algorithm, is `/parallel` directly.
+- A coverage matrix, set of parallel checks, or race with declared arms is `/parallel`.
 - An open question you could answer by running something, like a layout, a timing, or an approach, gets a prototype, not a debate.
 - A contested design that's expensive to reverse gets `/architect`, then `/crossfire` before shipping.
 - Work that spans several PRs gets a plan, written after the design settles.

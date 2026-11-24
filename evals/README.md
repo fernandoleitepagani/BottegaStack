@@ -1,6 +1,6 @@
 # Evals
 
-A small, repeatable check that bottega makes agents do better work than plain Claude Code. It complements `skills/maestro/playbooks/eval.md`, which designs a one-off blinded experiment for a single skill change. This harness is the fixed baseline you rerun after every change to the stack.
+A small, repeatable check that bottega makes agents do better work than plain Claude Code. It complements a one-off blind comparison, which designs a one-off blinded experiment for a single skill change. This harness is the fixed baseline you rerun after every change to the stack.
 
 Nothing here ships with the plugin. `plugin.json` only loads `skills/` and `agents/`.
 
@@ -119,9 +119,23 @@ Use it after any edit to maestro, a playbook or delegate.md, after a Claude Code
 - Commits: `delegate.md` said "commit liberally", which, once Bash was unrestricted, led an inline orchestrator to commit in the user's checkout. Commits are now for a delegate's own worktree branch only.
 - Harness: Bash runs fully inside the OS sandbox (heredocs work, writes stay in the work dir and temp), and runs with several result events are summed.
 
-**Baseline now (`baseline.jsonl`):** bottega passes 16 of 16 on correctness and 15 of 16 on behavior (one feature run skipped the ledger). Plain Claude Code passes 8 of 8 on correctness and fails `vague-ask`. Bottega averages 30.5k fresh tokens and $0.165 a task, baseline 16.9k and $0.08, about 2x. High-risk runs cost the most, because crossfire now actually runs ($0.26 to $0.43). Correctness still can't separate the arms: the tasks are too easy.
+**Baseline now (`baseline.jsonl`, 12 tasks x 2 arms x 2 trials, sonnet low, 2026-11-24):** bottega passes 23 of 24 on correctness and 23 of 24 on behavior (one `bugfix-invoice` run ended with the gate incomplete). Plain Claude Code passes 22 of 24 on correctness (both misses are `hidden-caller`) and fails `vague-ask` both times. Bottega averages 33.1k fresh tokens and $0.196 a run, plain 17.2k and $0.082, about 2.4x. High-risk runs cost the most ($0.44 to $0.49), because crossfire runs. Only `hidden-caller` separates the arms on correctness.
 
 ## Next
 
-1. **Harder tasks.** Tasks where the obvious fix is wrong, the symptom is far from the cause, or the prompt tempts scope creep, so plain Claude Code fails some trials. Use `--trials 3` on these.
-2. **Cut bottega's fixed overhead** (about 13k tokens a run): the gate will show whether a trim costs behavior.
+1. **More trials on the separating tasks** (`hidden-caller`, `vague-ask`, `fix-cap`, `risk-escalation`) with `--trials 3`, before and after each structural change.
+2. **Cut bottega's fixed overhead:** the gate shows whether a trim costs behavior.
+3. **Promote carefully:** `gate.py --promote` replaces the whole baseline with the runs you pass, so promote only a full run of both arms.
+
+## Manual checks after install
+
+Things an automated eval can't see. Run them by hand in a scratch repo after installing or changing bottega.
+
+- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: `/maestro`, `/setup-maestro`, `/understand`, `/pr` appear under `/`.
+- **Setup.** `/setup-maestro` asks for a budget, shows every role, and writes `~/.claude/rules/bottega-models.md`. Pass: one `role: <normal> | <high>` line per row of the table, no `xhigh` or `max`, no `high` on opus or sonnet.
+- **Subagents.** In a `/maestro` run that spawns, the transcript shows `subagent_type: "bottega:maestro-agent"` with a `model` and `effort` from the table, and background spawns.
+- **A real run.** The first reply names the goal, the smallest change, and the risk; a vague request gets a question; `--start` runs before the first edit; the reply ends with a Decision block and one `Next:` line; nothing is committed unless you asked.
+- **UI path.** On a UI diff, one reviewer reads `interface-review`, no browser tool is used, and the reply says what you should look at.
+- **Light route.** A README typo is fixed with no playbook, todo list, or gate.
+- **Handoff.** Ask it to pause mid-run. Pass: `.bottega/handoff.md` and a patch exist, nothing was committed or pushed, and a fresh chat resumes from them.
+- **`/pr`.** On a real GitHub repo: open mode opens a ready PR; babysit `check` mode gives one status report; followups mode asks once before filing.
