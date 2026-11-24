@@ -7,7 +7,7 @@ Updated 2026-11-24. `DECISIONS.md` is the source of truth for decisions (edited 
 `~/Projects/Bottega-v2` is a Claude Code plugin, `bottega`, entry skill `/maestro`. It ports pstack (Lauren Tan, MIT, a Cursor plugin at `~/Projects/plugins/pstack/`) to native Claude Code and adds selected BottegaStack skills.
 
 - **Goal:** make one Claude Code agent work like a small, rigorous engineering team. It should write less code and better code, prove its claims before it says "done", and stay trustworthy when several agents run in parallel. pstack's thesis: "if you want to go fast, go deep first."
-- **Objective:** ship it as the drop-in replacement for `~/Projects/BottegaStack`. The last step copies Bottega-v2 over the BottegaStack repo, then commits and pushes, overwriting that repo's work. Its git history is the backup.
+- **Objective:** ship it as the drop-in replacement for `~/Projects/BottegaStack`. Done 2026-11-24: Bottega-v2 was copied over the BottegaStack repo (only `.git` kept) and pushed to `main` (`9747b59`, then CI fixes up to `bf6fdca`). The old layout is in git history before `9747b59`. `~/Projects/Bottega-v2` stays as a working copy because the installed plugin reads from it; keep the two in sync or reinstall from BottegaStack.
 - **Not a goal:** speed or token thrift for its own sake, third-party models, hooks, a CLI, Windows.
 
 ## Architecture
@@ -49,7 +49,7 @@ Updated 2026-11-24. `DECISIONS.md` is the source of truth for decisions (edited 
   - **`scripts/lint-skills.py`** checks frontmatter, the index, the principle and role lists, the doc counts, and that every bundled path a skill or agent file points to exists.
   - **`scripts/test-scripts.sh`** has 52 smoke tests.
   - **`evals/`** holds `run.py`, `gate.py`, `baseline.jsonl` and 12 tasks.
-  - **CI** is `.github/workflows/ci.yml`: an Ubuntu and macOS matrix, a Python 3.9 job, `claude plugin validate --strict`, shellcheck and a link check. It has never run.
+  - **CI** is `.github/workflows/ci.yml`: an Ubuntu and macOS matrix, a Python 3.9 job, `claude plugin validate --strict`, shellcheck and a link check. First run 2026-11-24 on GitHub: green on all four jobs after three fixes (bash 3.2 parse errors in `security-scan.sh` from quotes inside `$( )`, ShellCheck errors in `wizard/template.sh`, and the Python 3.9 job pinned to `ubuntu-22.04`).
 
 ## Workflow
 
@@ -156,7 +156,7 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
    - `/file-followups` and `/review-pr` on a real GitHub repo
    - the effort comparison
    - whether interactive runs open the todo list
-2. **Copy over `~/Projects/BottegaStack`, then commit and push** (only when the user says so). CI runs for the first time there; expect a round of fixes, since shellcheck has never run locally.
+2. **Point the installed plugin at BottegaStack** (`claude plugin marketplace add ~/Projects/BottegaStack`, reinstall), then retire `~/Projects/Bottega-v2`.
 3. **Optional, later:**
    - Run `hidden-caller` and `wrong-obvious-fix` with `--trials 3`. One trial is noise.
    - Cut ceremony turns. Turns drive most of bottega's cost.
