@@ -4,10 +4,10 @@ Updated 2026-11-24. `DECISIONS.md` is the source of truth for decisions (edited 
 
 ## Goal and objective
 
-`~/Projects/Bottega-v2` is a Claude Code plugin, `bottega`, entry skill `/maestro`. It ports pstack (Lauren Tan, MIT, a Cursor plugin at `~/Projects/plugins/pstack/`) to native Claude Code and adds selected BottegaStack skills.
+`~/Projects/BottegaStack` is a Claude Code plugin, `bottega`, entry skill `/maestro`. It ports pstack (Lauren Tan, MIT, a Cursor plugin at `~/Projects/plugins/pstack/`) to native Claude Code and adds selected BottegaStack skills.
 
 - **Goal:** make one Claude Code agent work like a small, rigorous engineering team. It should write less code and better code, prove its claims before it says "done", and stay trustworthy when several agents run in parallel. pstack's thesis: "if you want to go fast, go deep first."
-- **Objective:** ship it as the drop-in replacement for `~/Projects/BottegaStack`. Done 2026-11-24: Bottega-v2 was copied over the BottegaStack repo (only `.git` kept) and pushed to `main` (`9747b59`, then CI fixes up to `bf6fdca`). The old layout is in git history before `9747b59`. `~/Projects/Bottega-v2` stays as a working copy because the installed plugin reads from it; keep the two in sync or reinstall from BottegaStack.
+- **Objective:** ship it as the drop-in replacement for `~/Projects/BottegaStack`. Done 2026-11-24: Bottega-v2 was copied over the BottegaStack repo (only `.git` kept) and pushed to `main` (`9747b59`, then CI fixes up to `bf6fdca`). The old layout is in git history before `9747b59`. On 2026-11-24 the installed plugin was pointed at BottegaStack (marketplace `bottega` is a directory source here) and `~/Projects/Bottega-v2` was deleted. Plugin version is still `2.0.0`, so a reinstall reuses the cached copy; delete `~/.claude/plugins/cache/bottega` before reinstalling, or bump the version.
 - **Not a goal:** speed or token thrift for its own sake, third-party models, hooks, a CLI, Windows.
 
 ## Architecture
@@ -162,7 +162,7 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
    - `/file-followups` and `/review-pr` on a real GitHub repo
    - the effort comparison
    - whether interactive runs open the todo list
-2. **Point the installed plugin at BottegaStack** (`claude plugin marketplace add ~/Projects/BottegaStack`, reinstall), then retire `~/Projects/Bottega-v2`.
+2. Done 2026-11-24: the installed plugin reads BottegaStack, `~/Projects/Bottega-v2` is gone, and the old status line, its script and backups were removed.
 3. **Optional, later:**
    - Run `hidden-caller` and `wrong-obvious-fix` with `--trials 3`. One trial is noise.
    - Cut ceremony turns. Turns drive most of bottega's cost.
@@ -171,7 +171,7 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
 
 ## Hard rules from the user
 
-- Change files only inside `~/Projects/Bottega-v2` unless the user explicitly approves a specific outside change. That's how the rtk wrapper, the status line, the plugin install and the rtk config above were done.
+- Change files only inside `~/Projects/BottegaStack` unless the user explicitly approves a specific outside change. That's how the rtk wrapper, the status line, the plugin install and the rtk config above were done.
 - Claude Code only: no third-party models or harnesses, no hooks in the plugin, no CLI (memory `claude-code-exclusive`).
 - Linux and macOS only, one version of every script: bash 3.2, BSD and GNU tools, Python 3.9+, no `jq`.
 - Commit and push only when asked. `file-followups` needs one confirmation.

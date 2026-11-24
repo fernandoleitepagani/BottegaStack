@@ -10,7 +10,7 @@ mkdir -p ~/scratch/bottega-test && cd ~/scratch/bottega-test && git init
 ## 1. Install
 
 - [ ] **Old plugin off.** How: `claude plugin list`, find the v1 entry (`bottega@<marketplace>`), then `claude plugin disable bottega@<marketplace>`. Pass: `claude plugin list` shows it disabled.
-- [ ] **v2 installed.** How: `claude plugin marketplace add ~/Projects/Bottega-v2`, then `claude plugin install bottega@bottega`. Pass: `claude plugin list` shows `bottega@bottega` enabled.
+- [ ] **v2 installed.** How: `claude plugin marketplace add ~/Projects/BottegaStack`, then `claude plugin install bottega@bottega`. Pass: `claude plugin list` shows `bottega@bottega` enabled.
 - [ ] **Right skills show up.** How: start a new chat, type `/` and scroll, or type `/bottega:`. Pass: `/maestro` and `/setup-maestro` are listed. `maestro-models`, `backlog-triage`, `animation`, `simplify` (bottega's) and `review-code` are not.
 - [ ] **Only setup-maestro loads on its own.** How: in a new chat, type `set up maestro` (no slash). Then in another new chat, type `explain how this repo works` (no slash). Pass: the first loads `setup-maestro`. The second does not load `how` or any other bottega skill (no "Skill" tool call in the transcript).
 
@@ -62,7 +62,7 @@ Use a small web app (any framework). Prompt: `/maestro change the submit button 
 
 ## 7. Then
 
-- [ ] Write down every failure (section and check), fix it in Bottega-v2, and rerun that check before copying over BottegaStack.
+- [ ] Write down every failure (section and check), fix it in BottegaStack, and rerun that check.
 - [ ] Restore if needed: `cp ~/settings.bak.json ~/.claude/settings.json`.
 
 ## 8. Added in revision pass 3

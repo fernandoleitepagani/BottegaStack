@@ -2,7 +2,7 @@
 
 The decisions that shape the stack and why. History lives in the backup tarballs, not here. When a decision changes, edit its line instead of appending a new round.
 
-Base: a port of pstack (Lauren Tan, MIT). When in doubt, the port wins. All changes happen inside `Bottega-v2/`, which later replaces `BottegaStack/` as a drop-in.
+Base: a port of pstack (Lauren Tan, MIT). When in doubt, the port wins. All changes happen inside `BottegaStack/` (developed as `Bottega-v2/` until it replaced BottegaStack on 2026-11-24).
 
 ## Scope
 
