@@ -3,7 +3,7 @@
 **You own the skill's voice.**
 
 1. Write the SKILL.md yourself, following the rules below and the **technical-writing** skill (`../../technical-writing/SKILL.md`). Frontmatter: `name`, a `description` that says when to use it, and `disable-model-invocation: true` unless the model must start it.
-2. Validate the skill: frontmatter has `name` and `description`, referenced files exist, cross-skill links resolve. A bundled skill added, renamed, or removed updates `skills/maestro/SKILLS-INDEX.md` (one line with its size). `maestro-help` reads that index, so it needs no edit.
+2. Validate the skill: frontmatter has `name` and `description`, referenced files exist, cross-skill links resolve. A bundled skill added, renamed, or removed updates `skills/maestro/SKILLS-INDEX.md` (one line with its size).
 3. Test cases if structural. Skip if subjective.
 4. Run **Opening a PR**.
 

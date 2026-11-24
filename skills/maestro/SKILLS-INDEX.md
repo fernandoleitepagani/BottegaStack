@@ -7,7 +7,6 @@ One line per bundled skill: `name (~SKILL.md tokens, +references loaded only whe
 - `why` (~2.2k, +11k refs): why code is shaped this way, design rationale, regressions, postmortems. Git and `gh` evidence by default.
 - `blast-radius` (~1k): what a change could break outside the diff, proven with a run.
 - `recall` (~1.3k): rebuild recent working context from chat history and live state.
-- `teach` (~1.4k): explain a body of work so a person understands it (runs `how` and `why`).
 - `ketchup` (~1.6k): catch the user up on what changed and what decisions wait on them.
 
 ## Design and parallel work
@@ -32,10 +31,6 @@ One line per bundled skill: `name (~SKILL.md tokens, +references loaded only whe
 
 ## Review and incidents
 - `review-pr` (~0.5k): review a PR as a merge decision: intent, diff, CI, risk, tests, security, revert plan.
-- `runbook` (~0.5k): structured investigation of an incident, alert, or unknown breakage.
-- `data-analysis` (~0.3k): answer a data question from logs, CSVs, SQL, or metrics with the query shown.
-- `library-reference` (~0.4k): document an internal library, CLI, or API for agents.
-- `wizard` (~1.0k, +2.4k refs): a guided bash script for steps only the user can do.
 
 ## UI and design (agents write the code; the user checks the rendered UI)
 - `frontend-design` (~2.4k): visual direction for new or reshaped UI.
@@ -56,9 +51,8 @@ One line per bundled skill: `name (~SKILL.md tokens, +references loaded only whe
 - `show-me-your-work` (~1.7k): decision trail for long or unattended runs.
 - `file-followups` (~0.9k): file `.bottega/followups.md` items as GitHub issues after one confirmation.
 
-## Setup and help
-- `setup-maestro` (~1.4k): choose models and effort per role, install the status line.
-- `maestro-help` (~3.4k, +1.6k refs): onboarding, and picking the right skill, playbook, or principle.
+## Setup
+- `setup-maestro` (~0.9k): choose models and effort per role.
 
 ## Principles
 21 `principle-<name>` skills, ~0.1k to 0.4k each. The maestro delegate brief (`references/delegate.md`) indexes them; read a leaf before applying it.

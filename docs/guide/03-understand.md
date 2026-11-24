@@ -2,7 +2,7 @@
 
 Editing code you don't understand is how subtle regressions ship, and that's as true for the agent as for you. Agents usually fail in one of two ways. They misread what you want, or they don't have the context to do the work right. [What goes in a prompt](./02-maestro.md#what-goes-in-a-prompt) handles the first. This page handles the second.
 
-bottega gives you four ways in. `/how` explains what the code does now. `/why` digs up the reasons it's shaped that way. `/teach` blends both into one explanation. `/recall` rebuilds your own recent context on a topic. Each one also makes the agent explain itself in words you can check. That's how you supervise an agent that may know the code better than you do.
+bottega gives you three ways in. `/how` explains what the code does now. `/why` digs up the reasons it's shaped that way. `/recall` rebuilds your own recent context on a topic. Each one also makes the agent explain itself in words you can check. That's how you supervise an agent that may know the code better than you do.
 
 ![A detective studies a machine blueprint with a magnifying glass while robots fetch case files; the evidence board behind her links clues under /how and /why.](./images/understanding.jpg)
 
@@ -33,22 +33,6 @@ Ask the question you actually have. [`/how`](../../skills/how/SKILL.md) reads th
 [`/why`](../../skills/why/SKILL.md) starts from source control, then queries the issue tracker through `gh`, with git and `gh` investigators running in parallel. Other evidence categories, such as long-form docs, team chat, or observability, run only when you have approved that MCP server for the session. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
 
 The two compose naturally. `do why first then how` is a good prompt when you suspect the history explains the mess.
-
-## Actually understand it with `/teach`
-
-```text
-/teach me how this PR changes retries. convince me it fixes the cause and not the symptom.
-```
-
-[`/teach`](../../skills/teach/SKILL.md) is for when a summary isn't enough. It runs `/how` and `/why`, for a small change maybe just one of them, and weaves the findings into a plain explanation that builds up diagram by diagram. The "convince me" framing is worth reusing. It turns the explanation into an argument you can test instead of a tour.
-
-It works on the agent's own choices too:
-
-```text
-/teach me why you implemented it this way and not with a queue. what did you trade off, and why?
-```
-
-Teaching helps the agent as much as you. An agent that has to explain its work must read the code and back each claim with evidence, instead of stating it confidently and moving on.
 
 ## Rebuild your own context with `/recall`
 

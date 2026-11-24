@@ -38,19 +38,19 @@ Base: a port of pstack (Lauren Tan, MIT). When in doubt, the port wins. All chan
 - **Architect:** never automatic. On a cross-boundary change, maestro suggests it and runs it only on a yes. Arena is optional in Feature.
 - **Crossfire:** solo mode runs automatically at high risk; panel mode on request.
 - **Proof ledger:** the final gate logs one row per acceptance condition to `.bottega/proofs.tsv` (PASS, FAIL, INCONCLUSIVE, WAIVED; a waiver needs the user's words). Every run except the light route and read-only playbooks, whatever the size of the change. The run opens with `gate-check.sh --start` and its declared acceptance conditions. The check reads only the rows after that `run` row (none means exit 2), needs a proof row for every declared condition, counts only each condition's latest proof row (a fixed FAIL approves; the old row stays as history), refuses a waiver whose evidence doesn't start with `user:` and the user's words, in a git repo refuses any file the run changed that no `--expect` covers (files already dirty at `--start` and left alone don't count), and allows APPROVE only on exit 0; at high risk it also needs crossfire's own row, and any crossfire verdict but PASS escalates. Added after the evals showed agents skipping the ledger and crossfire as "overkill" on small changes.
-- **Final gate:** APPROVE or ESCALATE, then ask once: open PR, commit only, rework, or reject. Reject deletes nothing. Nothing is pushed before APPROVE.
+- **Final gate:** APPROVE or ESCALATE, then one closing line: open PR, commit only, rework, or reject. Reject deletes nothing. Nothing is pushed before APPROVE.
 - **Todo list:** pstack's rule as is: copy the playbook's steps in verbatim, keep skipped ones as `skip: <reason>`, use `TodoWrite` (`TaskCreate` in newer Claude Code) or keep the list in the reply. It is the user's live view of the run, not enforcement, so nothing scores it; the ledger and gate enforce.
 - **Fix rounds:** capped at 2, through `diagnosis`.
 - **Pause safely:** saves a patch under `.bottega/`, never a wip commit.
 - **Commits:** delegates commit freely on their own worktree branch. Nothing commits in the user's checkout unless the user asked, including the orchestrator working inline.
-- **Security scan:** `security-scan.sh` runs before every PR outside the light route. A secret in the diff blocks at any risk. A sensitive path or high risk adds `/security-review` when `origin/HEAD` exists, else a reviewer delegate.
+- **No security scan** (cut 2026-11-24). Secret detection is the forge's job (GitHub push protection and secret scanning). pstack has none either. High-risk changes still get crossfire.
 - **Confidence rule (95%)** lives only in maestro's Non-negotiables.
 
-## Status line and progress files
+## Status line, progress files, runtimes
 
-- `/setup-maestro` may replace `statusLine` in `~/.claude/settings.json` after backing it up. Nothing else touches that file.
-- One progress file per spawn, `.bottega/agents/<name>.json`, written with `scripts/progress.py`, is the only agent-state record. Orchestrate and autopilot add the agent id, PR number and `stuck_after` to it.
-- The status line shows `step/total`, and marks a running agent `quiet` when its file is unchanged past `stuck_after` (default 5 minutes). It drops done files after 10 minutes and running files untouched for a day.
+- `/setup-maestro` touches `~/.claude/settings.json` only to retire an old bottega status line, on the user's yes and after a backup.
+- No status line and no progress files (cut 2026-11-24). They cost about 8 tool calls per run and Python on every install, for a hint that a slow agent is alive. Orchestrate and autopilot record agent ids, PRs and `stuck_after` in the decision trail.
+- Scripts need only bash and git at runtime. The gate's changed-files snapshot is bash (`run-start.tsv`), and the multi-phase plan is checked in prose, not by `check-plan.mjs`. Python stays dev-only (lint, evals).
 
 ## Measurement
 

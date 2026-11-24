@@ -93,7 +93,7 @@ Don't spend adversaries on an abstract plan. `/crossfire` drops every finding a 
 For a package or API that other code will use, start with the doc a user would read:
 
 ```text
-/maestro write a tutorial for how i would use the new config package first. then /teach me why it beats the current one.
+/maestro write a tutorial for how i would use the new config package first. then explain why it beats the current one.
 ```
 
 Writing the tutorial first forces the caller's view. You describe the API to a hypothetical user and work back to the implementation. The doc also becomes a concrete target the agent checks its own work against. Name [`/technical-writing`](../../skills/technical-writing/SKILL.md) when the doc itself matters, so a tutorial stays a tutorial instead of drifting into reference and explanation at once.

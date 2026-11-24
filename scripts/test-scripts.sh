@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke tests for bottega's bundled scripts. Run from anywhere; exits 1 on any failure.
-# Works on Linux and macOS (bash 3.2, BSD or GNU tools, Python 3.9+). Uses temp dirs only.
+# Works on Linux and macOS (bash 3.2, BSD or GNU tools). Uses temp dirs only.
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -82,66 +82,28 @@ rm stray.log && mkdir -p src && echo x > src/b.py && git_q add src && git_q comm
 expect "gate-check: a commit since the start counts as changed" 2 "$maestro/gate-check.sh"
 expect "gate-check: a directory --expect covers it" 0 "$maestro/gate-check.sh" --expect "src/"
 [ -z "$(git status --porcelain -- .bottega)" ] && pass "gate-check: run state stays untracked" || fail "gate-check: run state stays untracked"
+git mv -k a.py "moved file.py" && echo y > "sub dir.txt"
+expect "gate-check: a rename and a spaced name are changed files" 2 "$maestro/gate-check.sh"
+"$maestro/gate-check.sh" >"$tmp/out" 2>&1
+grep -q "  - moved file.py" "$tmp/out" && grep -q "  - a.py" "$tmp/out" \
+	&& pass "gate-check: lists both sides of a rename" || fail "gate-check: lists both sides of a rename"
+expect "gate-check: globs with spaces cover them" 0 "$maestro/gate-check.sh" --expect "moved file.py" --expect "sub *.txt"
+rm "sub dir.txt"
+expect "gate-check: removing a run-created file leaves nothing to cover" 0 "$maestro/gate-check.sh"
+
+# gate-check.sh: risk declared at --start holds even when the final call omits --risk.
+cd "$tmp" && mkdir gate6 && cd gate6
+"$maestro/gate-check.sh" --start "goal" --condition "ok" --risk high >/dev/null
+expect "gate-check: high risk from --start needs crossfire" 2 "$maestro/gate-check.sh" --proof "ok" "ran" PASS
+"$logsh" .bottega/proofs.tsv crossfire diff solo "FINDINGS: 0" PASS
+expect "gate-check: high risk from --start approves with crossfire" 0 "$maestro/gate-check.sh"
 
 cd "$tmp" && mkdir gate3 && cd gate3
 "$maestro/gate-check.sh" --start "goal" --condition "docs updated" >/dev/null
 "$logsh" .bottega/proofs.tsv proof "docs updated" "by hand" "no reason" WAIVED
 expect "gate-check: hand-logged waiver without the user's words is missing" 2 "$maestro/gate-check.sh"
 
-# progress.py and statusline.py: step counter, quiet agent first, abandoned file dropped.
-cd "$tmp" && mkdir status && cd status
-python3 "$maestro/progress.py" fixer start sonnet low --total 5 >/dev/null
-python3 "$maestro/progress.py" fixer phase "running tests" --step 3 >/dev/null
-python3 "$maestro/progress.py" owner start sonnet low >/dev/null
-python3 "$maestro/progress.py" dead start haiku high >/dev/null
-python3 - <<'PY'
-import os, time
-now = time.time()
-os.utime(".bottega/agents/owner.json", (now - 700, now - 700))
-os.utime(".bottega/agents/dead.json", (now - 90000, now - 90000))
-PY
-line=$(printf '{"model":{"display_name":"Opus"},"workspace":{"project_dir":"%s"}}' "$PWD" \
-	| python3 "$root/skills/setup-maestro/scripts/statusline.py")
-case "$line" in *"owner"*"(quiet"*"fixer"*"3/5: running tests"*) pass "statusline: step counter and quiet first" ;;
-	*) fail "statusline: step counter and quiet first"; echo "      $line" ;; esac
-[ ! -e .bottega/agents/dead.json ] && grep -q '"agents_quiet": \["owner"\]' .bottega/status.json \
-	&& pass "statusline: drops abandoned files, lists quiet agents" || fail "statusline: drops abandoned files, lists quiet agents"
-expect "progress.py: rejects a path as a name" 1 python3 "$maestro/progress.py" ../x start a b
-
-# set-statusline.py: touches only statusLine, keeps permissions, backs up the old line.
-cd "$tmp" && mkdir -p home/.claude
-printf '{"model":"opus","env":{"X":"1"},"statusLine":{"type":"command","command":"other.sh"}}' > home/.claude/settings.json
-chmod 600 home/.claude/settings.json
-HOME="$tmp/home" python3 "$root/skills/setup-maestro/scripts/set-statusline.py" >/dev/null
-python3 - "$tmp/home/.claude" <<'PY' && pass "set-statusline: only statusLine changes" || fail "set-statusline: only statusLine changes"
-import json, os, stat, sys
-d = sys.argv[1]
-s = json.load(open(os.path.join(d, "settings.json")))
-b = json.load(open(os.path.join(d, "statusline.backup.json")))
-mode = stat.S_IMODE(os.stat(os.path.join(d, "settings.json")).st_mode)
-assert s["model"] == "opus" and s["env"] == {"X": "1"}, s
-assert s["statusLine"]["command"].endswith("bottega/statusline.py"), s
-assert os.path.isfile(os.path.join(d, "bottega", "statusline.py")), "copy missing"
-assert b["command"] == "other.sh" and mode == 0o600, (b, oct(mode))
-PY
-
-HOME="$tmp/home" python3 "$root/skills/setup-maestro/scripts/set-statusline.py" >/dev/null
-[ "$(ls "$tmp/home/.claude" | grep -c '^settings.json.bottega-backup-')" -eq 2 ] \
-	&& pass "set-statusline: second run keeps the first backup" || fail "set-statusline: second run keeps the first backup"
-sample='{"model":{"display_name":"x"},"workspace":{"current_dir":"/tmp","project_dir":"/tmp"}}'
-mkdir -p "$tmp/h o/.claude" && echo '{}' > "$tmp/h o/.claude/settings.json"
-HOME="$tmp/h o" python3 "$root/skills/setup-maestro/scripts/set-statusline.py" >/dev/null
-cmd=$(HOME="$tmp/h o" python3 "$root/skills/setup-maestro/scripts/set-statusline.py" --print-command)
-out=$(printf '%s' "$sample" | sh -c "$cmd"); code=$?
-[ "$code" -eq 0 ] && [ -n "$out" ] && pass "set-statusline: command works with a space in HOME" || fail "set-statusline: command works with a space in HOME"
-mkdir -p "$tmp/h2"
-HOME="$tmp/h2" python3 "$root/skills/setup-maestro/scripts/set-statusline.py" --print-command >/dev/null
-[ ! -e "$tmp/h2/.claude" ] && pass "set-statusline: --print-command writes nothing" || fail "set-statusline: --print-command writes nothing"
-printf '%s' '{"model":{"display_name":"SECRETVAL"},"cwd":"/tmp"}' | BOTTEGA_STATUSLINE_DEBUG="$tmp/dbg" python3 "$root/skills/setup-maestro/scripts/statusline.py" >/dev/null
-grep -q '"model.display_name"' "$tmp/dbg" && ! grep -q SECRETVAL "$tmp/dbg" \
-	&& pass "statusline: debug env writes key paths, no values" || fail "statusline: debug env writes key paths, no values"
-
-# .bottega/ ignores itself: log.sh and progress.py write .bottega/.gitignore, never overwrite it.
+# .bottega/ ignores itself: log.sh writes .bottega/.gitignore, never overwrites it.
 cd "$tmp" && mkdir gi1 && cd gi1
 "$logsh" .bottega/x.tsv p d w e r
 [ "$(cat .bottega/.gitignore 2>/dev/null)" = "*" ] && pass "log.sh creates .bottega/.gitignore" || fail "log.sh creates .bottega/.gitignore"
@@ -151,36 +113,10 @@ cd "$tmp" && mkdir gi2 && cd gi2 && mkdir .bottega && echo keep > .bottega/.giti
 cd "$tmp" && mkdir gi3 && cd gi3
 "$logsh" other/x.tsv p d w e r
 [ ! -e other/.gitignore ] && [ ! -e .bottega ] && pass "log.sh outside .bottega adds no .gitignore" || fail "log.sh outside .bottega adds no .gitignore"
-cd "$tmp" && mkdir gi4 && cd gi4
-python3 "$maestro/progress.py" a start sonnet low >/dev/null
-[ "$(cat .bottega/.gitignore 2>/dev/null)" = "*" ] && pass "progress.py creates .bottega/.gitignore" || fail "progress.py creates .bottega/.gitignore"
 cd "$tmp" && mkdir gi5 && cd gi5 && git init -q
-"$logsh" .bottega/x.tsv p d w e r; python3 "$maestro/progress.py" a start sonnet low >/dev/null
+"$logsh" .bottega/x.tsv p d w e r; "$root/skills/maestro/scripts/gate-check.sh" --start g --condition c >/dev/null
 [ -z "$(git status --porcelain)" ] && pass "git status clean for .bottega" || fail "git status clean for .bottega"
-
-# doctor.py: empty HOME passes, a missing status line script and a bad role value fail.
-doctor="$root/skills/setup-maestro/scripts/doctor.py"
-mkdir -p "$tmp/h1" "$tmp/h2/.claude/rules" "$tmp/h3/.claude/rules"
-expect "doctor: empty HOME is not a failure" 0 env HOME="$tmp/h1" python3 "$doctor"
-printf '# budget: standard\norchestrator: opus low | opus medium\n' >"$tmp/h2/.claude/rules/bottega-models.md"
-printf '{"statusLine":{"type":"command","command":"python3 %s/.claude/bottega/statusline.py"}}' "$tmp/h2" >"$tmp/h2/.claude/settings.json"
-expect "doctor: missing status line script fails" 1 env HOME="$tmp/h2" python3 "$doctor"
-printf '# budget: standard\nreviewer: sonnet high | sonnet medium\nghost: opus low | opus low\n' >"$tmp/h3/.claude/rules/bottega-models.md"
-expect "doctor: sonnet high is a bad value" 1 env HOME="$tmp/h3" python3 "$doctor"
-env HOME="$tmp/h3" python3 "$doctor" | grep -q "unknown role 'ghost'" && pass "doctor: unknown role warns" || fail "doctor: unknown role warns"
 cd "$tmp"
-
-# security-scan.sh: built-in patterns find committed and untracked secrets, never print them.
-cd "$tmp" && mkdir scan && cd scan && git init -q -b main
-echo "x = 1" > app.py && git_q add -A && git_q commit -qm init && git checkout -qb feat
-printf 'KEY = "AKIA%s"\n' ABCDEFGHIJKLMNOP > conf.py && git_q add -A && git_q commit -qm c
-printf 'a\tpassword = "hunter2hunter2xx"\n' > notes.txt
-SECURITY_SCAN_NO_GITLEAKS=1 "$maestro/security-scan.sh" -b main >"$tmp/out" 2>&1
-code=$?
-if [ "$code" -eq 1 ] && grep -q "conf.py:1: aws-access-key" "$tmp/out" && grep -q "notes.txt:1: assigned-secret" "$tmp/out" \
-	&& ! grep -q "ABCDEFGHIJKLMNOP\|hunter2" "$tmp/out" && [ -z "$(ls -A .bottega/security)" ]; then
-	pass "security-scan: finds secrets, hides values, leaves no temp files"
-else fail "security-scan: finds secrets, hides values, leaves no temp files (exit $code)"; sed 's/^/      /' "$tmp/out"; fi
 
 # worktree-audit.sh: classifies a worktree with uncommitted work, with and without sizes.
 cd "$tmp" && git init -q --bare -b main origin.git && git clone -q origin.git main 2>/dev/null && cd main
@@ -191,12 +127,6 @@ for flag in "" --no-sizes; do
 	if "$maestro/worktree-audit.sh" $flag 2>/dev/null | grep -q "hold-wip"; then pass "worktree-audit ${flag:-(sizes)}: wip worktree held"
 	else fail "worktree-audit ${flag:-(sizes)}: wip worktree held"; fi
 done
-
-# check-plan.mjs: the playbook's own template passes once filled, and the checker catches the placeholder.
-awk '/^````markdown/{f=1;next} /^````$/{f=0} f' "$root/skills/maestro/playbooks/multi-phase-plan.md" > "$tmp/plan.md"
-expect "check-plan: unfilled template is flagged" 1 node "$maestro/check-plan.mjs" "$tmp/plan.md"
-sed 's/<N> lanes on `<swarm workers model>`/3 lanes on `haiku`/' "$tmp/plan.md" > "$tmp/plan-filled.md"
-expect "check-plan: filled template passes" 0 node "$maestro/check-plan.mjs" "$tmp/plan-filled.md"
 
 echo
 [ "$fails" -eq 0 ] && echo "all script tests passed" || echo "$fails script test(s) failed"

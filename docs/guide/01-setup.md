@@ -21,7 +21,7 @@ Run:
 /setup-maestro
 ```
 
-[`/setup-maestro`](../../skills/setup-maestro/SKILL.md) shows you each role (code delegates, judgment, explorers, the review panels) with its model and effort, and asks what you want. Answer the questions. It writes `~/.claude/rules/bottega-models.md`, a small rule `/maestro` and the skills that spawn subagents read, and it can set up your status line. The status line script is copied to `~/.claude/bottega/statusline.py`, and `~/.claude/settings.json` is first saved to a timestamped `settings.json.bottega-backup-<stamp>` that is never overwritten. Bottega's scripts make `.bottega/` ignore itself, so there is nothing to add to your git excludes. `/setup-maestro doctor` checks your tools, rule file and status line and tells you how to fix anything off.
+[`/setup-maestro`](../../skills/setup-maestro/SKILL.md) shows you each role (code delegates, judgment, explorers, the review panels) with its model and effort, and asks what you want. Answer the questions. It writes `~/.claude/rules/bottega-models.md`, a small rule `/maestro` and the skills that spawn subagents read. Bottega's scripts make `.bottega/` ignore itself, so there is nothing to add to your git excludes.
 
 Models are `opus`, `sonnet`, and `haiku`. Each role also takes an effort: `low`, `medium`, or `high`. The defaults are cheap on purpose. Code delegates run `sonnet` at low effort, judgment and prose run `opus` at low effort, and explorers and workers run `haiku` at high effort. High-risk runs move code delegates to `sonnet` medium and judgment to `opus` medium. The "Models per role" table in [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) has the full list.
 

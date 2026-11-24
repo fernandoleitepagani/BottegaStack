@@ -7,44 +7,43 @@ Shared rules for the `/maestro` orchestrator and every `maestro-agent` delegate.
 - Do the one task in your brief. The orchestrator owns the playbook, the todo list, the plan, and every other spawn. Never run a playbook and never act as the orchestrator.
 - Restate the goal from your brief in one line before you start.
 - Stay inside the scope the brief names. Anything outside it goes in your report under **Out of scope**, not into the diff.
-- If your brief gives a progress command (`progress.py <name> phase ...`), run it at each step with a short label, for example `reading blame` or `running tests`, and `--step N` when the brief numbers its steps. Rerun it at least every few minutes during a long wait, because an unchanged file reads as a stuck agent.
 
 ## Principles
 
-Read the leaf skill in full for any principle you apply, at `../../principle-<title>/SKILL.md`, with the title in kebab case, hyphens kept and other punctuation dropped, unless the entry gives its name. Name each principle you applied in your report.
+Each entry names when it applies. Before you apply one, read its leaf in full at `../../principle-<title>/SKILL.md` (title in kebab case, other punctuation dropped, unless the entry gives the name).
 
 **Core**
 
-- **Delete First.** Sizing a diff, sequencing an addition or refactor, or tempted to add abstractions or layers. Remove dead weight first, then make the smallest change that solves the problem.
-- **Shape Before Logic.** Before writing logic, or code that branches a lot or repeats a shape assumption. Pick the structure that encodes the domain (state machine, typed model, registry, reducer, the right collection), scaffold first, isolate shared state.
-- **Redesign from First Principles.** Integrating a new requirement into an existing design. Redesign as if it had been foundational from day one.
-- **Attack the Premise.** Two or more fixes that share one premise have failed the same gate. Write the premise down and test it directly before you write another fix that assumes it.
-- **Minimize Reader Load.** Reviewing or shaping code that's hard to trace. Count layers and hidden state, collapse one-caller wrappers, shrink mutable scope.
-- **Outcome-Oriented Execution.** Planned rewrites and migrations with explicit phase boundaries. Converge on the target architecture, don't preserve throwaway compatibility states.
-- **Experience First.** Product, UX, or feature-scope tradeoffs. Choose user delight over implementation convenience.
-- **Exhaust the Design Space.** A novel interaction or architectural decision with no precedent. Build 2-3 competing prototypes and compare before committing.
-- **Mechanize It.** Any non-trivial work, or an instruction you've written twice. Build the tool that does, proves, or enforces it (codemod, script, generator, lint, check), not hand work or more prose.
+- **Delete First.** Sizing a diff, or tempted to add a layer.
+- **Shape Before Logic.** Before writing logic that branches a lot or repeats a shape assumption.
+- **Redesign from First Principles.** Fitting a new requirement into an existing design.
+- **Attack the Premise.** Two fixes sharing one premise have failed.
+- **Minimize Reader Load.** Code that's hard to trace.
+- **Outcome-Oriented Execution.** A planned rewrite or migration with phases.
+- **Experience First.** A product, UX, or scope tradeoff.
+- **Exhaust the Design Space.** A novel decision with no precedent.
+- **Mechanize It.** Repetitive work, or an instruction written twice.
 
 **Architecture**
 
-- **Boundary Discipline.** Wiring validation, error handling, or framework adapters. Guards at system boundaries, trust internal types, keep business logic pure.
-- **Type System Discipline.** Designing types or a signature in any typed language. Make illegal states unrepresentable, brand primitives, parse external data at boundaries.
-- **Make Operations Idempotent.** Designing commands, lifecycle steps, or loops that run amid crashes and retries. Converge to the same end state.
-- **Migrate Callers Then Delete Legacy APIs.** Introducing a new internal API while old callers exist. Migrate and delete in one wave.
-- **Separate Before Serializing Shared State.** Concurrent actors might write the same file, branch, key, or object. Eliminate the sharing first.
+- **Boundary Discipline.** Wiring validation, error handling, or adapters.
+- **Type System Discipline.** Designing types or a signature.
+- **Make Operations Idempotent.** A step that may rerun after a crash or retry.
+- **Migrate Callers Then Delete Legacy APIs.** A new internal API while old callers exist.
+- **Separate Before Serializing Shared State.** Concurrent writers to one file, branch, or key.
 
 **Verification**
 
-- **Prove It Works.** After a task, before declaring done. Verify per **Verification** below.
-- **Fix Root Causes.** Debugging. Trace each symptom back to the first place the system went wrong and fix it there. A guard is a fix only when the state it handles is legitimate.
-- **Sequence Work into Verifiable Units** (**principle-sequence-verifiable-units**). Multi-step work and how you stack commits and PRs. Break work into small units that each end in a check, verify each before the next, and order delivery so the sequence proves itself.
-- **Test Behavior, Not Implementation.** Writing, changing, or keeping a test. Assert what the code's users can observe, so the test fails when that behavior breaks and keeps passing when only the internals change.
-- **Explain the Number.** Before you measure, and before you trust, report, or act on a number you measured. Find what limits it, and rule out that it measured something other than the work you think.
+- **Prove It Works.** Before declaring done (see **Verification** below).
+- **Fix Root Causes.** Debugging.
+- **Sequence Work into Verifiable Units** (**principle-sequence-verifiable-units**). Multi-step work, and stacking commits or PRs.
+- **Test Behavior, Not Implementation.** Writing, changing, or keeping a test.
+- **Explain the Number.** Measuring, or trusting a measured number.
 
 **Delegation**
 
-- **Guard the Context Window.** Context fills up: large outputs, long files, repeated reads. Route bulk to files or subagents, keep summaries in the thread.
-- **Never Block on the Human.** Tempted to ask "should I do X?" on reversible work. Proceed, present the result, let the human course-correct.
+- **Guard the Context Window.** Large outputs, long files, repeated reads.
+- **Never Block on the Human.** Tempted to ask about reversible work.
 
 ## Scope and commits
 

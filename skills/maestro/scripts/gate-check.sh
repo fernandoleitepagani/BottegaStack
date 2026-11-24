@@ -2,9 +2,10 @@
 # Check the proof ledger before maestro's final gate.
 #
 # Usage:
-#   gate-check.sh --start "<goal>" --condition "<condition>"... [ledger]
-#       log a `run` row that opens this run, then one `condition` row per acceptance condition,
-#       and snapshot the repo's dirty files so the check can tell which files this run changed
+#   gate-check.sh --start "<goal>" --condition "<condition>"... [--risk normal|high] [ledger]
+#       log a `run` row that opens this run (with its risk), then one `condition` row per
+#       acceptance condition, and snapshot the repo's dirty files so the check can tell which
+#       files this run changed
 #   gate-check.sh [--risk normal|high] [--condition "<condition>"]... [--expect "<path or glob>"]...
 #                 [--proof "<condition>" "<evidence>" <RESULT>]... [ledger]
 #       log any late --condition rows, each --expect row (a file the change is meant to
@@ -15,11 +16,13 @@
 # `run` row, so an earlier run's proofs or crossfire verdict never count. A --proof
 # condition must match a declared condition's text exactly. For each condition only its
 # latest proof row counts, so a FAIL fixed and proven PASS approves; the FAIL stays in the
-# ledger. A WAIVED row's evidence starts with `user:` and quotes the user's words.
+# ledger. A WAIVED row's evidence starts with `user:` and quotes the user's words. Risk is
+# the higher of the --start risk and the check's --risk.
 #
-# In a git repo, every file the run changed (see run-files.py) must match an --expect glob,
-# so stray edits never ride along with an APPROVE. Files already dirty when the run opened
-# and left alone don't count. Outside a git repo this check is skipped.
+# In a git repo, every file the run changed (edited, created, deleted, or touched by a commit
+# since --start) must match an --expect path, glob, or directory ending in `/`, so stray edits
+# never ride along with an APPROVE. Files already dirty when the run opened and left alone
+# don't count. Outside a git repo this check is skipped.
 #
 # Exit 0: APPROVE allowed. 1: must ESCALATE (a proof row is FAIL or INCONCLUSIVE, or
 # crossfire's latest verdict is not PASS). 2: a step is missing (no run row, no declared
@@ -29,7 +32,6 @@ set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 log="$here/../../show-me-your-work/scripts/log.sh"
-files="$here/run-files.py"
 risk=normal
 start=""
 proofs_in=""
@@ -57,13 +59,76 @@ while [ $# -gt 0 ]; do
 done
 ledger="${1:-.bottega/proofs.tsv}"
 state=$(dirname "$ledger")
+snap="$state/run-start.tsv"
 case "$risk" in normal|high) ;; *) echo "error: --risk is normal or high" >&2; exit 2 ;; esac
+
+# Dirty files of the repo at <root>, one `<blob hash or deleted><TAB><path>` line each, paths
+# relative to the root, run state under .bottega/ left out.
+dirty() {
+	git -C "$1" -c core.quotePath=false status --porcelain=v1 -uall -z 2>/dev/null | {
+		from=""
+		while IFS= read -r -d '' entry; do
+			# A rename or copy is followed by its source path; a renamed-away source is gone.
+			if [ "$from" = R ]; then from=""; path=$entry; h=deleted
+				case "$path" in .bottega|.bottega/*|*/.bottega/*) continue ;; esac
+				printf '%s\t%s\n' "$h" "$path"; continue
+			elif [ "$from" = C ]; then from=""; continue; fi
+			path=${entry:3}
+			case "${entry:0:2}" in R*) from=R ;; C*) from=C ;; esac
+			case "$path" in .bottega|.bottega/*|*/.bottega/*) continue ;; esac
+			if [ -f "$1/$path" ]; then h=$(git -C "$1" hash-object -- "$path"); else h=deleted; fi
+			printf '%s\t%s\n' "$h" "$path"
+		done
+	}
+}
+
+snapshot() {
+	root=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+	mkdir -p "$state"
+	{ printf 'head\t%s\n' "$(git -C "$root" rev-parse --verify --quiet HEAD)"; dirty "$root"; } >"$snap"
+}
+
+# Every file changed since the snapshot, one per line. Returns 3 outside git or with no snapshot.
+changed_files() {
+	root=$(git rev-parse --show-toplevel 2>/dev/null) || return 3
+	[ -f "$snap" ] || return 3
+	before=$(awk -F'\t' 'NR == 1 && $1 == "head" { print $2 }' "$snap")
+	cur=$(git -C "$root" rev-parse --verify --quiet HEAD)
+	{
+		dirty "$root" | awk -F'\t' -v snap="$snap" '
+			BEGIN { while ((getline l < snap) > 0) if (n++) b[substr(l, index(l, "\t") + 1)] = substr(l, 1, index(l, "\t") - 1) }
+			{ p = substr($0, index($0, "\t") + 1); now[p] = 1; if (b[p] != $1) print p }
+			END { for (p in b) if (!(p in now)) print p }'
+		if [ -n "$before" ] && [ -n "$cur" ] && [ "$cur" != "$before" ]; then
+			git -C "$root" -c core.quotePath=false diff --name-only "$before" HEAD
+		elif [ -z "$before" ] && [ -n "$cur" ]; then
+			git -C "$root" -c core.quotePath=false ls-files
+		fi
+	} | grep -v -e '^\.bottega$' -e '^\.bottega/' -e '/\.bottega/' | grep . | sort -u
+	return 0
+}
+
+# Files on stdin that no --expect argument covers: an exact path, a glob, or a directory ending in /.
+outside() {
+	while IFS= read -r f; do
+		[ -n "$f" ] || continue
+		hit=0
+		for g in "$@"; do
+			[ "$f" = "$g" ] && hit=1
+			case "$g" in */) case "$f" in "$g"*) hit=1 ;; esac ;; esac
+			# shellcheck disable=SC2254
+			case "$f" in $g) hit=1 ;; esac
+			[ "$hit" = 1 ] && break
+		done
+		[ "$hit" = 1 ] || printf '%s\n' "$f"
+	done
+}
 
 if [ -n "$start" ]; then
 	[ -n "$conds_in" ] || { echo "error: --start needs at least one --condition (the run's acceptance conditions)" >&2; exit 2; }
 	[ "$nproofs" -eq 0 ] || { echo "error: --start opens a run; log --proof rows in a later call" >&2; exit 2; }
-	"$log" "$ledger" run "$start" "run start" "n/a" OPEN || exit 2
-	python3 "$files" snapshot "$state" 2>/dev/null || true
+	"$log" "$ledger" run "$start" "run start" "risk=$risk" OPEN || exit 2
+	snapshot
 fi
 
 # Log any --condition rows, split back on the unit separator.
@@ -78,7 +143,7 @@ while [ -n "$rest" ]; do
 	"$log" "$ledger" expect "$glob" "file the change touches" "n/a" OPEN || exit 2
 done
 if [ -n "$start" ]; then
-	echo "run opened in $ledger"
+	echo "run opened in $ledger (risk $risk)"
 	exit 0
 fi
 
@@ -95,7 +160,7 @@ if [ "$nproofs" -gt 0 ]; then
 fi
 
 if [ ! -s "$ledger" ]; then
-	echo "MISSING: no ledger at $ledger. Log one proof row per acceptance condition (see references/final-gate.md)."
+	echo "MISSING: no ledger at $ledger. Open the run with --start, then log one proof per acceptance condition."
 	exit 2
 fi
 
@@ -104,6 +169,7 @@ if ! awk -F'\t' 'NR > 1 && $2 == "run" { found = 1 } END { exit !found }' "$ledg
 	echo "MISSING: no run row in $ledger. Open the run with --start \"<goal>\" --condition \"<condition>\"..., then log the --proof rows."
 	exit 2
 fi
+[ "$(awk -F'\t' 'NR > 1 && $2 == "run" { r = $5 } END { print r }' "$ledger")" = "risk=high" ] && risk=high
 rows=$(awk -F'\t' 'NR > 1 { if ($2 == "run") buf = ""; else buf = buf $0 "\n" } END { printf "%s", buf }' "$ledger")
 count() { printf '%s' "$rows" | awk -F'\t' -v p="$1" -v r="$2" '$2 == p && (r == "" || $6 == r)' | grep -c . ; }
 
@@ -153,8 +219,8 @@ if [ "$fail" -gt 0 ] || [ "$inconclusive" -gt 0 ]; then
 	echo "ESCALATE: $((fail + inconclusive)) condition(s) whose latest proof is FAIL or INCONCLUSIVE."
 	escalate=1
 fi
-# Scope: every file this run changed must match an --expect glob. Skipped outside git.
-if changed=$(python3 "$files" changed "$state" 2>/dev/null); then
+# Scope: every file this run changed must match an --expect. Skipped outside git.
+if changed=$(changed_files); then
 	if [ -n "$changed" ]; then
 		echo "files changed in this run:"
 		printf '%s\n' "$changed" | sed 's/^/  - /'
@@ -163,12 +229,15 @@ if changed=$(python3 "$files" changed "$state" 2>/dev/null); then
 			echo "MISSING: no --expect declared. Name the files this change is meant to touch with --expect \"<path or glob>\"."
 			missing=1
 		else
-			outside=$(printf '%s\n' "$globs" | {
-				set --; while IFS= read -r g; do set -- "$@" "$g"; done
-				printf '%s\n' "$changed" | python3 "$files" outside "$@"; })
-			if [ -n "$outside" ]; then
+			set -f; oldifs=$IFS; IFS='
+'
+			# shellcheck disable=SC2086
+			set -- $globs
+			IFS=$oldifs; set +f
+			outside_files=$(printf '%s\n' "$changed" | outside "$@")
+			if [ -n "$outside_files" ]; then
 				echo "MISSING: changed file(s) outside --expect. Revert them, or add them with --expect if the change needs them:"
-				printf '%s\n' "$outside" | sed 's/^/  - /'
+				printf '%s\n' "$outside_files" | sed 's/^/  - /'
 				missing=1
 			fi
 		fi

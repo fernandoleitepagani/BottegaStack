@@ -17,10 +17,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Shell syntax
         run: find . -name '*.sh' -not -path './node_modules/*' -print0 | xargs -0 -n1 bash -n
-      - name: Node syntax
-        run: node --check skills/maestro/scripts/check-plan.mjs
       - name: Python syntax
-        run: python3 -m py_compile skills/setup-maestro/scripts/*.py skills/maestro/scripts/*.py scripts/*.py evals/*.py
+        run: python3 -m py_compile scripts/*.py evals/*.py
       - name: Script smoke tests
         run: bash scripts/test-scripts.sh
       - name: Skill content lint
@@ -40,7 +38,7 @@ jobs:
       - name: Python 3.9 compile, lint, selftest, script tests
         run: |
           python3 --version
-          python3 -m py_compile skills/setup-maestro/scripts/*.py skills/maestro/scripts/*.py scripts/*.py evals/*.py
+          python3 -m py_compile scripts/*.py evals/*.py
           python3 scripts/lint-skills.py
           python3 evals/run.py --selftest
           bash scripts/test-scripts.sh

@@ -23,10 +23,10 @@ start a new session afterwards. claude code prefixes plugin commands, so `/maest
 
 two steps:
 
-1. run [`/setup-maestro`](./skills/setup-maestro/SKILL.md). it shows each role with its model (`opus`, `sonnet`, `haiku`) and effort (`low`, `medium`, `high`), writes your choices to `~/.claude/rules/bottega-models.md`, and can set up the status line (it backs up `statusLine` in `~/.claude/settings.json` first).
+1. run [`/setup-maestro`](./skills/setup-maestro/SKILL.md). it shows each role with its model (`opus`, `sonnet`, `haiku`) and effort (`low`, `medium`, `high`), and writes your choices to `~/.claude/rules/bottega-models.md`.
 2. use [`/maestro`](./skills/maestro/SKILL.md) whenever you're doing anything that requires rigor.
 
-new here? the [bottega guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`/maestro-help`](./skills/maestro-help/SKILL.md).
+new here? the [bottega guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs.
 
 that's it. the other skills are situational, and `/maestro` uses them for you as needed. out of the box, code delegates run `sonnet` at low effort, judgment and prose run `opus` at low effort, and explorers and workers run `haiku` at high effort. every skill except `/setup-maestro` ships with `disable-model-invocation: true`, so none costs context until it runs. `/maestro` reads the catalog in [`skills/maestro/SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md), picks candidates, asks you with `AskUserQuestion`, and only then reads the chosen skill.
 
@@ -105,8 +105,7 @@ to keep `/maestro` in effect across turns, add a one-line pointer to your `CLAUD
 | skill | use it when |
 |---|---|
 | [`/maestro`](./skills/maestro/SKILL.md) | default entry point for any non-trivial task. |
-| [`/maestro-help`](./skills/maestro-help/SKILL.md) | you're new to bottega, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. |
-| [`/setup-maestro`](./skills/setup-maestro/SKILL.md) | you want to pick which models bottega uses per role. writes `~/.claude/rules/bottega-models.md` and can set up the status line. |
+| [`/setup-maestro`](./skills/setup-maestro/SKILL.md) | you want to pick which models bottega uses per role. writes `~/.claude/rules/bottega-models.md`. |
 | [`/how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
 | [`/why`](./skills/why/SKILL.md) | you want to know why something was built this way. runs git and `gh` investigators in parallel; other evidence sources only when you approve that MCP server. |
 | [`/recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your chat history, handed back as a tight current-state brief. |
@@ -120,7 +119,6 @@ to keep `/maestro` in effect across turns, add a one-line pointer to your `CLAUD
 | [`/file-followups`](./skills/file-followups/SKILL.md) | a run left loose ends. lists them as proposed GitHub issues and files them with `gh` after one confirmation. |
 | [`/wayfinder`](./skills/wayfinder/SKILL.md) | the destination is foggy and the work is too big for one session. charts a map of decision tickets and resolves them one at a time. |
 | [`/correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistakes. fixes each class at the highest level that works (architecture, then types, lint, and ci, then tests, with docs last). |
-| [`/teach`](./skills/teach/SKILL.md) | you want to actually understand a change or subsystem. runs how + why and weaves one plain explanation. |
 | [`/tdd`](./skills/tdd/SKILL.md) | you're fixing a bug and there's a cheap local test path. write the failing test first, then the fix. |
 | [`/benchmark-checklist`](./skills/benchmark-checklist/SKILL.md) | you ran a benchmark or measured a speedup or regression. vets the number before you report or act on it. |
 | [`/no-comments`](./skills/no-comments/SKILL.md) | strip comments before review; spawns Comment Sicko, fixes accepted findings, offers encodings for claimed constraints. |
@@ -159,7 +157,6 @@ unslop:            can we unslop and tighten the new changes?
 follow-ups:        /file-followups that took too long. file what we learned.
 wayfinder:         /wayfinder we need to move off the old billing system. i don't know where to start.
 correct:           /correct
-help:              /maestro-help which skill should i use to review this branch?
 ```
 
 ### from BottegaStack
@@ -170,11 +167,7 @@ help:              /maestro-help which skill should i use to review this branch?
 | `/codebase-design` | you're designing a module's interface or deciding where a seam goes. |
 | `/review-pr` | you want a PR reviewed as a merge decision. |
 | `/improve-architecture` | you want the whole codebase scanned for modules worth deepening. |
-| `/data-analysis` | you need a number from logs, CSVs, SQL, or metrics, with the query shown. |
-| `/library-reference` | agents keep misusing an internal library, CLI, or API. |
-| `/wizard` | a step only you can do (a dashboard, credentials, a cutover) needs a guided script. |
 | `/interface-review` | you want the UI problems a diff introduced. |
-| `/runbook` | an incident or alert has an unknown cause. |
 | `/frontend-design` | you want a distinct visual direction for new UI. |
 | `/better-interface` | you want one ranked review of a screen or flow. |
 | `/better-accessibility`, `/better-colors`, `/better-layout`, `/better-typography`, `/better-ui`, `/better-writing` | you want one UI domain built or reviewed. agents write the code; you check the rendered result. |
@@ -237,5 +230,5 @@ MIT. original pstack by Lauren Tan (poteto). see [LICENSE](./LICENSE).
 ## credits
 
 - the `better-*` skills and `interface-review` carry an MIT license from Jakub Krehel (see each skill's `LICENSE`).
-- `codebase-design`, `domain-modeling`, and `wizard` carry an MIT license from Matt Pocock (see each skill's `LICENSE`).
+- `codebase-design` and `domain-modeling` carry an MIT license from Matt Pocock (see each skill's `LICENSE`).
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), kept verbatim under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).

@@ -11,7 +11,7 @@ mkdir -p ~/scratch/bottega-test && cd ~/scratch/bottega-test && git init
 
 - [ ] **Old plugin off.** How: `claude plugin list`, find the v1 entry (`bottega@<marketplace>`), then `claude plugin disable bottega@<marketplace>`. Pass: `claude plugin list` shows it disabled.
 - [ ] **v2 installed.** How: `claude plugin marketplace add ~/Projects/Bottega-v2`, then `claude plugin install bottega@bottega`. Pass: `claude plugin list` shows `bottega@bottega` enabled.
-- [ ] **Right skills show up.** How: start a new chat, type `/` and scroll, or type `/bottega:`. Pass: `/maestro`, `/setup-maestro`, `/maestro-help` are listed. `maestro-models`, `backlog-triage`, `animation`, `simplify` (bottega's) and `review-code` are not.
+- [ ] **Right skills show up.** How: start a new chat, type `/` and scroll, or type `/bottega:`. Pass: `/maestro` and `/setup-maestro` are listed. `maestro-models`, `backlog-triage`, `animation`, `simplify` (bottega's) and `review-code` are not.
 - [ ] **Only setup-maestro loads on its own.** How: in a new chat, type `set up maestro` (no slash). Then in another new chat, type `explain how this repo works` (no slash). Pass: the first loads `setup-maestro`. The second does not load `how` or any other bottega skill (no "Skill" tool call in the transcript).
 
 ## 2. `/setup-maestro`
@@ -19,8 +19,6 @@ mkdir -p ~/scratch/bottega-test && cd ~/scratch/bottega-test && git init
 Back up first: `cp ~/.claude/settings.json ~/settings.bak.json; cp ~/.claude/rules/bottega-models.md ~/models.bak.md`.
 
 - [ ] **Rule rewritten in v2 format.** How: run `/setup-maestro`, answer its questions, then `cat ~/.claude/rules/bottega-models.md`. Pass: the roles match the "Models per role" table in `skills/maestro/references/subagents.md` (orchestrator, code delegate, reviewer, explorer…). No `builder: headless`, no `master:`, no `xhigh` or `max` anywhere.
-- [ ] **Only statusLine touched.** How: `python3 -c "import json,glob,os;h=os.path.expanduser('~/.claude/');a=json.load(open(sorted(glob.glob(h+'settings.json.bottega-backup-*'))[-1]));b=json.load(open(h+'settings.json'));print(sorted(k for k in set(a)|set(b) if a.get(k)!=b.get(k)))"`. Pass: `['statusLine']` (or `[]` on a rerun). `python3 <plugin>/skills/setup-maestro/scripts/doctor.py` shows the status line as ok.
-- [ ] **Status line works.** How: open a new chat and look at the bottom bar. Pass: it shows text with no error or blank fields. If a field is blank, run the status line command by hand with sample JSON: `echo '{"model":{"display_name":"x"},"workspace":{"current_dir":"/tmp"}}' | <command from statusLine>`, and report the output (the field names are unverified).
 - [ ] **Verification offer.** How: run `/setup-maestro` in the scratch repo (no `.claude/skills/verify-*`). Pass: it offers `/create-verification-skill` once. In a repo that has a `verify-*` skill, it doesn't offer.
 
 ## 3. Models and effort reach the subagents
@@ -44,7 +42,7 @@ Prompt: `/maestro add a multiply() function with a test; done when the test suit
 - [ ] **Fix rounds capped at 2.** How: give a task the test can't pass (e.g. "make sum(2,2) return 5 while keeping the test that expects 4"). Pass: it stops after 2 fix rounds and ESCALATEs to you.
 - [ ] **Final gate.** How: read the last reply of a normal run. Pass: it says APPROVE or ESCALATE, with the evidence (test output).
 - [ ] **No commit/push.** How: `git log --oneline; git status`. Pass: no new commit unless you asked for one.
-- [ ] **Handoff threshold.** How: hard to trigger on purpose. During a long run, watch the context % in the status line. Pass: around 60% (or 300k tokens) it writes a handoff and suggests a fresh chat.
+- [ ] **Handoff threshold.** How: hard to trigger on purpose. During a long run, check `/context`. Pass: around 60% (or 300k tokens) it writes a handoff and suggests a fresh chat.
 
 ## 5. UI path (a repo with a front end)
 
@@ -56,11 +54,10 @@ Use a small web app (any framework). Prompt: `/maestro change the submit button 
 
 ## 6. Spot checks
 
-- [ ] **maestro-help uses the index.** How: `/maestro-help which skill reviews a PR?`. Pass: it reads or greps `SKILLS-INDEX.md` (visible Read or Grep call) and answers `/review-pr` with one example prompt, without starting work.
 - [ ] **diagnosis.** How: in the scratch repo, break the test, then `/maestro the test fails, fix it`. Pass: on the failing check, a `maestro-agent` with the reviewer model reads `diagnosis`, writes a fix brief, and a *different* delegate makes the fix. Any temporary logging stays out of the final diff.
-- [ ] **Output paths.** How: run `/review-pr <n>` on a real PR you own, `/runbook why does the test fail`, and `/data-analysis count lines per file in this repo`. Pass: files appear at `.bottega/review-pr-<n>.md`, `.bottega/runbook-<slug>.md` and `.bottega/analysis-<slug>.md`, and nothing new at the repo root.
+- [ ] **Output paths.** How: run `/review-pr <n>` on a real PR you own. Pass: the file appears at `.bottega/review-pr-<n>.md`, and nothing new at the repo root.
 - [ ] **file-followups.** How: in a GitHub repo you own (a test repo), after a run that recorded follow-ups, run `/file-followups`. Pass: it shows the list and asks once. Answer yes. Then `gh issue list --label <followup label>`: issues have the label, and no title contains the label text. Close the test issues afterwards.
-- [ ] **Multi-phase plan.** How: `/maestro plan a 3-PR change that adds logging, then config, then docs; don't implement`. Then run `node ~/.claude/plugins/<install path>/skills/maestro/scripts/check-plan.mjs <plan file>` (find the path with `find ~/.claude/plugins -name check-plan.mjs`). Pass: `0 problems`, with 3 lanes at normal risk. No code is changed.
+- [ ] **Multi-phase plan.** How: `/maestro plan a 3-PR change that adds logging, then config, then docs; don't implement`. Pass: the reply reports the step 6 plan check with nothing left unfixed, 3 lanes at normal risk. No code is changed.
 - [ ] **Old rule format.** How: temporarily restore v1 rules (`cp ~/models.bak.md ~/.claude/rules/bottega-models.md`), start a new chat, run a tiny `/maestro` task, and check the reviewer's model. Expect sonnet medium (the v1 line matches). Then rerun `/setup-maestro` to restore v2.
 
 ## 7. Then
@@ -70,6 +67,6 @@ Use a small web app (any framework). Prompt: `/maestro change the submit button 
 
 ## 8. Added in revision pass 3
 
-- [ ] **Closeout choice.** How: finish a `/maestro` run without saying what to do with it. Pass: after APPROVE/ESCALATE it asks once: PR, commit only, rework, reject. Pick "reject". Pass: nothing is deleted and no commit is made (`git status` still shows the changes).
+- [ ] **Closeout choice.** How: finish a `/maestro` run without saying what to do with it. Pass: after APPROVE/ESCALATE it ends with one line offering PR, commit only, rework, reject. Pick "reject". Pass: nothing is deleted and no commit is made (`git status` still shows the changes).
 - [ ] **Light route.** How: `/maestro fix the typo in README.md`. Pass: no playbook, no todo list. It edits, names the check, and replies. Then `/maestro bump the CI node version`. Pass: it uses a playbook, because CI is runtime behavior.
 - [ ] **Proof ledger.** How: after any normal `/maestro` run, `column -t -s$'\t' .bottega/proofs.tsv`. Pass: a `run` row, then one `condition` row per acceptance condition, then one `proof` row per condition with the same text, each with evidence and PASS/FAIL/INCONCLUSIVE, and the gate's Evidence matches it. Then start a run and say "skip proving X" mid-way. Pass: that row is WAIVED and its evidence starts with `user:` and your words. A condition whose latest row is FAIL or INCONCLUSIVE must make the gate ESCALATE; a FAIL followed by a PASS for the same condition approves. `expect` rows name the files the change touched, and a stray file (for example `touch stray.log` mid-run) makes `gate-check.sh` exit 2. The run's rows start after a `run` row, and the reply shows `gate-check.sh` exiting 0 before any APPROVE. At high risk the ledger also has a `crossfire` row.

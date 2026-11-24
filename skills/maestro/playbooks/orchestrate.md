@@ -2,7 +2,7 @@
 
 **You run the program, never the code. Decide which agent does each piece of work, then check what each one produces.** For a standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, few human turns. One task driven to a predicate is Autonomous run. One ambitious run that needs a bespoke workflow is figure-it-out. Work that one agent could finish inside the session's budget is not a program.
 
-Run it with your own tools. Spawn workers (role: feature) with `Agent`. Keep the program's decisions in the decision trail per the **show-me-your-work** skill (`Read` `../../show-me-your-work/SKILL.md`), and each worker's state in its progress file (`.bottega/agents/<name>.json`, per **Progress files** in `references/subagents.md`) with its agent id and PR number added (`--set id=<id> --set pr=<n>`). Watch each PR with `gh pr view` and `gh pr checks` under `/loop`. Never relay messages or status between agents.
+Run it with your own tools. Spawn workers (role: feature) with `Agent`. Keep the program's decisions in the decision trail per the **show-me-your-work** skill (`Read` `../../show-me-your-work/SKILL.md`), including each worker's agent id and PR number. Watch each PR with `gh pr view` and `gh pr checks` under `/loop`. Never relay messages or status between agents.
 
 #### Topology
 

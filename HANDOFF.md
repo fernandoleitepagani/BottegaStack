@@ -12,18 +12,18 @@ Updated 2026-11-24. `DECISIONS.md` is the source of truth for decisions (edited 
 
 ## Architecture
 
-- **Plugin:** `.claude-plugin/plugin.json` loads `skills/` (64 skills) and two agents: `bottega:maestro-agent` (the delegate) and `bottega:comment-sicko`. Every skill except `setup-maestro` sets `disable-model-invocation: true`, so skills cost nothing until a run reads them. The Skill tool can't start them, so maestro `Read`s their `SKILL.md`.
+- **Plugin:** `.claude-plugin/plugin.json` loads `skills/` (58 skills) and two agents: `bottega:maestro-agent` (the delegate) and `bottega:comment-sicko`. Every skill except `setup-maestro` sets `disable-model-invocation: true`, so skills cost nothing until a run reads them. The Skill tool can't start them, so maestro `Read`s their `SKILL.md`.
 - **Orchestrator (`skills/maestro/`).** Each part is loaded at a fixed point:
   - **`SKILL.md`** holds routing, the triggers, risk (normal or high, only goes up), autonomy, token rules, the reply style and the list of 20 playbooks.
   - **`references/delegate.md`** holds the 21 principles index, comments, scope, commits and verification. The orchestrator and every delegate read it.
   - **`references/final-gate.md`** holds the ledger and gate steps. The orchestrator reads it on every playbook run.
-  - **`references/subagents.md`** holds the role table (model and effort per role), the fresh-subagent rule and progress files. The orchestrator reads it before its first spawn.
+  - **`references/subagents.md`** holds the role table (model and effort per role), and the fresh-subagent rule. The orchestrator reads it before its first spawn.
   - **`SKILLS-INDEX.md`** lists the skills no trigger names.
 - **Routes:**
   - **Light route:** docs or config with no runtime effect, never code. It edits, checks and replies, with no gate.
   - **Playbook run:** everything else. The steps are copied into a todo list, then the run opens the ledger, does the work through delegates, and ends at the final gate.
   - **Read-only playbooks** (Investigation, Forensics, Prototype) skip the ledger.
-- **Mechanical gate:** `scripts/gate-check.sh` with `run-files.py`, writing to `.bottega/proofs.tsv` through `show-me-your-work/scripts/log.sh`.
+- **Mechanical gate:** `scripts/gate-check.sh` (bash and git only, snapshot in `.bottega/run-start.tsv`), writing to `.bottega/proofs.tsv` through `show-me-your-work/scripts/log.sh`.
   - `--start "<goal>" --condition "<c>"...` opens the run before any edit and takes a snapshot of the tree.
   - The final call uses `--expect "<path or glob>"` for each file the change should touch, and `--proof "<cond>" "<evidence>" PASS|FAIL|INCONCLUSIVE|WAIVED` for each condition.
   - **Exit codes:** 0 allows APPROVE, 1 means ESCALATE, 2 means a step is missing.
@@ -37,14 +37,10 @@ Updated 2026-11-24. `DECISIONS.md` is the source of truth for decisions (edited 
   - The Decision line has to quote the `gate-check: ...` line the script printed.
   - After the verdict, the run asks once: PR, commit only, rework or reject.
 - **Other scripts:**
-  - `security-scan.sh`, run before every PR
-  - `progress.py`, which writes one progress file per spawn in `.bottega/agents/`
-  - `check-plan.mjs`, which checks a multi-phase plan
   - `worktree-audit.sh`
-  - `setup-maestro/scripts/`: `set-statusline.py`, `statusline.py`, `doctor.py`
 
   Bottega's scripts write `.bottega/.gitignore` (`*`), so run state ignores itself without touching any global git config.
-- **Setup:** `/setup-maestro` writes `~/.claude/rules/bottega-models.md` (the model and effort for each role) and installs the status line. The status line is a stable copy at `~/.claude/bottega/statusline.py`, with timestamped backups that are never overwritten. Step 9 (`/setup-maestro doctor`) checks the tools on your PATH, the rule file and the status line.
+- **Setup:** `/setup-maestro` writes `~/.claude/rules/bottega-models.md` (the model and effort for each role) from the role table in `references/subagents.md`. Status line and doctor were cut on 2026-11-24.
 - **Quality tooling:**
   - **`scripts/lint-skills.py`** checks frontmatter, the index, the principle and role lists, the doc counts, and that every bundled path a skill or agent file points to exists.
   - **`scripts/test-scripts.sh`** has 52 smoke tests.
@@ -89,7 +85,7 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
 **Other popular stacks** (not measured here; based on their public descriptions and pstack's design)
 - **pstack (the source):**
   - **Same core:** playbooks, principles, a todo list of the steps, and delegates.
-  - **Bottega adds:** a mechanical ledger and gate, evals, a status line, a doctor, the security scan and Linux/macOS CI.
+  - **Bottega adds:** a mechanical ledger and gate, evals and Linux/macOS CI.
   - **Bottega drops:** Cursor-only tools and any harness adapter.
 - **obra/superpowers:**
   - **What it is:** a skills library that triggers on its own (brainstorm, plan, TDD, subagent-driven development). It's lighter and more automatic.
@@ -113,7 +109,7 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
   - The `run` row required.
   - Waivers have to quote the user (`user:`).
   - Only each condition's latest proof counts.
-  - The stray-file check (`--expect`, `run-files.py`).
+  - The stray-file check (`--expect`).
   - The run has to open before the first edit.
   - The Decision quotes the `gate-check:` line.
   - Any code change, however small, is a playbook run.
@@ -147,11 +143,21 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
   - rtk is the user's own tool, not part of bottega.
 - **Headless install test:** it passed apart from a one-line fix skipping the gate, which is now fixed. The status line fields, `effort` and `background` on plugin agents, and the `bottega:maestro-agent` name are all confirmed against the docs and in real runs.
 
+## Simplification (2026-11-24, after the pstack comparison)
+
+- **Cut:** `progress.py`, `statusline.py`, `set-statusline.py`, `doctor.py`, `check-plan.mjs`, `run-files.py`. Runtime needs only bash and git; Python is dev-only and Node is gone.
+- **Gate:** the stray-file snapshot is bash. `--start` now records risk, so a final call without `--risk high` still needs crossfire. The Decision no longer quotes the `gate-check:` line, and the closeout is one reply line instead of an `AskUserQuestion`.
+- **Dedupe:** the principles index is names plus a trigger, the role table lives only in `references/subagents.md` (setup-maestro reads it; the lint parity check is gone), and repeated rules in `SKILL.md` and the playbooks point to one place.
+- The installed status line copy at `~/.claude/bottega/statusline.py` still works on its own; `/setup-maestro` step 6 offers to retire it.
+- **Security scan cut:** `security-scan.sh` is gone; secret detection is left to GitHub push protection and secret scanning. pstack has no scan either.
+- **Skills cut:** `maestro-help`, `teach`, `wizard`, `runbook`, `library-reference`, `data-analysis` (64 to 58). Principles, UI skills and the verification pair stay as they are.
+- **Port to Codex and Gemini/Antigravity CLI** is tracked in issue #46. Those harnesses likely ignore `disable-model-invocation`, so every shipped skill description may load and auto-trigger there.
+
 ## Open (in order; the overwrite is last)
 
 1. **The user's interactive checks** (`USER-TEST.md`):
    - run `/setup-maestro` with its questions (no rule file exists yet)
-   - check the `/` menu and how the status line looks
+   - check the `/` menu
    - the UI path (section 5)
    - `/file-followups` and `/review-pr` on a real GitHub repo
    - the effort comparison
@@ -179,7 +185,6 @@ Only `hidden-caller` split the arms on correctness: plain renamed the handler an
 ```bash
 python3 scripts/lint-skills.py && bash scripts/test-scripts.sh && python3 evals/run.py --selftest
 claude plugin validate --strict .
-python3 skills/setup-maestro/scripts/doctor.py
 ```
 
 ## Gotchas

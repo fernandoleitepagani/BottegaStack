@@ -6,7 +6,6 @@ Checks that prose alone can't keep in sync:
 - disable-model-invocation is true everywhere except the skills in AUTO_INVOKE
 - SKILLS-INDEX.md lists each non-principle skill exactly once, and nothing that doesn't exist
 - delegate.md's Principles index names each principle-* skill exactly once
-- maestro's Models-per-role table (references/subagents.md) and setup-maestro's rule shape list the same roles
 - the README and guide counts of playbooks and principles match the files
 """
 import os
@@ -84,14 +83,6 @@ for p in principles:
         problems.append(f"delegate.md Principles: '{p}' named {n} times, want 1")
 for p in set(named) - set(principles):
     problems.append(f"delegate.md Principles: '{p}' has no skill")
-
-maestro = read("skills", "maestro", "references", "subagents.md")
-table = maestro.split("**Models per role.**", 1)[1].split("**Effort ceiling.**", 1)[0]
-table_roles = [r.strip() for r in re.findall(r"^\| ([^|]+?) \|", table, re.M) if r.strip() not in ("Role", "---")]
-shape = read("skills", "setup-maestro", "SKILL.md").split("### 5.", 1)[1].split("```", 2)[1]
-shape_roles = [l.split(":", 1)[0].strip() for l in shape.splitlines() if l and not l.startswith("#") and ":" in l]
-if table_roles != shape_roles:
-    problems.append(f"role tables differ: maestro {table_roles} vs setup-maestro {shape_roles}")
 
 n_playbooks = len([f for f in os.listdir(os.path.join(SKILLS, "maestro", "playbooks")) if f.endswith(".md")])
 words = {20: "twenty", 21: "twenty-one", 22: "twenty-two", 23: "twenty-three", 24: "twenty-four", 25: "twenty-five"}
