@@ -126,7 +126,9 @@ if has '(^|/)Gemfile\.lock$'; then dep_hit=1; run_audit bundle-audit bundle-audi
 [ "$dep_hit" -eq 1 ] && echo "new dependencies also need a license check against the project's license"
 
 echo "== surface"
-surface=$(printf '%s\n' "$changed" | grep -Ei '(auth|login|session|token|crypto|password|permission|acl|secret|oauth|saml|jwt)|(^|/)\.github/workflows/|(^|/)Dockerfile|\.tf$|(^|/)k8s/|(^|/)helm/|(^|/)\.env' || true)
+# Kept in a variable: bash 3.2 misparses a quoted regex with parentheses inside $( ).
+surface_re='(auth|login|session|token|crypto|password|permission|acl|secret|oauth|saml|jwt)|(^|/)\.github/workflows/|(^|/)Dockerfile|\.tf$|(^|/)k8s/|(^|/)helm/|(^|/)\.env'
+surface=$(printf '%s\n' "$changed" | grep -Ei "$surface_re" || true)
 if [ -n "$surface" ]; then
 	printf '%s\n' "$surface" | sed 's/^/sensitive: /'
 	echo "sensitive paths changed: run a security review before shipping"

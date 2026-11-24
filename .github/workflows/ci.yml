@@ -30,7 +30,8 @@ jobs:
 
   # macOS ships Python 3.9 with the Command Line Tools. Everything must run on it.
   python39:
-    runs-on: ubuntu-latest
+    # setup-python has no 3.9 build for the newest Ubuntu image; 22.04 still ships one.
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
