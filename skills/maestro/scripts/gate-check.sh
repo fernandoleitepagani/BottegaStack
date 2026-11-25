@@ -24,10 +24,12 @@
 # never ride along with an APPROVE. Files already dirty when the run opened and left alone
 # don't count. Outside a git repo this check is skipped.
 #
+# A ledger path may come before or after the options.
+#
 # Exit 0: APPROVE allowed. 1: must ESCALATE (a proof row is FAIL or INCONCLUSIVE, or
 # crossfire's latest verdict is not PASS). 2: a step is missing (no run row, no declared
 # condition, a condition with no proof row, a waiver without the user's words, a changed
-# file no --expect covers, or no crossfire row at high risk), or a usage error.
+# file no --expect covers, a git run with no snapshot, or no crossfire row at high risk), or a usage error.
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
@@ -38,6 +40,7 @@ proofs_in=""
 nproofs=0
 conds_in=""
 expects_in=""
+ledger_arg=""
 sep=$(printf '\037')
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -54,10 +57,12 @@ while [ $# -gt 0 ]; do
 	--expect) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --expect needs a path or glob" >&2; exit 2; }; expects_in="$expects_in$2$sep"; shift 2 ;;
 	-h|--help) sed -n '2,/^set -u/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
 	-*) echo "error: unknown option: $1" >&2; exit 2 ;;
-	*) break ;;
+	*)
+		[ -z "$ledger_arg" ] || { echo "error: more than one ledger path: $ledger_arg, $1" >&2; exit 2; }
+		ledger_arg="$1"; shift ;;
 	esac
 done
-ledger="${1:-.bottega/proofs.tsv}"
+ledger="${ledger_arg:-.bottega/proofs.tsv}"
 state=$(dirname "$ledger")
 snap="$state/run-start.tsv"
 case "$risk" in normal|high) ;; *) echo "error: --risk is normal or high" >&2; exit 2 ;; esac
@@ -88,10 +93,10 @@ snapshot() {
 	{ printf 'head\t%s\n' "$(git -C "$root" rev-parse --verify --quiet HEAD)"; dirty "$root"; } >"$snap"
 }
 
-# Every file changed since the snapshot, one per line. Returns 3 outside git or with no snapshot.
+# Every file changed since the snapshot, one per line. Returns 3 outside git, 4 with no snapshot.
 changed_files() {
 	root=$(git rev-parse --show-toplevel 2>/dev/null) || return 3
-	[ -f "$snap" ] || return 3
+	[ -f "$snap" ] || return 4
 	before=$(awk -F'\t' 'NR == 1 && $1 == "head" { print $2 }' "$snap")
 	cur=$(git -C "$root" rev-parse --verify --quiet HEAD)
 	{
@@ -100,7 +105,7 @@ changed_files() {
 			{ p = substr($0, index($0, "\t") + 1); now[p] = 1; if (b[p] != $1) print p }
 			END { for (p in b) if (!(p in now)) print p }'
 		if [ -n "$before" ] && [ -n "$cur" ] && [ "$cur" != "$before" ]; then
-			git -C "$root" -c core.quotePath=false diff --name-only "$before" HEAD
+			git -C "$root" -c core.quotePath=false diff --no-renames --name-only "$before" HEAD
 		elif [ -z "$before" ] && [ -n "$cur" ]; then
 			git -C "$root" -c core.quotePath=false ls-files
 		fi
@@ -220,11 +225,15 @@ if [ "$fail" -gt 0 ] || [ "$inconclusive" -gt 0 ]; then
 	escalate=1
 fi
 # Scope: every file this run changed must match an --expect. Skipped outside git.
-if changed=$(changed_files); then
+changed=$(changed_files); scope=$?
+if [ "$scope" -eq 4 ]; then
+	echo "MISSING: no run snapshot at $snap, so the changed files can't be checked. Reopen the run with --start from this repo."
+	missing=1
+elif [ "$scope" -eq 0 ]; then
 	if [ -n "$changed" ]; then
 		echo "files changed in this run:"
 		printf '%s\n' "$changed" | sed 's/^/  - /'
-		globs=$(printf '%s' "$rows" | awk -F'\t' '$2 == "expect" { print $3 }')
+		globs=$(printf '%s' "$rows" | awk -F'\t' -v q="'" '$2 == "expect" { g = $3; if (substr(g, 1, 1) == q && substr(g, 2, 1) ~ /[-+=@]/) g = substr(g, 2); print g }')
 		if [ -z "$globs" ]; then
 			echo "MISSING: no --expect declared. Name the files this change is meant to touch with --expect \"<path or glob>\"."
 			missing=1
@@ -243,11 +252,11 @@ if changed=$(changed_files); then
 		fi
 	fi
 else
-	echo "note: no git repo or no run snapshot, so the changed-files check was skipped."
+	echo "note: not a git repo, so the changed-files check was skipped."
 fi
 if [ "$risk" = high ]; then
 	if [ -z "$crossfire" ]; then
-		echo "MISSING: no crossfire row. High risk runs the crossfire skill on the finished diff, whatever its size."
+		echo "MISSING: no crossfire row. High risk runs the adversarial review (references/review.md) on the finished diff, whatever its size."
 		missing=1
 	elif [ "$crossfire" != PASS ]; then
 		echo "ESCALATE: crossfire's latest verdict is $crossfire."

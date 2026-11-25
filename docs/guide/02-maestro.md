@@ -1,131 +1,38 @@
 # Route work through `/maestro`
 
-`/maestro` is the front door. You give it a goal, it matches one of eight playbooks, copies that playbook's steps into the todo list, and calls the other skills as the steps need them. In this page you learn what a good prompt looks like, and how little of one you actually need.
+`/maestro` is the front door. Type it with your goal and how you'll know it's done, and it sends the prompt to the right step. You can also skip it and call `/grill`, `/tickets` or `/implement` yourself.
 
 ![A dispatcher pulls a switch lever to route robots on rail handcars toward lit gates, under a /maestro departure board listing BUG FIX, FEATURE, and INVESTIGATION.](./images/router.jpg)
 
-## What happens to your prompt
+## Where each prompt goes
 
-```mermaid
-flowchart TD
-    A[Your prompt] --> B[maestro]
-    B --> C[Read the Principles section]
-    C --> D{Match the task}
-    D -->|Read-only question| E[Investigation]
-    D -->|Defect| F[Bug fix]
-    D -->|New behavior| G[Feature]
-    D -->|Structure only| H[Refactoring]
-    D -->|Measured slowness| I[Perf issue]
-    D -->|Large work or no match| J[figure-it-out]
-    E --> K[Verify and report]
-    F --> K
-    G --> K
-    H --> K
-    I --> K
-    J --> K
-```
+| You ask for | It goes to |
+|---|---|
+| Work with open decisions, or more than one session of work | `/grill`, then `/tickets` |
+| A ticket, or a small clear change (a bug, a feature slice, a refactor) | `/implement` |
+| A question ("how does X work", "why is it like this") or a symptom to diagnose | read-only exploration, no code change |
+| A design fork you have to see to decide | a throwaway prototype |
+| Work to run while you're away | the unattended rules |
+| Pause now, or resume earlier work | a handoff |
+| Clean up old worktrees | the worktree cleanup rules |
+| A docs or config edit with no runtime effect | the light route: edit, check, done |
 
-The diagram shows the common routes. There are also playbooks for diagnosing runtime symptoms and captured traces, prototypes, unattended runs (one task, a PR queue, or a multi-day program), pausing and resuming work and worktree cleanup, and the `pr` skill opens, babysits, and lands PRs. The [playbook directory](../../skills/maestro/playbooks/) has the full set.
+The first reply restates your goal, names the risk (`normal`, or `high` for auth, money, data, concurrency, public APIs, or anything hard to undo), and names the route.
 
-## Say the goal, not the ceremony
+## Write prompts it can act on
 
-You don't write a spec. You say what's wrong or what you want, plus anything you already know that saves the agent time:
+- **The goal**, in your words: "the export writes duplicate rows on retry".
+- **The done check**: "the retry test passes and the export has no duplicates".
+- **What you already know**, without leading: "started after last week's queue change".
+- **Constraints**: "repro first", "don't change code yet", "keep the public API".
 
-```text
-/maestro users get two notifications after a retry. repro first, then fix and verify.
-```
+Follow-ups can be short: "continue", "do ticket 3", "new task: ...".
 
-That's a Bug fix prompt. "repro first" is a real constraint, not politeness, and the playbook honors it. Watch the todo list fill with the Bug fix steps. A skipped step stays visible with `skip: <reason>`.
+## What every run shares
 
-## What goes in a prompt
+- **Subagents do the bulk.** The orchestrator decides, writes briefs, reviews diffs, and runs the gate. Explorers read, implementers write, reviewers review.
+- **Context is budgeted.** An orchestrator session stays under 300k tokens (±10%). Near the limit it writes a handoff, and you `/clear` and resume.
+- **The final gate.** Every change ends in APPROVE or ESCALATE, decided by `gate-check.sh` from logged proofs, not by the agent's confidence.
+- **Autonomy.** Reversible work goes ahead without asking. Force-pushes to branches the run didn't create, deploys, data deletion and customer messages always pause.
 
-A useful prompt carries up to five things, and each one fits in a sentence:
-
-- **The goal.** Say what's wrong, or what you want.
-- **The done check.** It must be able to pass or fail. "Make it better" and "work on it for an hour" aren't checks.
-- **The proof you want to see.** Ask for the real command output, the stored value, or a before-and-after number.
-- **What you already know.** A symptom, a repro step, a log line, or a link saves the agent a search.
-- **The real constraints.** "repro first", "don't change any code yet", "zero behavior change", and "let me review before proceeding" each change what the agent does.
-
-Here's one prompt with all five:
-
-```text
-/maestro the csv export drops its last row since yesterday's deploy. failing job id is 4812. repro first, then fix. done means the 60k-row fixture exports every row. show me the row counts before and after.
-```
-
-Two things are worth leaving out:
-
-- **The how.** Say what to achieve, and leave the agent room to find a better path than the one you'd pick. The same goes for a list of skills, covered in the pitfall below.
-- **Your theory of the cause, at first.** A stated guess narrows the search to wherever you pointed. Let the agent restate the problem before you share your hunch.
-
-For a noisy report, such as a long thread or a vague bug, make the restatement the first step:
-
-```text
-/maestro read this thread. restate the underlying issue in your own words, in plain english. don't change any code yet.
-```
-
-A misreading shows up in the restatement, before any code exists. Correct it there, and it costs you one message instead of one wrong fix.
-
-## Follow up short
-
-When the conversation already carries the context, the prompt shrinks to almost nothing. All of these are enough:
-
-```text
-/maestro do it
-```
-
-```text
-continue
-```
-
-```text
-keep going until done
-```
-
-Short works because the playbook holds the structure, and a `CLAUDE.md` pointer plus re-invoking `/maestro` keeps it in effect. [Set up bottega](./01-setup.md#run-your-first-task) shows how. Your words carry the intent, and the skill carries the rigor.
-
-## Switch tasks with "new task"
-
-A long chat accumulates context from the last task. When you change subjects, say so:
-
-```text
-/maestro new task. figure out why the cache entry survives logout. don't change any code yet.
-```
-
-"new task" tells `/maestro` to re-match rather than continue the prior playbook. "don't change any code yet" pins this one to Investigation. Without those two phrases, a run mid-Feature tends to treat your question as the next feature step.
-
-## Give parallel work its own worktree
-
-If you run several agents against one repository on one computer, they will fight over the working tree, the ports, and the build output. The cleanest isolation is a worktree per agent: bottega spawns delegates with `Agent` and `isolation: "worktree"`, each on its own branch. Worktree runs still share CPU, ports, and disk, so keep the fan-out small.
-
-When a specific base or location matters, ask for it up front:
-
-```text
-/maestro new task. branch off <base> in a fresh worktree, then port the parser change there.
-```
-
-Each task in its own branch and worktree means no agent stomps another's files. Worktrees cost disk and machine resources, so a laptop runs only a handful at once. The [`pr` skill](../../skills/pr/SKILL.md) already works from a worktree for code changes, so mostly you only say this when a specific base or location matters.
-
-Worktrees accumulate. When disk gets tight, ask:
-
-```text
-/maestro what's eating my disk? prune the worktrees that are safe to prune.
-```
-
-The [Worktree cleanup playbook](../../skills/maestro/playbooks/worktree-cleanup.md) classifies every worktree by merge state, uncommitted work, and which chats still touch it. It deletes only what that evidence clears and pauses for your call on anything holding uncommitted work.
-
-## Leave it running
-
-When you step away, say what done means and go:
-
-```text
-/maestro im stepping away. keep going until the migration check reports zero old callers. log your decisions.
-```
-
-Work you'll review later routes through [`/figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs the run's phases and keeps a decision trail. [Run work while you sleep](./07-overnight.md) covers the full overnight contract.
-
-**Pitfall:** don't enumerate skills in your prompt ("use /understand how, then /architect, then /parallel..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
-
-Read [`maestro`](../../skills/maestro/SKILL.md) itself for the full routing rules.
-
-Next: [Understand the code](./03-understand.md).
+Next: [Plan and split into tickets](./03-plan-and-tickets.md).

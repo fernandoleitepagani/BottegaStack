@@ -1,8 +1,8 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "bottega",
-  "version": "2.0.0",
-  "description": "Bottega v2: a Claude Code port of pstack. One entry skill (/maestro), playbooks, principles, and deliberate subagents for verified work.",
+  "version": "3.0.0",
+  "description": "Grill, tickets, implement: plan work with the user, split it into session-sized tickets with subagent roles and models, and build each one to a mechanical proof gate.",
   "author": {
     "name": "BottegaStack"
   },

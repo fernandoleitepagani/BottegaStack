@@ -1,6 +1,6 @@
 # Final gate
 
-Read at the start of every playbook run, and do these steps before its final report. The light route skips this file. Read-only playbooks (Investigate, Prototype) skip the ledger and the check script, and still state their evidence in the reply.
+Read at the start of every `/implement` run (and every unattended unit), and do these steps before its final report. The light route skips this file. Read-only work (explore, prototype) skips the ledger and the check script, and still states its evidence in the reply.
 
 `<maestro dir>` is the absolute directory of the maestro `SKILL.md`, and `<skills dir>` is its parent.
 
@@ -26,9 +26,9 @@ Run it from the checkout that holds the change.
 
 - **Expect.** One `--expect` per file or directory the change is meant to touch. Every file the run changed (edits, new files, deletions, commits since `--start`) must match one. Revert a stray file, or delete what a check left behind (such as `__pycache__/`), rather than declaring it. Files already dirty before the run and left alone don't count.
 - **Proof.** One `--proof` per declared condition, with its exact text. Only a condition's latest proof counts, so after a fix round log the new result for the same condition. A WAIVED row's evidence starts with `user:` and quotes the user's words, for example `"user: \"skip the docs check\""`. Never waive on your own.
-- **Exit 0** allows APPROVE. **Exit 1** means ESCALATE: a latest proof is FAIL or INCONCLUSIVE, or crossfire's latest verdict is not PASS. **Exit 2** means a step is missing: do it, then rerun without repeating the proofs already logged. Never end a run on exit 2. A missing crossfire row means run crossfire.
+- **Exit 0** allows APPROVE. **Exit 1** means ESCALATE: a latest proof is FAIL or INCONCLUSIVE, or crossfire's latest verdict is not PASS. **Exit 2** means a step is missing: do it, then rerun without repeating the proofs already logged. Never end a run on exit 2. A missing crossfire row means run the adversarial review.
 
-At high risk (from `--start` or this call), run the crossfire skill on the finished diff first. It logs its own `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
+At high risk (from `--start` or this call), run the adversarial review (`review.md`) on the finished diff first. It logs the `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
 
 ## 2. Write the decision
 
@@ -43,4 +43,15 @@ ESCALATE when the check exits 1, the fix-round cap was hit, or a high-risk findi
 
 ## 3. Close out
 
-Unless the user already said what to do, end with one line: `Next: open a PR, commit only, rework <what>, or reject. Reply with one.` The Unattended playbook skips it and follows its own merge rules. `open a PR` continues with the **pr** skill (open mode). When `.bottega/followups.md` has unchecked lines, add one line offering the **file-followups** skill.
+Unless the user already said what to do, end with one line: `Next: open a PR, commit only, rework <what>, or reject. Reply with one.` An unattended run skips it and follows its own merge rules. When `.bottega/followups.md` has unchecked lines, list them in one line and offer to file them as issues (`gh issue create`, after one confirmation).
+
+## 4. Opening a PR
+
+On `open a PR`, or inside an Unattended run:
+
+- Work from a worktree off trunk, in small ordered commits with Conventional Commits subjects (`type(scope): subject`).
+- Run the comments self-check (`delegate.md`, **Comments**) before pushing.
+- Open it ready, not draft (`gh pr create`), unless an Unattended owner opens a draft early so CI runs. Prefer several narrow PRs to one large one; a stacked child targets its parent branch (`--base <parent>`).
+- The body is a one-minute briefing under about 40 lines, written through **unslop**: `## Why` (the goal), `## What changed`, `## Scope` (covered and left out), `## Verification` (each real run and its outcome), and `## Review` (the review's rounds and outcome).
+- When the work continues someone else's PR or branch, keep their commits and authorship, add `Co-authored-by:` trailers for human contributors, and credit and link the original PR.
+- Post the URL. Opening a PR does not start babysitting; watch it only when asked (see `unattended.md` **Watching a PR**).

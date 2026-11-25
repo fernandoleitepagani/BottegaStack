@@ -62,15 +62,17 @@ def pct(x):
     return "-" if x is None else f"{x:.0%}"
 
 
-def promote(paths):
+def promote(paths, merge=False):
     latest = {}
-    for r in load(paths):  # later files win for the same task and arm
+    src = ([BASELINE] if merge and os.path.exists(BASELINE) else []) + list(paths)
+    for r in load(src):  # later files win for the same task and arm
         latest.setdefault((r["task"], r["arm"]), {})[r["trial"]] = r
     with open(BASELINE, "w") as f:
         for key in sorted(latest):
             for trial in sorted(latest[key]):
                 f.write(json.dumps(latest[key][trial]) + "\n")
-    print(f"baseline: {len(latest)} task/arm pairs from {len(paths)} file(s) -> {os.path.relpath(BASELINE)}")
+    mode = "merged" if merge else "replaced"
+    print(f"baseline ({mode}): {len(latest)} task/arm pairs from {len(paths)} file(s) -> {os.path.relpath(BASELINE)}")
 
 
 def compare(new_path, base_path, jump, cost_jump):
@@ -135,11 +137,12 @@ def main():
     ap.add_argument("--token-jump", type=float, default=0.30)
     ap.add_argument("--cost-jump", type=float, default=0.30)
     ap.add_argument("--promote", action="store_true", help="save the given runs as the baseline")
+    ap.add_argument("--merge", action="store_true", help="with --promote, merge into existing baseline instead of replacing it")
     args = ap.parse_args()
     if not args.run:
         ap.error("give a results .jsonl file")
     if args.promote:
-        promote(args.run)
+        promote(args.run, merge=args.merge)
         return
     if len(args.run) != 1:
         ap.error("compare takes one results file")

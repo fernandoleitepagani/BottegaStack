@@ -70,7 +70,7 @@ To spend less:
 
 `--jobs N` (default 4) runs that many at once. It cuts wall time, not tokens.
 
-There is no LLM judge. Every grade is a deterministic check, which costs no tokens. Use `eval.md` when a change needs a judged comparison.
+There is no LLM judge. Every grade is a deterministic check, which costs no tokens. Use a one-off blind comparison when a change needs a judged comparison.
 
 ## Running
 
@@ -95,7 +95,7 @@ Results go to `evals/results/<stamp>.jsonl`, plus one stream-json transcript per
 
 It notes improvements, new tasks and skipped tasks without failing. With one trial per task a single flip can be noise, so on a failure it prints the `--trials 3` command to confirm before you act.
 
-Use it after any edit to maestro, a playbook or delegate.md, after a Claude Code or model update, and before a release. Promote a run to baseline only after reading its failures, so a regression never becomes the new normal.
+Use it after any edit to maestro, `grill`, `tickets`, `implement`, a reference or delegate.md, after a Claude Code or model update, and before a release. Promote a run to baseline only after reading its failures, so a regression never becomes the new normal.
 
 ## Adding a task
 
@@ -131,11 +131,11 @@ Use it after any edit to maestro, a playbook or delegate.md, after a Claude Code
 
 Things an automated eval can't see. Run them by hand in a scratch repo after installing or changing bottega.
 
-- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: `/maestro`, `/setup-maestro`, `/understand`, `/pr` appear under `/`.
-- **Setup.** `/setup-maestro` asks for a budget, shows every role, and writes `~/.claude/rules/bottega-models.md`. Pass: one `role: <normal> | <high>` line per row of the table, no `xhigh` or `max`, no `high` on opus or sonnet.
+- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: `/maestro`, `/grill`, `/tickets`, `/implement` appear under `/`.
 - **Subagents.** In a `/maestro` run that spawns, the transcript shows `subagent_type: "bottega:maestro-agent"` with a `model` and `effort` from the table, and background spawns.
 - **A real run.** The first reply names the goal, the smallest change, and the risk; a vague request gets a question; `--start` runs before the first edit; the reply ends with a Decision block and one `Next:` line; nothing is committed unless you asked.
-- **UI path.** On a UI diff, one reviewer reads `interface-review`, no browser tool is used, and the reply says what you should look at.
-- **Light route.** A README typo is fixed with no playbook, todo list, or gate.
+- **Plan and tickets.** `/grill` on a multi-session prompt asks numbered questions with recommended answers and looks facts up instead of asking; the spec holds only what you said. `/tickets` shows the table and asks before writing; each ticket has a budget under 300k, a subagent table, a wave, and an orchestrator level.
+- **UI path.** On a UI diff, no browser tool is used, and the reply says what you should look at.
+- **Light route.** A README typo is fixed with no `/implement` run, todo list, or gate.
 - **Handoff.** Ask it to pause mid-run. Pass: `.bottega/handoff.md` and a patch exist, nothing was committed or pushed, and a fresh chat resumes from them.
-- **`/pr`.** On a real GitHub repo: open mode opens a ready PR; babysit `check` mode gives one status report; followups mode asks once before filing.
+- **PRs.** On a real GitHub repo: `open a PR` opens a ready PR; "check on PR N" gives one status report; filing follow-ups asks once.

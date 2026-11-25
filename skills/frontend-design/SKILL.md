@@ -19,7 +19,7 @@ For web designs, the hero is the first thing viewers will see. Open with the mos
 
 Typography carries the personality of the page. You don't need a different typeface for display or headline text and body content: use one family or two, and if two, make them clearly distinct.
 
-When the project already has type, `better-typography` governs it: extend the existing scale, do not replace it. Otherwise choose your typefaces deliberately, not the default families you would reach for on any other project, and set a clear type scale following the default guidance of The Elements of Typographic Style with intentional weights, widths, and spacing. When type is used as a headline or visual element, use the type treatment itself as an active part of the design, not a neutral delivery vehicle for the content.
+When the project already has type, extend its existing scale; do not replace it. Otherwise choose your typefaces deliberately, not the default families you would reach for on any other project, and set a clear type scale following the default guidance of The Elements of Typographic Style with intentional weights, widths, and spacing. When type is used as a headline or visual element, use the type treatment itself as an active part of the design, not a neutral delivery vehicle for the content.
 
 Measure 60-75 characters per line. Serif typefaces can have slightly longer line lengths; give serif body text slightly more line-height than a sans-serif.
 
@@ -57,10 +57,10 @@ When writing the code, be careful of structuring your CSS selector specificities
 
 ## Restraint and self-critique
 
-Spend your boldness in one place. Let one element be the memorable thing, keep everything around it quiet and disciplined, and cut any decoration that does not serve the brief. Build to a quality floor without announcing it: responsive down to mobile, visible keyboard focus, reduced motion respected, visually accessible, harmonious color palettes. Critique your own work as you build, taking screenshots to review if your environment supports it — a picture is worth 1000 tokens. Consider Chanel's advice: before leaving the house, take a look in the mirror and remove one accessory. Human creatives have memory and always try to do something new, so if you have a space to quickly jot down notes about what you've tried, it can help you in future passes.
+Spend your boldness in one place. Let one element be the memorable thing, keep everything around it quiet and disciplined, and cut any decoration that does not serve the brief. Build to a quality floor without announcing it: responsive down to mobile, visible keyboard focus, reduced motion respected, visually accessible, harmonious color palettes. Critique your own work as you build. Consider Chanel's advice: before leaving the house, take a look in the mirror and remove one accessory. Human creatives have memory and always try to do something new, so if you have a space to quickly jot down notes about what you've tried, it can help you in future passes.
 
-Screenshots: see [review-format.md](../better-interface/review-format.md#screenshots).
+Agents don't take screenshots: name the views and states the user should look at, and mark the visual check unverified until they confirm.
 
 ## Writing in design
 
-Copy is design content. For voice, labels, errors and empty states, follow `better-writing`.
+Copy is design content. Write labels, errors, empty states and confirmations in plain words, in the voice the product already uses, and run them through **unslop**.

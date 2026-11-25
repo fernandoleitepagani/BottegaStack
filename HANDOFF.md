@@ -4,32 +4,31 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 
 ## What it is
 
-`~/Projects/BottegaStack` is the Claude Code plugin `bottega`, entry skill `/maestro`. It ports pstack (Lauren Tan, MIT, a Cursor plugin) to Claude Code and keeps pstack's shape: an orchestrator, playbooks, 21 principles, delegates, and fan-out skills. It adds a mechanical proof gate. Goal: one agent that works like a small, rigorous team, writes less and better code, and proves its claims before it says done.
+`~/Projects/BottegaStack` is the Claude Code plugin `bottega`. One workflow: `/grill` grills the user into a spec, `/tickets` splits it into tickets that each fit one 300k-token orchestrator session (with the orchestrator/subagent split, waves, and an opus- or sonnet-level orchestrator), `/implement` builds one ticket per fresh session and ends at a mechanical proof gate. `/maestro` is the front door. It started as a port of pstack (Lauren Tan, MIT) and adapts Matt Pocock's skills (MIT).
 
 ## Layout
 
-- `.claude-plugin/`: `plugin.json` (version 2.0.0; loads `skills/` and `agents/`) and `marketplace.json` (`bottega@bottega`, source `./`).
-- `agents/`: `maestro-agent` (the delegate).
-- `skills/maestro/`: `SKILL.md` (triggers, risk, the one always-pause list, subagents, token rules, reply style, routing), `SKILLS-INDEX.md`, 8 playbooks, `references/` (`delegate.md`, `final-gate.md`, `subagents.md`), `scripts/` (`gate-check.sh`, `worktree-audit.sh`, `log.sh`).
-- 22 skills: maestro, setup-maestro, understand, pr, architect, parallel, crossfire, figure-it-out, wayfinder, correct, create- and maintain-verification-skill, unslop, 9 UI skills. 19 principles in `maestro/references/principles/` (4 files).
+- `.claude-plugin/`: `plugin.json` (loads `skills/` and `agents/`) and `marketplace.json` (`bottega@bottega`, source `./`).
+- `agents/`: `maestro-agent` (implementers and reviewers).
+- 9 skills: maestro, grill, tickets, implement, correct, unslop, frontend-design, create- and maintain-verification-skill.
+- `skills/maestro/`: `SKILL.md` (routing and shared rules), `SKILLS-INDEX.md`, `references/` (delegate, final-gate, subagents, principles, explore, review, prototype, unattended, handoff, worktree-cleanup), `scripts/` (`gate-check.sh`, `worktree-audit.sh`, `log.sh`). 17 principles in `references/principles.md`.
 - `scripts/`: `lint-skills.py`, `test-scripts.sh` (dev only). `evals/`: `run.py`, `gate.py`, `baseline.jsonl`, 12 tasks (dev only). CI: `.github/workflows/ci.yml`.
-- Runtime needs only bash and git (plus `gh` for `/pr`).
+- Runtime needs only bash and git (plus `gh` for PRs).
 
 ## Done on 2026-11-24
 
-- Cut the status line, progress files, doctor, `check-plan.mjs`, `run-files.py`, `security-scan.sh`, and the skills `maestro-help`, `teach`, `wizard`, `runbook`, `library-reference`, `data-analysis`, `technical-writing`, `review-pr`.
-- Merged into new, original skills: `understand` (how, why, recall, ketchup) and `pr` (opening a PR, babysit, shipping, file-followups, reviewer triage). `improve-architecture` became architect's scan mode, with `codebase-design` and `domain-modeling` as its references.
-- Playbooks 20 → 9, with new names: `investigate`, `unattended`, `handoff`. Merged `diagnosis` into crossfire, `swarm` and `arena` into `parallel`, `tdd` into bug-fix. Replaced `no-comments` and `comment-sicko` with the comments rule in `delegate.md`. Dropped `benchmark-checklist`, `principle-explain-the-number`, and the `performance` and `skill-work` playbooks.
-- One home per rule, the crossfire round budget, and written-out unattended permissions (see `DECISIONS.md`).
-- Docs: README, guide, DECISIONS, and the evals README updated. `USER-TEST.md` moved into `evals/README.md`; `plans/` removed (in git history).
+- Reshaped around grill, tickets, implement (see `DECISIONS.md`). New skills `grill` (with map mode, replacing `wayfinder`), `tickets`, `implement`.
+- Cut the 8 UI review skills; kept `frontend-design`.
+- Folded `understand` into `references/explore.md`, `crossfire` and `parallel` into `references/review.md`, the bug-fix, feature, refactoring and investigate playbooks into `/implement`, and moved prototype, unattended, handoff and worktree cleanup to `references/`. Principles: 4 files into one page. Roles: 7 into 4.
+- Fixed the four `gate-check.sh` bugs (committed renames and deletions outside `--expect`, options after the ledger path, a missing snapshot, `--expect` globs starting with `+ - = @`), each with a regression test that fails on the old script. Renamed `plan` to `grill` (Claude Code's built-in `/plan` turns on plan mode). Version 3.0.0.
+- `lint-skills.py` now also checks skill and principle counts in README, HANDOFF and every guide page, and fails on names of cut skills.
+- README, guide (now 9 chapters), DECISIONS rewritten for the new shape.
 
 ## Open
 
-1. **Gate bugs** found in the full analysis, not yet fixed: a committed rename or deletion outside `--expect` passes (needs `--no-renames`); options after the ledger path are dropped; a missing snapshot still allows exit 0; `--expect` globs starting with `+ - = @` never match.
-3. **`gate.py --promote`** replaces the whole baseline with only the runs given.
-4. **Eval after the restructure:** run the separating tasks with `--trials 3` and compare with the baseline before promoting.
-5. **Version bump:** `plugin.json` is still 2.0.0, so a reinstall reuses the cached copy unless `~/.claude/plugins/cache/bottega` is deleted.
-6. Codex and Gemini/Antigravity port: issue #46.
+1. **Evals after the reshape:** see the latest measurement in `evals/README.md`; tasks for `/grill` grilling and `/tickets` sizing are not written yet (both are interactive, so they need a scripted user).
+2. **Bump the version on every release:** `plugin.json` is 3.0.0; a reinstall without a bump reuses the cached copy unless `~/.claude/plugins/cache/bottega` is deleted.
+3. Codex and Gemini/Antigravity port: issue #46.
 
 ## Hard rules from the user
 
@@ -39,7 +38,7 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 - Linux and macOS; bash 3.2, BSD and GNU tools, no `jq`.
 - Never `xhigh` or `max` effort in bottega's role table; `high` only on haiku.
 - Touch `~/.claude/settings.json` only with the user's yes and a backup.
-- Keep Lauren Tan's MIT notice; keep the Krehel, Pocock, and Anthropic licenses with their files.
+- Keep Lauren Tan's MIT notice and the Pocock credit; keep the Anthropic license with `frontend-design`.
 
 ## Verify
 

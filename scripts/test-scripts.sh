@@ -91,6 +91,23 @@ expect "gate-check: globs with spaces cover them" 0 "$maestro/gate-check.sh" --e
 rm "sub dir.txt"
 expect "gate-check: removing a run-created file leaves nothing to cover" 0 "$maestro/gate-check.sh"
 
+# gate-check.sh: committed renames and deletions, options after the ledger, no snapshot, guarded globs.
+cd "$tmp" && mkdir gate7 && cd gate7 && git init -q -b main
+echo a > a.py && echo b > b.py && git_q add -A && git_q commit -qm init
+"$maestro/gate-check.sh" --start "goal" --condition "ok" >/dev/null
+git_q mv a.py c.py && git_q commit -qm rename
+expect "gate-check: a committed rename's old path needs --expect" 2 "$maestro/gate-check.sh" --proof "ok" "ran" PASS --expect "c.py"
+expect "gate-check: covering both sides of a committed rename approves" 0 "$maestro/gate-check.sh" --expect "a.py"
+git_q rm -q b.py && git_q commit -qm delete
+expect "gate-check: a committed deletion outside --expect blocks" 2 "$maestro/gate-check.sh"
+expect "gate-check: options after the ledger path still apply" 0 "$maestro/gate-check.sh" .bottega/proofs.tsv --expect "b.py"
+expect "gate-check: two ledger paths are a usage error" 2 "$maestro/gate-check.sh" .bottega/proofs.tsv other.tsv
+echo d > "-dash.txt" && echo e > "+plus.txt"
+expect "gate-check: files starting with - or + need --expect" 2 "$maestro/gate-check.sh"
+expect "gate-check: --expect globs starting with - and + match" 0 "$maestro/gate-check.sh" --expect "-dash.txt" --expect "+plus*"
+rm .bottega/run-start.tsv
+expect "gate-check: a git run with no snapshot is incomplete" 2 "$maestro/gate-check.sh"
+
 # gate-check.sh: risk declared at --start holds even when the final call omits --risk.
 cd "$tmp" && mkdir gate6 && cd gate6
 "$maestro/gate-check.sh" --start "goal" --condition "ok" --risk high >/dev/null

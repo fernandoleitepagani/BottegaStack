@@ -1,23 +1,20 @@
 # The bottega guide
 
-bottega works best when you stop micromanaging the agent. You describe what you want and how you'll know it's done. `/maestro` picks the playbook, runs the other skills as the steps need them, and shows you the evidence. This guide teaches that habit with realistic prompts.
+bottega works best when you stop micromanaging the agent. You say what you want and how you'll know it's done. The agent grills you until the plan is clear, splits it into tickets that each fit one session, builds each ticket with subagents, and shows you the evidence.
 
 Here's what you'll learn:
 
 1. [Set up bottega](./01-setup.md). Install the plugin and pick your models.
-2. [Route work through `/maestro`](./02-maestro.md). Give it a goal and watch it pick a playbook.
-3. [Understand the code](./03-understand.md). A read-only investigation, then `/understand how`, `/understand why`, and `/understand recall` before you edit anything.
-4. [Design the change](./04-design.md). `/architect`, `/parallel`, `/parallel`, `/crossfire`, prototypes, and plans before code locks in a shape.
-5. [Build and clean the change](./05-build-and-clean.md). The build playbooks, a failing test first, `/unslop`, and the comments rule.
-6. [Verify and ship](./06-verify-and-ship.md). Prove behavior with real commands, then open a focused PR and drive it to merged.
-7. [Run work while you sleep](./07-overnight.md). Trust before loops, an overnight contract, a decision log you can audit, and parallel runs that scale past one agent.
-8. [Steer with principle names](./08-principles.md). The 21 names that redirect an agent mid-task.
-9. [Make it yours](./09-make-it-yours.md). Your own mode, `/correct` for repeated mistakes, and how to test a skill change.
-10. [Recipes and pitfalls](./10-recipes-and-pitfalls.md). Prompts to copy and mistakes to skip.
+2. [Route work through `/maestro`](./02-maestro.md). One front door that sends each prompt to the right step.
+3. [Plan and split into tickets](./03-plan-and-tickets.md). `/grill` grills you into a spec, then `/tickets` turns it into session-sized tickets with roles, waves and models.
+4. [Implement a ticket](./04-implement.md). `/implement` explores, shapes, delegates, reviews, and ends at the final gate.
+5. [Verify and ship](./05-verify-and-ship.md). Prove behavior with real commands, then open a focused PR and drive it to merged.
+6. [Run work while you sleep](./06-overnight.md). An overnight contract, a decision log you can audit, and a ticket plan run as a queue.
+7. [Steer with principle names](./07-principles.md). The 17 names that redirect an agent mid-task.
+8. [Make it yours](./08-make-it-yours.md). `/correct` for repeated mistakes, `/unslop`, and testing a skill change.
+9. [Recipes and pitfalls](./09-recipes-and-pitfalls.md). Prompts to copy and mistakes to skip.
 
-Read the pages in order the first time. After that, each page stands alone.
-
-When you can't tell which skill fits, `skills/maestro/SKILLS-INDEX.md` lists every skill in one line.
+Read the pages in order the first time. After that, each page stands alone. `skills/maestro/SKILLS-INDEX.md` lists every skill in one line.
 
 ## If you only remember one thing
 
@@ -27,6 +24,6 @@ Give the agent a goal and a way to check it, in your own words:
 /maestro the export writes duplicate rows when a retry lands mid-run. repro first, then fix and verify.
 ```
 
-You don't need to name a playbook or list skills. "repro first" and a checkable outcome are all the routing signal `/maestro` needs. It matches the Bug fix playbook, copies the steps into a todo list, and calls the right skills as each step fires.
+That fits one session, so `/maestro` sends it straight to `/implement`. A bigger prompt ("add team workspaces") goes to `/grill` first, and you answer questions until the plan is yours.
 
 Next: [Set up bottega](./01-setup.md).
