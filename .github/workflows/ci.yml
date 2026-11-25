@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Shell syntax
-        run: find . -name '*.sh' -not -path './node_modules/*' -print0 | xargs -0 -n1 bash -n
+        run: find . \( -name '*.sh' -o -path './skills/maestro/scripts/bottega' \) -not -path './node_modules/*' -print0 | xargs -0 -n1 bash -n
       - name: Python syntax
         run: python3 -m py_compile scripts/*.py evals/*.py
       - name: Script smoke tests
@@ -35,7 +35,7 @@ jobs:
           npm install -g @anthropic-ai/claude-code@2.1.327
           claude plugin validate . --strict
       - name: ShellCheck (errors only)
-        run: find . -name '*.sh' -not -path './node_modules/*' -print0 | xargs -0 shellcheck --severity=error
+        run: find . \( -name '*.sh' -o -path './skills/maestro/scripts/bottega' \) -not -path './node_modules/*' -print0 | xargs -0 shellcheck --severity=error
       - name: Relative markdown links
         run: |
           python3 - <<'PY'

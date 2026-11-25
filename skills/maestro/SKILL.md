@@ -35,7 +35,7 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 
 **Light route.** Markdown, `.gitignore`, a version bump, a settings value (a code comment is code): edit, check it (render, parse, lint, or rerun the one command it affects), and reply with the diff summary and the check. Runtime config (CI, build, deploy, flags, dependencies), or any doubt, goes to `/implement`.
 
-Every change to tracked files ends at the final gate (`references/final-gate.md`). APPROVE only on `gate-check.sh` exit 0. A one-line fix is no exception.
+Every change to tracked files ends at the final gate (`references/final-gate.md`). APPROVE only on `bottega verify` (or `gate-check.sh`) exit 0. A one-line fix is no exception.
 
 ## Confidence
 

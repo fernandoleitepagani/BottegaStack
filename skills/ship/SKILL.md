@@ -10,7 +10,7 @@ Take a verified, gate-approved diff from your working tree to a merged PR or a d
 
 ## Pre-flight
 
-1. Confirm the current run passed `gate-check.sh` (`APPROVE allowed`). If the gate has not passed or files changed since the last gate check, stop and run `/implement`'s final gate first. Never ship an ungated diff.
+1. Confirm the current run passed `bottega verify` (or `gate-check.sh`, `APPROVE allowed`). If the gate has not passed or files changed since the last gate check, stop and run `/implement`'s final gate first. Never ship an ungated diff.
 2. Check `git status` and current branch. If you are on the default branch (`main` or `master`) and opening a PR, create a feature branch first (`git checkout -b <slug>`).
 
 ## Ask the mode once

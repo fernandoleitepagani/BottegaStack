@@ -6,7 +6,7 @@ One line per bundled skill: `name (~SKILL.md tokens, +references loaded only whe
 - `reframe` (~0.5k): clarify a rough idea when you lack the exact technical vocabulary; outputs interpretations, ranked expert terms, analogies, and a crisp prompt.
 - `plan` (~1.3k): grill the user one decision at a time into an agreed spec; map mode for efforts too big for one session.
 - `sharpen` (~0.5k): strip vague adjectives from a prompt or spec into concrete, testable claims and explicit non-goals.
-- `tickets` (~1.8k): split a spec into tickets that each fit one 300k-token orchestrator session, with the orchestrator and subagent split, parallel waves, and an opus- or sonnet-level orchestrator per ticket.
+- `tickets` (~1.8k): split a spec into tickets that each fit one 300k-token orchestrator session, with the orchestrator and subagent split, parallel waves, and an abstract model tier (`heavy`, `medium`, `standard`, `fast`) per ticket.
 - `implement` (~1.3k): build one ticket or one small task: explore, shape, delegate, verify, review, final gate.
 - `ship` (~0.7k): commit, open a PR, and either babysit CI/review bots to merge (full-send) or open a draft PR and stop (full-stop).
 

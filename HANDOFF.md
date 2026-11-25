@@ -8,8 +8,8 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 
 ## Layout
 
-- `.claude-plugin/`: `plugin.json` (loads `skills/` and `agents/`) and `marketplace.json` (`bottega@bottega`, source `./`).
-- `agents/`: `maestro-agent` (implementers and reviewers).
+- `.claude-plugin/`: `plugin.json` (loads `skills/` and `harnesses/claude/agents/maestro-agent.md`) and `marketplace.json` (`bottega@bottega`, source `./`).
+- `harnesses/`: `claude/` (`agents/maestro-agent.md`), `antigravity/`, `codex/`, `opencode/` (each with `install.sh` + `subagents.md`).
 - 12 skills: maestro, reframe, grill, sharpen, tickets, implement, ship, correct, unslop, frontend-design, create- and maintain-verification-skill.
 - `skills/maestro/`: `SKILL.md` (routing and shared rules), `SKILLS-INDEX.md`, `references/` (delegate, final-gate, models, subagents, principles, explore, review, prototype, unattended, handoff, worktree-cleanup), `scripts/` (`bottega`, `gate-check.sh`, `worktree-audit.sh`, `log.sh`). 17 principles in `references/principles.md`.
 - `scripts/`: `lint-skills.py`, `test-scripts.sh` (dev only). `evals/`: `run.py`, `gate.py`, `baseline.jsonl`, 12 tasks (dev only). CI: `.github/workflows/ci.yml`.
@@ -32,7 +32,7 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 
 - Change files only inside `~/Projects/BottegaStack` unless the user approves a specific outside change.
 - In this repo, commit and push straight to `main` when asked; never commit unasked.
-- Claude Code only for now; no hooks in the plugin, no CLI.
+- Multi-harness via `harnesses/`; no hooks in the plugin, no compiled CLI binary (thin Bash `bottega` wrapper only).
 - Linux and macOS; bash 3.2, BSD and GNU tools, no `jq`.
 - Never `xhigh` or `max` effort in bottega's role table; `high` only on haiku.
 - Touch `~/.claude/settings.json` only with the user's yes and a backup.

@@ -6,8 +6,8 @@ Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Poc
 
 ## Scope
 
-- **Claude Code only, for now.** A port to Codex CLI and Gemini/Antigravity CLI is planned in issue #46; new prose stays harness-neutral where it costs nothing.
-- **No hooks, no CLI.** Rules are prose the model follows; `scripts/lint-skills.py` and CI keep the prose in sync. A CLI saves under 2% of a run's tokens, and isn't worth a cross-platform binary.
+- **Multi-harness via `harnesses/`.** Core skills in `skills/` stay harness-agnostic; thin adapters live under `harnesses/claude/`, `harnesses/antigravity/`, `harnesses/codex/`, and `harnesses/opencode/`.
+- **No hooks, no compiled binary.** Rules are prose the model follows; `skills/maestro/scripts/bottega` is a thin Bash wrapper around `gate-check.sh` and `log.sh` that collapses verification turns and keeps raw logs out of context without adding dependencies.
 - **Per-repo state only.** `.bottega/` holds run state, plans and tickets, and stays untracked. Cross-repo memory is left to Claude Code.
 - **Linux and macOS only.** bash 3.2, BSD and GNU tools, no `jq`. Python 3.9+ only for the developer lint and evals. Native Windows is not supported; WSL counts as Linux.
 - **No UI driving.** Where a change needs a visual check, the agent says what to look at and the user checks it.
@@ -16,12 +16,12 @@ Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Poc
 
 - **Why.** Most of what the old routing, playbooks and fan-out skills described, current models already do unprompted. What they don't do unprompted: settle decisions with the user before building, size work to one session's context, keep the orchestrator's context small by delegating, and prove results mechanically. The stack keeps only those.
 - **`/plan`** grills the user one decision at a time (the frontier of settled prerequisites, numbered questions with a recommended answer that "yes" accepts, facts looked up rather than asked, prototypes for ungrillable questions) and writes a spec of decisions the user made. Plan mode stays off during grilling.
-- **Named `plan`, not `plan`.** Claude Code has a built-in `/plan` that turns on plan mode, which is exactly what grilling must avoid.
+- **Named `plan` (use `/bottega:plan` if Claude Code's built-in `/plan` clashes).** Built-in plan mode stays off during grilling.
 - **Map mode** replaces the `wayfinder` skill: for efforts too big for one grilling session, a local map of decision questions, one resolved per session, research answered by explorers. Folded into `/plan` because it is grilling plus bookkeeping, and a separate skill duplicated the grilling rules.
-- **`/tickets`** cuts vertical tracer-bullet slices, each sized for one fresh orchestrator session: **300k tokens, ±10%** (hard limit 330k), counting only the orchestrator's own context, estimated from file sizes. Each ticket names what the orchestrator does, a table of subagents (role, type, model, task, write scope, which run together), blocked-by edges, a wave, and an **opus-level or sonnet-level** orchestrator with the reason. Tickets that write the same file are serialized.
-- **`/implement`** runs one ticket per fresh session (or one small direct task): explore, shape before logic, pin behavior by kind (bug, refactor, feature), delegate, verify, review, final gate, then mark the ticket done and list what it unblocked. It replaces the bug-fix, feature, refactoring and investigate playbooks.
+- **`/tickets`** cuts vertical tracer-bullet slices, each sized for one fresh orchestrator session: **300k tokens, ±10%** (hard limit 330k), counting only the orchestrator's own context, estimated from file sizes. Each ticket names what the orchestrator does, a table of subagents (role, tier, task, write scope, which run together), blocked-by edges, a wave, and an abstract model tier (`heavy`, `medium`, `standard`, `fast`, translated per harness in `references/models.md`). Tickets that write the same file are serialized.
+- **`/implement`** runs one ticket per fresh session (or one small direct task): explore, shape before logic, pin behavior by kind (bug, refactor, feature), delegate, verify, review (parallel Spec + Standards axes), final gate, then mark the ticket done and list what it unblocked. It replaces the bug-fix, feature, refactoring and investigate playbooks.
 - **`/maestro`** is a one-page front door: a routing table plus the shared rules (confidence, risk, autonomy, subagents, context, replies).
-- **Skills (9):** maestro, grill, tickets, implement, correct, unslop, frontend-design, create- and maintain-verification-skill. Every one sets `disable-model-invocation: true`.
+- **Skills (12):** maestro, reframe, plan, sharpen, tickets, implement, ship, correct, unslop, frontend-design, create- and maintain-verification-skill. Every one sets `disable-model-invocation: true`.
 - **References under `maestro/references/`**, read only when a step needs them: `delegate.md`, `final-gate.md`, `subagents.md`, `principles.md`, `explore.md` (was `understand` and Investigate), `review.md` (was `crossfire` and `parallel`), `prototype.md`, `unattended.md`, `handoff.md`, `worktree-cleanup.md`.
 - **Principles:** 17, on one page, each a short section. Delegates read a section before applying it.
 

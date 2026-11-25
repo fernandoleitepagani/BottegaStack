@@ -1,6 +1,6 @@
 ---
 name: tickets
-description: "Split a spec into tickets that each fit one fresh orchestrator session (300k tokens, ±10%), with the orchestrator/subagent split, roles and models, an implementation order with parallel waves, and an opus- or sonnet-level orchestrator per ticket. Use for /tickets, 'break this into tickets', or after /plan."
+description: "Split a spec into tickets that each fit one fresh orchestrator session (300k tokens, ±10%), with the orchestrator/subagent split, roles and abstract model tiers (heavy, medium, standard, fast), and an implementation order with parallel waves. Use for /tickets, 'break this into tickets', or after /plan."
 disable-model-invocation: true
 ---
 

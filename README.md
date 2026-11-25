@@ -48,9 +48,12 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 | skill | use it when |
 |---|---|
 | [`/maestro`](./skills/maestro/SKILL.md) | the front door: routes a prompt and holds the shared rules (risk, autonomy, subagents, context). |
+| [`/reframe`](./skills/reframe/SKILL.md) | you know what you want but lack the exact technical vocabulary. Outputs interpretations, ranked expert terms, analogies, and a crisp prompt. |
 | [`/plan`](./skills/plan/SKILL.md) | work needs decisions or more than one session. Grills you into a spec; map mode for efforts too big to settle at once. |
-| [`/tickets`](./skills/tickets/SKILL.md) | you have a spec and want session-sized tickets with roles, waves and models. |
+| [`/sharpen`](./skills/sharpen/SKILL.md) | strip vague adjectives from a prompt or spec into concrete, testable claims and explicit non-goals. |
+| [`/tickets`](./skills/tickets/SKILL.md) | you have a spec and want session-sized tickets with roles, waves and abstract model tiers. |
 | [`/implement`](./skills/implement/SKILL.md) | you have a ticket, or a small change that fits one session. Handles bugs, features and refactors. |
+| [`/ship`](./skills/ship/SKILL.md) | commit, open a PR, and either babysit CI/review bots to merge (`full-send`) or open a Draft PR and stop (`full-stop`). |
 | [`/correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistake. Fixes each class at the highest level that works: architecture, then types and lint, then tests, docs last. |
 | [`/unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. Removes AI tells. |
 | [`/frontend-design`](./skills/frontend-design/SKILL.md) | you want a distinct visual direction for new UI. Agents write the code; you check the rendered result. |
@@ -67,7 +70,7 @@ Every change ends at the final gate. `gate-check.sh` reads the logged proofs in 
 
 ## the `maestro-agent` subagent
 
-Implementers and reviewers run as [`subagent_type: "bottega:maestro-agent"`](./agents/maestro-agent.md). It reads the delegate brief at `skills/maestro/references/delegate.md` before any work: scope, commits, the no-comments rule and its self-check, verification, and the report format. Explorers run as Claude Code's built-in `Explore`.
+Implementers and reviewers run as [`subagent_type: "bottega:maestro-agent"`](./harnesses/claude/agents/maestro-agent.md) on Claude Code (see [`harnesses/`](./harnesses/) for Antigravity CLI, Codex, and OpenCode). It reads the delegate brief at `skills/maestro/references/delegate.md` before any work: scope, commits, the no-comments rule and its self-check, verification, and the report format. Explorers run as Claude Code's built-in `Explore`.
 
 ## models
 
