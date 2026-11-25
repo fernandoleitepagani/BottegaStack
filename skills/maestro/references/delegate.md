@@ -4,7 +4,7 @@ Shared rules for the `/maestro` orchestrator and every `maestro-agent` delegate.
 
 ## Your role as a delegate
 
-- Do the one task in your brief. The orchestrator owns the ticket, the todo list, the plan, and every other spawn. Never run `/grill`, `/tickets` or `/implement` yourself, and never act as the orchestrator.
+- Do the one task in your brief. The orchestrator owns the ticket, the todo list, the plan, and every other spawn. Never run `/plan`, `/tickets` or `/implement` yourself, and never act as the orchestrator.
 - Restate the goal from your brief in one line before you start.
 - Stay inside the scope the brief names. Anything outside it goes in your report under **Open**, not into the diff.
 

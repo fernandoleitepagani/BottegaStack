@@ -15,15 +15,15 @@ claude plugin marketplace add <path-or-repo>
 claude plugin install bottega@bottega
 ```
 
-Start a new session afterwards. Claude Code prefixes plugin commands, so `/grill` is also `/bottega:grill`; use the prefix if another plugin takes a name. The planning skill is `grill`, not `plan`, because Claude Code's built-in `/plan` turns on plan mode. bottega uses no hooks.
+Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan` is also `/bottega:grill`; use the prefix if another plugin takes a name. The planning skill is `plan`, not `plan`, because Claude Code's built-in `/plan` turns on plan mode. bottega uses no hooks.
 
 **platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Python is used only by the developer lint and evals. Native Windows is not supported; under WSL, bottega runs as on Linux.
 
 ## the workflow
 
 ```
-/maestro <prompt>          routes the prompt; big work goes to /grill
-/grill                      grills you one decision at a time, writes .bottega/plans/<slug>/spec.md
+/maestro <prompt>          routes the prompt; big work goes to /plan
+/plan                      grills you one decision at a time, writes .bottega/plans/<slug>/spec.md
 /tickets                   one ticket per session (300k tokens ±10%), roles, waves, models → PLAN.md
 /clear, /model <level>     a fresh session per ticket, with the model the ticket names
 /implement <ticket>        explore, shape, delegate, verify, review, final gate
@@ -43,12 +43,12 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 
 ## skills
 
-9 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
+12 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
 
 | skill | use it when |
 |---|---|
 | [`/maestro`](./skills/maestro/SKILL.md) | the front door: routes a prompt and holds the shared rules (risk, autonomy, subagents, context). |
-| [`/grill`](./skills/grill/SKILL.md) | work needs decisions or more than one session. Grills you into a spec; map mode for efforts too big to settle at once. |
+| [`/plan`](./skills/plan/SKILL.md) | work needs decisions or more than one session. Grills you into a spec; map mode for efforts too big to settle at once. |
 | [`/tickets`](./skills/tickets/SKILL.md) | you have a spec and want session-sized tickets with roles, waves and models. |
 | [`/implement`](./skills/implement/SKILL.md) | you have a ticket, or a small change that fits one session. Handles bugs, features and refactors. |
 | [`/correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistake. Fixes each class at the highest level that works: architecture, then types and lint, then tests, docs last. |
@@ -94,6 +94,6 @@ MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE).
 
 ## credits
 
-- `grill` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega.
+- `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega.
 - The unattended and handoff rules and the explore reference are original works by the bottega author, drawing on pstack.
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), adapted under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).

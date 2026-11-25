@@ -105,7 +105,7 @@ Several runs can go at once, each in its own worktree on its own branch. Worktre
 
 - Give each body of work its own chat and worktree, such as a feature, a migration, a perf push, or a tech-debt cleanup.
 - Give each PR independent reviewers before it merges, and let the unattended rules's `queue` mode carry the queue.
-- Plan big efforts with `/grill` and `/tickets` first, so each run gets a ticket sized for one session.
+- Plan big efforts with `/plan` and `/tickets` first, so each run gets a ticket sized for one session.
 
 One prompt can carry a whole effort, from research through execution:
 

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Maestro
 
-Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/grill`, `/tickets` and `/implement` directly.
+Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/plan`, `/sharpen`, `/tickets`, `/implement` and `/ship` directly.
 
 ## Before any other tool call
 
@@ -22,8 +22,10 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 
 | The prompt is | Go to |
 |---|---|
-| Work that needs decisions, or more than one session | `/grill` (`../grill/SKILL.md`), then `/tickets` (`../tickets/SKILL.md`) |
+| Rough idea the user is struggling to articulate | `/reframe` (`../reframe/SKILL.md`) |
+| Work that needs decisions, or more than one session | `/plan` (`../plan/SKILL.md`) → `/sharpen` (`../sharpen/SKILL.md`) → `/tickets` (`../tickets/SKILL.md`) |
 | A ticket path, or a small clear change that fits one session | `/implement` (`../implement/SKILL.md`) |
+| Ship a verified, gate-approved diff (draft PR or full-send to merge) | `/ship` (`../ship/SKILL.md`) |
 | A question or a symptom to diagnose, no change | `references/explore.md`, read-only |
 | A design fork that only seeing it can settle | `references/prototype.md` |
 | Run while the user is away, or run a ticket plan unattended | `references/unattended.md` |

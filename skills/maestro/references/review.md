@@ -2,12 +2,14 @@
 
 How `/implement` reviews a finished diff and fixes what the review proves. The gate reads its verdict from the `crossfire` row in the ledger (see **Ledger**).
 
-## The reviewer
+## The reviewers (two parallel axes)
 
-One fresh `bottega:maestro-agent` on the reviewer role (`subagents.md`), never the agent that wrote the code. Give it the ticket (or the stated goal), the diff command (`git diff <merge-base>`), and the check output as paths. Never give it the implementer's self-assessment.
+Spawn two fresh `bottega:maestro-agent` reviewers in parallel on the reviewer role (`subagents.md`), never the agent that wrote the code. Give each only the diff command (`git diff <merge-base>`), check output paths, and its axis input—never the implementer's self-assessment:
 
-- **Normal risk:** one pass. Does the diff meet every acceptance criterion and nothing beyond it? Are the tests at the agreed seams, and would they fail if the behavior broke? Does it touch files outside the ticket's write list?
-- **High risk:** adversarial, in rounds. The reviewer uses the role's High column.
+1. **Spec reviewer:** Gets the ticket/spec (or stated goal) + diff. Checks: does the diff meet every acceptance criterion, cover edge cases, and avoid scope creep (no unrequested changes, no files outside the write list)?
+2. **Standards reviewer:** Gets repo conventions/principles + diff. Checks: type safety, boundary validation, dead code, test seams (would tests fail if behavior broke?), and security/high-risk traps.
+   - **Normal risk:** one pass on both axes.
+   - **High risk:** Standards reviewer runs the **Adversarial brief** below in rounds (using the role's High column).
 
 ## Adversarial brief (high risk, or when the user asks for "crossfire")
 

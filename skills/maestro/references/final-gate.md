@@ -7,22 +7,22 @@ Read at the start of every `/implement` run (and every unattended unit), and do 
 ## 0. Open the run before your first edit or spawn
 
 ```bash
-<maestro dir>/scripts/gate-check.sh --start "<goal>" --risk <normal|high> \
+<maestro dir>/scripts/bottega start "<goal>" --risk <normal|high> \
   --condition "<acceptance condition>" --condition "<next condition>"
 ```
 
-This writes the `run` row with its risk, one `condition` row each, and a snapshot of the tree. An edit made before it is part of the snapshot, so the changed-files check can't see it. A condition found later goes in with `--condition` on the final call. Every declared condition needs a `--proof` row with the same text, word for word.
+(`bottega start` wraps `gate-check.sh --start` and auto-detects repo check commands into `.bottega/checks.env`.) This writes the `run` row with its risk, one `condition` row each, and a snapshot of the tree. An edit made before it is part of the snapshot, so the changed-files check can't see it. A condition found later goes in with `--condition` on the final call. Every declared condition needs a `--proof` row with the same text, word for word.
 
-## 1. Log the proofs and check the gate, in one call
+## 1. Run checks, log proofs, and check the gate in one call
 
 ```bash
-<maestro dir>/scripts/gate-check.sh --risk <normal|high> \
+<maestro dir>/scripts/bottega verify --check "<test/lint cmd>" --risk <normal|high> \
   --expect "<file or glob the change is meant to touch>" --expect "<dir>/" \
   --proof "<acceptance condition>" "<command run, file:line, or commit>" <PASS|FAIL|INCONCLUSIVE|WAIVED> \
   --proof "<next condition>" "<evidence>" <RESULT>
 ```
 
-Run it from the checkout that holds the change.
+(`bottega verify` sends raw check output to `.bottega/last-verify.log`, prints a compact pass/fail summary, and calls `gate-check.sh` in the same turn.) Run it from the checkout that holds the change.
 
 - **Expect.** One `--expect` per file or directory the change is meant to touch. Every file the run changed (edits, new files, deletions, commits since `--start`) must match one. Revert a stray file, or delete what a check left behind (such as `__pycache__/`), rather than declaring it. Files already dirty before the run and left alone don't count.
 - **Proof.** One `--proof` per declared condition, with its exact text. Only a condition's latest proof counts, so after a fix round log the new result for the same condition. A WAIVED row's evidence starts with `user:` and quotes the user's words, for example `"user: \"skip the docs check\""`. Never waive on your own.

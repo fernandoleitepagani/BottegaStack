@@ -131,7 +131,7 @@ Use it after any edit to maestro, `grill`, `tickets`, `implement`, a reference o
 
 Things an automated eval can't see. Run them by hand in a scratch repo after installing or changing bottega.
 
-- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: `/maestro`, `/grill`, `/tickets`, `/implement` appear under `/`.
+- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: `/maestro`, `/reframe`, `/grill`, `/sharpen`, `/tickets`, `/implement`, `/ship` appear under `/`.
 - **Subagents.** In a `/maestro` run that spawns, the transcript shows `subagent_type: "bottega:maestro-agent"` with a `model` and `effort` from the table, and background spawns.
 - **A real run.** The first reply names the goal, the smallest change, and the risk; a vague request gets a question; `--start` runs before the first edit; the reply ends with a Decision block and one `Next:` line; nothing is committed unless you asked.
 - **Plan and tickets.** `/grill` on a multi-session prompt asks numbered questions with recommended answers and looks facts up instead of asking; the spec holds only what you said. `/tickets` shows the table and asks before writing; each ticket has a budget under 300k, a subagent table, a wave, and an orchestrator level.

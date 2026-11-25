@@ -1,10 +1,10 @@
 ---
-name: grill
-description: "Turn a prompt into a detailed, agreed spec by grilling the user one decision at a time. Map mode for efforts too big to settle in one session. Use for /grill, 'grill me', 'plan this with me', or when /maestro routes multi-session work here. Hands off to /tickets."
+name: plan
+description: "Turn a prompt into a detailed, agreed spec by grilling the user one decision at a time. Map mode for efforts too big to settle in one session. Use for /plan, /bottega:plan, 'plan this', 'plan this with me', 'grill me', 'let us design', 'spec this out', 'help me plan', 'walk me through the design', 'architect this feature', or when /maestro routes multi-session work here. Hands off to /tickets."
 disable-model-invocation: true
 ---
 
-# Grill
+# Plan
 
 Turn the user's prompt into a spec they agree with. You interview; the user decides. The spec records decisions the user made, never ones you made for them. A spec line the user never agreed to is a defect.
 
@@ -24,11 +24,11 @@ State your pick and why in one line. Don't wait for confirmation.
 
 ## 1. Grill
 
-Keep plan mode off: it pushes the agent to write a plan before the questions are done.
+Keep built-in plan mode off: it pushes the agent to write a plan before the questions are done.
 
 Work the decisions as a tree. A decision is on the **frontier** when every decision it depends on is settled.
 
-1. **Each round, ask the whole frontier.** Number each question. Give your recommended answer and its reason in one line each, worded so that "yes" accepts it. Use `AskUserQuestion` (up to 4 questions per call, your recommendation first and marked "(Recommended)"). Without it, ask in the reply and stop.
+1. **Each round, ask the whole frontier directly in chat.** Number each question. Give your recommended answer and its reason in one line each, worded so that "yes" accepts it. Do not call interactive form/question tools—just ask clearly in your reply and stop.
 2. **Facts are not questions.** Anything the code, git, or docs can answer goes to an explorer subagent, never to the user. Ask the user only for product calls, preferences, priorities, and constraints.
 3. **Ungrillable questions go to a prototype.** When the answer depends on seeing it (layout, feel, timing, which approach is faster), build a throwaway per `<maestro dir>/references/prototype.md` and ask the user to react to it.
 4. **Push back.** If an answer conflicts with the code, an earlier answer, or the goal, say so with the evidence and ask again. "I don't know" is a valid answer: record it as an open question with your default.
@@ -38,7 +38,7 @@ Cover at least: the goal and who it is for, what done looks like (checks you can
 
 ## 2. Write the spec
 
-Write `.bottega/plans/<slug>/spec.md` (create `.bottega/` with a `.gitignore` containing `*` if missing). Use the user's words. No file paths or code snippets in the decisions: those belong to tickets.
+Run `/sharpen` (`../sharpen/SKILL.md`) on the settled requirements if any criterion is still vague, then write `.bottega/plans/<slug>/spec.md` (create `.bottega/` with a `.gitignore` containing `*` if missing). Use the user's words. No file paths or code snippets in the decisions: those belong to tickets.
 
 ```markdown
 # <title>
@@ -69,7 +69,7 @@ For efforts no single grilling session can settle. Adapted from Matt Pocock's `w
 1. **Name the destination** by grilling (step 1) until the end state is clear in one or two lines.
 2. **Chart the map** at `.bottega/plans/<slug>/map.md`: `## Destination`, `## Decisions so far`, `## Questions` (one line each: `Q<nn> <title> | type: grill, prototype, or research | blocked-by: Q<nn>`), `## Not yet clear` (fog you can't phrase as a question yet), `## Out of scope`.
 3. **Resolve research questions now,** in parallel, with explorer subagents. Write each answer under its question.
-4. **One question per session after that.** The user runs `/grill map <slug>`: load the map only, take the first unblocked open question, resolve it (grill, or prototype), record the answer under `## Decisions so far`, and graduate fog into new questions. Stop.
+4. **One question per session after that.** The user runs `/plan map <slug>`: load the map only, take the first unblocked open question, resolve it (grill, or prototype), record the answer under `## Decisions so far`, and graduate fog into new questions. Stop.
 5. **When no questions remain,** write `spec.md` from the map's decisions (step 2) and hand off to `/tickets`. A spec that still needs several sessions to build is fine: `/tickets` splits it.
 
 **Reply:** the size you picked, then the grilling rounds, then the spec path and a summary of it, then the next command.

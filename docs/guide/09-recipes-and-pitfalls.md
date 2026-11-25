@@ -29,7 +29,7 @@ You pick from things that run, not from descriptions. The agent answers its own 
 ## Plan a big change
 
 ```text
-/grill add team workspaces. grill me until we agree, then write the spec.
+/plan add team workspaces. grill me until we agree, then write the spec.
 /tickets
 ```
 
@@ -115,9 +115,9 @@ Catch-up tells you in plain words what changed since your last message, then lis
 ## The pitfalls
 
 - **Enumerating steps in the prompt.** `/implement` already sequences explore, shape, build, review and gate. State the goal and constraints. Name a step only to override a default.
-- **Skipping the plan for big work.** A multi-session change built in one session runs out of context halfway. Run `/grill` and `/tickets` first.
+- **Skipping the plan for big work.** A multi-session change built in one session runs out of context halfway. Run `/plan` and `/tickets` first.
 - **Answering the grilling passively.** "Sure, whatever you think" puts the agent's guesses in your spec. Push back, and say "I don't know" when you don't.
-- **Clearing between `/grill` and `/tickets`.** The grilling is the context the tickets are cut from. Run them in one session.
+- **Clearing between `/plan` and `/tickets`.** The grilling is the context the tickets are cut from. Run them in one session.
 - **Ignoring the ticket's model.** A sonnet-level orchestrator on an opus-level ticket misses design calls; the reverse wastes money.
 - **A vague finish condition.** "make it better" gives `/loop` nothing to check. Give a command or artifact that can pass or fail.
 - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.

@@ -1,6 +1,6 @@
 # Verify the result and open a PR
 
-"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/references/principles.md#prove-it-works) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, vetting a measured number, generating a verification skill for your app, opening the PR, and driving it to merged.
+"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/references/principles.md#prove-it-works) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, running checks and the gate in one call (`bottega verify`), generating a verification skill for your app, and shipping via [`/ship`](../../skills/ship/SKILL.md) (either `full-send` + `babysit-pr` to merge, or `full-stop` to open a Draft PR).
 
 Verification is the slowest step in most agent work, because it's the step that usually waits on a human. Make the agent able to do it, and you stop being the bottleneck. Skip it, and running more agents only gets you more unchecked work to review.
 

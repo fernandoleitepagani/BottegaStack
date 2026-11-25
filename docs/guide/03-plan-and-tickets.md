@@ -1,8 +1,8 @@
 # Plan and split into tickets
 
-For anything bigger than one session, bottega plans with you before it builds. `/grill` interviews you until the decisions are yours, then `/tickets` splits the result into tickets that each fit one fresh session. The grilling and slicing are adapted from Matt Pocock's skills ([mattpocock/skills](https://github.com/mattpocock/skills), MIT).
+For anything bigger than one session, bottega plans with you before it builds. `/plan` interviews you until the decisions are yours, then `/tickets` splits the result into tickets that each fit one fresh session. The grilling and slicing are adapted from Matt Pocock's skills ([mattpocock/skills](https://github.com/mattpocock/skills), MIT).
 
-## `/grill`: get grilled
+## `/plan`: get grilled
 
 ```text
 /maestro add team workspaces. members share projects, owners manage billing.
@@ -18,7 +18,7 @@ Keep plan mode off: it pushes the agent to write a plan before the questions are
 
 ### Map mode, for work too big to settle at once
 
-A migration or a new product can have more open questions than one session holds. `/grill` then charts a map, `.bottega/plans/<slug>/map.md`, with one question per line and what blocks each. Research questions get answered by explorers right away. After that you run `/grill map <slug>` once per session: it takes the next unblocked question, grills or prototypes it, and records the decision. When no questions remain, it writes the spec.
+A migration or a new product can have more open questions than one session holds. `/plan` then charts a map, `.bottega/plans/<slug>/map.md`, with one question per line and what blocks each. Research questions get answered by explorers right away. After that you run `/plan map <slug>` once per session: it takes the next unblocked question, grills or prototypes it, and records the decision. When no questions remain, it writes the spec.
 
 ## `/tickets`: one ticket per session
 
@@ -26,7 +26,7 @@ A migration or a new product can have more open questions than one session holds
 /tickets .bottega/plans/team-workspaces/spec.md
 ```
 
-Run it in the same session as `/grill`, without `/clear`, so the grilling is still in context. Each ticket is a thin vertical slice (types, logic, interface and tests together) that you can check on its own. For every ticket you get:
+Run it in the same session as `/plan`, without `/clear`, so the grilling is still in context. Each ticket is a thin vertical slice (types, logic, interface and tests together) that you can check on its own. For every ticket you get:
 
 - **Acceptance criteria** written as checks: a command and the output that proves it.
 - **A budget** for the orchestrator's own context: at most 300k tokens, ±10%, not counting what its subagents read. The estimate is itemized (session overhead, files it reads, about 5k per subagent, diff and gate), and a ticket over 300k gets split.

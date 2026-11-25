@@ -1,6 +1,6 @@
 ---
 name: tickets
-description: "Split a spec into tickets that each fit one fresh orchestrator session (300k tokens, ±10%), with the orchestrator/subagent split, roles and models, an implementation order with parallel waves, and an opus- or sonnet-level orchestrator per ticket. Use for /tickets, 'break this into tickets', or after /grill."
+description: "Split a spec into tickets that each fit one fresh orchestrator session (300k tokens, ±10%), with the orchestrator/subagent split, roles and models, an implementation order with parallel waves, and an opus- or sonnet-level orchestrator per ticket. Use for /tickets, 'break this into tickets', or after /plan."
 disable-model-invocation: true
 ---
 
@@ -14,7 +14,7 @@ The slicing rules are adapted from Matt Pocock's `to-tickets` skill (github.com/
 
 ## Input
 
-A spec path (`.bottega/plans/<slug>/spec.md`), or the plan agreed in this conversation. With neither, route to `/grill` (`../grill/SKILL.md`). Read the spec in full, then explore the code it touches with explorer subagents (`<maestro dir>/references/explore.md`). Measure the files the tickets will touch with `wc -c`: you need the sizes for the budget.
+A spec path (`.bottega/plans/<slug>/spec.md`), or the plan agreed in this conversation. With neither, route to `/plan` (`../plan/SKILL.md`). Read the spec in full, then explore the code it touches with explorer subagents (`<maestro dir>/references/explore.md`). Measure the files the tickets will touch with `wc -c`: you need the sizes for the budget.
 
 ## 1. Slice
 
@@ -59,18 +59,20 @@ Mark which subagents run in parallel. Two subagents run in parallel only when th
 - **Shared files.** Two tickets that write the same file are serialized even when neither depends on the other (**Separate Before Serializing Shared State**). Put the earlier one in `Blocked by`.
 - **Waves.** Wave 1 is every ticket with no blockers. Wave N is every ticket whose blockers are all in earlier waves. Tickets in one wave run in parallel, one session each, each in its own git worktree.
 
-## 5. Pick the orchestrator model
+## 5. Pick the abstract model tiers
 
-Each ticket names the model level for its orchestrator, and why:
+Pick the **lowest abstract tier** (`heavy`, `medium`, `standard`, `fast` — mapped per harness in `<maestro dir>/references/models.md`) that uses the least tokens/limits while remaining as precise as needed, for **both** the orchestrator and every subagent:
 
-- **opus-level** when any of these hold: high risk; a design decision is still open inside the ticket; it changes a shared interface or more than three modules; it involves concurrency, data migration, auth, or a hard debugging hunt.
-- **sonnet-level** otherwise: the shape is decided and the work follows an existing pattern.
+- **`heavy`**: high risk, auth/security, concurrency, data migrations, shared interfaces across >3 modules, or adversarial crossfire.
+- **`medium`**: open design decisions inside the ticket, multi-file coordination, tricky debugging, or high-risk implementer/reviewer.
+- **`standard`**: well-scoped normal-risk orchestrator, standard implementers and reviewers.
+- **`fast`**: explorers, codebase mapping, read-only fact-finding.
 
-The user sets it with `/model` at the start of the ticket's fresh session. Subagent models still come from the role table.
+The user sets the orchestrator model at the start of the ticket's fresh session (using their harness's translation of the tier in `references/models.md`).
 
 ## 6. Agree, then write
 
-Show the breakdown as one numbered table: ticket, title, blocked by, wave, orchestrator level, budget estimate, risk. Ask the user, through `AskUserQuestion` when available: Is the granularity right? Are the blocking edges right? Should any tickets merge or split? Iterate until they approve. Then write the files:
+Show the breakdown as one numbered table: ticket, title, blocked by, wave, orchestrator tier, budget estimate, risk. Ask the user directly in chat: Is the granularity right? Are the blocking edges right? Should any tickets merge or split? Iterate until they approve. Then write the files:
 
 **`.bottega/plans/<slug>/tickets/T<nn>-<slug>.md`**, one per ticket, numbered blockers first:
 
@@ -80,7 +82,7 @@ Status: todo
 Blocked by: T<nn>, ... | none
 Wave: <n>
 Risk: normal | high
-Orchestrator: opus-level | sonnet-level — <why>
+Orchestrator: heavy | medium | standard | fast — <why>
 Budget: ~<n>k of 300k (overhead <n>k, reads <n>k, <n> subagents <n>k, diff and gate <n>k, margin <n>k)
 
 ## What to build
@@ -93,9 +95,9 @@ Budget: ~<n>k of 300k (overhead <n>k, reads <n>k, <n> subagents <n>k, diff and g
 ## Orchestrator does
 - <decisions, reviews, checks, the gate>
 ## Subagents
-| # | Role | Type | Model | Task | Writes | Runs with |
-|---|---|---|---|---|---|---|
-| 1 | explorer | Explore | haiku high | <task> | none | 2 |
+| # | Role | Tier | Task | Writes | Runs with |
+|---|---|---|---|---|---|
+| 1 | explorer | fast | <task> | none | 2 |
 ## Notes
 <spec decisions this ticket depends on, gotchas>
 ```

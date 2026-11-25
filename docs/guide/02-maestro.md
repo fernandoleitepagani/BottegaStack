@@ -1,6 +1,6 @@
 # Route work through `/maestro`
 
-`/maestro` is the front door. Type it with your goal and how you'll know it's done, and it sends the prompt to the right step. You can also skip it and call `/grill`, `/tickets` or `/implement` yourself.
+`/maestro` is the front door. Type it with your goal and how you'll know it's done, and it sends the prompt to the right step. You can also skip it and call `/plan`, `/tickets` or `/implement` yourself.
 
 ![A dispatcher pulls a switch lever to route robots on rail handcars toward lit gates, under a /maestro departure board listing BUG FIX, FEATURE, and INVESTIGATION.](./images/router.jpg)
 
@@ -8,7 +8,7 @@
 
 | You ask for | It goes to |
 |---|---|
-| Work with open decisions, or more than one session of work | `/grill`, then `/tickets` |
+| Work with open decisions, or more than one session of work | `/plan`, then `/tickets` |
 | A ticket, or a small clear change (a bug, a feature slice, a refactor) | `/implement` |
 | A question ("how does X work", "why is it like this") or a symptom to diagnose | read-only exploration, no code change |
 | A design fork you have to see to decide | a throwaway prototype |

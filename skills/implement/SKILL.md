@@ -13,7 +13,7 @@ One ticket per fresh session. You orchestrate: you decide, brief, review, and pr
 ## 0. Load
 
 - **Ticket mode** (`/implement <path>`): read the ticket and the spec it belongs to. Check that every `Blocked by` ticket says `Status: done`; if one doesn't, stop and say which. Set the ticket to `Status: in-progress`. Its acceptance criteria are your conditions, its risk is your risk, and its **Orchestrator does** and **Subagents** sections are your plan. Follow them. A change to that split goes in your reply with the reason.
-- **Direct mode** (a small task with no ticket, routed by `/maestro` or `/grill`): state the goal, the risk, and the checks that prove done, and write the split yourself in the todo list. If it turns out to need more than one session, stop and route to `/grill` (`../grill/SKILL.md`).
+- **Direct mode** (a small task with no ticket, routed by `/maestro` or `/plan`): state the goal, the risk, and the checks that prove done, and write the split yourself in the todo list. If it turns out to need more than one session, stop and route to `/plan` (`../plan/SKILL.md`).
 
 Open the run before your first edit or spawn (final gate step 0), with each acceptance criterion as a `--condition`.
 

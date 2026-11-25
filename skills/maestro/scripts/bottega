@@ -1,0 +1,151 @@
+#!/usr/bin/env bash
+# Deterministic CLI wrapper for Bottega. Collapses multi-turn verification and
+# ledger boilerplate into single calls with compact stdout (raw logs go to
+# .bottega/last-verify.log). Bash 3.2 compatible, no jq.
+#
+# Usage:
+#   bottega start "<goal>" [--risk normal|high] --condition "<c>" [...]
+#   bottega verify [--check "<cmd>" ...] [--run-detected] [gate-check.sh args...]
+#   bottega log <logfile> <phase> <decision> <why> <evidence> <result>
+#   bottega ship --draft|--ready --title "<title>" --body "<body>"
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+GATE="$SCRIPT_DIR/gate-check.sh"
+LOG="$SCRIPT_DIR/log.sh"
+
+usage() {
+	sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+	exit "${1:-0}"
+}
+
+detect_checks() {
+	mkdir -p .bottega
+	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
+	[ -f .bottega/checks.env ] && return 0
+	local cmds=()
+	if [ -f package.json ]; then
+		grep -q '"typecheck"' package.json 2>/dev/null && cmds+=("npm run typecheck")
+		grep -q '"lint"' package.json 2>/dev/null && cmds+=("npm run lint")
+		grep -q '"test"' package.json 2>/dev/null && cmds+=("npm test")
+	elif [ -f pyproject.toml ] || [ -f pytest.ini ]; then
+		command -v pytest >/dev/null 2>&1 && cmds+=("pytest -q")
+	elif [ -f go.mod ]; then
+		cmds+=("go test ./...")
+	elif [ -f Cargo.toml ]; then
+		cmds+=("cargo test")
+	fi
+	: > .bottega/checks.env
+	if [ "${#cmds[@]}" -gt 0 ]; then
+		printf '%s\n' "${cmds[@]}" > .bottega/checks.env
+		printf 'bottega: detected checks -> %s\n' "$(paste -sd '; ' .bottega/checks.env)"
+	fi
+}
+
+check_doc_hygiene() {
+	local f n
+	for f in CLAUDE.md AGENTS.md; do
+		if [ -f "$f" ]; then
+			n="$(wc -l < "$f" | tr -d ' ')"
+			if [ "$n" -gt 150 ]; then
+				printf 'warn: %s is %s lines (>150); move recurring rules into linters/types/tests via /correct\n' "$f" "$n" >&2
+			fi
+		fi
+	done
+}
+
+cmd_start() {
+	[ $# -ge 1 ] || { echo "error: bottega start needs a goal and at least one --condition" >&2; exit 2; }
+	"$GATE" --start "$@"
+	detect_checks
+	check_doc_hygiene
+}
+
+cmd_verify() {
+	local checks=()
+	local gate_args=()
+	local run_detected=0
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--check)
+			[ $# -ge 2 ] || { echo "error: --check needs a command" >&2; exit 2; }
+			checks+=("$2"); shift 2 ;;
+		--run-detected)
+			run_detected=1; shift ;;
+		*)
+			gate_args+=("$1"); shift ;;
+		esac
+	done
+
+	if [ "$run_detected" -eq 1 ] && [ -f .bottega/checks.env ]; then
+		while IFS= read -r line; do
+			[ -n "$line" ] && checks+=("$line")
+		done < .bottega/checks.env
+	fi
+
+	mkdir -p .bottega
+	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
+	local logfile=".bottega/last-verify.log"
+	: > "$logfile"
+
+	local failed=0
+	if [ "${#checks[@]}" -gt 0 ]; then
+		local c
+		for c in "${checks[@]}"; do
+			printf '=== %s ===\n' "$c" >> "$logfile"
+			if PYTHONDONTWRITEBYTECODE=1 bash -c "$c" >> "$logfile" 2>&1; then
+				printf 'PASS  %s\n' "$c"
+			else
+				printf 'FAIL  %s (see %s)\n' "$c" "$logfile"
+				tail -n 15 "$logfile" | sed 's/^/  | /'
+				failed=1
+			fi
+		done
+	fi
+
+	if [ "$failed" -ne 0 ]; then
+		echo "bottega verify: checks failed; fix before gating" >&2
+		exit 1
+	fi
+
+	if [ "${#gate_args[@]}" -gt 0 ]; then
+		"$GATE" "${gate_args[@]}"
+	fi
+}
+
+cmd_ship() {
+	local mode="" title="" body=""
+	while [ $# -gt 0 ]; do
+		case "$1" in
+		--draft) mode="draft"; shift ;;
+		--ready) mode="ready"; shift ;;
+		--title) title="$2"; shift 2 ;;
+		--body) body="$2"; shift 2 ;;
+		*) echo "error: unknown ship option: $1" >&2; exit 2 ;;
+		esac
+	done
+	[ -n "$mode" ] && [ -n "$title" ] || { echo "error: bottega ship needs --draft|--ready and --title" >&2; exit 2; }
+	local branch
+	branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
+	if [ -z "$branch" ] || [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
+		echo "error: create a feature branch before shipping (currently on '${branch:-detached}')" >&2
+		exit 1
+	fi
+	git push -u origin "$branch"
+	if [ "$mode" = "draft" ]; then
+		gh pr create --draft --title "$title" --body "$body"
+	else
+		gh pr create --title "$title" --body "$body"
+	fi
+}
+
+[ $# -ge 1 ] || usage 2
+sub="$1"; shift
+case "$sub" in
+start)  cmd_start "$@" ;;
+verify) cmd_verify "$@" ;;
+log)    "$LOG" "$@" ;;
+ship)   cmd_ship "$@" ;;
+-h|--help|help) usage 0 ;;
+*) echo "error: unknown subcommand: $sub" >&2; usage 2 ;;
+esac

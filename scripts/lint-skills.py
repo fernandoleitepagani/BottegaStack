@@ -82,7 +82,7 @@ for t in principles:
 for t in set(named) - set(principles):
     problems.append(f"delegate.md Principles: '{t}' has no section in principles.md")
 
-words = {8: "eight", 9: "nine", 10: "ten", 17: "seventeen"}
+words = {8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 17: "seventeen"}
 COUNTED = ["README.md", "HANDOFF.md"] + ["docs/guide/" + f for f in sorted(os.listdir(os.path.join(ROOT, "docs", "guide"))) if f.endswith(".md")]
 for path in COUNTED:
     text = read(*path.split("/"))
@@ -98,7 +98,7 @@ CUT = ["understand", "crossfire", "parallel", "architect", "wayfinder", "figure-
        "interface-review", "better-interface", "better-accessibility", "better-colors", "better-layout",
        "better-typography", "better-ui", "better-writing", "tdd"]
 CUT_REF = re.compile(r"(?:`/?|/)(" + "|".join(re.escape(c) for c in CUT) + r")(?:`| skill)")
-LIVE = ["agents/maestro-agent.md"] + [p for p in COUNTED if p != "HANDOFF.md"]
+LIVE = ["harnesses/claude/agents/maestro-agent.md"] + [p for p in COUNTED if p != "HANDOFF.md"]
 for dirpath, _, files in os.walk(SKILLS):
     LIVE += [os.path.relpath(os.path.join(dirpath, f), ROOT) for f in files if f.endswith(".md")]
 for path in LIVE:
@@ -115,7 +115,7 @@ for path in LIVE:
 # skills dir. Runtime paths (.bottega/, ~/, a user project's files) are not bundled, so skipped.
 MAESTRO = os.path.join(SKILLS, "maestro")
 REF = re.compile(r"(?:`|\]\()((?:<maestro dir>/|<skills dir>/|\.\./|references/|scripts/)(?:[\w.-]+/)*[\w.-]+\.(?:md|sh|py|mjs))[`)#]")
-for base_dir in (SKILLS, os.path.join(ROOT, "agents")):
+for base_dir in (SKILLS, os.path.join(ROOT, "harnesses", "claude", "agents")):
     for dirpath, _, files in os.walk(base_dir):
         for f in files:
             if not f.endswith(".md"):

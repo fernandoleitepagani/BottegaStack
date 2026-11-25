@@ -96,7 +96,7 @@ def plugin_copy():
     global PLUGIN
     if PLUGIN is None:
         PLUGIN = tempfile.mkdtemp(prefix="toolkit-")
-        for part in (".claude-plugin", "skills", "agents", "LICENSE"):
+        for part in (".claude-plugin", "skills", "harnesses", "LICENSE"):
             src = os.path.join(REPO, part)
             dst = os.path.join(PLUGIN, part)
             (shutil.copytree if os.path.isdir(src) else shutil.copy)(src, dst)
@@ -107,6 +107,13 @@ PLUGIN = None
 
 
 def command(task, arm, args):
+    if args.harness == "agy":
+        if arm == "baseline":
+            prompt = task["prompt"]
+        else:
+            pdir = "<plugin copy>" if args.dry_run else plugin_copy()
+            prompt = f"Follow {pdir}/skills/maestro/SKILL.md. {task['prompt']}"
+        return ["agy", "-p", prompt, "--model", args.model, "--effort", args.effort]
     prompt = task["prompt"] if arm == "baseline" else f"/bottega:maestro {task['prompt']}"
     cmd = [
         "claude", "-p", prompt,
@@ -433,6 +440,7 @@ def main():
     ap.add_argument("--tasks", default="")
     ap.add_argument("--arms", default="bottega,baseline")
     ap.add_argument("--trials", type=int, default=1)
+    ap.add_argument("--harness", choices=("claude", "agy"), default="claude")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--effort", default="low")
     ap.add_argument("--timeout", type=int, default=900)

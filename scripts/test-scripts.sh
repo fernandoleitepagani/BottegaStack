@@ -151,6 +151,21 @@ printf '%s\n' "$out" | grep -F "with space" | grep -q "scratch:1" && pass "workt
 printf '%s\n' "$out" | grep -F "with space" | grep -qv "safe" && pass "worktree-audit: untracked files keep a worktree out of safe" || fail "worktree-audit: untracked files keep a worktree out of safe"
 printf '%s\n' "$out" | grep -F "/runstate" | grep -q "bottega-state" && pass "worktree-audit: ignored .bottega run state is flagged" || fail "worktree-audit: ignored .bottega run state is flagged"
 
+# bottega CLI wrapper: start, verify (pass/fail), and CLAUDE.md hygiene warning.
+cd "$tmp" && mkdir bcli && cd bcli && git init -q
+echo hi > a.txt && git_q add -A && git_q commit -qm i
+"$maestro/bottega" start "cli smoke" --risk normal --condition "a works" >/dev/null \
+	&& pass "bottega start opens run" || fail "bottega start opens run"
+echo hi2 > a.txt
+"$maestro/bottega" verify --check "grep -q hi2 a.txt" --risk normal --expect "a.txt" --proof "a works" "grep hi2" PASS >/dev/null \
+	&& pass "bottega verify approves passing check" || fail "bottega verify approves passing check"
+if "$maestro/bottega" verify --check "false" >/dev/null 2>&1; then fail "bottega verify fails on red check"
+else pass "bottega verify fails on red check"; fi
+yes "rule" | head -n 160 > CLAUDE.md
+if "$maestro/bottega" start "hygiene" --condition "c" 2>&1 >/dev/null | grep -q "CLAUDE.md is 160 lines"; then
+	pass "bottega start warns on >150-line CLAUDE.md"
+else fail "bottega start warns on >150-line CLAUDE.md"; fi
+
 echo
 [ "$fails" -eq 0 ] && echo "all script tests passed" || echo "$fails script test(s) failed"
 [ "$fails" -eq 0 ]

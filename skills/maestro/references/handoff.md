@@ -16,7 +16,7 @@ Explicit only, plus the handoff threshold in **Token rules** of `../SKILL.md` an
 1. **Find the trail.** `.bottega/handoff.md` first when it exists, then the active workspace's transcript at `~/.claude/projects/<slug>/<session>.jsonl` (slug = workspace path with `/` and `.` replaced by `-`; never glob across other projects), or a pushed branch. Parse a long transcript in a subagent and keep only the reduced timeline (**Guard the Context Window**).
 2. **Rebuild state** from git: the branch and worktree, what landed (`git log`, `git diff` against the base), open todos, and decisions made. The trail is authoritative input; do not re-derive it.
 3. **Name the resume point.** Compare shipped against planned. Do not re-run the prior repro or redo finished work.
-4. **Route** the remaining work (`/implement` for a ticket, `/grill` for an open decision): continue, ship a finished recommendation, ratify or override a prior conclusion, or postmortem a failed run.
+4. **Route** the remaining work (`/implement` for a ticket, `/plan` for an open decision): continue, ship a finished recommendation, ratify or override a prior conclusion, or postmortem a failed run.
 5. **Verify inherited claims** on the real artifact (**Prove It Works**). A passing self-report is not proof.
 6. **Keep credit** when the prior work is someone else's (a teammate's PR or branch, another agent's thread): build on their commits instead of rewriting them, keep their authorship and existing co-author trailers, and credit them in the PR (`final-gate.md`, **Opening a PR**). Don't change their PR in place without the user's yes; a continuation goes on a new branch with their commits imported.
 
