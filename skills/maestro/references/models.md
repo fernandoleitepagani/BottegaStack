@@ -4,12 +4,14 @@ One global table mapping Bottega's four abstract tiers to each harness's concret
 
 ## Tier translation
 
-| Abstract tier | Use when | Claude Code | Gemini / Antigravity CLI | Codex (future) |
-|---|---|---|---|---|
-| **`heavy`** | High-risk orchestrator, hard architecture, auth/security/concurrency, adversarial crossfire | `opus` `medium` | `neon` `medium` | TBD |
-| **`medium`** | Complex multi-file orchestrator, tricky debugging, high-risk implementer/reviewer | `opus` `low` | `neon` `low` | TBD |
-| **`standard`** | Normal orchestrator, standard implementers and reviewers | `sonnet` `medium` | `hydrogen` `medium` | TBD |
-| **`fast`** | Explorers, codebase mapping, fact-finding, mechanical/read-only research | `haiku` `high` | `hydrogen` `low` | TBD |
+| Abstract tier | Use when | Claude Code | Gemini / Antigravity CLI | Codex | OpenCode |
+|---|---|---|---|---|---|
+| **`heavy`** | High-risk orchestrator, hard architecture, auth/security/concurrency, adversarial crossfire | `opus` `medium` | `neon` `medium` | `sol` `high` | `opus` `medium` |
+| **`medium`** | Complex multi-file orchestrator, tricky debugging, high-risk implementer/reviewer | `opus` `low` | `neon` `low` | `sol` `medium` | `opus` `low` |
+| **`standard`** | Normal orchestrator, standard implementers and reviewers | `sonnet` `medium` | `hydrogen` `medium` | `sol` `low` or `terra` `medium` | `deepseek v4.1 flash`* |
+| **`fast`** | Explorers, codebase mapping, fact-finding, mechanical/read-only research | `haiku` `high` | `hydrogen` `low` | `luna` `high` | `glm-5.3-flash`* |
+
+*\*OpenCode non-Anthropic models: always try the **free** version first, then fall back to **OpenCode Go's** version if unavailable or rate-limited.*
 
 ## Selection rule (token & limit discipline)
 

@@ -26,9 +26,7 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 
 ## Open
 
-1. **Evals after the reshape:** see the latest measurement in `evals/README.md`; tasks for `/plan` grilling and `/tickets` sizing are not written yet (both are interactive, so they need a scripted user).
-2. **Bump the version on every release:** `plugin.json` is 3.1.0; a reinstall without a bump reuses the cached copy unless `~/.claude/plugins/cache/bottega` is deleted.
-3. Codex and Gemini/Antigravity port: issue #46.
+1. **Bump the version on every release:** `plugin.json` is 3.2.0; a reinstall without a bump reuses the cached copy unless `~/.claude/plugins/cache/bottega` is deleted.
 
 ## Hard rules from the user
 

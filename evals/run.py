@@ -246,7 +246,7 @@ def check(g, workdir, info):
         first_start = first_edit = None
         for i, (n, inp) in enumerate(uses):
             cmd = str(inp.get("command", "")) if n == "Bash" else ""
-            if first_start is None and "gate-check.sh" in cmd and "--start" in cmd:
+            if first_start is None and (("gate-check.sh" in cmd and "--start" in cmd) or re.search(r"\bbottega\s+start\b", cmd)):
                 first_start = i
             if first_edit is None and (n in ("Edit", "Write", "NotebookEdit")
                                        or re.search(r"\bsed -i|\bperl -pi|>\s*[\w./-]+\.py\b", cmd)):
@@ -282,7 +282,7 @@ def gate_results(raw):
         for b in content:
             if b.get("type") == "tool_use" and b.get("name") == "Bash":
                 cmd = str((b.get("input") or {}).get("command", ""))
-                if "gate-check.sh" in cmd:  # a --start-only call prints no verdict line
+                if "gate-check.sh" in cmd or re.search(r"\bbottega\s+verify\b", cmd):  # a --start-only call prints no verdict line
                     calls[b.get("id")] = True
             elif b.get("type") == "tool_result" and b.get("tool_use_id") in calls:
                 text = b.get("content")

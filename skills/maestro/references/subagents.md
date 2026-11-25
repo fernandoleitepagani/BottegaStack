@@ -11,7 +11,9 @@ Read before your first spawn. Concrete model + effort values come from `referenc
 
 **Harness mapping:**
 - **Claude Code:** `explorer` → `Explore`; `implementer`/`reviewer` → `bottega:maestro-agent` (`harnesses/claude/agents/maestro-agent.md`), `run_in_background: true`, `isolation: "worktree"` beside another writer. Pass both `model` and `effort` from `references/models.md`.
-- **Antigravity CLI:** see `harnesses/antigravity/subagents.md` (`invoke_subagent` with `research`/`self`, `share`/`branch` workspace, and model + effort from `references/models.md`).
+- **Antigravity CLI:** see `harnesses/antigravity/subagents.md`.
+- **Codex:** see `harnesses/codex/subagents.md`.
+- **OpenCode:** see `harnesses/opencode/subagents.md`.
 
 **Orchestrator.** `/tickets` picks the lowest abstract tier (`heavy`, `medium`, `standard`, `fast`) that stays precise for both the orchestrator and every subagent. Without a ticket, use `medium` (normal) or `heavy` (high risk). Never switch models mid-session. Context limit: 300k tokens, ±10% (`/implement`).
 
