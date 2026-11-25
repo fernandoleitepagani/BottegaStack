@@ -32,10 +32,10 @@ Walk through what each line buys you:
 - "done means..." turns the goal into checks every iteration can run.
 - "fresh worktree off `<base>`" keeps the run from colliding with anything else you have open.
 - "don't ask me before committing" pre-answers the permission the agent would otherwise block on.
-- `/loop` is Claude Code's built-in recurring-prompt skill, not a bottega skill. The [unattended rules](../../skills/autopilot/SKILL.md) uses it to re-check the finish condition on a heartbeat. A loop prompt is plain text that reads the skill, for example `/loop 10m Read <abs path>/skills/maestro/SKILL.md and continue the unattended run`.
+- `/loop` is Claude Code's built-in recurring-prompt skill, not a bottega skill. [`/autopilot`](../../skills/autopilot/SKILL.md) uses it to re-check the finish condition on a heartbeat. A loop prompt is plain text that reads the skill, for example `/loop 10m Read <abs path>/skills/autopilot/SKILL.md and continue the run`.
 - The escape hatch lets it stop at a genuine dead end and write up why, which beats eight hours of creative goal reinterpretation.
 
-Because you'll review this work after stepping away, `/maestro` routes it through the unattended rules, which states the exit condition before any code and keeps the decision trail.
+Because you'll review this work after stepping away, `/maestro` routes it through `/autopilot`, which asks upfront whether to auto-merge or stop at verified PRs, states the exit condition before any code, and keeps the decision trail.
 
 To stop a run on purpose, tell the agent to pause, or that you're about to go offline or restart your machine. The [handoff rules](../../skills/maestro/references/handoff.md) finishes or backs out of the current step, saves a patch under `.bottega/` (no wip commit), and writes a resume note. A fresh chat picks the work up from that note through the handoff rules. Saying "keep going" never triggers a pause.
 
@@ -57,7 +57,7 @@ One change, one check, one log row, every iteration. Changes that didn't help ge
 
 ## The morning audit
 
-The decision trail is what makes the run reviewable. The [unattended rules](../../skills/autopilot/SKILL.md) keeps it in `.bottega/decisions.tsv`, one row per decision with the time, phase, reason, an evidence pointer, and the result. It stays local unless you ask to commit it.
+The decision trail is what makes the run reviewable. [`/autopilot`](../../skills/autopilot/SKILL.md) keeps it in `.bottega/decisions.tsv`, one row per decision with the time, phase, reason, an evidence pointer, and the result. It stays local unless you ask to commit it.
 
 When you're back, ask for the run in review form:
 
@@ -71,9 +71,9 @@ For a quick status instead of an audit, ask "catch me up" in the chat that ran t
 
 ## When the night holds a queue, not a task
 
-The contract above drives one task to one finish condition. Some nights hold more, a queue of independent changes or a whole program. Two modes of the unattended rules scale the same trust up.
+The contract above drives one task to one finish condition. Some nights hold more, a queue of independent changes or a whole program. Two modes of `/autopilot` scale the same trust up.
 
-[Unattended](../../skills/autopilot/SKILL.md) in `queue land` mode runs a queue of independent PRs to merged. Each PR gets one owner agent that carries it from build through merge, and no owner merges on its own verdict. Fresh reviewers check the owner's code-ready head. A later rebase or minor fix gets one fresh reviewer, and only new behavior or a large new diff calls the full set again. Only a clean verdict on the patch that merges authorizes the merge:
+[`/autopilot`](../../skills/autopilot/SKILL.md) in `queue land` mode runs a queue of independent PRs to merged. Each PR gets one owner agent that carries it from build through merge, and no owner merges on its own verdict. Fresh reviewers check the owner's code-ready head. A later rebase or minor fix gets one fresh reviewer, and only new behavior or a large new diff calls the full set again. Only a clean verdict on the patch that merges authorizes the merge:
 
 ```text
 /maestro full autopilot on this queue. each item is independent. i want them merged by morning.
@@ -85,7 +85,7 @@ The contract above drives one task to one finish condition. Some nights hold mor
 /maestro autopilot these five changes, but don't merge. i'll land them in the morning.
 ```
 
-[Unattended](../../skills/autopilot/SKILL.md) in `program` mode is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator decides which agent does each piece of work, checks what each one produces, and never writes code itself. If one agent could finish the work in a session, the unattended rules route you back to the overnight contract above:
+[`/autopilot`](../../skills/autopilot/SKILL.md) in `program` mode is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator decides which agent does each piece of work, checks what each one produces, and never writes code itself. If one agent could finish the work in a session, `/autopilot` routes you back to the overnight contract above:
 
 ```text
 /maestro orchestrate the store migration. own it until every package is converted and merged. i'll check in twice a day.
@@ -104,7 +104,7 @@ A `PLAN.md` from `/tickets` is a ready-made queue. Each ticket becomes one owner
 Several runs can go at once, each in its own worktree on its own branch. Worktree runs share CPU, ports, and disk, so cap the fan-out at a handful. A few habits help:
 
 - Give each body of work its own chat and worktree, such as a feature, a migration, a perf push, or a tech-debt cleanup.
-- Give each PR independent reviewers before it merges, and let the unattended rules's `queue` mode carry the queue.
+- Give each PR independent reviewers before it merges, and let `/autopilot`'s `queue` mode carry the queue.
 - Plan big efforts with `/plan` and `/tickets` first, so each run gets a ticket sized for one session.
 
 One prompt can carry a whole effort, from research through execution:

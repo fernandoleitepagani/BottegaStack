@@ -61,7 +61,7 @@ Prefer CLIs (`git`, `gh`, project scripts) over MCP tools; ask once per MCP serv
 - **Subagents.** Roles, types and models come from `references/subagents.md`. You own every subagent's work: read the diff, write your own summary.
 - **Principles.** `references/principles.md`, one page. Name each one that changed a decision.
 - **Context.** Bulk goes to files and subagents (**Guard the Context Window**). An orchestrator session stops at 300k tokens, ±10%: past about 270k, run the Handoff pause, tell the user to `/clear`, and resume from `.bottega/handoff.md`. `/clear` when the task changes. Never switch `/model` mid-session.
-- **Out of scope.** A problem outside this task goes in one line of `.bottega/followups.md` (`- [ ] <title> | <file:line> | <what was hit> | <suggested fix>`), not into the diff. A `.bottega/` you create gets a `.gitignore` containing `*`.
+- **Out of scope.** Log problems outside this task via `scripts/bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"` (writes to `.bottega/followups.md` and creates `.bottega/.gitignore`), not into the diff.
 - **Repeated corrections.** Build the check that prevents them (**Mechanize It**, procedure in `../correct/SKILL.md`).
 - **UI.** New or reshaped UI reads `../frontend-design/SKILL.md`. Agents never drive or screenshot a UI: name what the user should look at.
 - **Verification.** Shipping a UI, IDE or CLI change uses the project's `verify-<app>` skill when one exists (`../create-verification-skill/SKILL.md` makes one).

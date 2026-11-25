@@ -15,7 +15,7 @@ claude plugin marketplace add <path-or-repo>
 claude plugin install bottega@bottega
 ```
 
-Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan` is also `/bottega:grill`; use the prefix if another plugin takes a name. The planning skill is `plan`, not `plan`, because Claude Code's built-in `/plan` turns on plan mode. bottega uses no hooks.
+Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan` is also `/bottega:plan`; use the prefix when Claude Code's built-in `/plan` clashes (built-in plan mode stays off during grilling). bottega uses no hooks.
 
 **platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Python is used only by the developer lint and evals. Native Windows is not supported; under WSL, bottega runs as on Linux.
 

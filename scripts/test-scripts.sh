@@ -165,6 +165,21 @@ yes "rule" | head -n 160 > CLAUDE.md
 if "$maestro/bottega" start "hygiene" --condition "c" 2>&1 >/dev/null | grep -q "CLAUDE.md is 160 lines"; then
 	pass "bottega start warns on >150-line CLAUDE.md"
 else fail "bottega start warns on >150-line CLAUDE.md"; fi
+if "$maestro/bottega" hygiene 2>&1 | grep -q "CLAUDE.md is 160 lines"; then
+	pass "bottega hygiene warns on >150-line CLAUDE.md"
+else fail "bottega hygiene warns on >150-line CLAUDE.md"; fi
+"$maestro/bottega" followup add "fix cache" "src/cache.ts:12" "stale read" "invalidate on write" >/dev/null \
+	&& grep -qF -- "- [ ] fix cache | src/cache.ts:12 | stale read | invalidate on write" .bottega/followups.md \
+	&& pass "bottega followup add writes formatted row" || fail "bottega followup add writes formatted row"
+"$maestro/bottega" garden add "unsafe cast" "src/a.ts:9" "3 commits use as any" >/dev/null \
+	&& grep -qF -- "- [ ] unsafe cast | src/a.ts:9 | 3 commits use as any" .bottega/garden.md \
+	&& pass "bottega garden add writes formatted row" || fail "bottega garden add writes formatted row"
+"$maestro/bottega" worktree audit -b HEAD --no-sizes >/dev/null 2>&1 \
+	&& pass "bottega worktree audit wraps worktree-audit.sh" || fail "bottega worktree audit wraps worktree-audit.sh"
+git checkout -q -b feat-migration && mkdir -p migrations && echo "DROP TABLE x;" > migrations/001.sql && git_q add migrations/001.sql && git_q commit -qm "add migration"
+if "$maestro/bottega" ship --ready --title "drop x" --body "test" 2>&1 | grep -q "one-way-door"; then
+	pass "bottega ship --ready blocks one-way-door migration"
+else fail "bottega ship --ready blocks one-way-door migration"; fi
 
 echo
 [ "$fails" -eq 0 ] && echo "all script tests passed" || echo "$fails script test(s) failed"

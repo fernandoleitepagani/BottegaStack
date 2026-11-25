@@ -8,14 +8,19 @@
 #   bottega verify [--check "<cmd>" ...] [--run-detected] [gate-check.sh args...]
 #   bottega log <logfile> <phase> <decision> <why> <evidence> <result>
 #   bottega ship --draft|--ready --title "<title>" --body "<body>"
+#   bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"
+#   bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"
+#   bottega worktree audit [worktree-audit.sh args...]
+#   bottega hygiene
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 GATE="$SCRIPT_DIR/gate-check.sh"
 LOG="$SCRIPT_DIR/log.sh"
+WT_AUDIT="$SCRIPT_DIR/worktree-audit.sh"
 
 usage() {
-	sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 
@@ -131,6 +136,28 @@ cmd_ship() {
 		echo "error: create a feature branch before shipping (currently on '${branch:-detached}')" >&2
 		exit 1
 	fi
+	if [ "$mode" = "ready" ]; then
+		local base="" cand
+		for cand in origin/main origin/master main master; do
+			if git rev-parse --verify --quiet "$cand" >/dev/null 2>&1; then
+				base="$cand"
+				break
+			fi
+		done
+		local changed=""
+		if [ -n "$base" ]; then
+			changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || true)"
+		fi
+		if [ -n "$changed" ]; then
+			local owd
+			owd="$(printf '%s\n' "$changed" | grep -Ei '(^|/)(migrations?|schema|auth|billing|deploy)(/|\.|_|-|$)|^\.github/workflows/' || true)"
+			if [ -n "$owd" ]; then
+				echo "error: one-way-door files changed; --ready is blocked (use --draft / full-stop):" >&2
+				printf '%s\n' "$owd" | sed 's/^/  - /' >&2
+				exit 1
+			fi
+		fi
+	fi
 	git push -u origin "$branch"
 	if [ "$mode" = "draft" ]; then
 		gh pr create --draft --title "$title" --body "$body"
@@ -139,13 +166,41 @@ cmd_ship() {
 	fi
 }
 
+cmd_followup() {
+	[ "${1:-}" = "add" ] && [ $# -eq 5 ] || { echo 'error: usage: bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"' >&2; exit 2; }
+	shift
+	mkdir -p .bottega
+	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
+	printf -- '- [ ] %s | %s | %s | %s\n' "$1" "$2" "$3" "$4" >> .bottega/followups.md
+	echo "bottega: logged followup to .bottega/followups.md"
+}
+
+cmd_garden() {
+	[ "${1:-}" = "add" ] && [ $# -eq 4 ] || { echo 'error: usage: bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"' >&2; exit 2; }
+	shift
+	mkdir -p .bottega
+	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
+	printf -- '- [ ] %s | %s | %s\n' "$1" "$2" "$3" >> .bottega/garden.md
+	echo "bottega: logged pattern to .bottega/garden.md"
+}
+
+cmd_worktree() {
+	[ "${1:-}" = "audit" ] || { echo 'error: usage: bottega worktree audit [worktree-audit.sh args...]' >&2; exit 2; }
+	shift
+	"$WT_AUDIT" "$@"
+}
+
 [ $# -ge 1 ] || usage 2
 sub="$1"; shift
 case "$sub" in
-start)  cmd_start "$@" ;;
-verify) cmd_verify "$@" ;;
-log)    "$LOG" "$@" ;;
-ship)   cmd_ship "$@" ;;
+start)    cmd_start "$@" ;;
+verify)   cmd_verify "$@" ;;
+log)      "$LOG" "$@" ;;
+ship)     cmd_ship "$@" ;;
+followup) cmd_followup "$@" ;;
+garden)   cmd_garden "$@" ;;
+worktree) cmd_worktree "$@" ;;
+hygiene)  check_doc_hygiene ;;
 -h|--help|help) usage 0 ;;
 *) echo "error: unknown subcommand: $sub" >&2; usage 2 ;;
 esac

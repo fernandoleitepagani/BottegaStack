@@ -12,7 +12,7 @@
 | A ticket, or a small clear change (a bug, a feature slice, a refactor) | `/implement` |
 | A question ("how does X work", "why is it like this") or a symptom to diagnose | read-only exploration, no code change |
 | A design fork you have to see to decide | a throwaway prototype |
-| Work to run while you're away | the unattended rules |
+| Work to run while you're away | `/autopilot` |
 | Pause now, or resume earlier work | a handoff |
 | Clean up old worktrees | the worktree cleanup rules |
 | A docs or config edit with no runtime effect | the light route: edit, check, done |
