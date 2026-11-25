@@ -54,4 +54,4 @@ On `open a PR`, or inside an Unattended run:
 - Open it ready, not draft (`gh pr create`), unless an Unattended owner opens a draft early so CI runs. Prefer several narrow PRs to one large one; a stacked child targets its parent branch (`--base <parent>`).
 - The body is a one-minute briefing under about 40 lines, written through **unslop**: `## Why` (the goal), `## What changed`, `## Scope` (covered and left out), `## Verification` (each real run and its outcome), and `## Review` (the review's rounds and outcome).
 - When the work continues someone else's PR or branch, keep their commits and authorship, add `Co-authored-by:` trailers for human contributors, and credit and link the original PR.
-- Post the URL. Opening a PR does not start babysitting; watch it only when asked (see `unattended.md` **Watching a PR**).
+- Post the URL. Opening a PR does not start babysitting; watch or land it via `../../ship/SKILL.md` (`/ship full`).

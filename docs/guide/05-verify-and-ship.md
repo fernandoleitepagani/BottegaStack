@@ -88,6 +88,6 @@ The final gate's [Opening a PR](../../skills/maestro/references/final-gate.md) s
 /maestro land the stack.
 ```
 
-The **Watching a PR** section of [`references/unattended.md`](../../skills/maestro/references/unattended.md) takes blockers in order (conflicts, review threads, then CI), batches every fix into one push, and waits with one watcher on `gh pr checks --watch` instead of polling. Review comments get a skeptical triage: a real finding gets a fix, and noise gets dismissed with the disproof on the thread. Landing verifies each PR with an agent that didn't write it, then merges bottom-up and reads each PR back to confirm it merged. Green is not the same as safe.
+[`/ship`](../../skills/ship/SKILL.md) (`/ship full`) takes blockers in order (conflicts, review threads, then CI), batches every fix into one push, and waits with `gh pr checks --watch` instead of polling. Review comments get a skeptical triage: a real finding gets a fix, and noise gets dismissed with the disproof on the thread. Landing verifies each PR with an agent that didn't write it, then merges bottom-up and reads each PR back to confirm it merged. Green is not the same as safe.
 
 Next: [Run work while you sleep](./06-overnight.md).

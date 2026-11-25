@@ -10,8 +10,8 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 
 - `.claude-plugin/`: `plugin.json` (loads `skills/` and `harnesses/claude/agents/maestro-agent.md`) and `marketplace.json` (`bottega@bottega`, source `./`).
 - `harnesses/`: `claude/` (`agents/maestro-agent.md`), `antigravity/`, `codex/`, `opencode/` (each with `install.sh` + `subagents.md`).
-- 12 skills: maestro, reframe, grill, sharpen, tickets, implement, ship, correct, unslop, frontend-design, create- and maintain-verification-skill.
-- `skills/maestro/`: `SKILL.md` (routing and shared rules), `SKILLS-INDEX.md`, `references/` (delegate, final-gate, models, subagents, principles, explore, review, prototype, unattended, handoff, worktree-cleanup), `scripts/` (`bottega`, `gate-check.sh`, `worktree-audit.sh`, `log.sh`). 17 principles in `references/principles.md`.
+- 16 skills: maestro, reframe, recall, triage, plan, sharpen, tickets, implement, ship, autopilot, correct, garden, unslop, frontend-design, create- and maintain-verification-skill.
+- `skills/maestro/`: `SKILL.md` (routing and shared rules), `SKILLS-INDEX.md`, `references/` (delegate, final-gate, models, subagents, principles, explore, review, prototype, handoff, worktree-cleanup), `scripts/` (`bottega`, `gate-check.sh`, `worktree-audit.sh`, `log.sh`). 17 principles in `references/principles.md`.
 - `scripts/`: `lint-skills.py`, `test-scripts.sh` (dev only). `evals/`: `run.py`, `gate.py`, `baseline.jsonl`, 12 tasks (dev only). CI: `.github/workflows/ci.yml`.
 - Runtime needs only bash and git (plus `gh` for PRs).
 
@@ -26,7 +26,7 @@ Updated 2026-11-24. Current state and open work only. Decisions and their reason
 
 ## Open
 
-1. **Bump the version on every release:** `plugin.json` is 3.2.0; a reinstall without a bump reuses the cached copy unless `~/.claude/plugins/cache/bottega` is deleted.
+1. **Bump the version on every release:** `plugin.json` is 3.3.0; a reinstall without a bump reuses the cached copy unless `~/.claude/plugins/cache/bottega` is deleted.
 
 ## Hard rules from the user
 

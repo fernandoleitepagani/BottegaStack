@@ -82,7 +82,7 @@ for t in principles:
 for t in set(named) - set(principles):
     problems.append(f"delegate.md Principles: '{t}' has no section in principles.md")
 
-words = {8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 17: "seventeen"}
+words = {8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen"}
 COUNTED = ["README.md", "HANDOFF.md"] + ["docs/guide/" + f for f in sorted(os.listdir(os.path.join(ROOT, "docs", "guide"))) if f.endswith(".md")]
 for path in COUNTED:
     text = read(*path.split("/"))

@@ -11,6 +11,16 @@ Spawn two fresh `bottega:maestro-agent` reviewers in parallel on the reviewer ro
    - **Normal risk:** one pass on both axes.
    - **High risk:** Standards reviewer runs the **Adversarial brief** below in rounds (using the role's High column).
 
+## Verifier swarm (high risk, or opted-in `full-send`)
+
+For high-risk diffs (or when the user opts into stronger pre-merge verification on `full-send`), replace the single sequential adversarial pass with **2–3 parallel `bottega:maestro-agent` verifiers** (default 3 at high risk, tunable 1–4):
+
+1. **Regression verifier:** Drives existing features end-to-end via the project's `verify-<app>` skill (if present) or integration suite to catch regressions outside the diff.
+2. **Edge-case / boundary fuzzer:** Attacks malformed inputs, empty/zero/many states, concurrency, retries, restarts, and permission boundaries using the **Adversarial brief** below.
+3. **Spec/contract adversary:** Tries to violate acceptance criteria, state invariants, or public contracts.
+
+Each verifier runs in `isolation: "worktree"` when repros need files, and only findings proven by a runnable reproduction count. Merge proven findings into one list, feed them into **Fix step** (same 2-fix-round cap), and log the combined verdict on the existing `crossfire` row in `.bottega/proofs.tsv` (`gate-check.sh` needs no change). Normal-risk runs keep the single-pass two-axis review above (zero extra token cost).
+
 ## Adversarial brief (high risk, or when the user asks for "crossfire")
 
 > Break this change. Read the goal, the check output, and the full diff, each changed file in full. Prove each finding with a run against the real code: a failing test, a repro script, or output showing the wrong behavior. Keep repros in a scratch or worktree location. Report each finding as title, `file:line`, the exact command, the output it printed, and the output the goal requires. Anything you did not run is a note, not a finding. Skip style and naming. No findings is a valid result.

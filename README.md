@@ -43,18 +43,22 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 
 ## skills
 
-12 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
+16 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
 
 | skill | use it when |
 |---|---|
 | [`/maestro`](./skills/maestro/SKILL.md) | the front door: routes a prompt and holds the shared rules (risk, autonomy, subagents, context). |
 | [`/reframe`](./skills/reframe/SKILL.md) | you know what you want but lack the exact technical vocabulary. Outputs interpretations, ranked expert terms, analogies, and a crisp prompt. |
+| [`/recall`](./skills/recall/SKILL.md) | starting a fresh session on an ongoing or related problem; rebuilds compressed context from recent session transcripts and `.bottega/` state. |
+| [`/triage`](./skills/triage/SKILL.md) | working with more than one bug report, issue, or PR; clusters by shared root cause, flags non-repros, and routes each cluster. |
 | [`/plan`](./skills/plan/SKILL.md) | work needs decisions or more than one session. Grills you into a spec; map mode for efforts too big to settle at once. |
 | [`/sharpen`](./skills/sharpen/SKILL.md) | strip vague adjectives from a prompt or spec into concrete, testable claims and explicit non-goals. |
 | [`/tickets`](./skills/tickets/SKILL.md) | you have a spec and want session-sized tickets with roles, waves and abstract model tiers. |
 | [`/implement`](./skills/implement/SKILL.md) | you have a ticket, or a small change that fits one session. Handles bugs, features and refactors. |
-| [`/ship`](./skills/ship/SKILL.md) | commit, open a PR, and either babysit CI/review bots to merge (`full-send`) or open a Draft PR and stop (`full-stop`). |
+| [`/ship`](./skills/ship/SKILL.md) | commit, open a PR, and either babysit CI/review bots to merge (`/ship full`) or open a Draft PR and stop (`/ship stop`). |
+| [`/autopilot`](./skills/autopilot/SKILL.md) | run a task, ticket queue (`PLAN.md`), or standing program unattended until checkable exit conditions pass; asks upfront whether to auto-merge or stop at verified PRs. |
 | [`/correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistake. Fixes each class at the highest level that works: architecture, then types and lint, then tests, docs last. |
+| [`/garden`](./skills/garden/SKILL.md) | periodic on-demand audit of recent commits and `.bottega/followups.md` to catch repeated agent shortcuts and propose systemic fixes. |
 | [`/unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. Removes AI tells. |
 | [`/frontend-design`](./skills/frontend-design/SKILL.md) | you want a distinct visual direction for new UI. Agents write the code; you check the rendered result. |
 | [`/create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. Generates a `verify-<app>` skill with a feature map. |

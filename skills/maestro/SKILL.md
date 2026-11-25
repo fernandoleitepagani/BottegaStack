@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Maestro
 
-Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/plan`, `/sharpen`, `/tickets`, `/implement` and `/ship` directly.
+Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship` and `/autopilot` directly.
 
 ## Before any other tool call
 
@@ -23,12 +23,14 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | The prompt is | Go to |
 |---|---|
 | Rough idea the user is struggling to articulate | `/reframe` (`../reframe/SKILL.md`) |
+| Pick up context from prior sessions or `.bottega/` state | `/recall` (`../recall/SKILL.md`) |
+| More than one bug report, issue, or PR to sort or fix | `/triage` (`../triage/SKILL.md`) |
 | Work that needs decisions, or more than one session | `/plan` (`../plan/SKILL.md`) → `/sharpen` (`../sharpen/SKILL.md`) → `/tickets` (`../tickets/SKILL.md`) |
 | A ticket path, or a small clear change that fits one session | `/implement` (`../implement/SKILL.md`) |
 | Ship a verified, gate-approved diff (draft PR or full-send to merge) | `/ship` (`../ship/SKILL.md`) |
 | A question or a symptom to diagnose, no change | `references/explore.md`, read-only |
 | A design fork that only seeing it can settle | `references/prototype.md` |
-| Run while the user is away, or run a ticket plan unattended | `references/unattended.md` |
+| Run while the user is away, or run a ticket plan unattended | `/autopilot` (`../autopilot/SKILL.md`) |
 | Pause, or resume earlier work | `references/handoff.md` |
 | Clean up worktrees | `references/worktree-cleanup.md` |
 | A docs or config change with no runtime effect | the light route below |
@@ -43,7 +45,7 @@ Act when you are at least 95% sure what the user wants. Below that, observe what
 
 ## Risk
 
-**High** when the change touches auth, security, money, data migrations or deletion, concurrency, a public API, or anything hard to undo, or when the user says so. Otherwise **normal**. Risk only rises during a run; say when and why. It picks the column of the role table and turns on adversarial review.
+**High** when the change touches auth, security, money, data migrations or deletion, concurrency, a public API, or anything hard to undo (one-way doors), or when the user says so. Otherwise **normal** (two-way doors). Risk only rises during a run; say when and why. It picks the column of the role table, turns on adversarial review, and forces one-way doors to `full-stop` (draft PR) in `/ship`.
 
 ## Autonomy
 
@@ -63,7 +65,7 @@ Prefer CLIs (`git`, `gh`, project scripts) over MCP tools; ask once per MCP serv
 - **Repeated corrections.** Build the check that prevents them (**Mechanize It**, procedure in `../correct/SKILL.md`).
 - **UI.** New or reshaped UI reads `../frontend-design/SKILL.md`. Agents never drive or screenshot a UI: name what the user should look at.
 - **Verification.** Shipping a UI, IDE or CLI change uses the project's `verify-<app>` skill when one exists (`../create-verification-skill/SKILL.md` makes one).
-- **PRs.** Opening one follows `references/final-gate.md` **Opening a PR**; watching or landing one follows `references/unattended.md` **Watching a PR**.
+- **PRs.** Opening, watching, and landing PRs follow `../ship/SKILL.md` (`/ship stop` for draft, `/ship full` for CI babysitting and auto-merge).
 
 ## Skills index
 
