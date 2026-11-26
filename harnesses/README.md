@@ -4,7 +4,7 @@ Bottega's 17 core skills under [`skills/`](../skills/) are harness-agnostic. Eac
 
 | Harness | Status | Install | Target |
 |---|---|---|---|
-| [**Claude Code**](./claude/README.md) | Supported | `claude plugin marketplace add <path-or-repo> && claude plugin install bottega@bottega` | Claude Code plugin (`./skills` + `maestro-agent.md`) |
+| **Claude Code** | Supported | `claude plugin marketplace add <path-or-repo> && claude plugin install bottega@bottega` | Claude Code plugin (`./skills` + `maestro-agent.md`) |
 | [**Antigravity CLI**](./antigravity/README.md) | Experimental (#46) | `./harnesses/antigravity/install.sh` | `~/.agents/skills/<name>` |
 | [**Codex**](./codex/README.md) | Experimental (#46) | `./harnesses/codex/install.sh` | `~/.codex/skills/<name>` |
 | [**OpenCode**](./opencode/README.md) | Experimental (#46) | `./harnesses/opencode/install.sh` | `~/.config/opencode/skills/<name>` |

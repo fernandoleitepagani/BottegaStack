@@ -31,6 +31,10 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | A question or a symptom to diagnose, no change | `references/explore.md`, read-only |
 | A design fork that only seeing it can settle | `references/prototype.md` |
 | Run while the user is away, or run a ticket plan unattended | `/autopilot` (`../autopilot/SKILL.md`) |
+| Agents keep repeating the same mistake in this repo | `/correct` (`../correct/SKILL.md`) |
+| Clean up writing: docs, README, PR or commit text | `/unslop` (`../unslop/SKILL.md`) |
+| New or reshaped UI that needs a visual direction | `/frontend-design` (`../frontend-design/SKILL.md`), then `/implement` |
+| The project has no scripted way to prove app behavior | `/create-verification-skill` (`../create-verification-skill/SKILL.md`) |
 | Audit recent commits and `.bottega/followups.md` for recurring shortcuts | `/garden` (`../garden/SKILL.md`) |
 | Keep a project's `verify-<app>` skill in sync with app changes | `/maintain-verification-skill` (`../maintain-verification-skill/SKILL.md`) |
 | A step only the user can do: a dashboard, credentials, CI secrets, a one-off migration | `/wizard` (`../wizard/SKILL.md`) |

@@ -4,22 +4,18 @@ How `/implement` reviews a finished diff and fixes what the review proves. The g
 
 ## The reviewers (two parallel axes)
 
-Adapted from mattpocock/skills `code-review` (MIT, see NOTICE). The text below is upstream's; **In bottega** after it says how it runs inside `/implement`.
+Adapted from mattpocock/skills `code-review` (MIT, see NOTICE). The text below is upstream's, minus the parts bottega sets itself; **In bottega** after it says how it runs inside `/implement`.
 
-Two-axis review of the diff between `HEAD` and a fixed point the user supplies:
+Two-axis review of the diff between `HEAD` and a fixed point:
 
 - **Standards**: does the code conform to this repo's documented coding standards?
 - **Spec**: does the code faithfully implement the originating issue / spec?
 
 Both axes run as **parallel sub-agents** so they don't pollute each other's context, then this skill aggregates their findings. Start every sub-agent with a fresh context window.
 
-The issue tracker should have been provided to you. If not, tell the user to run `/setup-matt-pocock-skills`.
-
 ### Process
 
 #### 1. Pin the fixed point
-
-Whatever the user said is the fixed point (a commit SHA, branch name, tag, `main`, `HEAD~5`, etc.). If they didn't specify one, ask for it.
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 
@@ -27,12 +23,7 @@ Before going further, confirm the fixed point resolves (`git rev-parse <fixed-po
 
 #### 2. Identify the spec source
 
-Look for the originating spec, in this order:
-
-1. Issue references in the commit messages (`#123`, `Closes #45`, GitLab `!67`, etc.), fetched via the workflow in the tracker doc.
-2. A path the user passed as an argument.
-3. A spec file under `docs/`, `specs/`, or `.scratch/` matching the branch name or feature.
-4. If nothing is found, ask the user where the spec is. If they say there isn't one, the **Spec** sub-agent will skip and report "no spec available".
+If there is no spec, the **Spec** sub-agent skips and reports "no spec available".
 
 #### 3. Identify the standards sources
 
@@ -93,8 +84,8 @@ Reporting them separately stops one axis from masking the other.
 
 ### In bottega
 
-- **Fixed point.** The run's base: the merge-base with the branch the work targets (`git merge-base HEAD <base>`), or the commit `bottega start` snapshotted for uncommitted work in the user's checkout (`git diff <sha>` plus untracked files). Don't ask the user for it.
-- **Spec source.** The ticket or `.bottega/plans/*/spec.md` the run came from, else the goal and acceptance conditions given to `bottega start`. There is no issue tracker step; skip the `/setup-matt-pocock-skills` line.
+- **Fixed point** (step 1). The run's base: the merge-base with the branch the work targets (`git merge-base HEAD <base>`), or the commit `bottega start` snapshotted for uncommitted work in the user's checkout (`git diff <sha>` plus untracked files). Don't ask the user for it.
+- **Spec source** (step 2). The ticket or `.bottega/plans/*/spec.md` the run came from, else the goal and acceptance conditions given to `bottega start`.
 - **Sub-agents.** Two fresh `bottega:maestro-agent` reviewers on the reviewer role (`subagents.md`), never the agent that wrote the code, given only the diff command, check output paths and their axis input, never the implementer's self-assessment. `standard` tier at normal risk.
 - **Standards sources** include this repo's principles (`principles.md`) and the Standards axis also checks test seams (would a test fail if the behavior broke?) and security traps.
 - **High risk** replaces the single Standards/Spec pass with the adversarial review below (one `heavy` reviewer for ≤100 lines and ≤2 files, else the **Verifier swarm**).
