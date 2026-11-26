@@ -18,10 +18,10 @@ Claude Code prefixes plugin commands, so each command in this guide can also be 
 ```bash
 agy plugin install https://github.com/fernandoleitepagani/BottegaStack                     # Antigravity CLI
 codex plugin marketplace add fernandoleitepagani/BottegaStack && codex plugin add bottega@bottega   # Codex
-git clone https://github.com/fernandoleitepagani/BottegaStack && ./BottegaStack/harnesses/opencode/install.sh   # OpenCode
+npx skills add fernandoleitepagani/BottegaStack -g -a opencode   # OpenCode
 ```
 
-OpenCode has no plugin format for skill bundles, so its installer links each skill into `~/.config/opencode/skills/` and stops if one would replace a skill you already have. See [`harnesses/README.md`](../../harnesses/README.md) for experimental status (#46) and how each harness dispatches subagents.
+OpenCode installs through Vercel's `skills` CLI into `~/.config/opencode/skills/`. See [`harnesses/README.md`](../../harnesses/README.md) for experimental status (#46) and how each harness dispatches subagents.
 
 ## Pick your models
 

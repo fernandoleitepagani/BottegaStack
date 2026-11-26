@@ -38,7 +38,7 @@ Tiers per role and difficulty are in the router's **Subagents** table; `~/.botte
 |---|---|
 | **transcripts** | OpenCode's session storage under `~/.local/share/opencode/` (*check*) |
 | **project skills dir** | `.opencode/skills/` (*check*) |
-| **installed skills** | `~/.config/opencode/skills/<name>` (symlinks from `harnesses/opencode/install.sh`) |
+| **installed skills** | `~/.config/opencode/skills/<name>` (from `npx skills add fernandoleitepagani/BottegaStack -g -a opencode`) |
 
 ## Manual-only skills
 

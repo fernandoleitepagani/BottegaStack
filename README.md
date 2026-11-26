@@ -34,13 +34,13 @@ codex plugin marketplace add fernandoleitepagani/BottegaStack
 codex plugin add bottega@bottega
 ```
 
-**OpenCode** (experimental, #46). OpenCode has no plugin format for skill bundles yet, so clone the repo and link the skills:
+**OpenCode** (experimental, #46), with Vercel's `skills` CLI:
 
 ```bash
-git clone https://github.com/fernandoleitepagani/BottegaStack && ./BottegaStack/harnesses/opencode/install.sh
+npx skills add fernandoleitepagani/BottegaStack -g -a opencode
 ```
 
-Uninstall with `claude plugin uninstall bottega`, `agy plugin uninstall bottega`, `codex plugin remove bottega@bottega`, or `./harnesses/opencode/install.sh --uninstall`. See [`harnesses/`](./harnesses/) for status and subagent notes.
+Uninstall with `claude plugin uninstall bottega`, `agy plugin uninstall bottega`, `codex plugin remove bottega@bottega`, or `npx skills remove` for OpenCode. See [`harnesses/`](./harnesses/) for status and subagent notes.
 
 **platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Native Windows is not supported; under WSL, bottega runs as on Linux.
 

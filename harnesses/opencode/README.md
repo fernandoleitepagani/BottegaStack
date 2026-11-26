@@ -1,14 +1,14 @@
 # OpenCode Harness (Experimental, #46)
 
-Everything in this directory is exclusive to **OpenCode**. Status: **experimental** (see [harnesses/README.md](../README.md#subagent-dispatch-across-harnesses) for subagent dispatch and symlink caveats).
+Everything in this directory is exclusive to **OpenCode**. Status: **experimental** (see [harnesses/README.md](../README.md#subagent-dispatch-across-harnesses) for subagent dispatch).
 
 ## Install
 
 ```bash
-./harnesses/opencode/install.sh
+npx skills add fernandoleitepagani/BottegaStack -g -a opencode
 ```
 
-Symlinks all 20 skills into `~/.config/opencode/skills/<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
+Vercel's `skills` CLI installs all 20 skills into `~/.config/opencode/skills/`. Uninstall with `npx skills remove`.
 
 ## Subagents
 
