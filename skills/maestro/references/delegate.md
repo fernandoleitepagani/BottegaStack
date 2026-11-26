@@ -1,6 +1,6 @@
 # Delegate brief
 
-Shared rules for the `/maestro` orchestrator and every `maestro-agent` delegate. The orchestrator's routing, autonomy, and reply rules live in `../SKILL.md`; role and model tiers live in `subagents.md` and `models.md`. A delegate does not need them.
+Shared rules for the `/maestro` orchestrator and every delegate it spawns. The orchestrator's routing, autonomy, and reply rules live in `../SKILL.md`; role and model tiers live in `subagents.md` and `models.md`. A delegate does not need them.
 
 ## Your role as a delegate
 
@@ -34,7 +34,7 @@ All 17 are in `principles.md` next to this file, one short section each. Read a 
 
 - Surgical edits. Touch only what the task needs. Re-ground against the source for files derived from upstream.
 - Port a shared-primitive improvement to every consumer and verify each.
-- On your own worktree or branch, commit liberally, in small ordered commits with Conventional Commits subjects. Commit a failing test or repro before the fix when the brief is a bug fix. In the user's checkout (the orchestrator working inline, or a delegate without `isolation: "worktree"`), never commit unless the user asked. Leave the changes uncommitted, and keep the test-before-fix order in the report instead. Never push, unless the brief says to.
+- On your own worktree or branch, commit liberally, in small ordered commits with Conventional Commits subjects. Commit a failing test or repro before the fix when the brief is a bug fix. In the user's checkout (the orchestrator working inline, or a delegate not in its own worktree), never commit unless the user asked. Leave the changes uncommitted, and keep the test-before-fix order in the report instead. Never push, unless the brief says to.
 
 ## Comments
 

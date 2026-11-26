@@ -1,8 +1,8 @@
-# Handoff
+# Pause
 
 Write a handoff document summarising the current conversation so a fresh agent can continue the work.
 
-Include a "suggested skills" section in the document, naming which skills the next agent should call the Skill tool for.
+Include a "suggested skills" section in the document, naming which skills the next agent should run.
 
 Do not duplicate content already captured in other artifacts (specs, plans, ADRs, issues, commits, diffs). Reference them by path or URL instead.
 
@@ -20,12 +20,4 @@ Adapted from mattpocock/skills `handoff` (MIT, see NOTICE). These rules take pre
 - **Stop cleanly first.** Finish or back out of the current atomic step, start nothing new, and cancel nested subagents. Take no irreversible action to pause: no new PR, no push.
 - **Save uncommitted work without committing.** `git diff --binary HEAD > .bottega/pause-<timestamp>.patch`, list untracked files with `git ls-files --others --exclude-standard`, and copy the ones you created under `.bottega/pause-<timestamp>/`. Name the patch path in the document, and say if the tree is broken. `git stash` only if the user asked.
 
-### Resume
-
-Run `/recall` (`../../recall/SKILL.md`); it reads `.bottega/handoff.md` first, then the transcripts. Then:
-
-1. Treat the trail as authoritative: don't redo finished work or re-run the prior repro. Route what remains (`/implement` for a ticket, `/plan` for an open decision).
-2. Verify inherited claims on the real artifact (**Prove It Works**).
-3. Keep credit when the prior work is someone else's: build on their commits, keep authorship and co-author trailers, and change their PR in place only with the user's yes.
-
-**Reply:** pause: where you stopped, the document and patch paths, whether the tree is clean, and the first action on resume. Resume: what you inherited versus redid, the resume point, and the outcome.
+**Reply:** where you stopped, the document and patch paths, whether the tree is clean, and the first action on resume (`playbooks/pickup.md`). This is a pause, not a final report.

@@ -2,13 +2,16 @@
 # Worktree prune audit. Classifies every git worktree by size, merge state,
 # uncommitted work, remote/PR state, and the most recent chat that operated in
 # it. Emits a table sorted by size with a suggested bucket. Never deletes or
-# changes a worktree; deletion stays a human-gated step in <maestro dir>/references/worktree-cleanup.md. Its one
+# changes a worktree; deletion stays a human-gated step in <maestro dir>/playbooks/worktree-cleanup.md. Its one
 # write is a best-effort `git fetch` of the base ref, so MERGED is current.
 #
-# Usage: worktree-audit.sh [-b|--base <ref>] [--no-sizes] [--no-transcripts] [repo-path]
+# Usage: worktree-audit.sh [-b|--base <ref>] [--no-sizes] [--transcripts <dir>] [--no-transcripts] [repo-path]
 #   --no-sizes skips `du`, the slow part on worktrees with large dependency trees,
 #   for a quick look at merge, PR and chat state. SIZE shows "-" and rows sort by age.
-#   --no-transcripts skips scanning ~/.claude/projects/ transcripts (LAST_CHAT shows "-").
+#   --transcripts sets this workspace's transcript folder (the harness file names it).
+#   Without it, Claude Code's ~/.claude/projects/<slug>/ is tried.
+#   --no-transcripts skips the scan. When no transcripts were read, LAST_CHAT shows "?"
+#   and no worktree is bucketed safe: a chat in use can't be ruled out.
 #   repo-path defaults to the current repo.
 #   -b sets the ref the MERGED column checks against (e.g. origin/integration).
 #   Without it the base is origin/HEAD, then origin/main, then origin/master.
@@ -19,10 +22,12 @@ set -u
 base=""
 sizes=1
 scan_transcripts=1
+transcripts=""
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-b|--base) [ $# -ge 2 ] || { echo "error: $1 needs a ref" >&2; exit 2; }; base="$2"; shift 2 ;;
 	--no-sizes) sizes=0; shift ;;
+	--transcripts) [ $# -ge 2 ] || { echo "error: $1 needs a dir" >&2; exit 2; }; transcripts="$2"; shift 2 ;;
 	--no-transcripts) scan_transcripts=0; shift ;;
 	-h|--help) sed -n '2,/^set -u/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
 	-*) echo "error: unknown option: $1" >&2; exit 2 ;;
@@ -78,7 +83,10 @@ fi
 # subagents in <session>/subagents/. The slug is the workspace path with "/" and
 # "." replaced by "-".
 slug=$(printf '%s' "$main_wt" | sed 's#[/.]#-#g')
-transcripts="$HOME/.claude/projects/$slug"
+[ -n "$transcripts" ] || transcripts="$HOME/.claude/projects/$slug"
+chats_known=0
+if [ "$scan_transcripts" -eq 1 ] && [ -d "$transcripts" ]; then chats_known=1
+else echo "warn: no transcripts read ($transcripts); no worktree is marked safe, pass --transcripts <dir>" >&2; fi
 if command -v rg >/dev/null 2>&1; then
 	grep_files() { rg -lF -e "$1/" -e "$1\"" "$2" 2>/dev/null; }
 else
@@ -137,7 +145,8 @@ git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt
 	# Most recent chat whose transcript operated in this worktree. Match path
 	# followed by "/" or a quote so feat-482 does not match feat-482-r37.
 	last="-"; last_ts=0
-	if [ "$scan_transcripts" -eq 1 ] && [ -d "$transcripts" ]; then
+	[ "$chats_known" -eq 1 ] || last="?"
+	if [ "$chats_known" -eq 1 ]; then
 		f=$(grep_files "$wt" "$transcripts" | tr '\n' '\0' | xargs -0 stat "${stat_fmt[@]}" 2>/dev/null \
 			| sort -rn | head -1)
 		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
@@ -149,7 +158,7 @@ git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt
 		case "$pr" in */open) bucket=hold-open-pr ;; *)
 			# Safe only when the work is in the base or a merged PR, and no local
 			# commit is missing from the remote. A closed, unmerged PR is review.
-			if [ "$recent" = yes ]; then bucket=verify-recent-chat
+			if [ "$recent" = yes ] || [ "$chats_known" -eq 0 ]; then bucket=verify-recent-chat
 			elif [ "$dirty" != clean ]; then bucket=review
 			elif case "$remote" in ahead*) true ;; *) false ;; esac; then bucket=review
 			elif [ "$merged" = YES ]; then bucket=safe

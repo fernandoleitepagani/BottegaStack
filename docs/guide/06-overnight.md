@@ -37,7 +37,7 @@ Walk through what each line buys you:
 
 Because you'll review this work after stepping away, `/maestro` routes it through `/autopilot`, which asks upfront whether to auto-merge or stop at verified PRs, states the exit condition before any code, and keeps the decision trail.
 
-To stop a run on purpose, tell the agent to pause, or that you're about to go offline or restart your machine. The [handoff rules](../../skills/maestro/references/handoff.md) finishes or backs out of the current step, saves a patch under `.bottega/` (no wip commit), and writes a resume note. A fresh chat picks the work up from that note through the handoff rules. Saying "keep going" never triggers a pause.
+To stop a run on purpose, tell the agent to pause, or that you're about to go offline or restart your machine. The [pause playbook](../../skills/maestro/playbooks/pause.md) finishes or backs out of the current step, saves a patch under `.bottega/` (no wip commit), and writes a resume note. A fresh chat picks the work up from that note through the [pickup playbook](../../skills/maestro/playbooks/pickup.md). Saying "keep going" never triggers a pause.
 
 When a unit needs your hands (an API key, a CI secret, a dashboard setting), the run doesn't stop. It writes a [wizard](../../skills/wizard/SKILL.md) to `.bottega/wizards/<slug>.sh`, logs the unit as blocked, and moves on. In the morning, run the script; it walks you through each step and saves the values, and the next run picks the unit back up.
 
@@ -69,7 +69,7 @@ When you're back, ask for the run in review form:
 
 At high risk, a fresh `reviewer` reads the trail and the transcript before the reply, and the reply ends with an Attention section listing what deserves your scrutiny. Read that section first, then the log rows it points at. You're auditing decisions, not re-reading the whole night.
 
-For a quick status instead of an audit, ask "catch me up" in the chat that ran the work (**Catch-up** in [`references/explore.md`](../../skills/maestro/references/explore.md)). It reads only, and tells you in plain words what changed since your last message, with any small diagrams the work produced. Then it lists each call waiting on you, such as a merge, an approval, or a choice between options, with its pick, the evidence, and the risk, so you can decide from the reply alone.
+For a quick status instead of an audit, ask "catch me up" in the chat that ran the work (**Catch-up** in [`playbooks/investigation.md`](../../skills/maestro/playbooks/investigation.md)). It reads only, and tells you in plain words what changed since your last message, with any small diagrams the work produced. Then it lists each call waiting on you, such as a merge, an approval, or a choice between options, with its pick, the evidence, and the risk, so you can decide from the reply alone.
 
 ## When the night holds a queue, not a task
 

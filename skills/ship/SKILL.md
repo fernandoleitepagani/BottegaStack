@@ -41,7 +41,7 @@ Wait for the user's choice before running any write/push command.
 
 ## Mode 1: Full auto (`/ship full`)
 
-1. **Optional pre-merge swarm:** If the run was `normal` risk and did not run a `verify-<app>` pass, you may run a 2-verifier mini-swarm (`../maestro/references/review.md` **Verifier swarm**) before pushing when extra auto-merge confidence is wanted.
+1. **Optional pre-merge swarm:** If the run was `normal` risk and did not run a `verify-<app>` pass, you may run a 2-verifier swarm (`../maestro/references/swarm.md`, with the slices in `../maestro/references/review.md` **Verifier swarm**) before pushing when extra auto-merge confidence is wanted.
 2. Run `<maestro dir>/scripts/bottega ship --ready --title "<title>" --body "<body>"`.
 3. **Babysit CI and review bots:**
    - Watch checks with `gh pr checks --watch` (or poll until all checks complete).

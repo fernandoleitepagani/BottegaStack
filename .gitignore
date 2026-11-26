@@ -6,7 +6,6 @@ __pycache__/
 # Development only: kept locally, not shipped
 evals/
 scripts/
-.github/
 DECISIONS.md
 TODO-claude.md
 handoff-claude.md

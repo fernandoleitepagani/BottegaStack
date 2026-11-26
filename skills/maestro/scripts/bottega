@@ -8,9 +8,6 @@
 #   bottega verify --check "<cmd>" [--check ...] [gate-check.sh args...]
 #   bottega log <logfile> <phase> <decision> <why> <evidence> <result>
 #   bottega ship --draft|--ready --title "<title>" --body "<body>"
-#   bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"
-#   bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"
-#   bottega garden done "<pattern>" | clear
 #   bottega worktree audit [worktree-audit.sh args...]
 set -euo pipefail
 
@@ -20,7 +17,7 @@ LOG="$SCRIPT_DIR/log.sh"
 WT_AUDIT="$SCRIPT_DIR/worktree-audit.sh"
 
 usage() {
-	sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 
@@ -146,52 +143,6 @@ cmd_ship() {
 	fi
 }
 
-cmd_followup() {
-	[ "${1:-}" = "add" ] && [ $# -eq 5 ] || { echo 'error: usage: bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"' >&2; exit 2; }
-	shift
-	mkdir -p .bottega
-	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
-	printf -- '- [ ] %s | %s | %s | %s\n' "$1" "$2" "$3" "$4" >> .bottega/followups.md
-	echo "bottega: logged followup to .bottega/followups.md"
-}
-
-cmd_garden() {
-	case "${1:-}" in
-	add)
-		[ $# -eq 4 ] || { echo 'error: usage: bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"' >&2; exit 2; }
-		shift
-		mkdir -p .bottega
-		[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
-		printf -- '- [ ] %s | %s | %s\n' "$1" "$2" "$3" >> .bottega/garden.md
-		echo "bottega: logged pattern to .bottega/garden.md"
-		;;
-	done)
-		[ $# -eq 2 ] || { echo 'error: usage: bottega garden done "<pattern>"' >&2; exit 2; }
-		[ -f .bottega/garden.md ] || { echo "error: .bottega/garden.md not found" >&2; exit 1; }
-		local pat="$2" tmp_g
-		tmp_g="$(mktemp .bottega/garden.XXXXXX)"
-		awk -v p="$pat" '
-			index($0, "- [ ] " p " |") == 1 { sub(/^- \[ \]/, "- [x]"); matched = 1 }
-			{ print }
-			END { exit(matched ? 0 : 1) }
-		' .bottega/garden.md > "$tmp_g" || { rm -f "$tmp_g"; echo "error: pattern not found in .bottega/garden.md: $pat" >&2; exit 1; }
-		mv "$tmp_g" .bottega/garden.md
-		echo "bottega: marked done in .bottega/garden.md: $pat"
-		;;
-	clear)
-		[ $# -eq 1 ] || { echo 'error: usage: bottega garden clear' >&2; exit 2; }
-		if [ -f .bottega/garden.md ]; then
-			: > .bottega/garden.md
-		fi
-		echo "bottega: cleared .bottega/garden.md"
-		;;
-	*)
-		echo 'error: usage: bottega garden add|done|clear ...' >&2
-		exit 2
-		;;
-	esac
-}
-
 cmd_worktree() {
 	[ "${1:-}" = "audit" ] || { echo 'error: usage: bottega worktree audit [worktree-audit.sh args...]' >&2; exit 2; }
 	shift
@@ -205,8 +156,6 @@ start)    cmd_start "$@" ;;
 verify)   cmd_verify "$@" ;;
 log)      "$LOG" "$@" ;;
 ship)     cmd_ship "$@" ;;
-followup) cmd_followup "$@" ;;
-garden)   cmd_garden "$@" ;;
 worktree) cmd_worktree "$@" ;;
 -h|--help|help) usage 0 ;;
 *) echo "error: unknown subcommand: $sub" >&2; usage 2 ;;

@@ -47,7 +47,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 
 ## skills
 
-17 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs on Claude Code. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
+16 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
 
 | skill | use it when |
 |---|---|
@@ -58,41 +58,41 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 | [`/plan`](./skills/plan/SKILL.md) | work needs decisions or more than one session. Grills you into a spec; map mode for efforts too big to settle at once. |
 | [`/sharpen`](./skills/sharpen/SKILL.md) | strip vague adjectives from a prompt or spec into concrete, testable claims and explicit non-goals. |
 | [`/tickets`](./skills/tickets/SKILL.md) | you have a spec and want session-sized tickets with roles, waves and abstract model tiers. |
-| [`/implement`](./skills/implement/SKILL.md) | you have a ticket, or a small change that fits one session. Handles bugs, features and refactors. |
+| [`/implement`](./skills/implement/SKILL.md) | you have a ticket, or a change that fits one session. Picks the playbook for its kind: small fix, bug fix, feature or refactoring. |
 | [`/ship`](./skills/ship/SKILL.md) | commit, open a PR, and either babysit CI/review bots to merge (`/ship full`) or open a Draft PR and stop (`/ship stop`). |
 | [`/autopilot`](./skills/autopilot/SKILL.md) | run a task, ticket queue (`PLAN.md`), or standing program unattended until checkable exit conditions pass; asks upfront whether to auto-merge or stop at verified PRs. |
-| [`/correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistake. Fixes each class at the highest level that works: architecture, then types and lint, then tests, docs last. |
-| [`/garden`](./skills/garden/SKILL.md) | periodic on-demand audit of recent commits and `.bottega/followups.md` to catch repeated agent shortcuts and propose systemic fixes. |
+| [`/correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistake. Fixes each class at the highest level that works: architecture, then types and lint, then tests, docs last. `/correct scan` audits recent commits without editing. |
 | [`/unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. Removes AI tells. |
 | [`/frontend-design`](./skills/frontend-design/SKILL.md) | you want a distinct visual direction for new UI. Agents write the code; you check the rendered result. |
 | [`/create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. Generates a `verify-<app>` skill with a feature map. |
 | [`/maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. |
 | [`/wizard`](./skills/wizard/SKILL.md) | a step needs your hands: a dashboard, an API key, a CI secret, a cutover. Writes a script that walks you through it and saves the values. |
 
-Everything else is a short reference file under [`skills/maestro/references/`](./skills/maestro/references/), read only when a step needs it: exploring code and answering questions, review and fix rounds, prototypes, handoffs, worktree cleanup, the final gate, the role table, abstract model tiers (`models.md`), and the principles.
+`/maestro` is a router: it picks one **playbook** per task from [`skills/maestro/playbooks/`](./skills/maestro/playbooks/) and loads only that one (small fix, bug fix, feature, refactoring, investigation, prototype, pause, pickup, worktree cleanup, setup, authoring a skill). Shared steps live in [`skills/maestro/references/`](./skills/maestro/references/) and load only at the step that names them: the final gate, review, blast radius, swarm, the delegate brief, the role table, model tiers and the principles.
 
 ## risk and the final gate
 
-Each run states a risk, `normal` or `high`, and risk only goes up during a run. High risk raises subagent effort and turns the review adversarial: a fresh `heavy` reviewer tries to break the diff, and a finding counts only when a run proves it.
+Each run states a risk, `normal` or `high`, and risk only goes up during a run. High risk raises subagent effort and hardens the review: a small diff gets a blast-radius check that proves the one fact it's safe because of, a larger one a swarm of verifiers, and a finding counts only when a run proves it.
 
 Every change ends at the final gate. `gate-check.sh` reads the logged proofs in `.bottega/proofs.tsv` and decides: APPROVE only on exit 0, otherwise ESCALATE. A waiver needs your words. Fix rounds stop at 2.
 
-## the `maestro-agent` subagent
+## delegates
 
-Implementers and reviewers run as [`subagent_type: "bottega:maestro-agent"`](./harnesses/claude/agents/maestro-agent.md) on Claude Code (see [`harnesses/`](./harnesses/) for Antigravity CLI, Codex, and OpenCode). It reads the delegate brief at `skills/maestro/references/delegate.md` before any work: scope, commits, the no-comments rule and its self-check, verification, and the report format. Explorers run as Claude Code's built-in `Explore`.
+Implementers, reviewers and verifiers are the harness's own general-purpose subagents. Each brief's first line makes the delegate read `skills/maestro/references/delegate.md` before any work: scope, commits, the no-comments rule and its self-check, verification, and the report format. Explorers are the harness's read-only subagents. The per-harness names live in [`skills/maestro/harness/`](./skills/maestro/harness/).
 
 ## models
 
 Roles use 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) translated per harness in [`skills/maestro/references/models.md`](./skills/maestro/references/models.md) and [`skills/maestro/references/subagents.md`](./skills/maestro/references/subagents.md).
 
-| role | normal | high |
-|---|---|---|
-| orchestrator | `standard` or `medium` (per ticket) | `heavy` |
-| explorer | `fast` | `fast` |
-| implementer | `standard` | `medium` |
-| reviewer | `standard` | `medium` (`heavy` for adversarial crossfire) |
+| role | simple (small fix) | medium (normal risk) | hard (high risk) |
+|---|---|---|---|
+| orchestrator | `standard` | `standard` or `medium` (per ticket) | `heavy` |
+| explorer | `fast` | `fast` | `fast` |
+| implementer | (inline) | `standard` | `medium` |
+| reviewer | `standard` | `standard` | `medium` |
+| verifier | `standard` | `standard` | `heavy` |
 
-To override tiers or roles, write `~/.bottega/models.md` (or `~/.claude/rules/bottega-models.md` on Claude Code). Effort ceiling: never `xhigh` or `max`.
+Run `/maestro setup` to pick a model and effort for every role at each difficulty; it writes `~/.bottega/models.md`, the one model file every harness reads. Effort ceiling: never `xhigh` or `max`.
 
 ## principles
 
@@ -109,5 +109,5 @@ MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE) and [NOTIC
 ## credits
 
 - `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega. `wizard` and its `template.sh` library are adapted from the same repo's `wizard` skill.
-- The `/autopilot` skill and the explore reference are original works by the bottega author, drawing on pstack. The prototype, handoff and two-axis review references adapt Matt Pocock's `prototype`, `handoff` and `code-review`; worktree cleanup adapts pstack's playbook.
+- The `/autopilot` skill and the investigation playbook are original works by the bottega author, drawing on pstack. The prototype and pause playbooks and the two-axis review adapt Matt Pocock's `prototype`, `handoff` and `code-review`. The playbook layout and the pickup, worktree-cleanup, authoring-a-skill and setup playbooks, plus the blast-radius and swarm references, adapt pstack's `poteto-mode` playbooks and skills.
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), adapted under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).

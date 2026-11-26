@@ -14,7 +14,7 @@ The slicing rules are adapted from Matt Pocock's `to-tickets` skill (github.com/
 
 ## Input
 
-A spec path (`.bottega/plans/<slug>/spec.md`), or the plan agreed in this conversation. With neither, route to `/plan` (`../plan/SKILL.md`). Read the spec in full, then explore the code it touches with explorer subagents (`<maestro dir>/references/explore.md`). Measure the files the tickets will touch with `wc -c`: you need the sizes for the budget.
+A spec path (`.bottega/plans/<slug>/spec.md`), or the plan agreed in this conversation. With neither, route to `/plan` (`../plan/SKILL.md`). Read the spec in full, then explore the code it touches with explorer subagents (`<maestro dir>/playbooks/investigation.md`). Measure the files the tickets will touch with `wc -c`: you need the sizes for the budget.
 
 ## 1. Slice
 
@@ -48,8 +48,8 @@ To keep the orchestrator inside budget, push wide reads into explorer subagents 
 **Subagents do** everything else. Name each one with its role and abstract tier from `references/subagents.md` at the ticket's risk (harness types and concrete models come from `references/subagents.md` and `references/models.md`):
 
 - **explorer**: read-only mapping, tracing, and fact-finding (`fast`).
-- **implementer**: writes code and tests in one scope (`standard`, or `medium` at high risk). Isolate in a separate worktree/branch when two implementers run at once.
-- **reviewer**: reviews the finished diff against the ticket and runs repros (`<maestro dir>/references/review.md`). At high risk it runs adversarial verification.
+- **implementer**: writes code and tests in one scope (`standard`, or `medium` at high risk). Isolate in a separate worktree/branch when implementers run in parallel.
+- **reviewer**: reviews the finished diff against the ticket and runs repros (`<maestro dir>/references/review.md`). At high risk the blast-radius check or verifier swarm runs on the `verifier` role.
 
 Mark which subagents run in parallel. Two subagents run in parallel only when their write sets don't overlap.
 
@@ -63,7 +63,7 @@ Mark which subagents run in parallel. Two subagents run in parallel only when th
 
 Pick the **lowest abstract tier** (`heavy`, `medium`, `standard`, `fast`, mapped per harness in `<maestro dir>/references/models.md`) that uses the least tokens/limits while remaining as precise as needed, for **both** the orchestrator and every subagent:
 
-- **`heavy`**: high risk, auth/security, concurrency, data migrations, shared interfaces across >3 modules, or adversarial crossfire.
+- **`heavy`**: high risk, auth/security, concurrency, data migrations, shared interfaces across >3 modules, or the high-risk verifier.
 - **`medium`**: open design decisions inside the ticket, multi-file coordination, tricky debugging, or high-risk implementer/reviewer.
 - **`standard`**: well-scoped normal-risk orchestrator, standard implementers and reviewers.
 - **`fast`**: explorers, codebase mapping, read-only fact-finding.
@@ -78,7 +78,7 @@ Show the breakdown as one numbered table: ticket, title, blocked by, wave, orche
 
 ```markdown
 # T<nn> <title>
-Status: todo
+Status: todo | in-progress | done | blocked: <why>
 Blocked by: T<nn>, ... | none
 Wave: <n>
 Risk: normal | high
@@ -117,7 +117,7 @@ Spec: spec.md
 
 ## Running a ticket
 1. Fresh session (`/clear`, or a new terminal; one git worktree per parallel ticket).
-2. Set the session model to your harness's translation of the ticket's `Orchestrator` tier (`references/models.md`).
+2. `/model` to your harness's translation of the ticket's `Orchestrator` tier (`references/models.md`).
 3. `/implement .bottega/plans/<slug>/tickets/T<nn>-<slug>.md`
 ```
 

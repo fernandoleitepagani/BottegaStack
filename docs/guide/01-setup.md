@@ -32,9 +32,10 @@ The defaults need no setup. Roles map to 4 abstract tiers (`heavy`, `medium`, `s
 - **orchestrator**: the session you type in. Each ticket names an abstract tier (`standard`, `medium`, or `heavy`), and you set your session model when starting that ticket.
 - **explorer**: read-only mapping and research (`fast`).
 - **implementer**: writes code and tests (`standard`; `medium` at high risk).
-- **reviewer**: reviews the finished diff and runs repros (`standard`; `medium` or `heavy` at high risk).
+- **reviewer**: reviews the finished diff (`standard`; `medium` at high risk).
+- **verifier**: blast-radius checks and swarm repros (`standard`; `heavy` at high risk).
 
-To override a tier or role, write `~/.bottega/models.md` (or `~/.claude/rules/bottega-models.md` on Claude Code). Effort ceiling: never `xhigh` or `max`. Bottega's scripts make `.bottega/` ignore itself, so there is nothing to add to your git excludes.
+To choose your own, run `/maestro setup`. It detects your models, asks for a budget (large, medium or small), shows every role at each difficulty (simple, medium, hard), and writes `~/.bottega/models.md`. Effort ceiling: never `xhigh` or `max`. Bottega's scripts make `.bottega/` ignore itself, so there is nothing to add to your git excludes.
 
 ## Add a verification skill
 
@@ -51,7 +52,7 @@ A rule file you edit applies to new sessions.
 bottega spends extra tokens on subagents and review. That's the price of the rigor. To spend fewer:
 
 - Pick cheaper models or lower effort in the rule file. A strong model in the main chat with cheaper, faster models in the code roles is a good split.
-- Lower a tier's model or effort in `~/.bottega/models.md`. `fast` and `standard` tiers cost far less than `heavy`.
+- Rerun `/maestro setup` with a smaller budget, or lower single cells. `fast` and `standard` tiers cost far less than `heavy`.
 - Run `standard`-tier tickets on your `standard` model. `/tickets` marks which ones need `medium` or `heavy`.
 - Save `/maestro` for work that needs rigor. A small, obvious edit doesn't.
 
@@ -63,7 +64,7 @@ Pick something real but small, and describe it the way you'd describe it to a co
 /maestro add a --json flag to this command. text output stays byte-identical. verify both.
 ```
 
-That fits one session, so `/maestro` routes it to `/implement` in direct mode. Watch the todo list: it shows what the orchestrator does itself and what it hands to explorers, an implementer, and a reviewer. The run ends at the final gate with the evidence for each check.
+That fits one session, so `/maestro` routes it straight to the bug-fix playbook. Watch the todo list: it shows what the orchestrator does itself and what it hands to explorers, an implementer, and a reviewer. The run ends at the final gate with the evidence for each check.
 
 From here you can type normal follow-ups. To keep `/maestro` in effect for the whole project, add a one-line pointer to your `CLAUDE.md`, such as "Work in the `/maestro` style", and re-invoke `/maestro` when the chat drifts. Typing `/maestro` attaches the skill to one message, and it fades as the chat moves on.
 

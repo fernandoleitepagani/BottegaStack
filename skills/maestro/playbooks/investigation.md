@@ -1,6 +1,6 @@
-# Explore
+# Investigation
 
-How to learn the code before acting, and how to answer read-only questions. Explorers run as `subagent_type: "Explore"` on the explorer role (`subagents.md`) and never edit files.
+**You own the answer.** Read-only: a cited explanation or a recommendation, never a code change. Also how every playbook briefs its explorers. Explorers are read-only subagents on the explorer role (`subagents.md`, harness file) and never edit files.
 
 ## Briefing an explorer
 
@@ -17,7 +17,7 @@ Anchor first, inline: `git blame -L`, `git log --follow -p -- <file>`, PR number
 ## Read-only questions (no change)
 
 - **How or why.** Answer as Overview, Key Concepts, How It Works, Where Things Live, Gotchas (drop the ones that don't apply), or as a recommendation with a tradeoffs table for a choice between alternatives. For "are we sure?", give your real judgment and push back on a wrong premise.
-- **Symptom** (a leak, a CPU spin, a captured profile or trace). Capture or read the artifact without changing running code. Have a subagent parse a large artifact into sqlite, one row per sample or node (**Mechanize It**). Narrow to the hot path or the retainer chain, prove the mechanism with a paired before and after capture or added logging, and attribute it to a file and line. Without that proof, call it the strongest hypothesis. Once the cause is known, route the fix to `/implement`.
+- **Symptom** (a leak, a CPU spin, a captured profile or trace). Capture or read the artifact without changing running code. Have a subagent parse a large artifact into sqlite, one row per sample or node (**Mechanize It**). Narrow to the hot path or the retainer chain, prove the mechanism with a paired before and after capture or added logging, and attribute it to a file and line. Without that proof, call it the strongest hypothesis. Once the cause is known, route the fix to `bug-fix.md`.
 
 No final gate, no PR.
 

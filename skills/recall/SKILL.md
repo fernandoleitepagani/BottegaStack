@@ -14,7 +14,7 @@ Do not edit any files.
 
 1. **Locate sources (via a read-only `explorer` subagent).** Delegate the search so raw transcripts never bloat the orchestrator's context window:
    - Check repo-local `.bottega/` artifacts first (`handoff.md`, `followups.md`, `plans/*/spec.md`, `plans/*/PLAN.md`, `proofs.tsv`).
-   - Locate recent session transcripts for this repo in the active harness's transcript store (e.g., `~/.claude/projects/`, `~/.gemini/antigravity-cli/brain/`, or harness-local logs), filtered to the requested topic, subsystem, or recent timeframe.
+   - Locate recent session transcripts for this repo in the transcripts your harness file names (`../maestro/harness/<harness>.md`, **Paths**; this workspace only), filtered to the requested topic, subsystem, or recent timeframe.
    - If no topic was given, summarize the most recent 2–3 sessions for this repo.
 2. **Extract only load-bearing context:**
    - **Goal & current state:** What was being built or debugged and where it stopped.

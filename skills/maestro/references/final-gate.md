@@ -26,9 +26,9 @@ Read at the start of every `/implement` run (and every unattended unit), and do 
 
 - **Expect.** One `--expect` per file or directory the change is meant to touch. Every file the run changed (edits, new files, deletions, commits since `--start`) must match one. Revert a stray file, or delete what a check left behind (such as `__pycache__/`), rather than declaring it. Files already dirty before the run and left alone don't count. A glob's `*` also matches `/`, so `--expect "*.md"` covers `docs/x.md`; use a directory (`docs/`) when that's what you mean.
 - **Proof.** One `--proof` per declared condition, with its exact text. Only a condition's latest proof counts, so after a fix round log the new result for the same condition. A WAIVED row's evidence starts with `user:` and quotes the user's words, for example `"user: \"skip the docs check\""`. Never waive on your own.
-- **Exit 0** allows APPROVE. **Exit 1** means ESCALATE: a latest proof is FAIL or INCONCLUSIVE, or crossfire's latest verdict is not PASS. **Exit 2** means a step is missing: do it, then rerun without repeating the proofs already logged. Never end a run on exit 2. A missing crossfire row means run the adversarial review.
+- **Exit 0** allows APPROVE. **Exit 1** means ESCALATE: a latest proof is FAIL or INCONCLUSIVE, or crossfire's latest verdict is not PASS. **Exit 2** means a step is missing: do it, then rerun without repeating the proofs already logged. Never end a run on exit 2. A missing crossfire row means run the high-risk review.
 
-At high risk (from `--start` or this call), run the adversarial review (`review.md`) on the finished diff first. It logs the `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
+At high risk (from `--start` or this call), run the high-risk review (`review.md`: blast radius for a small diff, the verifier swarm for a large one) on the finished diff first. It logs the `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
 
 ## 2. Write the decision
 

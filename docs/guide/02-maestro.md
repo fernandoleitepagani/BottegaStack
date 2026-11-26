@@ -6,16 +6,7 @@
 
 ## Where each prompt goes
 
-| You ask for | It goes to |
-|---|---|
-| Work with open decisions, or more than one session of work | `/plan`, then `/tickets` |
-| A ticket, or a small clear change (a bug, a feature slice, a refactor) | `/implement` |
-| A question ("how does X work", "why is it like this") or a symptom to diagnose | read-only exploration, no code change |
-| A design fork you have to see to decide | a throwaway prototype |
-| Work to run while you're away | `/autopilot` |
-| Pause now, or resume earlier work | a handoff |
-| Clean up old worktrees | the worktree cleanup rules |
-| A docs or config edit with no runtime effect | the light route: edit, check, done |
+`/maestro` picks the route from your words, using the routing table in [`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#route): big or open work goes to `/plan` then `/tickets`, a clear change to `/implement` (or the small-fix playbook for a one-file fix), a question to read-only exploration, work while you're away to `/autopilot`, and a docs-only edit to the light route. Every skill it can reach is in [`SKILLS-INDEX.md`](../../skills/maestro/SKILLS-INDEX.md).
 
 The first reply restates your goal, names the risk (`normal`, or `high` for auth, money, data, concurrency, public APIs, or anything hard to undo), and names the route.
 

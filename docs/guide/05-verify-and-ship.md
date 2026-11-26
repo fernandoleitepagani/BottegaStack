@@ -26,7 +26,7 @@ Match the check to the change:
 
 Ask for the proof as an artifact you can inspect yourself: the failing test and then the passing one, the command output, the trace, the stored value. If the fix already merged, ask for the same check again on main. An artifact beats a plausible explanation, because you can challenge it without replaying the whole run.
 
-For a small diff you don't fully trust, ask for an adversarial review ("crossfire this"). The reviewer looks for breakage outside the diff, and a finding counts only when a run proves it. See [`references/review.md`](../../skills/maestro/references/review.md).
+For a small diff you don't fully trust, ask "what could this break?". The agent runs a [blast-radius check](../../skills/maestro/references/blast-radius.md): it looks for breakage outside the diff, names the one fact the change is safe because of, and proves it by running real code.
 
 ## Create a project verification skill
 

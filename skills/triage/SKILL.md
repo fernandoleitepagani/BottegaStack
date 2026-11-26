@@ -13,7 +13,7 @@ Do not edit any product files.
 ## Procedure
 
 1. **Collect the batch.** Gather the raw items from the prompt, `gh issue list`, `gh pr list`, or `.bottega/followups.md`. Number them clearly.
-2. **Investigate in parallel (read-only `explorer` subagents).** Fan out read-only `explorer` subagents (following `../maestro/references/subagents.md` fan-out rules) to check each item against the current codebase on `main`:
+2. **Investigate in parallel (read-only `explorer` subagents).** Fan out read-only `explorer` subagents (a coverage swarm per `../maestro/references/swarm.md`, one slice per item) to check each item against the current codebase on `main`:
    - Does it still reproduce or apply on `main`?
    - What is the likely root cause and file/symbol surface?
 3. **Cluster by root cause.** Group items that share an underlying cause or write surface into 1–3 clusters instead of treating them as N isolated tasks.

@@ -8,23 +8,22 @@ Each ticket runs in a fresh session. Start it the way `PLAN.md` says:
 /implement .bottega/plans/team-workspaces/tickets/T01-schema-and-types.md
 ```
 
-Small changes with no ticket go the same way: `/maestro fix the off-by-one in pagination` routes to `/implement` in direct mode, and it writes the split itself.
+Changes with no ticket skip `/implement`: `/maestro fix the off-by-one in pagination` routes straight to the matching playbook.
 
 ## What happens
 
-1. **Load.** It checks that every blocking ticket is done, marks the ticket in progress, and opens the gate with the acceptance criteria as conditions.
-2. **Understand.** Explorers map the code. The orchestrator reads only what it must judge.
-3. **Shape before logic.** Types, signatures and states first, with empty bodies. When two shapes are equally good, it can offer to run two implementers and pick the better base.
-4. **Pin the behavior,** depending on the kind of work:
-   - **Bug:** reproduce on the real surface, narrow the cause with evidence, then write a failing test before the fix when a cheap test path exists.
-   - **Refactor:** a characterization test or equivalence check first, then small steps that keep it green. Callers migrate and the old API goes in the same ticket.
-   - **Feature:** tests at the seams the spec agreed, one behavior at a time.
-5. **Delegate.** Implementers write the code, each with a named write scope, in separate worktrees when they run at once. The orchestrator reads every diff.
-6. **Verify** the real artifact: the command, the stored value, the profile. For UI, it tells you what to look at.
-7. **Review.** Two fresh reviewers check the diff in parallel, one against the ticket (Spec) and one against the repo's standards (Standards). At high risk the review is adversarial: findings count only when a run proves them, over up to 3 rounds (5 for security or data). Fixes go to a fresh implementer, at most 2 rounds, then ESCALATE.
-8. **Close.** Small ordered commits, the final gate, the ticket marked done, and the next tickets it unblocked.
+`/implement` loads the ticket (blocking tickets must be done; the ticket is marked in progress), then picks one playbook by the ticket's kind and follows it. Each playbook opens the gate with the acceptance criteria as its first step and ends at the final gate.
 
-If the session nears 300k tokens, it writes a handoff; you `/clear` and resume.
+| Kind | Playbook | Shape |
+|---|---|---|
+| One file, about 20 lines, normal risk | [`small-fix`](../../skills/maestro/playbooks/small-fix.md) | Inline edit, a check, one reviewer for both axes |
+| Broken behavior | [`bug-fix`](../../skills/maestro/playbooks/bug-fix.md) | Reproduce on the real surface, rule out causes with evidence, failing test before the fix |
+| New behavior | [`feature`](../../skills/maestro/playbooks/feature.md) | Explorers map the code, shape before logic, tests at the spec's seams |
+| Structure only | [`refactoring`](../../skills/maestro/playbooks/refactoring.md) | Blast radius first, pin behavior, delete first, migrate every caller, prove nothing changed |
+
+All of them delegate the code to implementers with a named write scope (in separate worktrees when they run at once), verify the real artifact, and review the diff. Two reviewers check it in parallel, Spec and Standards; a diff of about 20 lines gets one reviewer for both. At high risk a small diff gets a blast-radius check and a larger one a swarm of three verifiers. Findings count only when a run proves them, and fixes go to a fresh implementer, at most 2 rounds, then ESCALATE. Afterwards `/implement` marks the ticket done and lists the tickets it unblocked.
+
+If the session nears 300k tokens, it pauses (`playbooks/pause.md`); you `/clear` and pick up with `playbooks/pickup.md`.
 
 ## Comments and prose
 

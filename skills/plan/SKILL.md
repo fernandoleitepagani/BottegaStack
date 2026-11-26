@@ -14,9 +14,9 @@ The grilling method is adapted from Matt Pocock's `grilling` and `to-spec` skill
 
 ## 0. Size it
 
-Read the prompt and, through one or two explorer subagents (`<maestro dir>/references/explore.md`), the code it touches. Then pick one:
+Read the prompt and, through one or two explorer subagents (`<maestro dir>/playbooks/investigation.md`, **Briefing an explorer**), the code it touches. Then pick one:
 
-- **Small.** It fits one session and has no open decisions. Say so, skip the spec, and route to `/implement` (`../implement/SKILL.md`) in direct mode.
+- **Small.** It fits one session and has no open decisions. Say so, skip the spec, and route to the matching playbook through maestro's table (`<maestro dir>/SKILL.md`, **Route**).
 - **Plan.** One grilling session can settle it. Continue with step 1.
 - **Map.** Too many unknowns to settle in one session (a migration, a new subsystem, a product that does not exist yet). Go to **Map mode** below.
 
@@ -30,7 +30,7 @@ Work the decisions as a tree. A decision is on the **frontier** when every decis
 
 1. **Each round, ask the whole frontier directly in chat.** Number each question. Give your recommended answer and its reason in one line each, worded so that "yes" accepts it. Do not call interactive form/question tools; just ask clearly in your reply and stop.
 2. **Facts are not questions.** Anything the code, git, or docs can answer goes to an explorer subagent, never to the user. Ask the user only for product calls, preferences, priorities, and constraints.
-3. **Ungrillable questions go to a prototype.** When the answer depends on seeing it (layout, feel, timing, which approach is faster), build a throwaway per `<maestro dir>/references/prototype.md` and ask the user to react to it.
+3. **Ungrillable questions go to a prototype.** When the answer depends on seeing it (layout, feel, timing, which approach is faster), build a throwaway per `<maestro dir>/playbooks/prototype.md` and ask the user to react to it.
 4. **Push back.** If an answer conflicts with the code, an earlier answer, or the goal, say so with the evidence and ask again. "I don't know" is a valid answer: record it as an open question with your default.
 5. **Recompute the frontier** after each round and ask again. Grilling ends when the frontier is empty **and** the user confirms you share one understanding. Don't write the spec before that confirmation.
 

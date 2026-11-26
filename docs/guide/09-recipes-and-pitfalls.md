@@ -48,7 +48,7 @@ Use the model the ticket names. Tickets in the same wave can run at once in sepa
 ## Review a branch skeptically
 
 ```text
-/maestro crossfire the whole branch, skeptically. don't change anything yet. no nitpicks unless it's an actual bug or regression in behavior.
+/maestro what could this branch break? check it skeptically. don't change anything yet. no nitpicks unless it's an actual bug or regression in behavior.
 ```
 
 The qualifiers do real work. "don't change anything yet" keeps it read-only, and the nitpick rule pre-filters the noise so the verified findings are worth your time.

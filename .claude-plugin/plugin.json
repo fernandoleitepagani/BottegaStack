@@ -1,13 +1,19 @@
 {
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "bottega",
-  "version": "3.6.1",
+  "version": "4.2.0",
   "description": "Grill, tickets, implement: plan work with the user, split it into session-sized tickets with subagent roles and models, and build each one to a mechanical proof gate.",
   "author": {
     "name": "BottegaStack"
   },
   "license": "MIT",
-  "keywords": ["workflow", "skills", "subagents", "verification"],
-  "skills": ["./skills"],
-  "agents": ["./harnesses/claude/agents/maestro-agent.md"]
+  "keywords": [
+    "workflow",
+    "skills",
+    "subagents",
+    "verification"
+  ],
+  "skills": [
+    "./skills"
+  ]
 }

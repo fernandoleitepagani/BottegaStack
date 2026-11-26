@@ -1,6 +1,6 @@
 ---
 name: correct
-description: "Find the mistakes agents keep repeating in this repo and make each one impossible. Try architecture first, then types, then a lint whose error names the fix, then a test, and write docs last. Prove each check fails on a real past mistake. Repeat this each time the operator corrects you. Use for /correct."
+description: "Find the mistakes agents keep repeating in this repo and make each one impossible. Try architecture first, then types, then a lint whose error names the fix, then a test, and write docs last. Prove each check fails on a real past mistake. Repeat this each time the operator corrects you, or every couple of weeks as an audit (`/correct scan` reports without editing). Use for /correct."
 disable-model-invocation: true
 ---
 
@@ -12,7 +12,9 @@ Assume every contributor is an agent that sees only the files it opened, copies 
 
 ## Find the mistake classes
 
-First, read recent commits, reverts, review comments, agent instruction files, and comments that explain workarounds. Group the mistakes into classes. A class counts once it has happened twice.
+First, read recent commits, reverts, review comments, `.bottega/followups.md`, agent instruction files, and comments that explain workarounds. Hand the reading to a read-only explorer (`../maestro/references/subagents.md`): `git log --since="2 weeks ago" --stat` (or the window or directory asked for), sampling 10 to 15 commits, larger diffs, bug fixes and `/ship full` merges first. Look for recurring shortcuts: casts like `as any`, duplicated helpers, swallowed errors, bypassed abstractions, brittle mocks, files that keep growing. Also flag `CLAUDE.md` or `AGENTS.md` over 150 lines (`wc -l`). Group the mistakes into classes. A class counts once it has happened twice; ignore one-off nits.
+
+**`/correct scan`** stops here: report the top 2 to 4 classes with `file:line` or commit citations and the level you would fix each at, and edit nothing. A plain `/correct` goes on to fix them.
 
 ## Fix each class at the highest level that works
 
