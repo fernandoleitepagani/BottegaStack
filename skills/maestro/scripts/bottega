@@ -5,14 +5,13 @@
 #
 # Usage:
 #   bottega start "<goal>" [--risk normal|high] --condition "<c>" [...]
-#   bottega verify [--check "<cmd>" ...] [--run-detected] [gate-check.sh args...]
+#   bottega verify --check "<cmd>" [--check ...] [gate-check.sh args...]
 #   bottega log <logfile> <phase> <decision> <why> <evidence> <result>
 #   bottega ship --draft|--ready --title "<title>" --body "<body>"
 #   bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"
 #   bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"
 #   bottega garden done "<pattern>" | clear
 #   bottega worktree audit [worktree-audit.sh args...]
-#   bottega hygiene
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
@@ -25,75 +24,29 @@ usage() {
 	exit "${1:-0}"
 }
 
-detect_checks() {
-	mkdir -p .bottega
-	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
-	[ -s .bottega/checks.env ] && return 0
-	local cmds=()
-	if [ -f package.json ]; then
-		local scripts_block
-		scripts_block="$(awk '/"scripts"[[:space:]]*:[[:space:]]*\{[[:space:]]*\}/{next} /"scripts"[[:space:]]*:[[:space:]]*\{/{f=1;next} f&&/\}/{f=0} f' package.json 2>/dev/null || true)"
-		printf '%s\n' "$scripts_block" | grep -q '"typecheck"[[:space:]]*:' && cmds+=("npm run typecheck")
-		printf '%s\n' "$scripts_block" | grep -q '"lint"[[:space:]]*:' && cmds+=("npm run lint")
-		if printf '%s\n' "$scripts_block" | grep -q '"test"[[:space:]]*:' \
-			&& ! printf '%s\n' "$scripts_block" | grep -q '"test"[[:space:]]*:.*no test specified'; then
-			cmds+=("npm test")
-		fi
-	fi
-	if [ -f pyproject.toml ] || [ -f pytest.ini ]; then
-		command -v pytest >/dev/null 2>&1 && cmds+=("pytest -q")
-	fi
-	if [ -f go.mod ]; then
-		cmds+=("go test ./...")
-	fi
-	if [ -f Cargo.toml ]; then
-		cmds+=("cargo test")
-	fi
-	if [ "${#cmds[@]}" -gt 0 ]; then
-		printf '%s\n' "${cmds[@]}" > .bottega/checks.env
-		printf 'bottega: detected checks -> %s\n' "$(awk 'NR > 1 { printf "; " } { printf "%s", $0 }' .bottega/checks.env)"
-	fi
-}
-
-check_doc_hygiene() {
-	local f n
-	for f in CLAUDE.md AGENTS.md; do
-		if [ -f "$f" ]; then
-			n="$(wc -l < "$f" | tr -d ' ')"
-			if [ "$n" -gt 150 ]; then
-				printf 'warn: %s is %s lines (>150); move recurring rules into linters/types/tests via /correct\n' "$f" "$n" >&2
-			fi
-		fi
-	done
-}
-
 cmd_start() {
 	[ $# -ge 1 ] || { echo "error: bottega start needs a goal and at least one --condition" >&2; exit 2; }
 	"$GATE" --start "$@"
-	detect_checks
-	check_doc_hygiene
+	mkdir -p .bottega
+	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
 }
 
 cmd_verify() {
 	local checks=()
 	local gate_args=()
-	local run_detected=0
 	while [ $# -gt 0 ]; do
 		case "$1" in
 		--check)
 			[ $# -ge 2 ] || { echo "error: --check needs a command" >&2; exit 2; }
 			checks+=("$2"); shift 2 ;;
-		--run-detected)
-			run_detected=1; shift ;;
 		*)
 			gate_args+=("$1"); shift ;;
 		esac
 	done
 
-	if [ "$run_detected" -eq 1 ] && [ -f .bottega/checks.env ]; then
-		while IFS= read -r line || [ -n "$line" ]; do
-			if [ -n "$line" ]; then checks+=("$line"); fi
-		done < .bottega/checks.env
+	if [ "${#checks[@]}" -eq 0 ]; then
+		echo "error: bottega verify needs at least one --check (the repo's test, lint or typecheck command)" >&2
+		exit 2
 	fi
 
 	mkdir -p .bottega
@@ -255,7 +208,6 @@ ship)     cmd_ship "$@" ;;
 followup) cmd_followup "$@" ;;
 garden)   cmd_garden "$@" ;;
 worktree) cmd_worktree "$@" ;;
-hygiene)  check_doc_hygiene ;;
 -h|--help|help) usage 0 ;;
 *) echo "error: unknown subcommand: $sub" >&2; usage 2 ;;
 esac

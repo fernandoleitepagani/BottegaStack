@@ -12,7 +12,7 @@ Take a verified, gate-approved diff from your working tree to a merged PR (`/shi
 
 1. Confirm the current run passed `bottega verify` (or `gate-check.sh`, `APPROVE allowed`). If the gate has not passed or files changed since the last gate check, stop and run `/implement`'s final gate first. Never ship an ungated diff.
 2. Check `git status` and current branch. If you are on the default branch (`main` or `master`) and opening a PR, create a feature branch first (`git checkout -b <slug>`).
-3. **Reversibility check (two-way vs. one-way door):** Inspect the diff for one-way-door surfaces: data migrations or deletion, schema drops, auth/security boundaries, billing/money, breaking public API contracts, or destructive infra/deploy scripts. `bottega ship --ready` also blocks common one-way-door paths mechanically. If any are present, **force `stop` (Draft PR)** and tell the user why; do not allow `full` auto-merge on one-way doors.
+3. **Reversibility check (two-way vs. one-way door):** Inspect the diff for one-way-door surfaces: data migrations or deletion, schema drops, auth/security boundaries, billing/money, breaking public API contracts, or destructive infra/deploy scripts. `bottega ship --ready` is a backstop on top of this check: it blocks paths named like migrations, schema, auth, security, permissions, billing, payments, deploy, infra or terraform, `drop`/`delete`, `*.tf` and `.github/workflows/`. Public API and concurrency changes have no path pattern, so judge those yourself. If any are present, **force `stop` (Draft PR)** and tell the user why; do not allow `full` auto-merge on one-way doors.
 
 ## Ask the mode once
 

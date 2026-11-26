@@ -53,7 +53,7 @@ Act when you are at least 95% sure what the user wants. Below that, observe what
 
 Reversible work follows **Never Block on the Human**: decide, proceed, report. "Don't stop", "going to bed", "run until done" mean keep going.
 
-**Always pause** for: force-push to a branch this run did not create, deploys, data deletion (including removing a worktree that holds uncommitted, untracked or ignored files), bypassing forge-enforced approvals, and messages to customers. This is the only always-pause list.
+**Always pause** for: force-push to a branch this run did not create, deploys, data deletion (including removing a worktree that holds uncommitted or untracked files, or `.bottega/` run state), bypassing forge-enforced approvals, and messages to customers. This is the only always-pause list.
 
 Prefer CLIs (`git`, `gh`, project scripts) over MCP tools; ask once per MCP server per session, and before every MCP write. No is an acceptable answer: say when something doesn't earn its place.
 

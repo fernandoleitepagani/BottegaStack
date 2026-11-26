@@ -64,7 +64,10 @@ IGNORE = "-- . ':!.bottega' ':!*__pycache__*'"
 
 
 def sh(cmd, cwd, timeout=120):
-    p = subprocess.run(cmd, cwd=cwd, shell=True, capture_output=True, text=True, timeout=timeout)
+    try:
+        p = subprocess.run(cmd, cwd=cwd, shell=True, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return 124, f"timed out after {timeout}s"
     return p.returncode, p.stdout + p.stderr
 
 

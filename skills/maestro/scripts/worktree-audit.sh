@@ -2,7 +2,7 @@
 # Worktree prune audit. Classifies every git worktree by size, merge state,
 # uncommitted work, remote/PR state, and the most recent chat that operated in
 # it. Emits a table sorted by size with a suggested bucket. Never deletes or
-# changes a worktree; deletion stays a human-gated step in references/worktree-cleanup.md. Its one
+# changes a worktree; deletion stays a human-gated step in <maestro dir>/references/worktree-cleanup.md. Its one
 # write is a best-effort `git fetch` of the base ref, so MERGED is current.
 #
 # Usage: worktree-audit.sh [-b|--base <ref>] [--no-sizes] [--no-transcripts] [repo-path]

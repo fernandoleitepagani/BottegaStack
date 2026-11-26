@@ -11,12 +11,12 @@ Read at the start of every `/implement` run (and every unattended unit), and do 
   --condition "<acceptance condition>" --condition "<next condition>"
 ```
 
-(`bottega start` wraps `gate-check.sh --start` and auto-detects repo check commands into `.bottega/checks.env`.) This writes the `run` row with its risk, one `condition` row each, and a snapshot of the tree. An edit made before it is part of the snapshot, so the changed-files check can't see it. A condition found later goes in with `--condition` on the final call. Every declared condition needs a `--proof` row with the same text, word for word.
+(`bottega start` wraps `gate-check.sh --start`.) This writes the `run` row with its risk, one `condition` row each, and a snapshot of the tree. An edit made before it is part of the snapshot, so the changed-files check can't see it. A condition found later goes in with `--condition` on the final call. Every declared condition needs a `--proof` row with the same text, word for word.
 
 ## 1. Run checks, log proofs, and check the gate in one call
 
 ```bash
-<maestro dir>/scripts/bottega verify --run-detected --check "<test/lint cmd>" --risk <normal|high> \
+<maestro dir>/scripts/bottega verify --check "<test/lint cmd>" [--check "<next cmd>"] --risk <normal|high> \
   --expect "<file or glob the change is meant to touch>" --expect "<dir>/" \
   --proof "<acceptance condition>" "<command run, file:line, or commit>" <PASS|FAIL|INCONCLUSIVE|WAIVED> \
   --proof "<next condition>" "<evidence>" <RESULT>

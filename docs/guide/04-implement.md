@@ -21,7 +21,7 @@ Small changes with no ticket go the same way: `/maestro fix the off-by-one in pa
    - **Feature:** tests at the seams the spec agreed, one behavior at a time.
 5. **Delegate.** Implementers write the code, each with a named write scope, in separate worktrees when they run at once. The orchestrator reads every diff.
 6. **Verify** the real artifact: the command, the stored value, the profile. For UI, it tells you what to look at.
-7. **Review.** A fresh reviewer checks the diff against the ticket. At high risk the review is adversarial: findings count only when a run proves them, over up to 3 rounds (5 for security or data). Fixes go to a fresh implementer, at most 2 rounds, then ESCALATE.
+7. **Review.** Two fresh reviewers check the diff in parallel, one against the ticket (Spec) and one against the repo's standards (Standards). At high risk the review is adversarial: findings count only when a run proves them, over up to 3 rounds (5 for security or data). Fixes go to a fresh implementer, at most 2 rounds, then ESCALATE.
 8. **Close.** Small ordered commits, the final gate, the ticket marked done, and the next tickets it unblocked.
 
 If the session nears 300k tokens, it writes a handoff; you `/clear` and resume.

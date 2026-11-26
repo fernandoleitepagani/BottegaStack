@@ -43,11 +43,11 @@ Check the real artifact, never a self-report or "it compiles" (**Prove It Works*
 
 ## 6. Review
 
-Review the finished diff per `<maestro dir>/references/review.md`: at normal risk, two parallel `standard` reviewers (Spec + Standards); at high risk, `heavy` adversarial review (1 reviewer for ≤100 lines and ≤2 files, or a 2–3 parallel verifier swarm for larger diffs) that logs the `crossfire` row the gate needs. Verified findings go through the fix step in that file: at most **2 fix rounds**, and a third failure is ESCALATE.
+Review the finished diff per `<maestro dir>/references/review.md`: at normal risk, two parallel `standard` reviewers (Spec + Standards); at high risk, `heavy` adversarial review (1 reviewer for ≤100 lines and ≤2 files, or a verifier swarm, 3 by default, for larger diffs) that logs the `crossfire` row the gate needs. Verified findings go through the fix step in that file: at most **2 fix rounds**, and a third failure is ESCALATE.
 
 ## 7. Close
 
-1. Shape small ordered commits per `delegate.md` **Scope and commits**.
+1. Commit per `delegate.md` **Scope and commits**: small ordered commits on the run's own worktree or branch; in the user's checkout, leave changes uncommitted for `/ship` unless the user asked.
 2. Run the final gate (`<maestro dir>/references/final-gate.md`). APPROVE only on exit 0.
 3. **Ticket mode:** tick the acceptance criteria that passed, set `Status: done` (or `blocked: <why>` on ESCALATE), and update the ticket's row in `PLAN.md`. List the tickets this one unblocked and the command to start each, with the model level each one names.
 

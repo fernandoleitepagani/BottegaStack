@@ -6,7 +6,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
-DEST="${BOTTEGA_AGY_SKILLS_DIR:-$HOME/.agents/skills}"
+DEST="${BOTTEGA_ANTIGRAVITY_SKILLS_DIR:-$HOME/.agents/skills}"
 
 usage() {
 	sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'

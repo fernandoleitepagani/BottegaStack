@@ -7,9 +7,9 @@ Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Poc
 ## Scope
 
 - **Claude Code first; other harnesses experimental.** Core skills in `skills/` stay harness-agnostic; thin adapters live under `harnesses/claude/` (supported) and `harnesses/antigravity/`, `harnesses/codex/`, `harnesses/opencode/` (experimental, #46). No work is added only for the experimental ones. Their installers link each skill under its real name, as pstack does, so `../<name>/SKILL.md` links resolve; they stop rather than overwrite a skill of the same name.
-- **No hooks, no compiled binary.** Rules are prose the model follows; `skills/maestro/scripts/bottega` is a thin Bash wrapper around `gate-check.sh`, `log.sh`, and `worktree-audit.sh` (plus `ship`, `followup`, `garden`, `hygiene`, and `checks.env` auto-detection) that collapses verification turns and keeps raw logs out of context without adding dependencies.
+- **No hooks, no compiled binary.** Rules are prose the model follows; `skills/maestro/scripts/bottega` is a thin Bash wrapper around `gate-check.sh`, `log.sh`, and `worktree-audit.sh` (plus `ship`, `followup` and `garden`; the agent names the checks, nothing is auto-detected) that collapses verification turns and keeps raw logs out of context without adding dependencies.
 - **Per-repo state only.** `.bottega/` holds run state, plans and tickets, and stays untracked. Cross-repo memory is left to Claude Code.
-- **Linux and macOS only.** bash 3.2, BSD and GNU tools, no `jq`. Python 3 (the version CI runs) only for the developer lint and evals. Native Windows is not supported; WSL counts as Linux.
+- **Linux and macOS only.** bash 3.2, BSD and GNU tools, no `jq`. Any Python 3 (CI uses the runner's default) only for the developer lint and evals. Native Windows is not supported; WSL counts as Linux.
 - **No UI driving.** Where a change needs a visual check, the agent says what to look at and the user checks it.
 
 ## Shape: grill, tickets, implement

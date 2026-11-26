@@ -151,7 +151,7 @@ printf '%s\n' "$out" | grep -F "with space" | grep -q "scratch:1" && pass "workt
 printf '%s\n' "$out" | grep -F "with space" | grep -qv "safe" && pass "worktree-audit: untracked files keep a worktree out of safe" || fail "worktree-audit: untracked files keep a worktree out of safe"
 printf '%s\n' "$out" | grep -F "/runstate" | grep -q "bottega-state" && pass "worktree-audit: ignored .bottega run state is flagged" || fail "worktree-audit: ignored .bottega run state is flagged"
 
-# bottega CLI wrapper: start, verify (pass/fail), and CLAUDE.md hygiene warning.
+# bottega CLI wrapper: start, verify (pass/fail, needs --check).
 cd "$tmp" && mkdir bcli && cd bcli && git init -q
 echo hi > a.txt && git_q add -A && git_q commit -qm i
 "$maestro/bottega" start "cli smoke" --risk normal --condition "a works" >/dev/null \
@@ -161,13 +161,6 @@ echo hi2 > a.txt
 	&& pass "bottega verify approves passing check" || fail "bottega verify approves passing check"
 if "$maestro/bottega" verify --check "false" >/dev/null 2>&1; then fail "bottega verify fails on red check"
 else pass "bottega verify fails on red check"; fi
-yes "rule" | head -n 160 > CLAUDE.md
-if "$maestro/bottega" start "hygiene" --condition "c" 2>&1 >/dev/null | grep -q "CLAUDE.md is 160 lines"; then
-	pass "bottega start warns on >150-line CLAUDE.md"
-else fail "bottega start warns on >150-line CLAUDE.md"; fi
-if "$maestro/bottega" hygiene 2>&1 | grep -q "CLAUDE.md is 160 lines"; then
-	pass "bottega hygiene warns on >150-line CLAUDE.md"
-else fail "bottega hygiene warns on >150-line CLAUDE.md"; fi
 "$maestro/bottega" followup add "fix cache" "src/cache.ts:12" "stale read" "invalidate on write" >/dev/null \
 	&& grep -qF -- "- [ ] fix cache | src/cache.ts:12 | stale read | invalidate on write" .bottega/followups.md \
 	&& pass "bottega followup add writes formatted row" || fail "bottega followup add writes formatted row"
@@ -189,30 +182,12 @@ else fail "bottega ship --ready blocks one-way-door migration"; fi
 if ! "$maestro/bottega" --help | grep -q "set -euo pipefail"; then
 	pass "bottega --help prints usage without set -euo pipefail"
 else fail "bottega --help prints usage without set -euo pipefail"; fi
-printf 'true\n\n' > .bottega/checks.env
-if "$maestro/bottega" verify --run-detected >/dev/null 2>&1; then
-	fail "bottega verify --run-detected should still enforce gate-check.sh"
-else pass "bottega verify --run-detected enforces gate-check.sh (with blank line in checks.env)"; fi
-
-# npm placeholder test script should be skipped by detect_checks.
-npm_dir="$tmp/npm-placeholder"
-mkdir -p "$npm_dir" && (
-	cd "$npm_dir"
-	printf '{\n  "scripts": {\n    "test": "echo \\"Error: no test specified\\" && exit 1"\n  }\n}\n' > package.json
-	"$maestro/bottega" start "npm test skip" --condition "c" >/dev/null
-	[ ! -f .bottega/checks.env ]
-) && pass "bottega skips npm placeholder test script" || fail "bottega skips npm placeholder test script"
-empty_dir="$tmp/npm-empty-scripts"
-mkdir -p "$empty_dir" && (
-	cd "$empty_dir"
-	printf '{\n  "scripts": {},\n  "jest": {\n    "test": "x"\n  }\n}\n' > package.json
-	"$maestro/bottega" start "empty scripts" --condition "c" >/dev/null
-	[ ! -f .bottega/checks.env ]
-) && pass "bottega reads one-line empty scripts block as empty" || fail "bottega reads one-line empty scripts block as empty"
+if "$maestro/bottega" verify --risk normal >/dev/null 2>&1; then fail "bottega verify refuses to run with no --check"
+else pass "bottega verify refuses to run with no --check"; fi
 
 # Harness installer smoke tests, per harness: install, link resolution, legacy cleanup, name clash, --help, unknown flag, --uninstall.
 repo_root="$(cd "$maestro/../../.." && pwd -P)"
-for h in antigravity:AGY codex:CODEX opencode:OPENCODE; do
+for h in antigravity:ANTIGRAVITY codex:CODEX opencode:OPENCODE; do
 	name="${h%%:*}"; var="BOTTEGA_${h##*:}_SKILLS_DIR"
 	inst_dir="$tmp/$name-skills"; inst="$repo_root/harnesses/$name/install.sh"
 	mkdir -p "$inst_dir" && ln -s "$repo_root/skills/plan" "$inst_dir/bottega-plan"

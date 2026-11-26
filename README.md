@@ -2,7 +2,7 @@
 
 ![Linux](https://img.shields.io/badge/Linux-supported-FCC624?logo=linux&logoColor=black) ![macOS](https://img.shields.io/badge/macOS-supported-000000?logo=apple&logoColor=white)
 
-bottega is a multi-harness agent workflow plugin (Claude Code, Antigravity CLI, Codex, OpenCode) for one workflow: **plan, split into tickets, implement**. You write a prompt. The agent grills you until the plan is clear, splits it into tickets that each fit one fresh session, says what the orchestrator does and what each subagent does, orders the tickets into parallel waves, assigns an abstract model tier (`heavy`, `medium`, `standard`, `fast`) for each, then builds them one session at a time and proves every result.
+bottega is an agent workflow plugin for Claude Code (with experimental Antigravity CLI, Codex and OpenCode ports, #46) for one workflow: **plan, split into tickets, implement**. You write a prompt. The agent grills you until the plan is clear, splits it into tickets that each fit one fresh session, says what the orchestrator does and what each subagent does, orders the tickets into parallel waves, assigns an abstract model tier (`heavy`, `medium`, `standard`, `fast`) for each, then builds them one session at a time and proves every result.
 
 **credit.** bottega started as a Claude Code port of [pstack](https://github.com/cursor/plugins), the skill set written by [Lauren Tan (poteto)](https://x.com/poteto) for Cursor. The principles and much of the rule text come from her work, used under the MIT license (see [LICENSE](./LICENSE)). The grilling, spec, ticket-slicing and map ideas are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT).
 
@@ -72,7 +72,7 @@ Everything else is a short reference file under [`skills/maestro/references/`](.
 
 ## risk and the final gate
 
-Each run states a risk, `normal` or `high`, and risk only goes up during a run. High risk raises subagent effort and turns the review adversarial: a fresh reviewer tries to break the diff, and a finding counts only when a run proves it.
+Each run states a risk, `normal` or `high`, and risk only goes up during a run. High risk raises subagent effort and turns the review adversarial: a fresh `heavy` reviewer tries to break the diff, and a finding counts only when a run proves it.
 
 Every change ends at the final gate. `gate-check.sh` reads the logged proofs in `.bottega/proofs.tsv` and decides: APPROVE only on exit 0, otherwise ESCALATE. A waiver needs your words. Fix rounds stop at 2.
 
