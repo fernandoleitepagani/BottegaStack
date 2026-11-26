@@ -1,6 +1,6 @@
 # Verify the result and open a PR
 
-"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/references/principles.md#prove-it-works) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, running checks and the gate in one call (`bottega verify`), generating a verification skill for your app, and shipping via [`/ship`](../../skills/ship/SKILL.md) (either `/ship full` to watch CI and merge, or `/ship stop` to open a Draft PR).
+"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/principles.md#prove-it-works) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, running checks and the gate in one call (`bottega verify`), generating a verification skill for your app, and shipping via [`/ship`](../../skills/ship/SKILL.md) (either `/ship full` to watch CI and merge, or `/ship stop` to open a Draft PR).
 
 Verification is the slowest step in most agent work, because it's the step that usually waits on a human. Make the agent able to do it, and you stop being the bottleneck. Skip it, and running more agents only gets you more unchecked work to review.
 
@@ -26,7 +26,7 @@ Match the check to the change:
 
 Ask for the proof as an artifact you can inspect yourself: the failing test and then the passing one, the command output, the trace, the stored value. If the fix already merged, ask for the same check again on main. An artifact beats a plausible explanation, because you can challenge it without replaying the whole run.
 
-For a small diff you don't fully trust, ask "what could this break?". The agent runs a [blast-radius check](../../skills/maestro/references/blast-radius.md): it looks for breakage outside the diff, names the one fact the change is safe because of, and proves it by running real code.
+For a small diff you don't fully trust, ask "what could this break?". The agent runs a [blast-radius check](../../skills/blast-radius/SKILL.md): it looks for breakage outside the diff, names the one fact the change is safe because of, and proves it by running real code.
 
 ## Create a project verification skill
 
@@ -52,7 +52,7 @@ From then on, "verify it with the project's skill" is a step any agent can execu
 
 Once the verify skill works, a ticket can give each feature-map entry its own reviewer subagent for a full pass, and the orchestrator merges their results.
 
-Treat the verification skill as infrastructure, not a one-off. Commit it, so every person and every agent on the team drives the app the same way. Then [mechanize it](../../skills/maestro/references/principles.md#mechanize-it). When agents keep writing throwaway scripts to click through the app, ask for a small control CLI that the skill calls instead. Agents spend fewer tokens, and every run becomes repeatable. A CLI that agents use well has these traits:
+Treat the verification skill as infrastructure, not a one-off. Commit it, so every person and every agent on the team drives the app the same way. Then [mechanize it](../../skills/maestro/principles.md#mechanize-it). When agents keep writing throwaway scripts to click through the app, ask for a small control CLI that the skill calls instead. Agents spend fewer tokens, and every run becomes repeatable. A CLI that agents use well has these traits:
 
 - A few composable commands, each doing real work, rather than many thin ones.
 - A `--dry-run` option on anything destructive.

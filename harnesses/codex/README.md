@@ -8,8 +8,8 @@ Everything in this directory is exclusive to **Codex**. Status: **experimental**
 ./harnesses/codex/install.sh
 ```
 
-Symlinks all 16 skills into `~/.codex/skills/<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
+Symlinks all 20 skills into `~/.codex/skills/<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
 
 ## Subagents
 
-See [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and [`models.md`](../../skills/maestro/references/models.md) for the role and model-tier mapping.
+Roles and tiers are in the router's **Subagents** table ([`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#subagents)); this harness's models, spawn fields and paths are in [`skills/maestro/harness/codex.md`](../../skills/maestro/harness/codex.md).

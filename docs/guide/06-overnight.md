@@ -37,7 +37,7 @@ Walk through what each line buys you:
 
 Because you'll review this work after stepping away, `/maestro` routes it through `/autopilot`, which asks upfront whether to auto-merge or stop at verified PRs, states the exit condition before any code, and keeps the decision trail.
 
-To stop a run on purpose, tell the agent to pause, or that you're about to go offline or restart your machine. The [pause playbook](../../skills/maestro/playbooks/pause.md) finishes or backs out of the current step, saves a patch under `.bottega/` (no wip commit), and writes a resume note. A fresh chat picks the work up from that note through the [pickup playbook](../../skills/maestro/playbooks/pickup.md). Saying "keep going" never triggers a pause.
+To stop a run on purpose, tell the agent to pause, or that you're about to go offline or restart your machine. The [pause playbook](../../skills/maestro/playbooks/pause-safely.md) finishes or backs out of the current step, saves a patch under `.bottega/` (no wip commit), and writes a resume note. A fresh chat picks the work up from that note through the [pickup playbook](../../skills/maestro/playbooks/session-pickup.md). Saying "keep going" never triggers a pause.
 
 When a unit needs your hands (an API key, a CI secret, a dashboard setting), the run doesn't stop. It writes a [wizard](../../skills/wizard/SKILL.md) to `.bottega/wizards/<slug>.sh`, logs the unit as blocked, and moves on. In the morning, run the script; it walks you through each step and saves the values, and the next run picks the unit back up.
 

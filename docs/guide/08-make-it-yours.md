@@ -41,7 +41,7 @@ When you already know the workflow you want to capture:
 /maestro write a skill for verifying database migrations in this repo
 ```
 
-Writing a skill is a normal `/implement` run: keep only prose that changes a decision, and open the PR through the final gate (`references/final-gate.md`, **Opening a PR**). Agent-facing prose has a higher bar than human prose, because an unhelpful sentence becomes an instruction some future agent follows.
+Writing a skill follows the [authoring-a-skill playbook](../../skills/maestro/playbooks/authoring-a-skill.md): keep only prose that changes a decision, validate it, and open the PR through the final gate. Agent-facing prose has a higher bar than human prose, because an unhelpful sentence becomes an instruction some future agent follows.
 
 One special case has its own generators. A skill that must run your app and prove behavior is a verification skill, so use [`/create-verification-skill`](../../skills/create-verification-skill/SKILL.md) and [`/maintain-verification-skill`](../../skills/maintain-verification-skill/SKILL.md) instead. [Verify and ship](./05-verify-and-ship.md#create-a-project-verification-skill) covers it.
 

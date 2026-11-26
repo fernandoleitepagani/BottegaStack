@@ -6,7 +6,7 @@
 
 ## Where each prompt goes
 
-`/maestro` picks the route from your words, using the routing table in [`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#route): big or open work goes to `/plan` then `/tickets`, a clear change to `/implement` (or the small-fix playbook for a one-file fix), a question to read-only exploration, work while you're away to `/autopilot`, and a docs-only edit to the light route. Every skill it can reach is in [`SKILLS-INDEX.md`](../../skills/maestro/SKILLS-INDEX.md).
+`/maestro` picks the route from your words, using the routing table in [`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#route): big or open work goes to `/plan` then `/tickets`, a clear change to `/implement` (or the small-fix playbook for a one-file fix), a question to read-only exploration, work while you're away to `/autopilot`, and a docs-only edit to the light route. Every skill it can reach is in the README's skill table.
 
 The first reply restates your goal, names the risk (`normal`, or `high` for auth, money, data, concurrency, public APIs, or anything hard to undo), and names the route.
 

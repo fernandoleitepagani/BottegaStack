@@ -1,6 +1,6 @@
 # Investigation
 
-**You own the answer.** Read-only: a cited explanation or a recommendation, never a code change. Also how every playbook briefs its explorers. Explorers are read-only subagents on the explorer role (`subagents.md`, harness file) and never edit files.
+**You own the answer.** Read-only: a cited explanation or a recommendation, never a code change. Also how every playbook briefs its explorers. Explorers are read-only subagents on the explorer role (router **Subagents**, harness file) and never edit files.
 
 ## Briefing an explorer
 

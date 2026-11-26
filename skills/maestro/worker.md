@@ -1,6 +1,6 @@
-# Delegate brief
+# Worker
 
-Shared rules for the `/maestro` orchestrator and every delegate it spawns. The orchestrator's routing, autonomy, and reply rules live in `../SKILL.md`; role and model tiers live in `subagents.md` and `models.md`. A delegate does not need them.
+Shared rules for the `/maestro` orchestrator and every delegate it spawns. The orchestrator's routing, autonomy, subagent and reply rules live in `SKILL.md` next to this file. A delegate does not need them.
 
 ## Your role as a delegate
 
@@ -10,25 +10,7 @@ Shared rules for the `/maestro` orchestrator and every delegate it spawns. The o
 
 ## Principles
 
-All 17 are in `principles.md` next to this file, one short section each. Read a section before you apply it. Each one is listed with when it applies:
-
-- **Delete First.** Sizing a diff, or tempted to add a layer.
-- **Shape Before Logic.** Before writing logic that branches a lot or repeats a shape assumption.
-- **Redesign from First Principles.** Fitting a new requirement into an existing design.
-- **Attack the Premise.** Two fixes sharing one premise have failed.
-- **Minimize Reader Load.** Code that's hard to trace.
-- **Mechanize It.** Repetitive work, or an instruction written twice.
-- **Boundary Discipline.** Wiring validation, error handling, or adapters.
-- **Type System Discipline.** Designing types or a signature.
-- **Make Operations Idempotent.** A step that may rerun after a crash or retry.
-- **Migrate Callers Then Delete Legacy APIs.** A new internal API while old callers exist.
-- **Separate Before Serializing Shared State.** Concurrent writers to one file, branch, or key.
-- **Prove It Works.** Before declaring done (see **Verification** below).
-- **Fix Root Causes.** Debugging.
-- **Sequence Work into Verifiable Units.** Multi-step work, and stacking commits or PRs.
-- **Test Behavior, Not Implementation.** Writing, changing, or keeping a test.
-- **Guard the Context Window.** Large outputs, long files, repeated reads.
-- **Never Block on the Human.** Tempted to ask about reversible work.
+When a principle from `<maestro dir>/principles.md` changed a choice, name it in your report. Read only the entries you apply.
 
 ## Scope and commits
 

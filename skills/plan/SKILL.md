@@ -10,7 +10,7 @@ Turn the user's prompt into a spec they agree with. You interview; the user deci
 
 The grilling method is adapted from Matt Pocock's `grilling` and `to-spec` skills (github.com/mattpocock/skills, MIT).
 
-`<maestro dir>` is `../maestro` from this file, as an absolute path. Roles and models come from `<maestro dir>/references/subagents.md`.
+`<maestro dir>` is `../maestro` from this file, as an absolute path. Roles and tiers come from `<maestro dir>/SKILL.md` (**Subagents**); models from your harness file.
 
 ## 0. Size it
 

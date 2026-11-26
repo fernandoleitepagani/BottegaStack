@@ -7,11 +7,22 @@ Bottega's skills use harness-neutral words. Read this file once per session, bef
 | Bottega says | Claude Code |
 |---|---|
 | spawn an **explorer** (read-only) | `Agent` with `subagent_type: "Explore"`; the brief also says "do not edit files", and you check `git status` after |
-| spawn a **delegate** (implementer, reviewer, verifier) | `Agent` with `subagent_type: "general-purpose"`; the brief's first line is `Read <maestro dir>/references/delegate.md before starting.` |
+| spawn a **delegate** (implementer, reviewer, verifier) | `Agent` with `subagent_type: "general-purpose"`; the brief's first line is `Read <maestro dir>/worker.md before starting.` |
 | in **its own worktree** | `isolation: "worktree"` |
 | in the **background** | the default; you are notified when it finishes |
 | the role's **model and effort** | `model` (`opus`, `sonnet`, `haiku`, `fable`) and `effort` (`low`, `medium`, `high`) on the `Agent` call |
 | **inherit** | omit `model` |
+
+## Models
+
+| Tier | Model and effort |
+|---|---|
+| **`heavy`** | `opus` `medium` |
+| **`medium`** | `opus` `low` |
+| **`standard`** | `sonnet` `medium` |
+| **`fast`** | `haiku` `high` |
+
+Tiers per role and difficulty are in the router's **Subagents** table; `~/.bottega/models.md` overrides any cell.
 
 ## Tools and commands
 

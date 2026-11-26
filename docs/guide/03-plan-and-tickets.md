@@ -32,7 +32,7 @@ Run it in the same session as `/plan`, without `/clear`, so the grilling is stil
 - **A budget** for the orchestrator's own context: at most 300k tokens, ±10%, not counting what its subagents read. The estimate is itemized (session overhead, files it reads, about 5k per subagent, diff and gate), and a ticket over 300k gets split.
 - **The split**: what the orchestrator does itself (decisions, reviews, checks, the gate), and a table of subagents with role, abstract tier, task, write scope, and which ones run together.
 - **Blocked by and wave**: the tickets it needs first. Tickets that write the same file are serialized even when they don't depend on each other.
-- **The orchestrator tier**: `heavy` for high risk, auth, concurrency, migrations, or shared interfaces across >3 modules; `medium` for open design calls or multi-file coordination; `standard` otherwise (translated per harness in `models.md`).
+- **The orchestrator tier**: `heavy` for high risk, auth, concurrency, migrations, or shared interfaces across >3 modules; `medium` for open design calls or multi-file coordination; `standard` otherwise (translated per harness in its harness file's **Models** table).
 
 It shows the breakdown as a table and asks whether the granularity and blocking edges are right before writing anything. Then it writes one file per ticket and a `PLAN.md` with the waves:
 

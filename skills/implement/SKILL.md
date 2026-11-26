@@ -26,7 +26,7 @@ By the ticket's kind, read one of these in `<maestro dir>/playbooks/` and follow
 
 A ticket that mixes kinds runs the structural part as Refactoring first, then the rest.
 
-**Context budget.** Your own limit for this session is 300k tokens, ±10%. Past about 270k, finish the current step and run `<maestro dir>/playbooks/pause.md`. Never pass 330k.
+**Context budget.** Your own limit for this session is 300k tokens, ±10%. Past about 270k, finish the current step and run `<maestro dir>/playbooks/pause-safely.md`. Never pass 330k.
 
 ## 3. Close the ticket
 

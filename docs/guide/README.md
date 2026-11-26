@@ -14,7 +14,7 @@ Here's what you'll learn:
 8. [Make it yours](./08-make-it-yours.md). `/correct` for repeated mistakes, `/unslop`, and testing a skill change.
 9. [Recipes and pitfalls](./09-recipes-and-pitfalls.md). Prompts to copy and mistakes to skip.
 
-Read the pages in order the first time. After that, each page stands alone. `skills/maestro/SKILLS-INDEX.md` lists every skill in one line.
+Read the pages in order the first time. After that, each page stands alone. The README's skill table lists every skill in one line.
 
 ## If you only remember one thing
 

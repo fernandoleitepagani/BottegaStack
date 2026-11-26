@@ -1,18 +1,24 @@
-# Setup
+---
+name: setup-bottega
+description: "Configure which model and effort bottega uses for each role (orchestrator, explorer, implementer, reviewer, verifier) at each difficulty (simple, medium, hard). Detects the harness's own models, asks for a budget, and writes ~/.bottega/models.md. Adapted from pstack's setup-pstack. Use for /setup-bottega, /maestro setup, or changing bottega's models."
+disable-model-invocation: true
+---
+
+# Setup bottega
 
 Write the user's model file: which model and effort each role runs at, per difficulty. Adapted from pstack's `setup-pstack` (MIT, see NOTICE). Run it on `/maestro setup`, "configure bottega models", or a budget change. Re-running it updates the file.
 
-**Difficulty** is the run's route: **simple** is the small-fix playbook (one file, about 20 lines, normal risk), **medium** is normal risk, **hard** is high risk. **Roles** are the ones in `<maestro dir>/references/subagents.md`: orchestrator, explorer, implementer, reviewer, verifier.
+**Difficulty** is the run's route: **simple** is the small-fix playbook (one file, about 20 lines, normal risk), **medium** is normal risk, **hard** is high risk. **Roles** are the ones in the router's **Subagents** table (`../maestro/SKILL.md`): orchestrator, explorer, implementer, reviewer, verifier.
 
 ## 1. Detect models
 
-List the model and effort values your harness's subagent tool accepts in this session (harness file, **Subagents**). That is the dependable source. When none can be detected, ask the user to paste what they have. Never write a model you have not confirmed. Effort never goes above `high` (no `xhigh`, no `max`).
+List the model and effort values your harness's subagent tool accepts in this session (`../maestro/harness/<your harness>.md`, **Subagents**). That is the dependable source. When none can be detected, ask the user to paste what they have. Never write a model you have not confirmed. Effort never goes above `high` (no `xhigh`, no `max`).
 
 ## 2. Load the current file
 
 The model file is `~/.bottega/models.md` on every harness.
 
-If the file exists, its `# budget` line and role lines are the current choices. Otherwise start from the defaults in step 5, which are your harness's column of `<maestro dir>/references/models.md` (the example below shows Claude Code). Drop a line whose role is not in step 5 and say so.
+If the file exists, its `# budget` line and role lines are the current choices. Otherwise start from the defaults in step 5, which come from your harness file's **Models** table (the example below shows Claude Code). Drop a line whose role is not in step 5 and say so.
 
 ## 3. Budget, then confirm
 

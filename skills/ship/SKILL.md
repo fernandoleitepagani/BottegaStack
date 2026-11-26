@@ -27,7 +27,7 @@ Wait for the user's choice before running any write/push command.
 
 ## Shared steps (both modes)
 
-1. **Commit:** Run the comments self-check (`../maestro/references/delegate.md`, **Comments**). Stage only the files expected by the run (never `.bottega/` or stray untracked files). Use small ordered commits with Conventional Commits subjects (`type(scope): subject`). When continuing someone else's PR or branch, keep their commits and authorship and add `Co-authored-by:` trailers.
+1. **Commit:** Run the comments self-check (`../maestro/worker.md`, **Comments**). Stage only the files expected by the run (never `.bottega/` or stray untracked files). Use small ordered commits with Conventional Commits subjects (`type(scope): subject`). When continuing someone else's PR or branch, keep their commits and authorship and add `Co-authored-by:` trailers.
 2. **Draft PR body:** Keep it under ~40 lines, written through `../unslop/SKILL.md`:
    - `## Why`: the problem solved or ticket/spec link.
    - `## What changed`: 2–4 bullets on observable behavior changes.
@@ -41,14 +41,14 @@ Wait for the user's choice before running any write/push command.
 
 ## Mode 1: Full auto (`/ship full`)
 
-1. **Optional pre-merge swarm:** If the run was `normal` risk and did not run a `verify-<app>` pass, you may run a 2-verifier swarm (`../maestro/references/swarm.md`, with the slices in `../maestro/references/review.md` **Verifier swarm**) before pushing when extra auto-merge confidence is wanted.
+1. **Optional pre-merge swarm:** If the run was `normal` risk and did not run a `verify-<app>` pass, you may run a 2-verifier swarm (`../swarm/SKILL.md`, with the slices in `../review/SKILL.md` **Verifier swarm**) before pushing when extra auto-merge confidence is wanted.
 2. Run `<maestro dir>/scripts/bottega ship --ready --title "<title>" --body "<body>"`.
 3. **Babysit CI and review bots:**
    - Watch checks with `gh pr checks --watch` (or poll until all checks complete).
    - Inspect any failed check logs (`gh run view <id> --log-failed`) and any bot/reviewer comments (`gh pr view --comments`).
    - Distinguish **legitimate failures** (broken tests, type/lint errors, real review findings) from **flaky/infra noise**.
    - For legitimate failures: fix the root cause, re-run `bottega verify` to keep the proof ledger green, commit, push, and watch checks again.
-   - After 2 fix rounds on the same check (the cap in `../maestro/references/review.md`, **Caps**), or when a fix requires an irreversible/product decision, **stop and escalate** to the user instead of looping.
+   - After 2 fix rounds on the same check (the cap in `../review/SKILL.md`, **Caps**), or when a fix requires an irreversible/product decision, **stop and escalate** to the user instead of looping.
 4. **Merge:** Once all required checks are green and no blocking review comments remain, merge (`gh pr merge --squash --delete-branch`, or `--auto` if branch protection requires it) and report the merged PR URL.
 
 ## Existing PR or Stack (`babysit` / `land`)

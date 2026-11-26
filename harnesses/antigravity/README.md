@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **Antigravity CLI**. Status: **expe
 ./harnesses/antigravity/install.sh
 ```
 
-This symlinks every skill in `skills/` into `~/.agents/skills/<name>` so Antigravity CLI discovers them automatically (all 16 skills use the standard `SKILL.md` + YAML frontmatter format).
+This symlinks every skill in `skills/` into `~/.agents/skills/<name>` so Antigravity CLI discovers them automatically (all 20 skills use the standard `SKILL.md` + YAML frontmatter format).
 
 To uninstall:
 
@@ -18,4 +18,4 @@ To uninstall:
 
 ## Subagents
 
-See [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and [`models.md`](../../skills/maestro/references/models.md) for the role and model-tier mapping.
+Roles and tiers are in the router's **Subagents** table ([`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#subagents)); this harness's models, spawn fields and paths are in [`skills/maestro/harness/antigravity.md`](../../skills/maestro/harness/antigravity.md).

@@ -1,3 +1,9 @@
+---
+name: blast-radius
+description: "Find what a change could break somewhere else before it ships, beyond the diff, and prove the one fact it's safe because of by running real code. Adapted from pstack's blast-radius. Use for 'blast radius of X', 'what could this break', a small diff you don't trust, or before shaping a refactor or shared-interface change."
+disable-model-invocation: true
+---
+
 # Blast radius
 
 Find what a change breaks somewhere else, before it ships. Use for "blast radius of X", "what could this break", or reviewing a small diff you don't trust yet.
@@ -29,7 +35,7 @@ Step 4 is usually one small script that imports the same library the app ships a
 3. Look where grep stops. Read the source of the library you call, and check its pinned version and any local patch. Work out when things run: microtasks, unmount and teardown, Solid versus React. Follow what a symbol search misses: the JSON an API returns, a DB column, a wire format, another language reading the same bytes, a feature flag, code three hops downstream.
 4. Be honest about each risk. Give it a real chance of happening and a real cost if it does. Keep the risks you confirmed. List the ones you checked and cleared separately. Cite a real `file:line`, a search that finds nothing is still an answer, and never make up a caller or an API.
 5. Prove the one fact. Write a script or test that runs the real code, run it, and paste what happened.
-6. For a big or wide change, run a coverage swarm (`swarm.md`) with one verifier per area of risk, and merge their risks into one list.
+6. For a big or wide change, run a coverage swarm (`../swarm/SKILL.md`) with one verifier per area of risk, and merge their risks into one list.
 
 ## What to hand back
 
@@ -48,11 +54,11 @@ Write it through `unslop`, cite real code, and strip anything private before it 
 Adapted from pstack's `blast-radius` (MIT, see NOTICE). These rules take precedence where they differ:
 
 - **When it runs.** Only where a change can break code it doesn't touch:
-  1. Before shaping: always in `playbooks/refactoring.md` (step 2), and in `playbooks/feature.md` or `playbooks/bug-fix.md` when the change touches a shared interface, public API, data format, schema or config other code reads. Run it on the planned change; it hands back the dependents to migrate and the safety fact the pin must prove.
-  2. The high-risk review of a diff of 100 lines or fewer across 2 files or fewer (`review.md`). It replaces the single adversarial reviewer there.
+  1. Before shaping: always in `../maestro/playbooks/refactoring.md` (step 2), and in `../maestro/playbooks/feature.md` or `../maestro/playbooks/bug-fix.md` when the change touches a shared interface, public API, data format, schema or config other code reads. Run it on the planned change; it hands back the dependents to migrate and the safety fact the pin must prove.
+  2. The high-risk review of a diff of 100 lines or fewer across 2 files or fewer (`../review/SKILL.md`). It replaces the single adversarial reviewer there.
   3. When the user asks "what could this break", "blast radius of X", or to crossfire a small diff they don't trust.
 
   Normal-risk features and bug fixes confined to their own code skip it.
-- **Who runs it.** One fresh delegate on the verifier role (`subagents.md`; `heavy` at high risk, `standard` otherwise), in its own worktree when its proof script needs files. Proof scripts stay in scratch or the worktree, never in the diff.
-- **`how` and `why`** are bottega's `playbooks/investigation.md`. The Solid and React note in step 3 stands for whatever framework the repo uses.
-- **Verdict for the gate** (high-risk review only): log a `crossfire` row with `log.sh` per `review.md` **Ledger**. PASS when the safety fact reached step 4 or 5 and no confirmed risk is open; FAIL otherwise. Confirmed risks go to `review.md` **Verify findings** and **Fix step**; after a fix round, run it again on the new diff and log a new row.
+- **Who runs it.** One fresh delegate on the verifier role (router **Subagents**; `heavy` at high risk, `standard` otherwise), in its own worktree when its proof script needs files. Proof scripts stay in scratch or the worktree, never in the diff.
+- **`how` and `why`** are bottega's `../maestro/playbooks/investigation.md`. The Solid and React note in step 3 stands for whatever framework the repo uses.
+- **Verdict for the gate** (high-risk review only): log a `crossfire` row per `../maestro/playbooks/final-gate.md` (**Crossfire row**). PASS when the safety fact reached step 4 or 5 and no confirmed risk is open; FAIL otherwise. Confirmed risks go to `../review/SKILL.md` **Verify findings** and **Fix step**; after a fix round, run it again on the new diff and log a new row.

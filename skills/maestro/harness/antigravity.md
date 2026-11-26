@@ -7,10 +7,21 @@ Bottega's skills use harness-neutral words. Read this file once per session, bef
 | Bottega says | Antigravity CLI |
 |---|---|
 | spawn an **explorer** (read-only) | the native subagent tool with `TypeName: research`, `Workspace: inherit`; the brief says "do not edit files" |
-| spawn a **delegate** (implementer, reviewer, verifier) | `TypeName: self`, `Workspace: share`; the brief's first line is `Read <maestro dir>/references/delegate.md before starting.` |
+| spawn a **delegate** (implementer, reviewer, verifier) | `TypeName: self`, `Workspace: share`; the brief's first line is `Read <maestro dir>/worker.md before starting.` |
 | in **its own worktree** | `Workspace: branch` |
 | in the **background** | reactive wakeup; never poll |
-| the role's **model and effort** | the Antigravity column of `references/models.md` (`neon`, `hydrogen`) |
+| the role's **model and effort** | **Models** below |
+
+## Models
+
+| Tier | Model and effort |
+|---|---|
+| **`heavy`** | `neon` `medium` |
+| **`medium`** | `neon` `low` |
+| **`standard`** | `hydrogen` `medium` |
+| **`fast`** | `hydrogen` `low` |
+
+Tiers per role and difficulty are in the router's **Subagents** table; `~/.bottega/models.md` overrides any cell.
 
 ## Tools and commands
 

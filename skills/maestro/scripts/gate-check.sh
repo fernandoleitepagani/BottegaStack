@@ -282,7 +282,7 @@ if [ -n "$crossfire" ]; then
 		echo "crossfire: PASS"
 	fi
 elif [ "$risk" = high ]; then
-	echo "MISSING: no crossfire row. High risk runs the adversarial review (<maestro dir>/references/review.md) on the finished diff, whatever its size."
+	echo "MISSING: no crossfire row. High risk runs the adversarial review (<skills dir>/review/SKILL.md: /blast-radius or /swarm) on the finished diff, whatever its size."
 	missing=1
 fi
 

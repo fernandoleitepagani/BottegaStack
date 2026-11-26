@@ -7,9 +7,20 @@ Bottega's skills use harness-neutral words. Read this file once per session, bef
 | Bottega says | Codex |
 |---|---|
 | spawn an **explorer** (read-only) | Codex's native subagent tool, read-only sandbox; the brief says "do not edit files" (*check* the tool name) |
-| spawn a **delegate** (implementer, reviewer, verifier) | the native subagent tool; the brief's first line is `Read <maestro dir>/references/delegate.md before starting.` |
+| spawn a **delegate** (implementer, reviewer, verifier) | the native subagent tool; the brief's first line is `Read <maestro dir>/worker.md before starting.` |
 | in **its own worktree** | a separate git worktree per parallel writer |
-| the role's **model and effort** | the Codex column of `references/models.md` (`sol`, `terra`, `luna`) |
+| the role's **model and effort** | **Models** below |
+
+## Models
+
+| Tier | Model and effort |
+|---|---|
+| **`heavy`** | `sol` `high` |
+| **`medium`** | `sol` `medium` |
+| **`standard`** | `sol` `low` or `terra` `medium` |
+| **`fast`** | `luna` `high` |
+
+Tiers per role and difficulty are in the router's **Subagents** table; `~/.bottega/models.md` overrides any cell.
 
 ## Tools and commands
 

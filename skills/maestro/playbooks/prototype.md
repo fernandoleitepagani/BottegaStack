@@ -27,6 +27,6 @@ Adapted from mattpocock/skills `prototype` (MIT, see NOTICE). These rules take p
 - **Routing.** `/plan` sends a question it can't settle by grilling here, and so does `/maestro` for "a design fork that only seeing it can settle". The answer goes back to `/plan` as a decision, or to `/implement` for the real build. The prototype itself never ships.
 - **No gate.** Nothing from a prototype reaches the main branch, so it skips the final gate. The real build goes through `/implement` and its gate.
 - **The user looks, the agent doesn't.** Agents don't drive or screenshot a UI. Hand over the URL and `?variant=` keys or the HTML file, say what to look at, and let the user report back.
-- **Capture.** Commit the throwaway branch (rule 6) only when the user says yes, since `delegate.md` forbids commits in the user's checkout otherwise. Without a yes, leave the prototype in place, report its path, and record the verdict in `.bottega/` next to the spec.
+- **Capture.** Commit the throwaway branch (rule 6) only when the user says yes, since `../worker.md` forbids commits in the user's checkout otherwise. Without a yes, leave the prototype in place, report its path, and record the verdict in `.bottega/` next to the spec.
 
 **Reply:** the question, the branch (logic or UI), the variants or scenarios built, how to run it, what to look at, your recommendation, and where the prototype lives. Say plainly that it is throwaway.

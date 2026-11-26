@@ -22,7 +22,7 @@ Before editing, spawning, or starting `/loop`, ask the user one question (unless
 Name the mode in the first reply and in every `/loop` tick prompt:
 
 - `task`: one task driven to a checkable exit condition ("run until done", "/loop until X").
-- `queue`: independent PRs orchestrated from the main session, one worktree per unit. A ticket plan (`.bottega/plans/<slug>/PLAN.md` from `/tickets`) runs as a `queue`: the orchestrator drives each ticket in wave order, delegating only leaf `explorer`, `implementer`, and `reviewer` subagents (never spawning a subagent to run `/implement`, per `../maestro/references/delegate.md`).
+- `queue`: independent PRs orchestrated from the main session, one worktree per unit. A ticket plan (`.bottega/plans/<slug>/PLAN.md` from `/tickets`) runs as a `queue`: the orchestrator drives each ticket in wave order, delegating only leaf `explorer`, `implementer`, and `reviewer` subagents (never spawning a subagent to run `/implement`, per `../maestro/worker.md`).
 - `program`: a standing project over days (many stacked PRs, many agents). Work one agent can finish in one session is `task`, not this.
 
 ## Permissions
@@ -40,16 +40,16 @@ Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) 
 1. **Exit condition first.** State done as a checkable predicate (tests green, repro fixed, all N PRs verified/merged) and open the run with `bottega start` (registering conditions in `.bottega/proofs.tsv`). Never relax it to declare victory. If requirements are vague or unverifiable, stop and ask instead of running unattended.
 2. **Wake.** Use `/loop` (or your harness's recurring schedule). An event to watch (CI, a merge) gets a watcher and a long heartbeat as fallback; no event gets a fixed interval sized to when the result is worth re-checking.
 3. **Smallest verified step.** Each iteration makes the smallest change the evidence justifies, verifies it against the predicate, keeps it if it advanced, reverts it if not (**Sequence Work into Verifiable Units**).
-4. **Circuit breakers.** Cap fix rounds at 2 per failure class (3rd failure or 2 rounds with no progress → `ESCALATE` and stop). Past ~270k orchestrator tokens, run `../maestro/playbooks/pause.md` and stop cleanly.
+4. **Circuit breakers.** Cap fix rounds at 2 per failure class (3rd failure or 2 rounds with no progress → `ESCALATE` and stop). Past ~270k orchestrator tokens, run `../maestro/playbooks/pause-safely.md` and stop cleanly.
 5. **Assume you die.** Keep the decision trail below in `.bottega/`, one row per iteration, plus each spawned agent's id, PR, and `stuck_after` threshold (default: 30 minutes wall time or 3 failed attempts without progress), so a replacement can pick up.
 6. **Side findings.** Fix what blocks the predicate in its own PR. Log everything else to `.bottega/followups.md`; do not fix it now.
 7. **Ask only** for an irreversible step, a product call no experiment settles, or a dead end that survived a replan.
 
 ## `queue` and `program`
 
-8. **Orchestrator-driven leaf delegation.** The main session owns the ticket/PR queue, wave ordering, and final gate; each unit's leaf `implementer` runs in its own isolated worktree (`subagents.md`) as the only writer of its branch. Cap fan-out: worktree runs share CPU, ports, and disk.
+8. **Orchestrator-driven leaf delegation.** The main session owns the ticket/PR queue, wave ordering, and final gate; each unit's leaf `implementer` runs in its own isolated worktree (router **Subagents**) as the only writer of its branch. Cap fan-out: worktree runs share CPU, ports, and disk.
 9. **Start with one unit.** Take the first PR through kickoff, verification, and `/ship` before fanning out, so a flawed kickoff costs one unit.
-10. **Verify independently.** Nothing ships until fresh reviewers that never wrote the code prove it. Run `../maestro/references/review.md` (at high risk or opted-in `/ship full`, use the high-risk review: a blast-radius check for a diff of 100 lines or fewer, else the **Verifier swarm**, with a live lane through `verify-<app>` when present).
+10. **Verify independently.** Nothing ships until fresh reviewers that never wrote the code prove it. Run `../review/SKILL.md` (at high risk or opted-in `/ship full`, use the high-risk review: a blast-radius check for a diff of 100 lines or fewer, else the **Verifier swarm**, with a live lane through `verify-<app>` when present).
 11. **Ship & merge.** Hand each verified PR to `../ship/SKILL.md`:
     - `/ship full` (two-way doors only) → watches CI, fixes legitimate failures within cap, merges bottom-up. Confirm `git patch-id` at the verdict SHA matches the head before merging; hold past a third rebase.
     - `/ship stop` (or any one-way door) → Draft PR, no merge, no further pushes after handoff.

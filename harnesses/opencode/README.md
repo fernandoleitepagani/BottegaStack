@@ -8,8 +8,8 @@ Everything in this directory is exclusive to **OpenCode**. Status: **experimenta
 ./harnesses/opencode/install.sh
 ```
 
-Symlinks all 16 skills into `~/.config/opencode/skills/<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
+Symlinks all 20 skills into `~/.config/opencode/skills/<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
 
 ## Subagents
 
-See [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and [`models.md`](../../skills/maestro/references/models.md) for the role and model-tier mapping (including free-first → OpenCode Go fallback for non-Anthropic models).
+Roles and tiers are in the router's **Subagents** table ([`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#subagents)); this harness's models, spawn fields and paths are in [`skills/maestro/harness/opencode.md`](../../skills/maestro/harness/opencode.md).

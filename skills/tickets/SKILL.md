@@ -10,7 +10,7 @@ Turn a spec into tickets. Each ticket is one fresh `/implement` session. The out
 
 The slicing rules are adapted from Matt Pocock's `to-tickets` skill (github.com/mattpocock/skills, MIT).
 
-`<maestro dir>` is `../maestro` from this file, as an absolute path. Roles, subagent types and models come from `<maestro dir>/references/subagents.md`.
+`<maestro dir>` is `../maestro` from this file, as an absolute path. Roles, subagent types and models come from `<maestro dir>/SKILL.md`, **Subagents**.
 
 ## Input
 
@@ -30,7 +30,7 @@ The budget is the orchestrator's own context in a fresh session: **300k tokens, 
 
 | Item | Estimate |
 |---|---|
-| Session overhead (system prompt, tools, CLAUDE.md, maestro, `/implement`, references) | 45k, or the figure `/context` showed at the start of the last fresh session |
+| Session overhead (system prompt, tools, CLAUDE.md, maestro, `/implement`, the playbook and skill files it reads) | 45k, or the figure `/context` showed at the start of the last fresh session |
 | Ticket and spec | file size ÷ 4 |
 | Files the orchestrator reads itself | file size ÷ 4 for each, counted once |
 | Each subagent | about 5k (brief plus report) |
@@ -45,11 +45,11 @@ To keep the orchestrator inside budget, push wide reads into explorer subagents 
 
 **The orchestrator does:** read the ticket, decide the data shape and the interfaces, write the subagent briefs, review every diff, run or check the acceptance criteria, and run the final gate. It writes code itself only for an edit of a few lines that would cost more to brief than to make.
 
-**Subagents do** everything else. Name each one with its role and abstract tier from `references/subagents.md` at the ticket's risk (harness types and concrete models come from `references/subagents.md` and `references/models.md`):
+**Subagents do** everything else. Name each one with its role and abstract tier from the router's **Subagents** table (`<maestro dir>/SKILL.md`) at the ticket's difficulty (spawn fields and concrete models come from the harness file, `<maestro dir>/harness/<your harness>.md`):
 
 - **explorer**: read-only mapping, tracing, and fact-finding (`fast`).
 - **implementer**: writes code and tests in one scope (`standard`, or `medium` at high risk). Isolate in a separate worktree/branch when implementers run in parallel.
-- **reviewer**: reviews the finished diff against the ticket and runs repros (`<maestro dir>/references/review.md`). At high risk the blast-radius check or verifier swarm runs on the `verifier` role.
+- **reviewer**: reviews the finished diff against the ticket and runs repros (`<maestro dir>/../review/SKILL.md`). At high risk the blast-radius check or verifier swarm runs on the `verifier` role.
 
 Mark which subagents run in parallel. Two subagents run in parallel only when their write sets don't overlap.
 
@@ -61,14 +61,14 @@ Mark which subagents run in parallel. Two subagents run in parallel only when th
 
 ## 5. Pick the abstract model tiers
 
-Pick the **lowest abstract tier** (`heavy`, `medium`, `standard`, `fast`, mapped per harness in `<maestro dir>/references/models.md`) that uses the least tokens/limits while remaining as precise as needed, for **both** the orchestrator and every subagent:
+Pick the **lowest abstract tier** (`heavy`, `medium`, `standard`, `fast`, mapped per harness in the harness file's **Models** table) that uses the least tokens/limits while remaining as precise as needed, for **both** the orchestrator and every subagent:
 
 - **`heavy`**: high risk, auth/security, concurrency, data migrations, shared interfaces across >3 modules, or the high-risk verifier.
 - **`medium`**: open design decisions inside the ticket, multi-file coordination, tricky debugging, or high-risk implementer/reviewer.
 - **`standard`**: well-scoped normal-risk orchestrator, standard implementers and reviewers.
 - **`fast`**: explorers, codebase mapping, read-only fact-finding.
 
-The user sets the orchestrator model at the start of the ticket's fresh session (using their harness's translation of the tier in `references/models.md`).
+The user sets the orchestrator model at the start of the ticket's fresh session (using their harness file's **Models** table).
 
 ## 6. Agree, then write
 
@@ -117,7 +117,7 @@ Spec: spec.md
 
 ## Running a ticket
 1. Fresh session (`/clear`, or a new terminal; one git worktree per parallel ticket).
-2. `/model` to your harness's translation of the ticket's `Orchestrator` tier (`references/models.md`).
+2. `/model` to your harness's translation of the ticket's `Orchestrator` tier (harness file, **Models**).
 3. `/implement .bottega/plans/<slug>/tickets/T<nn>-<slug>.md`
 ```
 

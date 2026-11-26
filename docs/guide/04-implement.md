@@ -23,7 +23,7 @@ Changes with no ticket skip `/implement`: `/maestro fix the off-by-one in pagina
 
 All of them delegate the code to implementers with a named write scope (in separate worktrees when they run at once), verify the real artifact, and review the diff. Two reviewers check it in parallel, Spec and Standards; a diff of about 20 lines gets one reviewer for both. At high risk a small diff gets a blast-radius check and a larger one a swarm of three verifiers. Findings count only when a run proves them, and fixes go to a fresh implementer, at most 2 rounds, then ESCALATE. Afterwards `/implement` marks the ticket done and lists the tickets it unblocked.
 
-If the session nears 300k tokens, it pauses (`playbooks/pause.md`); you `/clear` and pick up with `playbooks/pickup.md`.
+If the session nears 300k tokens, it pauses ([pause-safely](../../skills/maestro/playbooks/pause-safely.md)); you `/clear` and pick up with [session-pickup](../../skills/maestro/playbooks/session-pickup.md).
 
 ## Comments and prose
 

@@ -20,4 +20,4 @@ Adapted from mattpocock/skills `handoff` (MIT, see NOTICE). These rules take pre
 - **Stop cleanly first.** Finish or back out of the current atomic step, start nothing new, and cancel nested subagents. Take no irreversible action to pause: no new PR, no push.
 - **Save uncommitted work without committing.** `git diff --binary HEAD > .bottega/pause-<timestamp>.patch`, list untracked files with `git ls-files --others --exclude-standard`, and copy the ones you created under `.bottega/pause-<timestamp>/`. Name the patch path in the document, and say if the tree is broken. `git stash` only if the user asked.
 
-**Reply:** where you stopped, the document and patch paths, whether the tree is clean, and the first action on resume (`playbooks/pickup.md`). This is a pause, not a final report.
+**Reply:** where you stopped, the document and patch paths, whether the tree is clean, and the first action on resume (`session-pickup.md`). This is a pause, not a final report.

@@ -27,7 +27,7 @@ Skills install under their real names; the installer stops if one would replace 
 
 ## Pick your models
 
-The defaults need no setup. Roles map to 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) in [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and translate per harness (Claude Code, Antigravity CLI, Codex, OpenCode) in [`skills/maestro/references/models.md`](../../skills/maestro/references/models.md):
+The defaults need no setup. Roles map to 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) in the router's **Subagents** table ([`skills/maestro/SKILL.md`](../../skills/maestro/SKILL.md#subagents)) and translate per harness (Claude Code, Antigravity CLI, Codex, OpenCode) in each harness file's **Models** table ([`skills/maestro/harness/`](../../skills/maestro/harness/)):
 
 - **orchestrator**: the session you type in. Each ticket names an abstract tier (`standard`, `medium`, or `heavy`), and you set your session model when starting that ticket.
 - **explorer**: read-only mapping and research (`fast`).

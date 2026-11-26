@@ -39,15 +39,15 @@ Each ticket file carries:
 
 - what to build (one vertical slice) and acceptance criteria written as runnable checks
 - a budget for the orchestrator's own context (300k, ±10%, subagents excluded), itemized
-- what the orchestrator does itself, and a table of subagents: role (explorer, implementer, reviewer), abstract tier, task, write scope, and which run together
+- what the orchestrator does itself, and a table of subagents: role (explorer, implementer, reviewer, verifier), abstract tier, task, write scope, and which run together
 - blocked by and wave: `PLAN.md` lists which tickets can run in parallel and which must wait
-- the orchestrator tier (`heavy`, `medium`, or `standard`, translated per harness in [`models.md`](./skills/maestro/references/models.md)) and why
+- the orchestrator tier (`heavy`, `medium`, or `standard`, translated per harness in each harness file's **Models** table) and why
 
 New here? The [bottega guide](./docs/guide/README.md) walks through it with real prompts.
 
 ## skills
 
-16 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
+20 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs.
 
 | skill | use it when |
 |---|---|
@@ -67,8 +67,12 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 | [`/create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. Generates a `verify-<app>` skill with a feature map. |
 | [`/maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. |
 | [`/wizard`](./skills/wizard/SKILL.md) | a step needs your hands: a dashboard, an API key, a CI secret, a cutover. Writes a script that walks you through it and saves the values. |
+| [`/review`](./skills/review/SKILL.md) | review a finished diff on two axes in parallel, Spec and Standards, then verify findings and fix. Every code playbook runs it. |
+| [`/blast-radius`](./skills/blast-radius/SKILL.md) | "what could this break?": finds breakage outside the diff and proves the one fact the change is safe because of. |
+| [`/swarm`](./skills/swarm/SKILL.md) | fan out parallel workers and merge one report; also the high-risk verifier swarm for a large diff. |
+| [`/setup-bottega`](./skills/setup-bottega/SKILL.md) | pick a model and effort for every role at each difficulty; writes `~/.bottega/models.md`. |
 
-`/maestro` is a router: it picks one **playbook** per task from [`skills/maestro/playbooks/`](./skills/maestro/playbooks/) and loads only that one (small fix, bug fix, feature, refactoring, investigation, prototype, pause, pickup, worktree cleanup, setup, authoring a skill). Shared steps live in [`skills/maestro/references/`](./skills/maestro/references/) and load only at the step that names them: the final gate, review, blast radius, swarm, the delegate brief, the role table, model tiers and the principles.
+`/maestro` is a router: it picks one **playbook** per task from [`skills/maestro/playbooks/`](./skills/maestro/playbooks/) and loads only that one (small fix, bug fix, feature, refactoring, investigation, prototype, pause safely, session pickup, worktree cleanup, authoring a skill), and the code playbooks end at the shared final-gate playbook. Delegates read [`worker.md`](./skills/maestro/worker.md); the 17 principles are one page, [`principles.md`](./skills/maestro/principles.md). `/review`, `/blast-radius`, `/swarm` and `/setup-bottega` are skills of their own, called by the playbooks or by you.
 
 ## risk and the final gate
 
@@ -78,11 +82,11 @@ Every change ends at the final gate. `gate-check.sh` reads the logged proofs in 
 
 ## delegates
 
-Implementers, reviewers and verifiers are the harness's own general-purpose subagents. Each brief's first line makes the delegate read `skills/maestro/references/delegate.md` before any work: scope, commits, the no-comments rule and its self-check, verification, and the report format. Explorers are the harness's read-only subagents. The per-harness names live in [`skills/maestro/harness/`](./skills/maestro/harness/).
+Implementers, reviewers and verifiers are the harness's own general-purpose subagents. Each brief's first line makes the delegate read `skills/maestro/worker.md` before any work: scope, commits, the no-comments rule and its self-check, verification, and the report format. Explorers are the harness's read-only subagents. The per-harness names live in [`skills/maestro/harness/`](./skills/maestro/harness/).
 
 ## models
 
-Roles use 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) translated per harness in [`skills/maestro/references/models.md`](./skills/maestro/references/models.md) and [`skills/maestro/references/subagents.md`](./skills/maestro/references/subagents.md).
+Roles use 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) per difficulty, in the router's **Subagents** table ([`skills/maestro/SKILL.md`](./skills/maestro/SKILL.md#subagents)), translated per harness in each [harness file](./skills/maestro/harness/)'s **Models** table.
 
 | role | simple (small fix) | medium (normal risk) | hard (high risk) |
 |---|---|---|---|
@@ -92,11 +96,11 @@ Roles use 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) translated pe
 | reviewer | `standard` | `standard` | `medium` |
 | verifier | `standard` | `standard` | `heavy` |
 
-Run `/maestro setup` to pick a model and effort for every role at each difficulty; it writes `~/.bottega/models.md`, the one model file every harness reads. Effort ceiling: never `xhigh` or `max`.
+Run `/setup-bottega` (or `/maestro setup`) to pick a model and effort for every role at each difficulty; it writes `~/.bottega/models.md`, the one model file every harness reads. Effort ceiling: never `xhigh` or `max`.
 
 ## principles
 
-17 principles on one page: [`skills/maestro/references/principles.md`](./skills/maestro/references/principles.md). Agents name each one that changed a decision, and you can use the names to steer ([guide](./docs/guide/07-principles.md)).
+17 principles on one page: [`skills/maestro/principles.md`](./skills/maestro/principles.md). Agents name each one that changed a decision, and you can use the names to steer ([guide](./docs/guide/07-principles.md)).
 
 ## not shipped here
 
@@ -109,5 +113,5 @@ MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE) and [NOTIC
 ## credits
 
 - `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega. `wizard` and its `template.sh` library are adapted from the same repo's `wizard` skill.
-- The `/autopilot` skill and the investigation playbook are original works by the bottega author, drawing on pstack. The prototype and pause playbooks and the two-axis review adapt Matt Pocock's `prototype`, `handoff` and `code-review`. The playbook layout and the pickup, worktree-cleanup, authoring-a-skill and setup playbooks, plus the blast-radius and swarm references, adapt pstack's `poteto-mode` playbooks and skills.
+- The `/autopilot` skill and the investigation playbook are original works by the bottega author, drawing on pstack. The prototype and pause playbooks and the two-axis review adapt Matt Pocock's `prototype`, `handoff` and `code-review`. The playbook layout and the session-pickup, worktree-cleanup and authoring-a-skill playbooks, plus the blast-radius, swarm and setup-bottega skills, adapt pstack's `poteto-mode` playbooks and skills.
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), adapted under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).
