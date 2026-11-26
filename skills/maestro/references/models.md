@@ -15,7 +15,7 @@ One global table mapping Bottega's four abstract tiers to each harness's concret
 
 ## Selection rule (token & limit discipline)
 
-When planning tickets (`/tickets`) or spawning subagents, **always pick the lowest abstract tier that remains as precise as needed**—never default to `heavy` when `standard` or `medium` will do:
+When planning tickets (`/tickets`) or spawning subagents, **always pick the lowest abstract tier that remains as precise as needed**; never default to `heavy` when `standard` or `medium` will do:
 
 - **Orchestrator:** `standard` for well-scoped normal-risk tickets; `medium` for multi-file coordination or tricky debugging; `heavy` for high risk, shared interfaces, migrations, auth, or concurrency.
 - **Explorer:** `fast` by default.

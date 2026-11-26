@@ -13,6 +13,18 @@ claude plugin install bottega@bottega
 
 Claude Code prefixes plugin commands, so each command in this guide can also be typed with a `bottega:` prefix, such as `/bottega:maestro`. Start a new session after installing.
 
+### Other harnesses (experimental)
+
+For Antigravity CLI, Codex, or OpenCode, run the matching installer from the repo root:
+
+```bash
+./harnesses/antigravity/install.sh   # ~/.agents/skills/<name>
+./harnesses/codex/install.sh         # ~/.codex/skills/<name>
+./harnesses/opencode/install.sh      # ~/.config/opencode/skills/<name>
+```
+
+Skills install under their real names; the installer stops if one would replace a skill you already have. Pass `--uninstall` to remove the symlinks. See [`harnesses/README.md`](../../harnesses/README.md) for experimental status (#46) and how non-Claude harnesses dispatch subagents.
+
 ## Pick your models
 
 The defaults need no setup. Roles map to 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) in [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and translate per harness (Claude Code, Antigravity CLI, Codex, OpenCode) in [`skills/maestro/references/models.md`](../../skills/maestro/references/models.md):
@@ -28,7 +40,7 @@ To override a tier or role, write `~/.bottega/models.md` (or `~/.claude/rules/bo
 
 If your project has no scripted way to prove app behavior, run [`/create-verification-skill`](../../skills/create-verification-skill/SKILL.md) once.
 
-It writes `.claude/skills/verify-<app>/`, a project-local skill that teaches agents to drive your app the way a user does. It proves the skill works once before handing it over. [Verify and ship](./05-verify-and-ship.md#create-a-project-verification-skill) covers it in depth.
+It writes `<project-skills-dir>/verify-<app>/` (`.claude/skills/` on Claude Code), a project-local skill that teaches agents to drive your app the way a user does. It proves the skill works once before handing it over. [Verify and ship](./05-verify-and-ship.md#create-a-project-verification-skill) covers it in depth.
 
 If you're new to bottega, do this first. An agent that can check its own work keeps going until the check passes. An agent that can't hands every result back to you to check by hand. Of everything in this guide, the verification skill pays off the most.
 

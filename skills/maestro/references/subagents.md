@@ -16,7 +16,7 @@ Read before your first spawn. Concrete model + effort values come from `referenc
 - **Codex:** translate tiers via `references/models.md` (`sol` / `terra` / `luna`); isolate parallel writers in separate git worktrees.
 - **OpenCode:** translate tiers via `references/models.md`; for non-Anthropic models (`deepseek v4.1 flash`, `glm-5.3-flash`), try the free version first and fall back to OpenCode Go if rate-limited or unavailable; isolate parallel writers in separate git worktrees.
 
-**Orchestrator.** `/tickets` picks the lowest abstract tier (`heavy`, `medium`, `standard`, `fast`) that stays precise for both the orchestrator and every subagent. Without a ticket, use `medium` (normal) or `heavy` (high risk). Never switch models mid-session. Context limit: 300k tokens, ±10% (`/implement`).
+**Orchestrator.** `/tickets` picks the lowest abstract tier (`heavy`, `medium`, `standard`, `fast`) that stays precise for both the orchestrator and every subagent. Without a ticket, use the orchestrator row in `references/models.md` (**Selection rule**). Never switch models mid-session. Context limit: 300k tokens, ±10% (`/implement`).
 
 **Fresh subagents by default.** New work (a fix round, a follow-up, a retry, the next queue item) goes to a fresh subagent with consolidated scope: the original brief, every later directive, and the prior agent's report and branch. Resume an existing subagent only when the work needs state that lives in it and is costly to move.
 

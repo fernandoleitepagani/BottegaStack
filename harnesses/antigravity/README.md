@@ -1,6 +1,6 @@
-# Antigravity CLI Harness
+# Antigravity CLI Harness (Experimental, #46)
 
-Everything in this directory is exclusive to **Antigravity CLI**.
+Everything in this directory is exclusive to **Antigravity CLI**. Status: **experimental** (see [harnesses/README.md](../README.md#subagent-dispatch-across-harnesses) for subagent dispatch and symlink caveats).
 
 ## Install
 
@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **Antigravity CLI**.
 ./harnesses/antigravity/install.sh
 ```
 
-This symlinks every skill in `skills/` into `~/.agents/skills/bottega-<name>` so Antigravity CLI discovers them automatically (all 16 skills use the standard `SKILL.md` + YAML frontmatter format).
+This symlinks every skill in `skills/` into `~/.agents/skills/<name>` so Antigravity CLI discovers them automatically (all 16 skills use the standard `SKILL.md` + YAML frontmatter format).
 
 To uninstall:
 

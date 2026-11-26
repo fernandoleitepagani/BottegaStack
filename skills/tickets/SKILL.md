@@ -61,7 +61,7 @@ Mark which subagents run in parallel. Two subagents run in parallel only when th
 
 ## 5. Pick the abstract model tiers
 
-Pick the **lowest abstract tier** (`heavy`, `medium`, `standard`, `fast` — mapped per harness in `<maestro dir>/references/models.md`) that uses the least tokens/limits while remaining as precise as needed, for **both** the orchestrator and every subagent:
+Pick the **lowest abstract tier** (`heavy`, `medium`, `standard`, `fast`, mapped per harness in `<maestro dir>/references/models.md`) that uses the least tokens/limits while remaining as precise as needed, for **both** the orchestrator and every subagent:
 
 - **`heavy`**: high risk, auth/security, concurrency, data migrations, shared interfaces across >3 modules, or adversarial crossfire.
 - **`medium`**: open design decisions inside the ticket, multi-file coordination, tricky debugging, or high-risk implementer/reviewer.
@@ -82,7 +82,7 @@ Status: todo
 Blocked by: T<nn>, ... | none
 Wave: <n>
 Risk: normal | high
-Orchestrator: heavy | medium | standard | fast — <why>
+Orchestrator: heavy | medium | standard | fast: <why>
 Budget: ~<n>k of 300k (overhead <n>k, reads <n>k, <n> subagents <n>k, diff and gate <n>k, margin <n>k)
 
 ## What to build

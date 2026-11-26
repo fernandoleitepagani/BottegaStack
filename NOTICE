@@ -1,0 +1,11 @@
+bottega includes material adapted from these MIT-licensed projects. Their copyright notices are kept here as the MIT license requires.
+
+pstack (https://github.com/cursor/plugins/tree/main/pstack)
+Copyright (c) 2026 Lauren Tan
+Full license text: LICENSE
+
+mattpocock/skills (https://github.com/mattpocock/skills), adapted in skills/plan and skills/tickets
+Copyright (c) Matt Pocock
+Licensed under the MIT License, the same terms as LICENSE.
+
+skills/frontend-design is adapted from anthropics/skills under the Apache License 2.0; see skills/frontend-design/LICENSE.txt.

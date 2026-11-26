@@ -1,6 +1,6 @@
-# Codex Harness
+# Codex Harness (Experimental, #46)
 
-Everything in this directory is exclusive to **Codex**.
+Everything in this directory is exclusive to **Codex**. Status: **experimental** (see [harnesses/README.md](../README.md#subagent-dispatch-across-harnesses) for subagent dispatch and symlink caveats).
 
 ## Install
 
@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **Codex**.
 ./harnesses/codex/install.sh
 ```
 
-Symlinks all 16 skills into `~/.codex/skills/bottega-<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
+Symlinks all 16 skills into `~/.codex/skills/<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
 
 ## Subagents
 

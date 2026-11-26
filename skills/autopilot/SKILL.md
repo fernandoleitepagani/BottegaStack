@@ -33,7 +33,7 @@ The user's request for an `/autopilot` run is the permission for these steps (ha
 - Use any test method the proof needs (run the app or dev server, a `verify-<app>` skill) without asking first.
 - In `/ship full` mode only (and two-way-door diffs only): merge a PR once all gates pass.
 
-Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) still pauses: deploys, data deletion, customer messages, force-push to shared branches, and forge-enforced approvals.
+Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) still pauses; that list is the single source.
 
 ## Every mode
 
@@ -59,6 +59,6 @@ Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) 
 
 ## Decision trail
 
-Any unattended run keeps an append-only trail in `.bottega/decisions.tsv` (or `.bottega/<task-slug>.tsv`), columns `ts phase decision why evidence result`, written with `../maestro/scripts/log.sh`. Log decision points (forks, unit verdicts, pivots/reverts, blockers)—one row per loop iteration, evidence as pointers (SHA, PR, `file:line`, artifact path). Before handing back, audit the trail against the session transcript; at high risk, have a `reviewer` check it. Keep it local (never commit unless asked).
+Any unattended run keeps an append-only trail in `.bottega/decisions.tsv` (or `.bottega/<task-slug>.tsv`), columns `ts phase decision why evidence result`, written with `../maestro/scripts/log.sh`. Log decision points (forks, unit verdicts, pivots/reverts, blockers): one row per loop iteration, evidence as pointers (SHA, PR, `file:line`, artifact path). Before handing back, audit the trail against the session transcript; at high risk, have a `reviewer` check it. Keep it local (never commit unless asked).
 
 **Reply:** Catch the user up per **Catch-up** in `../maestro/references/explore.md`: exit condition and whether it holds, each PR's state and link, what was discarded/dropped and why, and any calls waiting on the user. Run through `../unslop/SKILL.md`.

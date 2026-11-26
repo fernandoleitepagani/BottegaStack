@@ -16,6 +16,8 @@ Pick one, and say which:
 - **changed**: one PR ships proven doc, harness, or map corrections.
 - **blocked**: coverage could not finish or a proven fix could not ship safely. Say exactly what blocked it.
 
+A feature marked `verified-unreachable` (Pass step 4) counts as covered for **clean** and **changed**; list each one with its prerequisite and the route tried.
+
 ## Edit scope
 
 Only edit the verification skill's own directory (its SKILL.md, features/, and any harness scripts it owns). Never edit product code during a run: a behavior the map describes that the app no longer does is either doc drift (fix the map) or a product regression (report it, don't paper over it in docs).

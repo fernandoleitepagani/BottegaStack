@@ -1,6 +1,6 @@
-# OpenCode Harness
+# OpenCode Harness (Experimental, #46)
 
-Everything in this directory is exclusive to **OpenCode**.
+Everything in this directory is exclusive to **OpenCode**. Status: **experimental** (see [harnesses/README.md](../README.md#subagent-dispatch-across-harnesses) for subagent dispatch and symlink caveats).
 
 ## Install
 
@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **OpenCode**.
 ./harnesses/opencode/install.sh
 ```
 
-Symlinks all 16 skills into `~/.config/opencode/skills/bottega-<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
+Symlinks all 16 skills into `~/.config/opencode/skills/<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
 
 ## Subagents
 

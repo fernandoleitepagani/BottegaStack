@@ -18,6 +18,7 @@ import fnmatch
 import glob
 import json
 import os
+import signal
 import re
 import shutil
 import subprocess
@@ -107,13 +108,6 @@ PLUGIN = None
 
 
 def command(task, arm, args):
-    if args.harness == "agy":
-        if arm == "baseline":
-            prompt = task["prompt"]
-        else:
-            pdir = "<plugin copy>" if args.dry_run else plugin_copy()
-            prompt = f"Follow {pdir}/skills/maestro/SKILL.md. {task['prompt']}"
-        return ["agy", "-p", prompt, "--model", args.model, "--effort", args.effort]
     prompt = task["prompt"] if arm == "baseline" else f"/bottega:maestro {task['prompt']}"
     cmd = [
         "claude", "-p", prompt,
@@ -359,20 +353,22 @@ def run_one(task, arm, trial, args):
     cmd = command(task, arm, args)
     start = time.time()
     try:
+        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+        # Own session so a timeout can kill delegates and sandboxed grandchildren too;
+        # otherwise they keep the pipes open and communicate() never returns.
+        p = subprocess.Popen(cmd, cwd=workdir, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             text=True, env=env, start_new_session=True)
         try:
-            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-            p = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True, timeout=args.timeout, env=env)
-            raw, stderr, exit_code = p.stdout, p.stderr, p.returncode
-        except subprocess.TimeoutExpired as e:
-            raw = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
-            stderr = (e.stderr or b"").decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            raw, stderr = p.communicate(timeout=args.timeout)
+            exit_code = p.returncode
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            raw, stderr = p.communicate()
             exit_code = "timeout"
-        if args.harness == "agy":
-            info = {"result": raw.strip(), "turns": None, "duration_ms": None, "tokens": None,
-                    "cache_read": None, "cost_usd": None, "denied": 0, "tool_calls": {},
-                    "skills_read": [], "tool_uses": []}
-        else:
-            info = parse_stream(raw)
+        info = parse_stream(raw)
         info["raw"] = raw
         lines, files = changed_lines(workdir)
         checks = grade(task, workdir, info, arm, changed=bool(files)) + expect_checks(task, lines, files)
@@ -468,7 +464,6 @@ def main():
     ap.add_argument("--tasks", default="")
     ap.add_argument("--arms", default="bottega,baseline")
     ap.add_argument("--trials", type=int, default=1)
-    ap.add_argument("--harness", choices=("claude", "agy"), default="claude")
     ap.add_argument("--model", default="sonnet")
     ap.add_argument("--effort", default="low")
     ap.add_argument("--timeout", type=int, default=900)
@@ -485,8 +480,7 @@ def main():
     if args.selftest:
         sys.exit(1 if selftest(tasks) else 0)
     global SETTINGS
-    if args.harness == "claude":
-        SETTINGS = sandbox_settings()
+    SETTINGS = sandbox_settings()
     if args.dry_run:
         for t in tasks:
             for a in arms:

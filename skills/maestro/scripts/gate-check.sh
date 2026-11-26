@@ -185,7 +185,7 @@ fi
 [ "$(awk -F'\t' 'NR > 1 && $2 == "run" { r = $5 } END { print r }' "$ledger")" = "risk=high" ] && risk=high
 rows=$(awk -F'\t' 'NR > 1 { if ($2 == "run") buf = ""; else buf = buf $0 "\n" } END { printf "%s", buf }' "$ledger")
 # Compute all run metrics in a single awk pass (latest proof per condition counts).
-eval "$(printf '%s' "$rows" | awk -F'\t' '
+IFS=$'\t' read -r proofs conditions pass fail inconclusive waived bad_waivers crossfire <<< "$(printf '%s' "$rows" | awk -F'\t' '
 	$2 == "condition" { conditions++ }
 	$2 == "proof" {
 		proofs++
@@ -193,7 +193,10 @@ eval "$(printf '%s' "$rows" | awk -F'\t' '
 		last[$3] = $6
 		last_ev[$3] = $5
 	}
-	$2 == "crossfire" { cf = $6 }
+	$2 == "crossfire" {
+		if ($6 == "PASS" || $6 == "FAIL") cf = $6
+		else cf = "INVALID"
+	}
 	END {
 		for (i = 1; i <= n; i++) {
 			c = order[i]; r = last[c]
@@ -205,7 +208,7 @@ eval "$(printf '%s' "$rows" | awk -F'\t' '
 				if (last_ev[c] !~ /^user:/) bad_waivers++
 			}
 		}
-		printf "proofs=%d; conditions=%d; pass=%d; fail=%d; inconclusive=%d; waived=%d; bad_waivers=%d; crossfire=\"%s\"\n", \
+		printf "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", \
 			proofs+0, conditions+0, pass+0, fail+0, inconclusive+0, waived+0, bad_waivers+0, cf
 	}')"
 

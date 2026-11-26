@@ -4,7 +4,7 @@ How `/implement` reviews a finished diff and fixes what the review proves. The g
 
 ## The reviewers (two parallel axes)
 
-Spawn two fresh `bottega:maestro-agent` reviewers in parallel on the reviewer role (`subagents.md`), never the agent that wrote the code. Give each only the diff command (`git diff <merge-base>`), check output paths, and its axis input—never the implementer's self-assessment:
+Spawn two fresh `bottega:maestro-agent` reviewers in parallel on the reviewer role (`subagents.md`), never the agent that wrote the code. Give each only the diff command (`git diff <merge-base>`), check output paths, and its axis input, never the implementer's self-assessment:
 
 1. **Spec reviewer:** Gets the ticket/spec (or stated goal) + diff. Checks: does the diff meet every acceptance criterion, cover edge cases, and avoid scope creep (no unrequested changes, no files outside the write list)?
 2. **Standards reviewer:** Gets repo conventions/principles + diff. Checks: type safety, boundary validation, dead code, test seams (would tests fail if behavior broke?), and security/high-risk traps.
@@ -15,7 +15,7 @@ Spawn two fresh `bottega:maestro-agent` reviewers in parallel on the reviewer ro
 
 ## Verifier swarm (large high-risk diff, or opted-in `/ship full`)
 
-For large high-risk diffs (>100 lines or >2 files), or when the user opts into stronger pre-merge verification on `/ship full`, spawn **2–3 parallel `heavy` verifiers** (default 3 at high risk, tunable 1–4):
+For large high-risk diffs (>100 lines or >2 files), or when the user opts into stronger pre-merge verification on `/ship full`, spawn **parallel `heavy` verifiers** (3 by default, tunable 1–4):
 
 1. **Regression verifier:** Drives existing features end-to-end via the project's `verify-<app>` skill (if present) or integration suite to catch regressions outside the diff.
 2. **Edge-case / boundary fuzzer:** Attacks malformed inputs, empty/zero/many states, concurrency, retries, restarts, and permission boundaries using the **Adversarial brief** below.

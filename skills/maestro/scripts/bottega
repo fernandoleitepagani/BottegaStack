@@ -10,6 +10,7 @@
 #   bottega ship --draft|--ready --title "<title>" --body "<body>"
 #   bottega followup add "<title>" "<file:line>" "<what was hit>" "<suggested fix>"
 #   bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"
+#   bottega garden done "<pattern>" | clear
 #   bottega worktree audit [worktree-audit.sh args...]
 #   bottega hygiene
 set -euo pipefail
@@ -31,10 +32,13 @@ detect_checks() {
 	local cmds=()
 	if [ -f package.json ]; then
 		local scripts_block
-		scripts_block="$(awk '/"scripts"[[:space:]]*:[[:space:]]*\{/{f=1;next} f&&/\}/{f=0} f' package.json 2>/dev/null || true)"
+		scripts_block="$(awk '/"scripts"[[:space:]]*:[[:space:]]*\{[[:space:]]*\}/{next} /"scripts"[[:space:]]*:[[:space:]]*\{/{f=1;next} f&&/\}/{f=0} f' package.json 2>/dev/null || true)"
 		printf '%s\n' "$scripts_block" | grep -q '"typecheck"[[:space:]]*:' && cmds+=("npm run typecheck")
 		printf '%s\n' "$scripts_block" | grep -q '"lint"[[:space:]]*:' && cmds+=("npm run lint")
-		printf '%s\n' "$scripts_block" | grep -q '"test"[[:space:]]*:' && cmds+=("npm test")
+		if printf '%s\n' "$scripts_block" | grep -q '"test"[[:space:]]*:' \
+			&& ! printf '%s\n' "$scripts_block" | grep -q '"test"[[:space:]]*:.*no test specified'; then
+			cmds+=("npm test")
+		fi
 	fi
 	if [ -f pyproject.toml ] || [ -f pytest.ini ]; then
 		command -v pytest >/dev/null 2>&1 && cmds+=("pytest -q")
@@ -88,7 +92,7 @@ cmd_verify() {
 
 	if [ "$run_detected" -eq 1 ] && [ -f .bottega/checks.env ]; then
 		while IFS= read -r line || [ -n "$line" ]; do
-			[ -n "$line" ] && checks+=("$line")
+			if [ -n "$line" ]; then checks+=("$line"); fi
 		done < .bottega/checks.env
 	fi
 
@@ -153,13 +157,15 @@ cmd_ship() {
 				break
 			fi
 		done
-		local changed=""
-		if [ -n "$base" ]; then
-			changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || true)"
+		if [ -z "$base" ]; then
+			echo "error: cannot determine base branch for one-way-door check; --ready is blocked (use --draft / /ship stop)" >&2
+			exit 1
 		fi
+		local changed=""
+		changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || true)"
 		if [ -n "$changed" ]; then
 			local owd
-			owd="$(printf '%s\n' "$changed" | grep -Ei '(^|/)(migrations?|schema|auth|billing|deploy)(/|\.|_|-|$)|^\.github/workflows/' || true)"
+			owd="$(printf '%s\n' "$changed" | grep -Ei '(^|/)(data_)?migrations?(/|\.|_|-|$)|(^|/)(schema|auth|billing|payments?|security|permissions?|deploy|infra|terraform|drop|delete)(/|\.|_|-|$)|\.tf$|^\.github/workflows/' || true)"
 			if [ -n "$owd" ]; then
 				echo "error: one-way-door files changed; --ready is blocked (use --draft / /ship stop):" >&2
 				printf '%s\n' "$owd" | sed 's/^/  - /' >&2
@@ -197,12 +203,40 @@ cmd_followup() {
 }
 
 cmd_garden() {
-	[ "${1:-}" = "add" ] && [ $# -eq 4 ] || { echo 'error: usage: bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"' >&2; exit 2; }
-	shift
-	mkdir -p .bottega
-	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
-	printf -- '- [ ] %s | %s | %s\n' "$1" "$2" "$3" >> .bottega/garden.md
-	echo "bottega: logged pattern to .bottega/garden.md"
+	case "${1:-}" in
+	add)
+		[ $# -eq 4 ] || { echo 'error: usage: bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"' >&2; exit 2; }
+		shift
+		mkdir -p .bottega
+		[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
+		printf -- '- [ ] %s | %s | %s\n' "$1" "$2" "$3" >> .bottega/garden.md
+		echo "bottega: logged pattern to .bottega/garden.md"
+		;;
+	done)
+		[ $# -eq 2 ] || { echo 'error: usage: bottega garden done "<pattern>"' >&2; exit 2; }
+		[ -f .bottega/garden.md ] || { echo "error: .bottega/garden.md not found" >&2; exit 1; }
+		local pat="$2" tmp_g
+		tmp_g="$(mktemp .bottega/garden.XXXXXX)"
+		awk -v p="$pat" '
+			index($0, "- [ ] " p " |") == 1 { sub(/^- \[ \]/, "- [x]"); matched = 1 }
+			{ print }
+			END { exit(matched ? 0 : 1) }
+		' .bottega/garden.md > "$tmp_g" || { rm -f "$tmp_g"; echo "error: pattern not found in .bottega/garden.md: $pat" >&2; exit 1; }
+		mv "$tmp_g" .bottega/garden.md
+		echo "bottega: marked done in .bottega/garden.md: $pat"
+		;;
+	clear)
+		[ $# -eq 1 ] || { echo 'error: usage: bottega garden clear' >&2; exit 2; }
+		if [ -f .bottega/garden.md ]; then
+			: > .bottega/garden.md
+		fi
+		echo "bottega: cleared .bottega/garden.md"
+		;;
+	*)
+		echo 'error: usage: bottega garden add|done|clear ...' >&2
+		exit 2
+		;;
+	esac
 }
 
 cmd_worktree() {

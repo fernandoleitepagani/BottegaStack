@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Maestro
 
-Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship` and `/autopilot` directly.
+Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/correct`, `/garden`, `/unslop`, `/frontend-design`, `/create-verification-skill`, and `/maintain-verification-skill` directly.
 
 ## Before any other tool call
 
@@ -14,7 +14,7 @@ Unless the task is the light route:
 
 1. Read `references/delegate.md` and `references/final-gate.md` in full, and, for any code change, `../implement/SKILL.md`. Follow `/implement` instead of editing from this file. Size is never a reason to skip it.
 2. **Open the run before your first edit or spawn** (`final-gate.md` step 0) on any code-changing run; read-only routes (exploration, `/plan`, `/reframe`, `/recall`, `/triage`) skip the ledger. An edit made before opening is invisible to the gate.
-3. **Read `references/subagents.md` before your first spawn.** Every `Agent` call passes `model` and `effort` from its role, and every `bottega:maestro-agent` brief starts with this file's absolute path, so the delegate reads this copy of `delegate.md`, never another installed one.
+3. **Read `references/subagents.md` (and `~/.bottega/models.md` or `~/.claude/rules/bottega-models.md` if present) before your first spawn.** Every `Agent` call passes `model` and `effort` from its role (respecting any user override), and every `bottega:maestro-agent` brief starts with this file's absolute path, so the delegate reads this copy of `delegate.md`, never another installed one.
 
 ## Route
 
@@ -31,13 +31,15 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | A question or a symptom to diagnose, no change | `references/explore.md`, read-only |
 | A design fork that only seeing it can settle | `references/prototype.md` |
 | Run while the user is away, or run a ticket plan unattended | `/autopilot` (`../autopilot/SKILL.md`) |
+| Audit recent commits and `.bottega/followups.md` for recurring shortcuts | `/garden` (`../garden/SKILL.md`) |
+| Keep a project's `verify-<app>` skill in sync with app changes | `/maintain-verification-skill` (`../maintain-verification-skill/SKILL.md`) |
 | Pause, or resume earlier work | `references/handoff.md` |
 | Clean up worktrees | `references/worktree-cleanup.md` |
 | A docs or config change with no runtime effect | the light route below |
 
 **Light route.** Markdown, `.gitignore`, a version bump, a settings value (a code comment is code): edit, check it (render, parse, lint, or rerun the one command it affects), and reply with the diff summary and the check. Runtime config (CI, build, deploy, flags, dependencies), or any doubt, goes to `/implement`.
 
-Every change to tracked files ends at the final gate (`references/final-gate.md`). APPROVE only on `bottega verify` (or `gate-check.sh`) exit 0. A one-line fix is no exception.
+Every change to tracked files (except the light route above) ends at the final gate (`references/final-gate.md`). APPROVE only on `bottega verify` (or `gate-check.sh`) exit 0. A one-line fix is no exception.
 
 ## Confidence
 
@@ -51,7 +53,7 @@ Act when you are at least 95% sure what the user wants. Below that, observe what
 
 Reversible work follows **Never Block on the Human**: decide, proceed, report. "Don't stop", "going to bed", "run until done" mean keep going.
 
-**Always pause** for: force-push to a branch this run did not create, deploys, data deletion (including removing a worktree that holds uncommitted, untracked or ignored files), and messages to customers. This is the only always-pause list.
+**Always pause** for: force-push to a branch this run did not create, deploys, data deletion (including removing a worktree that holds uncommitted, untracked or ignored files), bypassing forge-enforced approvals, and messages to customers. This is the only always-pause list.
 
 Prefer CLIs (`git`, `gh`, project scripts) over MCP tools; ask once per MCP server per session, and before every MCP write. No is an acceptable answer: say when something doesn't earn its place.
 

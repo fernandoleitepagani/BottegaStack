@@ -1,6 +1,6 @@
 # Evals
 
-A small, repeatable check that bottega makes agents do better work than plain Claude Code. It complements a one-off blind comparison, which designs a one-off blinded experiment for a single skill change. This harness is the fixed baseline you rerun after every change to the stack.
+A small, repeatable check that bottega makes agents do better work than plain Claude Code. A one-off blind comparison suits a single skill change; this harness is the fixed baseline you rerun after every change to the stack.
 
 Nothing here ships with the plugin. `plugin.json` only loads `./skills` and `./harnesses/claude/agents/maestro-agent.md`.
 
@@ -54,13 +54,13 @@ Each task is `tasks/<name>/` with `task.json` (prompt, grade checks, limits, opt
 
 ## Blinding and isolation
 
-Work dirs get neutral names (`ledger-x1y2`). The plugin is copied to a neutral temp folder, so candidates can't find `evals/`. Prompts read like a user's request. Hidden checks are named `hidden_check_*.py` and arrive after the agent finishes.
+Work dirs get neutral names (`ledger-x1y2`). The plugin is copied to a neutral temp folder, so candidates can't find `evals/`. Prompts read like a user's request. Hidden checks live in each task's `hidden/` folder as `check_*.py`, are copied in as `hidden_check_*.py`, and arrive after the agent finishes.
 
 Each run passes `--settings` with Claude Code's sandbox on and sandboxed Bash auto-allowed. Bash can write only to the work dir and a per-user temp dir, and has no network. Your `settings.json` is not touched. An earlier per-command allowlist denied ordinary compound commands (`cat a && ls`) and skewed results, mostly against bottega, which writes more of them. `AskUserQuestion` is denied in `dontAsk` mode, so a run that wants to ask must ask in its reply.
 
 ## Token budget
 
-A full run is 12 tasks × 2 arms × 1 trial at `--model sonnet --effort low`, about $3. The first four tasks are easy on purpose (both arms pass); the last four are where the arms should differ on correctness, so run them with `--trials 2` or more. Each run disables any installed `bottega@*` plugin through `--settings`, so the baseline arm stays plain and the bottega arm loads only the copy under test. Bottega's subagents still use the models from the role table, which is part of what is measured.
+A full run is 12 tasks × 2 arms × 1 trial at `--model sonnet --effort low`, about $3. The first five tasks are easy on purpose (both arms pass); the last four are where the arms should differ on correctness, so run them with `--trials 2` or more. Each run disables any installed `bottega@*` plugin through `--settings`, so the baseline arm stays plain and the bottega arm loads only the copy under test. Bottega's subagents still use the models from the role table, which is part of what is measured.
 
 To spend less:
 
@@ -131,7 +131,7 @@ Use it after any edit to `maestro`, `plan`, `tickets`, `implement`, a reference 
 
 Things an automated eval can't see. Run them by hand in a scratch repo after installing or changing bottega.
 
-- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: all 16 skills (`/maestro`, `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/correct`, `/garden`, `/unslop`, `/frontend-design`, `/create-verification-skill`, `/maintain-verification-skill`) appear under `/`.
+- **Install.** `claude plugin marketplace add <path-to-repo>`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: all 16 skills (`/maestro`, `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/correct`, `/garden`, `/unslop`, `/frontend-design`, `/create-verification-skill`, `/maintain-verification-skill`) appear under `/`.
 - **Subagents.** In a `/maestro` run that spawns, the transcript shows `subagent_type: "bottega:maestro-agent"` with a `model` and `effort` from the table, and background spawns.
 - **A real run.** The first reply names the goal, the smallest change, and the risk; a vague request gets a question; `--start` runs before the first edit; the reply ends with a Decision block and one `Next:` line; nothing is committed unless you asked.
 - **Plan and tickets.** `/plan` on a multi-session prompt asks numbered questions with recommended answers and looks facts up instead of asking; the spec holds only what you said. `/tickets` shows the table and asks before writing; each ticket has a budget under 300k, a subagent table, a wave, and an orchestrator level.

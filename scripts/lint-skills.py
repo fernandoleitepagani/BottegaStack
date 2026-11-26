@@ -16,7 +16,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SKILLS = os.path.join(ROOT, "skills")
 AUTO_INVOKE = set()
-NOT_INDEXED = {"maestro"}
+NOT_INDEXED = set()
 problems = []
 
 
@@ -80,7 +80,7 @@ for t in set(named) - set(principles):
 
 words = {8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen"}
 COUNTED = (
-    ["README.md", "evals/README.md"]
+    ["README.md", "evals/README.md", "harnesses/README.md"]
     + ["docs/guide/" + f for f in sorted(os.listdir(os.path.join(ROOT, "docs", "guide"))) if f.endswith(".md")]
     + [f"harnesses/{h}/README.md" for h in sorted(os.listdir(os.path.join(ROOT, "harnesses")))
        if os.path.isfile(os.path.join(ROOT, "harnesses", h, "README.md"))]
@@ -88,7 +88,7 @@ COUNTED = (
 for path in COUNTED:
     text = read(*path.split("/"))
     for kind, want in (("skills", len(skills)), ("principles", len(principles))):
-        for m in re.finditer(r"\b(\d+|[A-Z]?[a-z]+teen|eight|nine|ten)\s+(?:bundled\s+)?" + kind + r"\b", text):
+        for m in re.finditer(r"\b(\d+|[A-Z]?[a-z]+teen|eight|nine|ten)\s+(?:(?:bundled|core)\s+)?" + kind + r"\b", text):
             got = m.group(1).lower()
             if got.isdigit() or got in words.values():
                 if got not in (str(want), words.get(want, "")):

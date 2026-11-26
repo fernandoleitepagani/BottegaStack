@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Sharpen
 
-Use standalone on a rough prompt, or at the end of `/plan` right before writing `spec.md`. Do not expand scope—deepen precision without adding features.
+Use standalone on a rough prompt, or at the end of `/plan` right before writing `spec.md`. Do not expand scope; deepen precision without adding features.
 
 ## Steps
 

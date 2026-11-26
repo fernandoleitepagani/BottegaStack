@@ -19,7 +19,7 @@ claude plugin install bottega@bottega
 
 Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan` is also `/bottega:plan`; use the prefix when Claude Code's built-in `/plan` clashes (built-in plan mode stays off during grilling). bottega uses no hooks.
 
-**Antigravity CLI, Codex, and OpenCode:** run the harness installer (`./harnesses/antigravity/install.sh`, `./harnesses/codex/install.sh`, or `./harnesses/opencode/install.sh`). See [`harnesses/`](./harnesses/).
+**Antigravity CLI, Codex, and OpenCode (experimental, #46):** run the harness installer (`./harnesses/antigravity/install.sh`, `./harnesses/codex/install.sh`, or `./harnesses/opencode/install.sh`). See [`harnesses/`](./harnesses/) for status and subagent dispatch notes.
 
 **platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Python is used only by the developer lint and evals. Native Windows is not supported; under WSL, bottega runs as on Linux.
 
@@ -47,7 +47,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 
 ## skills
 
-16 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
+16 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs on Claude Code. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
 
 | skill | use it when |
 |---|---|
@@ -103,7 +103,7 @@ bottega does not drive or screenshot a UI: the agent says what to look at and yo
 
 ## license
 
-MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE).
+MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
 
 ## credits
 

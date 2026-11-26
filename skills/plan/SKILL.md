@@ -28,7 +28,7 @@ Keep built-in plan mode off: it pushes the agent to write a plan before the ques
 
 Work the decisions as a tree. A decision is on the **frontier** when every decision it depends on is settled.
 
-1. **Each round, ask the whole frontier directly in chat.** Number each question. Give your recommended answer and its reason in one line each, worded so that "yes" accepts it. Do not call interactive form/question tools—just ask clearly in your reply and stop.
+1. **Each round, ask the whole frontier directly in chat.** Number each question. Give your recommended answer and its reason in one line each, worded so that "yes" accepts it. Do not call interactive form/question tools; just ask clearly in your reply and stop.
 2. **Facts are not questions.** Anything the code, git, or docs can answer goes to an explorer subagent, never to the user. Ask the user only for product calls, preferences, priorities, and constraints.
 3. **Ungrillable questions go to a prototype.** When the answer depends on seeing it (layout, feel, timing, which approach is faster), build a throwaway per `<maestro dir>/references/prototype.md` and ask the user to react to it.
 4. **Push back.** If an answer conflicts with the code, an earlier answer, or the goal, say so with the evidence and ask again. "I don't know" is a valid answer: record it as an open question with your default.

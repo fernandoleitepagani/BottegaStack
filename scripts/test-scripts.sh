@@ -174,34 +174,71 @@ else fail "bottega hygiene warns on >150-line CLAUDE.md"; fi
 "$maestro/bottega" garden add "unsafe cast" "src/a.ts:9" "3 commits use as any" >/dev/null \
 	&& grep -qF -- "- [ ] unsafe cast | src/a.ts:9 | 3 commits use as any" .bottega/garden.md \
 	&& pass "bottega garden add writes formatted row" || fail "bottega garden add writes formatted row"
+"$maestro/bottega" garden done "unsafe cast" >/dev/null \
+	&& grep -qF -- "- [x] unsafe cast | src/a.ts:9 | 3 commits use as any" .bottega/garden.md \
+	&& pass "bottega garden done marks matching row" || fail "bottega garden done marks matching row"
+"$maestro/bottega" garden clear >/dev/null \
+	&& [ ! -s .bottega/garden.md ] \
+	&& pass "bottega garden clear empties garden.md" || fail "bottega garden clear empties garden.md"
 "$maestro/bottega" worktree audit -b HEAD --no-sizes >/dev/null 2>&1 \
 	&& pass "bottega worktree audit wraps worktree-audit.sh" || fail "bottega worktree audit wraps worktree-audit.sh"
 git checkout -q -b feat-migration && mkdir -p migrations && echo "DROP TABLE x;" > migrations/001.sql && git_q add migrations/001.sql && git_q commit -qm "add migration"
 if "$maestro/bottega" ship --ready --title "drop x" --body "test" 2>&1 | grep -q "one-way-door"; then
 	pass "bottega ship --ready blocks one-way-door migration"
 else fail "bottega ship --ready blocks one-way-door migration"; fi
-if "$maestro/bottega" --help | grep -qv "set -euo pipefail"; then
+if ! "$maestro/bottega" --help | grep -q "set -euo pipefail"; then
 	pass "bottega --help prints usage without set -euo pipefail"
 else fail "bottega --help prints usage without set -euo pipefail"; fi
-printf 'true\n' > .bottega/checks.env
+printf 'true\n\n' > .bottega/checks.env
 if "$maestro/bottega" verify --run-detected >/dev/null 2>&1; then
 	fail "bottega verify --run-detected should still enforce gate-check.sh"
-else pass "bottega verify --run-detected enforces gate-check.sh"; fi
+else pass "bottega verify --run-detected enforces gate-check.sh (with blank line in checks.env)"; fi
 
-# Harness installer smoke tests (install, idempotent re-run, --help, unknown flag, --uninstall).
-inst_dir="$tmp/agy-skills"
+# npm placeholder test script should be skipped by detect_checks.
+npm_dir="$tmp/npm-placeholder"
+mkdir -p "$npm_dir" && (
+	cd "$npm_dir"
+	printf '{\n  "scripts": {\n    "test": "echo \\"Error: no test specified\\" && exit 1"\n  }\n}\n' > package.json
+	"$maestro/bottega" start "npm test skip" --condition "c" >/dev/null
+	[ ! -f .bottega/checks.env ]
+) && pass "bottega skips npm placeholder test script" || fail "bottega skips npm placeholder test script"
+empty_dir="$tmp/npm-empty-scripts"
+mkdir -p "$empty_dir" && (
+	cd "$empty_dir"
+	printf '{\n  "scripts": {},\n  "jest": {\n    "test": "x"\n  }\n}\n' > package.json
+	"$maestro/bottega" start "empty scripts" --condition "c" >/dev/null
+	[ ! -f .bottega/checks.env ]
+) && pass "bottega reads one-line empty scripts block as empty" || fail "bottega reads one-line empty scripts block as empty"
+
+# Harness installer smoke tests, per harness: install, link resolution, legacy cleanup, name clash, --help, unknown flag, --uninstall.
 repo_root="$(cd "$maestro/../../.." && pwd -P)"
-BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" >/dev/null \
-	&& [ -L "$inst_dir/bottega-maestro" ] \
-	&& pass "install.sh symlinks skills into target dir" || fail "install.sh symlinks skills into target dir"
-BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" --help >/dev/null \
-	&& pass "install.sh --help exits 0" || fail "install.sh --help exits 0"
-if BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" --bogus >/dev/null 2>&1; then
-	fail "install.sh rejects unknown flags"
-else pass "install.sh rejects unknown flags"; fi
-BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" --uninstall >/dev/null \
-	&& [ ! -e "$inst_dir/bottega-maestro" ] \
-	&& pass "install.sh --uninstall removes bottega symlinks" || fail "install.sh --uninstall removes bottega symlinks"
+for h in antigravity:AGY codex:CODEX opencode:OPENCODE; do
+	name="${h%%:*}"; var="BOTTEGA_${h##*:}_SKILLS_DIR"
+	inst_dir="$tmp/$name-skills"; inst="$repo_root/harnesses/$name/install.sh"
+	mkdir -p "$inst_dir" && ln -s "$repo_root/skills/plan" "$inst_dir/bottega-plan"
+	env "$var=$inst_dir" "$inst" >/dev/null \
+		&& [ -L "$inst_dir/maestro" ] && [ "$(readlink "$inst_dir/maestro")" = "$repo_root/skills/maestro" ] \
+		&& pass "$name install.sh links skills under their real names" || fail "$name install.sh links skills under their real names"
+	[ ! -e "$inst_dir/bottega-plan" ] \
+		&& pass "$name install.sh removes legacy bottega-<name> links" || fail "$name install.sh removes legacy bottega-<name> links"
+	# Sibling links resolve both through the symlink and lexically (the path text itself).
+	(cd "$inst_dir/maestro" && [ -f ../implement/SKILL.md ]) && [ -f "$inst_dir/implement/SKILL.md" ] \
+		&& pass "$name install.sh: ../<skill>/SKILL.md resolves physically and lexically" || fail "$name install.sh: ../<skill>/SKILL.md resolves physically and lexically"
+	env "$var=$inst_dir" "$inst" >/dev/null \
+		&& pass "$name install.sh re-run is idempotent" || fail "$name install.sh re-run is idempotent"
+	clash="$tmp/$name-clash"; mkdir -p "$clash/plan"
+	if env "$var=$clash" "$inst" >/dev/null 2>&1; then fail "$name install.sh refuses a foreign skill with the same name"
+	elif [ -e "$clash/maestro" ]; then fail "$name install.sh clash leaves nothing half-installed"
+	else pass "$name install.sh refuses a name clash before linking anything"; fi
+	env "$var=$inst_dir" "$inst" --help >/dev/null \
+		&& pass "$name install.sh --help exits 0" || fail "$name install.sh --help exits 0"
+	if env "$var=$inst_dir" "$inst" --bogus >/dev/null 2>&1; then fail "$name install.sh rejects unknown flags"
+	else pass "$name install.sh rejects unknown flags"; fi
+	ln -s /nonexistent "$inst_dir/someone-else"
+	env "$var=$inst_dir" "$inst" --uninstall >/dev/null \
+		&& [ ! -e "$inst_dir/maestro" ] && [ ! -L "$inst_dir/maestro" ] && [ -L "$inst_dir/someone-else" ] \
+		&& pass "$name install.sh --uninstall removes only Bottega links" || fail "$name install.sh --uninstall removes only Bottega links"
+done
 
 echo
 [ "$fails" -eq 0 ] && echo "all script tests passed" || echo "$fails script test(s) failed"
