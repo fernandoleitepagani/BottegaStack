@@ -1,0 +1,11 @@
+### Figure it out
+
+**You own the workflow. When no playbook fits, design one, run it, and leave a trail a human can audit.** Adapted from pstack's `figure-it-out` (MIT, see LICENSE). For a large migration, an ambitious multi-part change, or work someone reviews after stepping away.
+
+1. **Frame.** Ground in the code first (explorers, `investigation.md`). Then state done as a checkable predicate (**Prove It Works**), the scope (rough units and the blockers you found), and the rigor level, biased high: one-way doors (router **Risk**) and wide blast radius get more gates. Present the framing once before a long run; reversible work proceeds (**Never Block on the Human**).
+2. **Design the phases.** Split the work into units that each land on their own, riskiest unknown first, scaffolding and the verification harness before features (**Shape Before Logic**, **Sequence Work into Verifiable Units**). Capture the baseline before changing anything, so each check reads "old vs new". Parallelize only across seams, each writer in its own worktree (**Separate Before Serializing Shared State**). For a planned rewrite or migration, aim at the end state (**Outcome-Oriented Execution**). Write the phase list down; that list is what the human reviews. Work that needs decisions or more than one session goes to `/plan` instead.
+3. **Run each phase through its playbook.** A code phase runs `bug-fix.md`, `feature.md`, `refactoring.md` or `small-fix.md`, each from `bottega start` to `final-gate.md`. Treat each unit as an experiment: state the hypothesis, make the smallest change, check it on the real artifact, keep it if it advanced, revert it if not. A verdict is verified, not verified, or inconclusive; inconclusive is not a pass.
+4. **Keep the trail.** One row per decision in `.bottega/decisions.tsv` with `<maestro dir>/scripts/log.sh`, written as each step lands, not at the end. Commit it only when the reviewer needs it to trust the result.
+5. **Hand back.** Check the whole against the step 1 predicate on the real product. Turn any correction you made twice into a check (`/correct`, **Mechanize It**).
+
+**Reply:** the phases you designed, the rigor level and why, the trail path, what is verified against the predicate, and what is still open.

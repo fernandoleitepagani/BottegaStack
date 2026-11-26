@@ -48,6 +48,7 @@ Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) 
 ## `queue` and `program`
 
 8. **Orchestrator-driven leaf delegation.** The main session owns the ticket/PR queue, wave ordering, and final gate; each unit's leaf `implementer` runs in its own isolated worktree (router **Subagents**) as the only writer of its branch. Cap fan-out: worktree runs share CPU, ports, and disk.
+8a. **Stack only real dependencies** (adapted from pstack's `autopilot-stack`). A ticket whose `Blocked by` tickets are open PRs, not yet merged, is based on its parent's branch instead of trunk and rebases onto that branch when the parent changes; every other ticket branches from trunk. `/ship stop` hands the stack over verified; `/ship full` lands it bottom-up (`../ship/SKILL.md`, **Existing PR or Stack**).
 8b. **Ticket status.** In a ticket queue, set each ticket's `Status` (`in-progress`, `done`, `blocked: <why>`) and its `PLAN.md` row as `/implement` does (`../implement/SKILL.md`, **Close the ticket**).
 9. **Start with one unit.** Take the first PR through kickoff, verification, and `/ship` before fanning out, so a flawed kickoff costs one unit.
 10. **Verify independently.** Nothing ships until fresh reviewers that never wrote the code prove it. Run `../review/SKILL.md` (at high risk or opted-in `/ship full`, use the high-risk review chosen by `../review/SKILL.md` (**High-risk split**), with a live lane through `verify-<app>` when present).

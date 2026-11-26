@@ -1,6 +1,6 @@
 # Steer with principle names
 
-The 17 principles live on one page, [`skills/maestro/principles.md`](../../skills/maestro/principles.md). Agents name each one that changed a decision. You can use the same names to steer mid-task:
+The 18 principles live on one page, [`skills/maestro/principles.md`](../../skills/maestro/principles.md). Agents name each one that changed a decision. You can use the same names to steer mid-task:
 
 ```text
 apply delete first. what can go before you add anything?

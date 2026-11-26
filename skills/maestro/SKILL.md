@@ -24,6 +24,7 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | New behavior that fits one session | `playbooks/feature.md` |
 | Restructure without changing behavior: rename, move, extract, delete, migrate callers | `playbooks/refactoring.md` |
 | A ticket path | `/implement` (`../implement/SKILL.md`), which picks one of the four above |
+| Large or unusual work no playbook fits (a migration, an ambitious multi-part change) | `playbooks/figure-it-out.md` |
 | Work that needs decisions, or more than one session | `/plan` (`../plan/SKILL.md`) → `/sharpen` → `/tickets` |
 | A question, or a symptom to diagnose, no change | `playbooks/investigation.md` |
 | "Catch me up", or the end of an unattended run | `playbooks/investigation.md` (**Catch-up**) |

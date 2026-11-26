@@ -156,7 +156,7 @@ for path in COUNTED:
                     problems.append(f"{path}: says '{m.group(0)}', there are {want} {kind}")
 
 # Skills that were cut must not be named as live anywhere a user or agent reads.
-CUT = ["understand", "crossfire", "parallel", "architect", "wayfinder", "figure-it-out", "setup-maestro", "pr",
+CUT = ["understand", "crossfire", "parallel", "architect", "wayfinder", "setup-maestro", "pr",
        "grill", "unattended",
        "interface-review", "better-interface", "better-accessibility", "better-colors", "better-layout",
        "better-typography", "better-ui", "better-writing", "tdd"]

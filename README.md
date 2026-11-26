@@ -92,7 +92,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 | [`/swarm`](./skills/swarm/SKILL.md) | fan out parallel workers and merge one report; also the high-risk verifier swarm for a large diff. |
 | [`/setup-bottega`](./skills/setup-bottega/SKILL.md) | pick a model and effort for every role at each difficulty; writes `~/.bottega/models.md`. |
 
-`/maestro` is a router: it picks one **playbook** per task from [`skills/maestro/playbooks/`](./skills/maestro/playbooks/) and loads only that one (small fix, bug fix, feature, refactoring, investigation, prototype, pause safely, session pickup, worktree cleanup, authoring a skill), and the code playbooks end at the shared final-gate playbook. Delegates read [`worker.md`](./skills/maestro/worker.md); the 17 principles are one page, [`principles.md`](./skills/maestro/principles.md). `/review`, `/blast-radius`, `/swarm` and `/setup-bottega` are skills of their own, called by the playbooks or by you.
+`/maestro` is a router: it picks one **playbook** per task from [`skills/maestro/playbooks/`](./skills/maestro/playbooks/) and loads only that one (small fix, bug fix, feature, refactoring, figure it out, investigation, prototype, pause safely, session pickup, worktree cleanup, authoring a skill), and the code playbooks end at the shared final-gate playbook. Delegates read [`worker.md`](./skills/maestro/worker.md); the 18 principles are one page, [`principles.md`](./skills/maestro/principles.md). `/review`, `/blast-radius`, `/swarm` and `/setup-bottega` are skills of their own, called by the playbooks or by you.
 
 ## risk and the final gate
 
@@ -120,7 +120,7 @@ Run `/setup-bottega` (or `/maestro setup`) to pick a model and effort for every 
 
 ## principles
 
-17 principles on one page: [`skills/maestro/principles.md`](./skills/maestro/principles.md). Agents name each one that changed a decision, and you can use the names to steer ([guide](./docs/guide/07-principles.md)).
+18 principles on one page: [`skills/maestro/principles.md`](./skills/maestro/principles.md). Agents name each one that changed a decision, and you can use the names to steer ([guide](./docs/guide/07-principles.md)).
 
 ## not shipped here
 

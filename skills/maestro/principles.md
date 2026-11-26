@@ -8,7 +8,7 @@ Start every change by asking what can go. Remove dead code, one-caller wrappers 
 
 ## Shape Before Logic
 
-Pick the data shape before writing logic: a state machine over scattered booleans, a table or registry over branching, a typed model over repeated shape assumptions, a module that owns one body of knowledge rather than one step of a pipeline. Scaffold first (CI, test setup, shared types). The sign you skipped it: one more `if` branch, or a second boolean that must stay in sync with the first.
+Pick the data shape before writing logic: a state machine over scattered booleans, a table or registry over branching, a typed model over repeated shape assumptions, a module that owns one body of knowledge rather than one step of a pipeline. Scaffold first (CI, test setup, shared types). The sign you skipped it: one more `if` branch, or a second boolean that must stay in sync with the first. Don't force it: keep boring code when the shape is clear, local and unlikely to grow, and distrust a structure that adds indirection without removing branches or invalid states.
 
 ## Redesign from First Principles
 
@@ -41,6 +41,10 @@ Every state-changing step must converge to the same end state if it runs twice o
 ## Migrate Callers Then Delete Legacy APIs
 
 Replacing an internal API: move every caller and delete the old one in the same wave. No shims, aliases, or dual paths. Update tests to the new contract and delete tests that only protected the old internals.
+
+## Outcome-Oriented Execution
+
+In a planned rewrite or migration, converge on the target end state instead of keeping every intermediate step smooth with throwaway compatibility code, which becomes long-lived debt. Declare where temporary breakage is allowed, keep checks on the areas you touch, and require full verification at each phase boundary and at the end.
 
 ## Separate Before Serializing Shared State
 
