@@ -1,6 +1,6 @@
 # Make it yours
 
-maestro is one person's style. The routing, the plan and ticket formats, and the model roles underneath it work just as well with yours. This page covers capturing follow-ups, fixing the repo so agents stop repeating mistakes, authoring a focused skill, and testing a skill change before you trust it.
+maestro is one person's style. The routing, the plan and ticket formats, and the model roles underneath it work just as well with yours. This page covers capturing follow-ups, fixing the repo so agents stop repeating mistakes, authoring a focused skill, and trying a skill change before you trust it.
 
 Start smaller than you think. You don't need many skills on day one, or even this whole plugin. Prompt plainly, watch where agents fail, and add a skill or a check when the same failure shows up twice.
 
@@ -41,7 +41,7 @@ When you already know the workflow you want to capture:
 /maestro write a skill for verifying database migrations in this repo
 ```
 
-Writing a skill is a normal `/implement` run: keep only prose that changes a decision, run `python3 scripts/lint-skills.py`, and open the PR through the final gate (`references/final-gate.md`, **Opening a PR**). Agent-facing prose has a higher bar than human prose, because an unhelpful sentence becomes an instruction some future agent follows.
+Writing a skill is a normal `/implement` run: keep only prose that changes a decision, and open the PR through the final gate (`references/final-gate.md`, **Opening a PR**). Agent-facing prose has a higher bar than human prose, because an unhelpful sentence becomes an instruction some future agent follows.
 
 One special case has its own generators. A skill that must run your app and prove behavior is a verification skill, so use [`/create-verification-skill`](../../skills/create-verification-skill/SKILL.md) and [`/maintain-verification-skill`](../../skills/maintain-verification-skill/SKILL.md) instead. [Verify and ship](./05-verify-and-ship.md#create-a-project-verification-skill) covers it.
 
@@ -57,6 +57,6 @@ Skills aren't the only prose you ship. For docs, readmes, PR descriptions, and c
 
 ## Test a skill change
 
-A skill edit affects every future session. For bottega itself, run the evals in `evals/` before and after a structural change (see `evals/README.md`). Fix a misbehaving skill in its own PR, not tangled into feature work.
+A skill edit affects every future session. Run the changed skill on one real task before you trust it, and fix a misbehaving skill in its own PR, not tangled into feature work.
 
 Next: [Recipes and pitfalls](./09-recipes-and-pitfalls.md).

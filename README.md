@@ -21,7 +21,7 @@ Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan`
 
 **Antigravity CLI, Codex, and OpenCode (experimental, #46):** run the harness installer (`./harnesses/antigravity/install.sh`, `./harnesses/codex/install.sh`, or `./harnesses/opencode/install.sh`). See [`harnesses/`](./harnesses/) for status and subagent dispatch notes.
 
-**platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Python is used only by the developer lint and evals. Native Windows is not supported; under WSL, bottega runs as on Linux.
+**platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Native Windows is not supported; under WSL, bottega runs as on Linux.
 
 ## the workflow
 
@@ -109,5 +109,5 @@ MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE) and [NOTIC
 ## credits
 
 - `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega. `wizard` and its `template.sh` library are adapted from the same repo's `wizard` skill.
-- The `/autopilot` skill, handoff rules, and explore reference are original works by the bottega author, drawing on pstack.
+- The `/autopilot` skill and the explore reference are original works by the bottega author, drawing on pstack. The prototype, handoff and two-axis review references adapt Matt Pocock's `prototype`, `handoff` and `code-review`; worktree cleanup adapts pstack's playbook.
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), adapted under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).

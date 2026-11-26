@@ -1,9 +1,0 @@
-{
-  "kind": "feature",
-  "prompt": "add `--pending` and `--done` flags to `todo.py list` so i can see only unfinished or only finished items. keep the original item numbers in the output so `done <n>` still works.",
-  "grade": [
-    {"name": "hidden tests pass", "run": "python3 -m unittest -q hidden_check_todo"}
-  ],
-  "hidden": {"check_todo.py": "hidden_check_todo.py"},
-  "expect": {"max_changed_lines": 40}
-}

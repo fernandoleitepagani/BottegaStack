@@ -1,10 +1,10 @@
 bottega includes material adapted from these MIT-licensed projects. Their copyright notices are kept here as the MIT license requires.
 
-pstack (https://github.com/cursor/plugins/tree/main/pstack)
+pstack (https://github.com/cursor/plugins/tree/main/pstack), including skills/maestro/references/worktree-cleanup.md and skills/maestro/scripts/worktree-audit.sh
 Copyright (c) 2026 Lauren Tan
 Full license text: LICENSE
 
-mattpocock/skills (https://github.com/mattpocock/skills), adapted in skills/plan, skills/tickets and skills/wizard (including skills/wizard/template.sh)
+mattpocock/skills (https://github.com/mattpocock/skills), adapted in skills/plan, skills/tickets, skills/wizard (including skills/wizard/template.sh), and skills/maestro/references/{prototype,prototype-logic,prototype-ui,handoff,review}.md
 Copyright (c) Matt Pocock
 Licensed under the MIT License, the same terms as LICENSE.
 

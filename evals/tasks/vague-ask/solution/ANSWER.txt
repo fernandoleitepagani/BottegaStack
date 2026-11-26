@@ -1,1 +1,0 @@
-Before changing anything: which call is slow for you, and on what input size? summary() sorts the list twice, once per percentile. Should I sort once and share it?
