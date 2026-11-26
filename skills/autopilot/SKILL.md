@@ -33,7 +33,7 @@ The user's request for an `/autopilot` run is the permission for these steps (ha
 - Use any test method the proof needs (run the app or dev server, a `verify-<app>` skill) without asking first.
 - In `/ship full` mode only (and two-way-door diffs only): merge a PR once all gates pass.
 
-Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) still pauses; that list is the single source.
+Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) still pauses; that list is the single source. A unit that needs the user's hands gets a wizard (`../wizard/SKILL.md`): log it as blocked with the wizard's path, move on to the next unit, and resume it once the wizard's outputs exist.
 
 ## Every mode
 

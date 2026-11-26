@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **OpenCode**. Status: **experimenta
 ./harnesses/opencode/install.sh
 ```
 
-Symlinks all 16 skills into `~/.config/opencode/skills/<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
+Symlinks all 17 skills into `~/.config/opencode/skills/<name>`. Uninstall with `./harnesses/opencode/install.sh --uninstall`.
 
 ## Subagents
 

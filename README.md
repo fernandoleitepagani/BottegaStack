@@ -47,7 +47,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 
 ## skills
 
-16 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs on Claude Code. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
+17 skills. Each sets `disable-model-invocation: true`, so none costs context until it runs on Claude Code. [`SKILLS-INDEX.md`](./skills/maestro/SKILLS-INDEX.md) lists them with sizes.
 
 | skill | use it when |
 |---|---|
@@ -67,6 +67,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 | [`/frontend-design`](./skills/frontend-design/SKILL.md) | you want a distinct visual direction for new UI. Agents write the code; you check the rendered result. |
 | [`/create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. Generates a `verify-<app>` skill with a feature map. |
 | [`/maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. |
+| [`/wizard`](./skills/wizard/SKILL.md) | a step needs your hands: a dashboard, an API key, a CI secret, a cutover. Writes a script that walks you through it and saves the values. |
 
 Everything else is a short reference file under [`skills/maestro/references/`](./skills/maestro/references/), read only when a step needs it: exploring code and answering questions, review and fix rounds, prototypes, handoffs, worktree cleanup, the final gate, the role table, abstract model tiers (`models.md`), and the principles.
 
@@ -107,6 +108,6 @@ MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE) and [NOTIC
 
 ## credits
 
-- `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega.
+- `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega. `wizard` and its `template.sh` library are adapted from the same repo's `wizard` skill.
 - The `/autopilot` skill, handoff rules, and explore reference are original works by the bottega author, drawing on pstack.
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), adapted under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).

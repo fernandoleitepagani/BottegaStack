@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Maestro
 
-Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/correct`, `/garden`, `/unslop`, `/frontend-design`, `/create-verification-skill`, and `/maintain-verification-skill` directly.
+Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` its `SKILL.md` and follow it; the Skill tool can't start them (they set `disable-model-invocation`). The user can also call `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/correct`, `/garden`, `/unslop`, `/frontend-design`, `/create-verification-skill`, `/maintain-verification-skill`, and `/wizard` directly.
 
 ## Before any other tool call
 
@@ -33,6 +33,7 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | Run while the user is away, or run a ticket plan unattended | `/autopilot` (`../autopilot/SKILL.md`) |
 | Audit recent commits and `.bottega/followups.md` for recurring shortcuts | `/garden` (`../garden/SKILL.md`) |
 | Keep a project's `verify-<app>` skill in sync with app changes | `/maintain-verification-skill` (`../maintain-verification-skill/SKILL.md`) |
+| A step only the user can do: a dashboard, credentials, CI secrets, a one-off migration | `/wizard` (`../wizard/SKILL.md`) |
 | Pause, or resume earlier work | `references/handoff.md` |
 | Clean up worktrees | `references/worktree-cleanup.md` |
 | A docs or config change with no runtime effect | the light route below |
@@ -53,7 +54,7 @@ Act when you are at least 95% sure what the user wants. Below that, observe what
 
 Reversible work follows **Never Block on the Human**: decide, proceed, report. "Don't stop", "going to bed", "run until done" mean keep going.
 
-**Always pause** for: force-push to a branch this run did not create, deploys, data deletion (including removing a worktree that holds uncommitted or untracked files, or `.bottega/` run state), bypassing forge-enforced approvals, and messages to customers. This is the only always-pause list.
+**Always pause** for: force-push to a branch this run did not create, deploys, data deletion (including removing a worktree that holds uncommitted or untracked files, or `.bottega/` run state), bypassing forge-enforced approvals, and messages to customers. This is the only always-pause list. When a pause needs the user to act, not just approve, hand them a wizard (`../wizard/SKILL.md`) instead of a list of steps.
 
 Prefer CLIs (`git`, `gh`, project scripts) over MCP tools; ask once per MCP server per session, and before every MCP write. No is an acceptable answer: say when something doesn't earn its place.
 

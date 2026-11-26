@@ -26,5 +26,8 @@ One line per bundled skill: `name (~SKILL.md tokens, +references loaded only whe
 - `create-verification-skill` (~1.7k, +1.4k refs): generate a project `verify-<app>` skill that drives the app through CLI, API, process, or tests.
 - `maintain-verification-skill` (~1.3k): keep that skill and its feature map honest.
 
+## Human steps
+- `wizard` (~1.1k, +template): write an interactive bash script that walks the user through steps only they can do (dashboards, credentials, CI secrets, a cutover) and writes the values where they belong.
+
 ## Principles
 17 principles on one page, `references/principles.md` (~1.3k tokens).

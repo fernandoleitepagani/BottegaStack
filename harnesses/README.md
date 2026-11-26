@@ -1,6 +1,6 @@
 # Harnesses
 
-Bottega's 16 core skills under [`skills/`](../skills/) are harness-agnostic. Each directory here holds the thin installer and adapter for a specific agent harness:
+Bottega's 17 core skills under [`skills/`](../skills/) are harness-agnostic. Each directory here holds the thin installer and adapter for a specific agent harness:
 
 | Harness | Status | Install | Target |
 |---|---|---|---|

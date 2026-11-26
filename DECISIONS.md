@@ -21,7 +21,7 @@ Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Poc
 - **`/tickets`** cuts vertical tracer-bullet slices, each sized for one fresh orchestrator session: **300k tokens, ±10%** (hard limit 330k), counting only the orchestrator's own context, estimated from file sizes. Each ticket names what the orchestrator does, a table of subagents (role, tier, task, write scope, which run together), blocked-by edges, a wave, and an abstract model tier (`heavy`, `medium`, `standard`, `fast`, translated per harness in `references/models.md`). Tickets that write the same file are serialized.
 - **`/implement`** runs one ticket per fresh session (or one small direct task): explore, shape before logic, pin behavior by kind (bug, refactor, feature), delegate, verify, review (parallel Spec + Standards axes), final gate, then mark the ticket done and list what it unblocked. It replaces the bug-fix, feature, refactoring and investigate playbooks.
 - **`/maestro`** is a one-page front door: a routing table plus the shared rules (confidence, risk, autonomy, subagents, context, replies).
-- **Skills (16):** maestro, reframe, recall, triage, plan, sharpen, tickets, implement, ship, autopilot, correct, garden, unslop, frontend-design, create- and maintain-verification-skill. Every one sets `disable-model-invocation: true`.
+- **Skills (17):** maestro, reframe, recall, triage, plan, sharpen, tickets, implement, ship, autopilot, correct, garden, unslop, frontend-design, create- and maintain-verification-skill, wizard. Every one sets `disable-model-invocation: true`.
 - **References under `maestro/references/`**, read only when a step needs them: `delegate.md`, `final-gate.md`, `subagents.md`, `models.md`, `principles.md`, `explore.md` (was `understand` and Investigate), `review.md` (was `crossfire` and `parallel`), `prototype.md`, `handoff.md`, `worktree-cleanup.md`.
 - **Principles:** 17, on one page, each a short section. Delegates read a section before applying it.
 
@@ -54,6 +54,8 @@ Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Poc
 ## Dropped
 
 The 8 UI review skills (`interface-review`, `better-interface`, `better-accessibility`, `better-colors`, `better-layout`, `better-typography`, `better-ui`, `better-writing`; current models handle these domains without a skill, and `frontend-design` stays for visual direction), `understand`, `crossfire` and `parallel` (folded into `explore.md` and `review.md`), the 8 playbooks (folded into `/implement` and the references), the throughput checkpoint, the explainer, runners and judge roles, `pr`, `architect`, `figure-it-out`, `wayfinder` (folded into `/plan` map mode), `setup-maestro`, the status line, progress files, `doctor.py`, `check-plan.mjs`, `security-scan.sh`, the Antigravity eval mode (it couldn't score code tasks), a release process (tags, CHANGELOG; history lives in git and `plugin.json` is bumped by hand), and earlier cuts recorded in git.
+
+- **Human steps become scripts.** When a run needs the user's hands (dashboards, credentials, CI secrets, a cutover), `/wizard` writes an interactive bash script from a fixed library (adapted from mattpocock/skills, MIT) instead of a list of steps. The agent never runs it; it proves it statically. Unattended runs log the unit as blocked and move on.
 
 ## Later
 

@@ -185,6 +185,37 @@ else fail "bottega --help prints usage without set -euo pipefail"; fi
 if "$maestro/bottega" verify --risk normal >/dev/null 2>&1; then fail "bottega verify refuses to run with no --check"
 else pass "bottega verify refuses to run with no --check"; fi
 
+repo_root="$(cd "$maestro/../../.." && pwd -P)"
+# wizard template: library runs non-interactively, writes .env at 0600, upserts, and records a skipped secret when gh isn't ready (gh is stubbed so no real secret is ever set).
+wiz_dir="$tmp/wizard" && mkdir -p "$wiz_dir/bin" && printf '#!/bin/sh\nexit 1\n' > "$wiz_dir/bin/gh" && chmod +x "$wiz_dir/bin/gh" && (
+	cd "$wiz_dir"
+	sed '/^run_wizard() {$/,$d' "$repo_root/skills/wizard/template.sh" > w.sh
+	cat >> w.sh <<'WIZ'
+run_wizard() {
+TOTAL_STAGES=1
+stage "Keys"
+ask KEY_A "Key A:"
+ask_secret KEY_B "Key B:"
+write_env KEY_A "$KEY_A"
+write_env KEY_B "$KEY_B"
+set_secret KEY_B "$KEY_B"
+finish
+}
+run_wizard "$@"; exit
+WIZ
+	printf "KEY_A='old'\n" > .env
+	printf "\nit's\n" | PATH="$wiz_dir/bin:/usr/bin:/bin" bash w.sh >out.txt 2>&1 || exit 1
+	grep -qxF "KEY_A='old'" .env && grep -qxF "KEY_B='it'\\''s'" .env \
+		&& [ "$(grep -c '^KEY_A=' .env)" -eq 1 ] && grep -q "still to do by hand" out.txt
+) && pass "wizard template: ask keeps existing value, upserts .env, quotes, skips gh when missing" || fail "wizard template: ask keeps existing value, upserts .env, quotes, skips gh when missing"
+fresh="$tmp/wizard-fresh" && mkdir -p "$fresh" && (
+	cd "$fresh"
+	cp "$wiz_dir/w.sh" .
+	printf 'a\nb\n' | PATH="$wiz_dir/bin:/usr/bin:/bin" bash w.sh >/dev/null 2>&1 || exit 1
+	perm="$(stat -c %a .env 2>/dev/null || stat -f %Lp .env)"
+	[ "$perm" = 600 ]
+) && pass "wizard template: creates .env at mode 0600" || fail "wizard template: creates .env at mode 0600"
+
 # Harness installer smoke tests, per harness: install, link resolution, legacy cleanup, name clash, --help, unknown flag, --uninstall.
 repo_root="$(cd "$maestro/../../.." && pwd -P)"
 for h in antigravity:ANTIGRAVITY codex:CODEX opencode:OPENCODE; do

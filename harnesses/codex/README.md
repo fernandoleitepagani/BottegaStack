@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **Codex**. Status: **experimental**
 ./harnesses/codex/install.sh
 ```
 
-Symlinks all 16 skills into `~/.codex/skills/<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
+Symlinks all 17 skills into `~/.codex/skills/<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
 
 ## Subagents
 

@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **Antigravity CLI**. Status: **expe
 ./harnesses/antigravity/install.sh
 ```
 
-This symlinks every skill in `skills/` into `~/.agents/skills/<name>` so Antigravity CLI discovers them automatically (all 16 skills use the standard `SKILL.md` + YAML frontmatter format).
+This symlinks every skill in `skills/` into `~/.agents/skills/<name>` so Antigravity CLI discovers them automatically (all 17 skills use the standard `SKILL.md` + YAML frontmatter format).
 
 To uninstall:
 
