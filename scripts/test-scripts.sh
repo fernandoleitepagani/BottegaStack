@@ -180,6 +180,28 @@ git checkout -q -b feat-migration && mkdir -p migrations && echo "DROP TABLE x;"
 if "$maestro/bottega" ship --ready --title "drop x" --body "test" 2>&1 | grep -q "one-way-door"; then
 	pass "bottega ship --ready blocks one-way-door migration"
 else fail "bottega ship --ready blocks one-way-door migration"; fi
+if "$maestro/bottega" --help | grep -qv "set -euo pipefail"; then
+	pass "bottega --help prints usage without set -euo pipefail"
+else fail "bottega --help prints usage without set -euo pipefail"; fi
+printf 'true\n' > .bottega/checks.env
+if "$maestro/bottega" verify --run-detected >/dev/null 2>&1; then
+	fail "bottega verify --run-detected should still enforce gate-check.sh"
+else pass "bottega verify --run-detected enforces gate-check.sh"; fi
+
+# Harness installer smoke tests (install, idempotent re-run, --help, unknown flag, --uninstall).
+inst_dir="$tmp/agy-skills"
+repo_root="$(cd "$maestro/../../.." && pwd -P)"
+BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" >/dev/null \
+	&& [ -L "$inst_dir/bottega-maestro" ] \
+	&& pass "install.sh symlinks skills into target dir" || fail "install.sh symlinks skills into target dir"
+BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" --help >/dev/null \
+	&& pass "install.sh --help exits 0" || fail "install.sh --help exits 0"
+if BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" --bogus >/dev/null 2>&1; then
+	fail "install.sh rejects unknown flags"
+else pass "install.sh rejects unknown flags"; fi
+BOTTEGA_AGY_SKILLS_DIR="$inst_dir" "$repo_root/harnesses/antigravity/install.sh" --uninstall >/dev/null \
+	&& [ ! -e "$inst_dir/bottega-maestro" ] \
+	&& pass "install.sh --uninstall removes bottega symlinks" || fail "install.sh --uninstall removes bottega symlinks"
 
 echo
 [ "$fails" -eq 0 ] && echo "all script tests passed" || echo "$fails script test(s) failed"

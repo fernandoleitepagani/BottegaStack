@@ -50,3 +50,10 @@ Wait for the user's choice before running any write/push command.
    - For legitimate failures: fix the root cause, re-run `bottega verify` to keep the proof ledger green, commit, push, and watch checks again.
    - If the same check fails twice on the same premise, or requires an irreversible/product decision, **stop and escalate** to the user instead of looping.
 4. **Merge:** Once all required checks are green and no blocking review comments remain, merge (`gh pr merge --squash --delete-branch`, or `--auto` if branch protection requires it) and report the merged PR URL.
+
+## Existing PR or Stack (`babysit` / `land`)
+
+When the user asks to babysit an existing PR (e.g. `babysit PR #N` or `get this PR green`) or land a stack of PRs (`land the stack`):
+
+1. **Skip PR creation:** Check out the PR branch (`gh pr checkout <N>`), verify no one-way-door surfaces are being auto-merged, and jump straight to **Mode 1, steps 3–4** (babysit CI/review bots, fix legitimate failures, re-run `bottega verify`, and merge).
+2. **Stacked PRs:** Order the stack bottom-up (base PR first). For each PR in order: verify it with a fresh reviewer if not already verified at its current head, watch CI until green, merge, confirm the merge via `gh pr view`, and rebase/retarget the next PR in the stack onto trunk before proceeding.

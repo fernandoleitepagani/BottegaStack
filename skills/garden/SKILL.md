@@ -14,7 +14,7 @@ Never edit product files during a `/garden` run.
 
 ### 1. `scan` (collect into buffer)
 Use after a wave of PRs, on a target directory, or from a scheduled CI check:
-1. Spawn a read-only `explorer` subagent to inspect `git log --since="2 weeks ago" --stat` (or the requested window/directory) and sample 10–15 representative commits—prioritizing larger diffs, bugfixes, and `full-send` merges.
+1. Spawn a read-only `explorer` subagent to inspect `git log --since="2 weeks ago" --stat` (or the requested window/directory) and sample 10–15 representative commits—prioritizing larger diffs, bugfixes, and `/ship full` merges.
 2. Ignore one-off nits. Extract only **recurring** agent shortcuts or smells (e.g., repeated `as any` / type casts, duplicated helpers, swallowed errors, bypassed abstractions, brittle mocks, growing monolithic files).
 3. Append each finding via `../maestro/scripts/bottega garden add "<pattern>" "<file:line or commit>" "<evidence>"` (writes to `.bottega/garden.md` and ensures `.bottega/.gitignore`).
 4. Run `../maestro/scripts/bottega hygiene` to check `CLAUDE.md`/`AGENTS.md` line counts. Report how many entries were appended and stop. Do not fix anything yet.

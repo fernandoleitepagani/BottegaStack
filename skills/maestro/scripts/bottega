@@ -20,7 +20,7 @@ LOG="$SCRIPT_DIR/log.sh"
 WT_AUDIT="$SCRIPT_DIR/worktree-audit.sh"
 
 usage() {
-	sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 
@@ -120,6 +120,8 @@ cmd_verify() {
 
 	if [ "${#gate_args[@]}" -gt 0 ]; then
 		"$GATE" "${gate_args[@]}"
+	else
+		"$GATE"
 	fi
 }
 
@@ -142,8 +144,10 @@ cmd_ship() {
 		exit 1
 	fi
 	if [ "$mode" = "ready" ]; then
-		local base="" cand
-		for cand in origin/main origin/master main master; do
+		local base="" cand origin_head=""
+		origin_head="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+		for cand in "$origin_head" origin/main origin/master main master; do
+			[ -n "$cand" ] || continue
 			if git rev-parse --verify --quiet "$cand" >/dev/null 2>&1; then
 				base="$cand"
 				break
@@ -157,7 +161,7 @@ cmd_ship() {
 			local owd
 			owd="$(printf '%s\n' "$changed" | grep -Ei '(^|/)(migrations?|schema|auth|billing|deploy)(/|\.|_|-|$)|^\.github/workflows/' || true)"
 			if [ -n "$owd" ]; then
-				echo "error: one-way-door files changed; --ready is blocked (use --draft / full-stop):" >&2
+				echo "error: one-way-door files changed; --ready is blocked (use --draft / /ship stop):" >&2
 				printf '%s\n' "$owd" | sed 's/^/  - /' >&2
 				exit 1
 			fi
@@ -169,6 +173,10 @@ cmd_ship() {
 	fi
 	if ! "$GATE" >/dev/null 2>&1; then
 		echo "error: final gate not passed; run bottega verify before shipping" >&2
+		exit 1
+	fi
+	if ! command -v gh >/dev/null 2>&1 || ! gh auth status >/dev/null 2>&1; then
+		echo "error: gh CLI is not installed or not authenticated; run 'gh auth login' before shipping" >&2
 		exit 1
 	fi
 	git push -u origin "$branch"

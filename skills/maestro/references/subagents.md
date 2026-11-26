@@ -20,6 +20,6 @@ Read before your first spawn. Concrete model + effort values come from `referenc
 
 **Fresh subagents by default.** New work (a fix round, a follow-up, a retry, the next queue item) goes to a fresh subagent with consolidated scope: the original brief, every later directive, and the prior agent's report and branch. Resume an existing subagent only when the work needs state that lives in it and is costly to move.
 
-**Every spawn:** file pointers instead of pasted context, isolated worktree/share beside another writer, and the absolute path of the maestro `SKILL.md` for implementers and reviewers.
+**Every spawn:** file pointers instead of pasted context, isolated worktree/share beside another writer, and the absolute path of the maestro `SKILL.md` for implementers and reviewers. On Antigravity, Codex, and OpenCode (which do not use Claude's `maestro-agent.md`), start every implementer/reviewer brief with: `Read <maestro dir>/references/delegate.md before starting.`
 
 **Fan-out ask.** Before spawning more than 3 agents at once, ask the user, unless a full-autonomy grant covers it.

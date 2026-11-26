@@ -244,7 +244,7 @@ def check(g, workdir, info):
         return all(i.get("model") for i in spawns), f"{len(spawns)} spawns"
     if "opened_first" in g:
         start_re = re.compile(r"(?:gate-check\.sh[^\n]*--start|\bbottega\s+start\b)")
-        edit_re = re.compile(r"\bsed\s+-i|\bperl\s+-pi|\btee\b|>\s*[\w./-]+")
+        edit_re = re.compile(r"\bsed\s+-i|\bperl\s+-pi|\btee\b|>(?!\s*(?:/dev/null\b|/tmp/))\s*[\w./-]+")
         first_start = first_edit = None
         for i, (n, inp) in enumerate(uses):
             cmd = str(inp.get("command", "")) if n == "Bash" else ""

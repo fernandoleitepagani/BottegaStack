@@ -13,7 +13,7 @@ Bundled skills live at `../<name>/SKILL.md` from this file. To run one, `Read` i
 Unless the task is the light route:
 
 1. Read `references/delegate.md` and `references/final-gate.md` in full, and, for any code change, `../implement/SKILL.md`. Follow `/implement` instead of editing from this file. Size is never a reason to skip it.
-2. **Open the run before your first edit or spawn** (`final-gate.md` step 0). An edit made before it is invisible to the gate.
+2. **Open the run before your first edit or spawn** (`final-gate.md` step 0) on any code-changing run; read-only routes (exploration, `/plan`, `/reframe`, `/recall`, `/triage`) skip the ledger. An edit made before opening is invisible to the gate.
 3. **Read `references/subagents.md` before your first spawn.** Every `Agent` call passes `model` and `effort` from its role, and every `bottega:maestro-agent` brief starts with this file's absolute path, so the delegate reads this copy of `delegate.md`, never another installed one.
 
 ## Route
@@ -27,7 +27,7 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | More than one bug report, issue, or PR to sort or fix | `/triage` (`../triage/SKILL.md`) |
 | Work that needs decisions, or more than one session | `/plan` (`../plan/SKILL.md`) → `/sharpen` (`../sharpen/SKILL.md`) → `/tickets` (`../tickets/SKILL.md`) |
 | A ticket path, or a small clear change that fits one session | `/implement` (`../implement/SKILL.md`) |
-| Ship a verified, gate-approved diff (draft PR or full-send to merge) | `/ship` (`../ship/SKILL.md`) |
+| Ship a verified, gate-approved diff (`/ship stop` draft PR or `/ship full` to merge) | `/ship` (`../ship/SKILL.md`) |
 | A question or a symptom to diagnose, no change | `references/explore.md`, read-only |
 | A design fork that only seeing it can settle | `references/prototype.md` |
 | Run while the user is away, or run a ticket plan unattended | `/autopilot` (`../autopilot/SKILL.md`) |
@@ -45,7 +45,7 @@ Act when you are at least 95% sure what the user wants. Below that, observe what
 
 ## Risk
 
-**High** when the change touches auth, security, money, data migrations or deletion, concurrency, a public API, or anything hard to undo (one-way doors), or when the user says so. Otherwise **normal** (two-way doors). Risk only rises during a run; say when and why. It picks the column of the role table, turns on adversarial review, and forces one-way doors to `full-stop` (draft PR) in `/ship`.
+**High** when the change touches auth, security, money, data migrations or deletion, concurrency, a public API, or anything hard to undo (one-way doors), or when the user says so. Otherwise **normal** (two-way doors). Risk only rises during a run; say when and why. It picks the column of the role table, turns on adversarial review, and forces one-way doors to `/ship stop` (draft PR).
 
 ## Autonomy
 
