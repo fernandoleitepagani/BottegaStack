@@ -59,7 +59,7 @@ For a high-risk diff over 100 lines or 2 files, or when the user opts into it on
 2. **Edge cases:** run the **Adversarial brief** below.
 3. **Contract:** try to violate the acceptance criteria, state invariants or public contracts; include a blast-radius pass (`../blast-radius/SKILL.md`) on the riskiest shared interface.
 
-Only findings with a runnable reproduction count. Merge them into one list for `../review/SKILL.md` **Verify findings** and **Fix step**, and log the combined verdict as the `crossfire` row (`../maestro/playbooks/final-gate.md`, **Crossfire row**).
+Only findings with a runnable reproduction count. Merge them into one list for `../review/SKILL.md` **Verify findings**, then `../review/fix.md`, and log the combined verdict as the `crossfire` row (`../maestro/playbooks/final-gate.md`, **Crossfire row**).
 
 ## Adversarial brief (the edge-case slice)
 
