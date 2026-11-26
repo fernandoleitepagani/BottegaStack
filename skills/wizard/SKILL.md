@@ -38,7 +38,7 @@ Copy `template.sh` to `.bottega/wizards/<slug>.sh` (untracked, one run) or, when
 - Open the URL before asking for its value.
 - `ask_secret` for anything secret; `write_env` every value that persists.
 - `set_secret` only the names CI actually reads.
-- `confirm` before every irreversible action.
+- `confirm` before every irreversible action, always as `if confirm "..."; then ...; fi` (a bare `confirm` answered no exits the script under `set -e`).
 - One focused task per stage: each stage clears the screen.
 - Keep every stage inside `run_wizard` and the last line as is, so an edit mid-run can't break a running script.
 

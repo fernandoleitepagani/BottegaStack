@@ -26,7 +26,7 @@ By the ticket's kind, read one of these in `<maestro dir>/playbooks/` and follow
 
 A ticket that mixes kinds runs the structural part as Refactoring first, then the rest.
 
-**Context budget.** Your own limit for this session is 300k tokens, ±10%. Past about 270k, finish the current step and run `<maestro dir>/playbooks/pause-safely.md`. Never pass 330k.
+**Context.** When the session's context is nearly full, finish the current step and run `<maestro dir>/playbooks/pause-safely.md`.
 
 ## 3. Close the ticket
 
@@ -34,4 +34,4 @@ After the playbook's final gate:
 
 - **Ticket mode:** tick the acceptance criteria that passed, set `Status: done` (or `blocked: <why>` on ESCALATE), and update the ticket's row in `PLAN.md`. List the tickets this one unblocked and the command to start each, with the model level each one names.
 
-**Reply:** the playbook's reply, then the principles that changed a choice, the context you used against the 300k budget, and the next tickets.
+**Reply:** the playbook's reply, then the principles that changed a choice, and the next tickets.

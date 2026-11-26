@@ -49,7 +49,7 @@ Uninstall with `claude plugin uninstall bottega`, `agy plugin uninstall bottega`
 ```
 /maestro <prompt>          routes the prompt; big work goes to /plan
 /plan                      grills you one decision at a time, writes .bottega/plans/<slug>/spec.md
-/tickets                   one ticket per session (300k tokens ±10%), roles, waves, models → PLAN.md
+/tickets                   one ticket per session, roles, waves, models → PLAN.md
 /clear, /model <level>     a fresh session per ticket, with the model the ticket names
 /implement <ticket>        explore, shape, delegate, verify, review, final gate
 ```
@@ -59,7 +59,6 @@ Small, clear changes skip the plan: `/maestro fix the off-by-one in pagination` 
 Each ticket file carries:
 
 - what to build (one vertical slice) and acceptance criteria written as runnable checks
-- a budget for the orchestrator's own context (300k, ±10%, subagents excluded), itemized
 - what the orchestrator does itself, and a table of subagents: role (explorer, implementer, reviewer, verifier), abstract tier, task, write scope, and which run together
 - blocked by and wave: `PLAN.md` lists which tickets can run in parallel and which must wait
 - the orchestrator tier (`heavy`, `medium`, or `standard`, translated per harness in each harness file's **Models** table) and why
@@ -125,7 +124,11 @@ Run `/setup-bottega` (or `/maestro setup`) to pick a model and effort for every 
 
 ## not shipped here
 
-bottega does not drive or screenshot a UI: the agent says what to look at and you check it. PR watching uses `gh`, not a bundled watcher. There are no hooks and no compiled binary (only the thin Bash wrapper [`skills/maestro/scripts/bottega`](./skills/maestro/scripts/bottega) around `gate-check.sh`, `log.sh`, and `worktree-audit.sh`). Plans and tickets live in `.bottega/` (untracked) unless you ask for GitHub issues.
+bottega does not drive or screenshot a UI: the agent says what to look at and you check it. PR watching and merging go through `bottega pr watch` and `bottega pr merge` (on top of `gh`), which merge only a green, up-to-date, conflict-free PR and never with `--admin`. There are no hooks and no compiled binary (only the thin Bash wrapper [`skills/maestro/scripts/bottega`](./skills/maestro/scripts/bottega) around `gate-check.sh`, `log.sh`, `worktree-audit.sh`, and `gh` for PRs). Plans and tickets live in `.bottega/` (untracked) unless you ask for GitHub issues.
+
+## development
+
+`scripts/check.sh` runs the same checks as CI (`.github/workflows/validate.yml`): shell syntax, the skill and doc lint (frontmatter, routing, paths, links, counts, manifest versions), the script tests on Linux and macOS bash 3.2, ShellCheck, and `claude plugin validate`. Run it before pushing.
 
 ## license
 

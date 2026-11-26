@@ -36,7 +36,7 @@ Everything else goes: comments that restate the code, narrate steps (`// Phase 1
 - Check the real artifact, not a proxy, a self-report or "it compiles". Read the actual value.
 - Prefer a script that reruns the same check over a one-time look.
 - "Inconclusive" or the wrong surface is not a pass. Say so.
-- Do not drive or screenshot a UI. Name what a human should look at instead.
+- Do not drive or screenshot a visual UI. A project's `verify-<app>` skill runs headless or through a CLI, API or tests, so use it; judging how something looks goes to the user: name what they should look at.
 - When a skill says to check something with a browser, or "with one" (a browser), write that check for the user instead: what to open, what to do, what to expect. Mark the result unverified until the user confirms.
 - Never weaken a test or a check to make it pass.
 

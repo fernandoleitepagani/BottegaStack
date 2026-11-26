@@ -16,7 +16,7 @@ Adapted from mattpocock/skills `handoff` (MIT, see LICENSE). These rules take pr
 
 - **Where it goes.** Write `.bottega/handoff.md`: `.bottega/` is untracked, survives a reboot, and `/recall` reads it first.
 - **Suggested skills** means bottega skills, named as `/maestro`, `/implement <ticket>`, `/plan`, and so on.
-- **When.** On the user's request, and at the context thresholds in **Context.** of `../SKILL.md` and `/implement`, even under a keep-going grant. "Keep going" or "don't stop" pauses only at those thresholds.
+- **When.** On the user's request, and when the context is nearly full (**Context.** in `../SKILL.md`), even under a keep-going grant. "Keep going" or "don't stop" pauses only then.
 - **Stop cleanly first.** Finish or back out of the current atomic step, start nothing new, and cancel nested subagents. Take no irreversible action to pause: no new PR, no push.
 - **Save uncommitted work without committing.** `git diff --binary HEAD > .bottega/pause-<timestamp>.patch`, list untracked files with `git ls-files --others --exclude-standard`, and copy the ones you created under `.bottega/pause-<timestamp>/`. Name the patch path in the document, and say if the tree is broken. `git stash` only if the user asked.
 

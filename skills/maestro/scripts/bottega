@@ -8,6 +8,8 @@
 #   bottega verify --check "<cmd>" [--check ...] [gate-check.sh args...]
 #   bottega log <logfile> <phase> <decision> <why> <evidence> <result>
 #   bottega ship --draft|--ready --title "<title>" --body "<body>"
+#   bottega pr watch <pr> [--timeout <seconds>] [--once]
+#   bottega pr merge <pr>
 #   bottega worktree audit [worktree-audit.sh args...]
 set -euo pipefail
 
@@ -17,12 +19,13 @@ LOG="$SCRIPT_DIR/log.sh"
 WT_AUDIT="$SCRIPT_DIR/worktree-audit.sh"
 
 usage() {
-	sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
 	exit "${1:-0}"
 }
 
 cmd_start() {
-	[ $# -ge 1 ] || { echo "error: bottega start needs a goal and at least one --condition" >&2; exit 2; }
+	case "${1:-}" in ""|-*) echo "error: bottega start needs a goal first, then at least one --condition" >&2; exit 2 ;; esac
+	case " $* " in *" --condition "*) ;; *) echo "error: bottega start needs at least one --condition" >&2; exit 2 ;; esac
 	"$GATE" --start "$@"
 	mkdir -p .bottega
 	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
@@ -91,6 +94,9 @@ cmd_ship() {
 		esac
 	done
 	[ -n "$mode" ] && [ -n "$title" ] || { echo "error: bottega ship needs --draft|--ready and --title" >&2; exit 2; }
+	local root
+	root="$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "error: not in a git repo" >&2; exit 1; }
+	cd "$root"
 	local branch
 	branch="$(git symbolic-ref --short HEAD 2>/dev/null || true)"
 	if [ -z "$branch" ] || [ "$branch" = "main" ] || [ "$branch" = "master" ]; then
@@ -143,6 +149,83 @@ cmd_ship() {
 	fi
 }
 
+# One reading of a PR: "<checks> <merge state> <review decision> <draft>".
+# checks: green (all passed or skipped), red (any failed), pending (any not done).
+pr_state() {
+	gh pr view "$1" --json statusCheckRollup,mergeStateStatus,reviewDecision,isDraft --jq '
+		([.statusCheckRollup[]? | ((.conclusion // .state // "PENDING") | ascii_upcase)]) as $c
+		| (if any($c[]; . == "FAILURE" or . == "ERROR" or . == "CANCELLED" or . == "TIMED_OUT" or . == "ACTION_REQUIRED" or . == "STARTUP_FAILURE") then "red"
+		   elif any($c[]; . == "" or . == "PENDING" or . == "QUEUED" or . == "IN_PROGRESS" or . == "EXPECTED" or . == "WAITING") then "pending"
+		   else "green" end) as $checks
+		| "\($checks) \((.mergeStateStatus // "") | if . == "" then "UNKNOWN" else . end) \((.reviewDecision // "") | if . == "" then "NONE" else . end) \(.isDraft)"'
+}
+
+cmd_pr() {
+	local sub="${1:-}"; shift || true
+	local pr="${1:-}"
+	[ -n "$pr" ] || { echo "error: usage: bottega pr watch|merge <pr>" >&2; exit 2; }
+	shift
+	command -v gh >/dev/null 2>&1 || { echo "error: gh CLI is not installed" >&2; exit 1; }
+	case "$sub" in
+	watch)
+		local timeout=1800 once=0 interval="${BOTTEGA_PR_INTERVAL:-30}"
+		while [ $# -gt 0 ]; do
+			case "$1" in
+			--timeout) [ $# -ge 2 ] || { echo "error: --timeout needs seconds" >&2; exit 2; }; timeout="$2"; shift 2 ;;
+			--once) once=1; shift ;;
+			*) echo "error: unknown pr watch option: $1" >&2; exit 2 ;;
+			esac
+		done
+		local start now state checks merge review
+		start=$(date +%s)
+		while :; do
+			state="$(pr_state "$pr")" || { echo "error: could not read PR $pr" >&2; exit 1; }
+			read -r checks merge review _ <<EOF_STATE
+$state
+EOF_STATE
+			if [ "$checks" = red ] || [ "$review" = CHANGES_REQUESTED ]; then
+				echo "pr $pr: red (checks=$checks merge=$merge review=$review)"; exit 1
+			fi
+			if [ "$checks" = green ] && [ "$merge" != UNKNOWN ]; then
+				echo "pr $pr: green (merge=$merge review=$review)"; exit 0
+			fi
+			now=$(date +%s)
+			if [ "$once" -eq 1 ] || [ $((now - start)) -ge "$timeout" ]; then
+				echo "pr $pr: pending (checks=$checks merge=$merge review=$review)"; exit 2
+			fi
+			sleep "$interval"
+		done
+		;;
+	merge)
+		[ $# -eq 0 ] || { echo "error: bottega pr merge takes only the PR; it never passes --admin" >&2; exit 2; }
+		local state checks merge review draft
+		state="$(pr_state "$pr")" || { echo "error: could not read PR $pr" >&2; exit 1; }
+		read -r checks merge review draft <<EOF_STATE
+$state
+EOF_STATE
+		local why=""
+		[ "$draft" = true ] && why="it is a draft"
+		[ -z "$why" ] && [ "$checks" != green ] && why="checks are $checks"
+		[ -z "$why" ] && [ "$review" = CHANGES_REQUESTED ] && why="a reviewer requested changes"
+		if [ -z "$why" ]; then
+			case "$merge" in
+			CLEAN|HAS_HOOKS) ;;
+			BEHIND) why="the branch is behind its base; update it and watch again" ;;
+			DIRTY) why="the branch has merge conflicts" ;;
+			BLOCKED) why="branch protection blocks it (required review or check)" ;;
+			*) why="merge state is $merge" ;;
+			esac
+		fi
+		if [ -n "$why" ]; then
+			echo "error: not merging PR $pr: $why" >&2; exit 1
+		fi
+		gh pr merge "$pr" --squash --delete-branch
+		echo "bottega: merged PR $pr"
+		;;
+	*) echo "error: usage: bottega pr watch|merge <pr>" >&2; exit 2 ;;
+	esac
+}
+
 cmd_worktree() {
 	[ "${1:-}" = "audit" ] || { echo 'error: usage: bottega worktree audit [worktree-audit.sh args...]' >&2; exit 2; }
 	shift
@@ -156,6 +239,7 @@ start)    cmd_start "$@" ;;
 verify)   cmd_verify "$@" ;;
 log)      "$LOG" "$@" ;;
 ship)     cmd_ship "$@" ;;
+pr)       cmd_pr "$@" ;;
 worktree) cmd_worktree "$@" ;;
 -h|--help|help) usage 0 ;;
 *) echo "error: unknown subcommand: $sub" >&2; usage 2 ;;

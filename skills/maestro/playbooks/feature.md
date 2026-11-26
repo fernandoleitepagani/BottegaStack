@@ -8,7 +8,7 @@
 4. Tests go at the seams the spec agreed, one behavior at a time: red, then green (**Test Behavior, Not Implementation**).
 5. Delegate to implementers (router **Subagents**), each with the goal, the paths it may write, the shape, its tests, and the checks that prove done. Disjoint files run in parallel in separate worktrees; shared writes go to one owner (**Separate Before Serializing Shared State**).
 6. Verify on the real artifact (**Prove It Works**), through the project's `verify-<app>` skill when one exists. Agents never drive or screenshot a UI: for UI, say exactly what the user should look at and mark it unverified until they confirm.
-7. Review per `<maestro dir>/../review/SKILL.md`. At most 2 fix rounds, then ESCALATE.
+7. Review per `<maestro dir>/../review/SKILL.md`. Fix rounds follow `../../review/fix.md` (**Caps**).
 8. Small ordered commits on the run's own branch, or uncommitted in the user's checkout (`../worker.md`). Run the final gate (`<maestro dir>/playbooks/final-gate.md`).
 
 **Reply:** what you built, what you chose and why, open decisions, and the evidence per condition.

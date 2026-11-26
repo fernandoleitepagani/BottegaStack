@@ -36,7 +36,7 @@ The ticket or `.bottega/plans/*/spec.md` the run came from, else the goal and ac
 
 #### 3. Identify the standards sources
 
-Search the repo for every file that documents how code should be written. When `CODING_STANDARDS.md` or `CONTRIBUTING.md` exists, it must be on the list. bottega's `../maestro/principles.md` is always on it, and the Standards reviewer also reads the smell baseline in `smells.md`.
+Search the repo for every file that documents how code should be written. When `CODING_STANDARDS.md` or `CONTRIBUTING.md` exists, it must be on the list. bottega's `../maestro/principles.md` is always on it.
 
 #### 4. Spawn both sub-agents in parallel
 
@@ -59,7 +59,7 @@ Reporting them separately stops one axis from masking the other.
 
 ### In bottega
 
-- **High risk** replaces the single Standards/Spec pass: a diff of 100 lines or fewer across 2 files or fewer gets a blast-radius check (`../blast-radius/SKILL.md`); anything larger gets the verifier swarm (`../swarm/SKILL.md`, **Verifier swarm**). Either logs the `crossfire` row per `../maestro/playbooks/final-gate.md` (**Crossfire row**).
+- **High-risk split.** High risk replaces the single Standards/Spec pass. A *small* high-risk diff (100 changed lines or fewer **and** 2 files or fewer) gets a blast-radius check (`../blast-radius/SKILL.md`); any other gets the verifier swarm (`../swarm/SKILL.md`, **Verifier swarm**). This is the one definition; other files link here. Either logs the `crossfire` row per `../maestro/playbooks/final-gate.md` (**Crossfire row**).
 - **Before any high-risk check,** fix known failures (a red check, an open valid review thread) through `fix.md`, and tell the verifier which issues are already known so it doesn't report them again.
 - **After aggregating,** findings go to **Verify findings** below, then `fix.md`; nothing is fixed straight from a report.
 

@@ -53,7 +53,7 @@ Adapted from pstack's `swarm` (MIT, see LICENSE). Every bottega fan-out of more 
 
 ## Verifier swarm (large high-risk diff, or opted-in `/ship full`)
 
-For a high-risk diff over 100 lines or 2 files, or when the user opts into it on `/ship full`, run a coverage swarm (this skill) of 3 `verifier` workers (1 to 4 on request), one per slice:
+For a high-risk diff that isn't small (`../review/SKILL.md`, **High-risk split**), or when the user opts into it on `/ship full`, run a coverage swarm (this skill) of 3 `verifier` workers (1 to 4 on request), one per slice:
 
 1. **Regression:** drive existing features end to end through the project's `verify-<app>` skill, or its integration suite, to catch breakage outside the diff.
 2. **Edge cases:** run the **Adversarial brief** below.

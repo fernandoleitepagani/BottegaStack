@@ -22,7 +22,7 @@ Follow-ups can be short: "continue", "do ticket 3", "new task: ...".
 ## What every run shares
 
 - **Subagents do the bulk.** The orchestrator decides, writes briefs, reviews diffs, and runs the gate. Explorers read, implementers write, reviewers review.
-- **Context is budgeted.** An orchestrator session stays under 300k tokens (±10%). Near the limit it writes a handoff, and you `/clear` and resume.
+- **Context is watched.** When a session's context is nearly full, it writes a handoff, and you `/clear` and resume.
 - **The final gate.** Every change ends in APPROVE or ESCALATE, decided by `gate-check.sh` from logged proofs, not by the agent's confidence.
 - **Autonomy.** Reversible work goes ahead without asking. Force-pushes to branches the run didn't create, deploys, data deletion and customer messages always pause.
 

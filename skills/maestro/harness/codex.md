@@ -9,6 +9,7 @@ Bottega's skills use harness-neutral words. Read this file once per session, bef
 | spawn an **explorer** (read-only) | Codex's native subagent tool, read-only sandbox; the brief says "do not edit files" (*check* the tool name) |
 | spawn a **delegate** (implementer, reviewer, verifier) | the native subagent tool; the brief's first line is `Read <maestro dir>/worker.md before starting.` |
 | in **its own worktree** | a separate git worktree per parallel writer |
+| in the **background** | the native subagent tool's background mode when it has one; otherwise spawn and wait, one at a time |
 | the role's **model and effort** | **Models** below |
 
 ## Models

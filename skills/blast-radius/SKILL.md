@@ -55,10 +55,10 @@ Adapted from pstack's `blast-radius` (MIT, see LICENSE). These rules take preced
 
 - **When it runs.** Only where a change can break code it doesn't touch:
   1. Before shaping: always in `../maestro/playbooks/refactoring.md` (step 2), and in `../maestro/playbooks/feature.md` or `../maestro/playbooks/bug-fix.md` when the change touches a shared interface, public API, data format, schema or config other code reads. Run it on the planned change; it hands back the dependents to migrate and the safety fact the pin must prove.
-  2. The high-risk review of a diff of 100 lines or fewer across 2 files or fewer (`../review/SKILL.md`). It replaces the single adversarial reviewer there.
+  2. The high-risk review of a small diff (`../review/SKILL.md`, **High-risk split**). It replaces the single Standards/Spec pass there.
   3. When the user asks "what could this break", "blast radius of X", or to crossfire a small diff they don't trust.
 
   Normal-risk features and bug fixes confined to their own code skip it.
 - **Who runs it.** One fresh delegate on the verifier role (router **Subagents**; `heavy` at high risk, `standard` otherwise), in its own worktree when its proof script needs files. Proof scripts stay in scratch or the worktree, never in the diff.
 - **`how` and `why`** are bottega's `../maestro/playbooks/investigation.md`. The Solid and React note in step 3 stands for whatever framework the repo uses.
-- **Verdict for the gate** (high-risk review only): log a `crossfire` row per `../maestro/playbooks/final-gate.md` (**Crossfire row**). PASS when the safety fact reached step 4 or 5 and no confirmed risk is open; FAIL otherwise. Confirmed risks go to `../review/SKILL.md` **Verify findings**, then `../review/fix.md`; after a fix round, run it again on the new diff and log a new row.
+- **Verdict for the gate** (high-risk review only): log a `crossfire` row per `../maestro/playbooks/final-gate.md` (**Crossfire row**). PASS and FAIL follow that section's rule. Confirmed risks go to `../review/SKILL.md` **Verify findings**, then `../review/fix.md`; after a fix round, run it again on the new diff and log a new row.

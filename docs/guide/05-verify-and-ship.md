@@ -88,6 +88,6 @@ Apps change, and feature maps go out of date. Run this regularly, for example on
 /maestro land the stack.
 ```
 
-[`/ship`](../../skills/ship/SKILL.md) (`/ship full`) takes blockers in order (conflicts, review threads, then CI), batches every fix into one push, and waits with `gh pr checks --watch` instead of polling. Review comments get a skeptical triage: a real finding gets a fix, and noise gets dismissed with the disproof on the thread. Landing verifies each PR with an agent that didn't write it, then merges bottom-up and reads each PR back to confirm it merged. Green is not the same as safe.
+[`/ship`](../../skills/ship/SKILL.md) (`/ship full`) takes blockers in order (conflicts, review threads, then CI), batches every fix into one push, and waits with `bottega pr watch` instead of polling. It merges through `bottega pr merge`, which refuses a draft, failed or pending checks, requested changes, a branch behind its base or in conflict, and never uses `--admin`. Review comments get a skeptical triage: a real finding gets a fix, and noise gets dismissed with the disproof on the thread. Landing verifies each PR with an agent that didn't write it, then merges bottom-up and reads each PR back to confirm it merged. Green is not the same as safe.
 
 Next: [Run work while you sleep](./06-overnight.md).

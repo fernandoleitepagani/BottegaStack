@@ -57,4 +57,4 @@ At high risk, the blast-radius check or the verifier swarm logs its verdict so t
 <maestro dir>/scripts/log.sh .bottega/proofs.tsv crossfire "<scope>" "<rounds, reviewer model>" "FINDINGS: <n>; WORST: <line>" <PASS|FAIL>
 ```
 
-PASS when no verified blocker is open, FAIL otherwise. After a fix round, review the new diff and log a new row; the gate reads the latest one.
+PASS when no verified blocker is open and, for a blast-radius check, its safety fact was proven by a run (step 4 or 5); FAIL otherwise. After a fix round, review the new diff and log a new row; the gate reads the latest one.

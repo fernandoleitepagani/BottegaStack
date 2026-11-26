@@ -15,14 +15,14 @@ Before editing, spawning, or starting `/loop`, ask the user one question (unless
 1. **Auto-merge (`/ship full`):** Build, verify, and run `/ship full` (`../ship/SKILL.md`) to watch CI and squash-merge once all gates are green.
 2. **Stop at verified PRs (`/ship stop`):** Build, verify, and run `/ship stop` (`../ship/SKILL.md`) to open verified Draft PRs and hand them over without merging.
 
-**Reversibility gate:** Even if the user chose `/ship full`, any PR touching one-way-door surfaces (migrations, data deletion, auth/security, billing, breaking public API contracts, destructive infra/deploy scripts) is forced to `/ship stop` (Draft PR).
+**Reversibility gate:** Even if the user chose `/ship full`, any PR touching a one-way door (the list in `../maestro/SKILL.md`, **Risk**) is forced to `/ship stop` (Draft PR). Record the chosen mode in the trail and pass it to `/ship` for every PR (`/ship full` or `/ship stop`), so `/ship` never asks again.
 
 ## Modes
 
 Name the mode in the first reply and in every `/loop` tick prompt:
 
 - `task`: one task driven to a checkable exit condition ("run until done", "/loop until X").
-- `queue`: independent PRs orchestrated from the main session, one worktree per unit. A ticket plan (`.bottega/plans/<slug>/PLAN.md` from `/tickets`) runs as a `queue`: the orchestrator drives each ticket in wave order, delegating only leaf `explorer`, `implementer`, and `reviewer` subagents (never spawning a subagent to run `/implement`, per `../maestro/worker.md`).
+- `queue`: independent PRs orchestrated from the main session, one worktree per unit. A ticket plan (`.bottega/plans/<slug>/PLAN.md` from `/tickets`) runs as a `queue`: the orchestrator drives each ticket in wave order, delegating only leaf `explorer`, `implementer`, `reviewer`, and `verifier` subagents (never spawning a subagent to run `/implement`, per `../maestro/worker.md`).
 - `program`: a standing project over days (many stacked PRs, many agents). Work one agent can finish in one session is `task`, not this.
 
 ## Permissions
@@ -37,10 +37,10 @@ Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) 
 
 ## Every mode
 
-1. **Exit condition first.** State done as a checkable predicate (tests green, repro fixed, all N PRs verified/merged) and open the run with `bottega start` (registering conditions in `.bottega/proofs.tsv`). Never relax it to declare victory. If requirements are vague or unverifiable, stop and ask instead of running unattended.
+1. **Exit condition first.** State done as a checkable predicate (tests green, repro fixed, all N PRs verified/merged) and open the run with `bottega start` (registering conditions in `.bottega/proofs.tsv`). Each code unit runs its code playbook (`../maestro/playbooks/`, picked by kind as `/implement` does) and ends at `../maestro/playbooks/final-gate.md`. Never relax it to declare victory. If requirements are vague or unverifiable, stop and ask instead of running unattended.
 2. **Wake.** Use `/loop` (or your harness's recurring schedule). An event to watch (CI, a merge) gets a watcher and a long heartbeat as fallback; no event gets a fixed interval sized to when the result is worth re-checking.
 3. **Smallest verified step.** Each iteration makes the smallest change the evidence justifies, verifies it against the predicate, keeps it if it advanced, reverts it if not (**Sequence Work into Verifiable Units**).
-4. **Circuit breakers.** Cap fix rounds at 2 per failure class (3rd failure or 2 rounds with no progress → `ESCALATE` and stop). Past ~270k orchestrator tokens, run `../maestro/playbooks/pause-safely.md` and stop cleanly.
+4. **Circuit breakers.** Fix rounds follow the cap in `../review/fix.md` (**Caps**) per failure class; past it, `ESCALATE` and stop. When the orchestrator's context is nearly full, run `../maestro/playbooks/pause-safely.md` and stop cleanly.
 5. **Assume you die.** Keep the decision trail below in `.bottega/`, one row per iteration, plus each spawned agent's id, PR, and `stuck_after` threshold (default: 30 minutes wall time or 3 failed attempts without progress), so a replacement can pick up.
 6. **Side findings.** Fix what blocks the predicate in its own PR. Log everything else to `.bottega/followups.md`; do not fix it now.
 7. **Ask only** for an irreversible step, a product call no experiment settles, or a dead end that survived a replan.
@@ -48,8 +48,9 @@ Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) 
 ## `queue` and `program`
 
 8. **Orchestrator-driven leaf delegation.** The main session owns the ticket/PR queue, wave ordering, and final gate; each unit's leaf `implementer` runs in its own isolated worktree (router **Subagents**) as the only writer of its branch. Cap fan-out: worktree runs share CPU, ports, and disk.
+8b. **Ticket status.** In a ticket queue, set each ticket's `Status` (`in-progress`, `done`, `blocked: <why>`) and its `PLAN.md` row as `/implement` does (`../implement/SKILL.md`, **Close the ticket**).
 9. **Start with one unit.** Take the first PR through kickoff, verification, and `/ship` before fanning out, so a flawed kickoff costs one unit.
-10. **Verify independently.** Nothing ships until fresh reviewers that never wrote the code prove it. Run `../review/SKILL.md` (at high risk or opted-in `/ship full`, use the high-risk review: a blast-radius check for a diff of 100 lines or fewer, else the **Verifier swarm**, with a live lane through `verify-<app>` when present).
+10. **Verify independently.** Nothing ships until fresh reviewers that never wrote the code prove it. Run `../review/SKILL.md` (at high risk or opted-in `/ship full`, use the high-risk review chosen by `../review/SKILL.md` (**High-risk split**), with a live lane through `verify-<app>` when present).
 11. **Ship & merge.** Hand each verified PR to `../ship/SKILL.md`:
     - `/ship full` (two-way doors only) → watches CI, fixes legitimate failures within cap, merges bottom-up. Confirm `git patch-id` at the verdict SHA matches the head before merging; hold past a third rebase.
     - `/ship stop` (or any one-way door) → Draft PR, no merge, no further pushes after handoff.

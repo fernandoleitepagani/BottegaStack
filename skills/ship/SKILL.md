@@ -6,18 +6,20 @@ disable-model-invocation: true
 
 # Ship
 
+`<maestro dir>` is `../maestro` from this file, as an absolute path.
+
 Take a verified, gate-approved diff from your working tree to a merged PR (`/ship full`) or a draft PR (`/ship stop`). This skill is the sole owner of PR creation and landing.
 
 ## Pre-flight
 
 1. Confirm the current run passed `bottega verify` (or `gate-check.sh`, `APPROVE allowed`). If the gate has not passed or files changed since the last gate check, stop and run `/implement`'s final gate first. Never ship an ungated diff.
 2. Check `git status` and current branch. If you are on the default branch (`main` or `master`) and opening a PR, create a feature branch first (`git checkout -b <slug>`).
-3. **Reversibility check (two-way vs. one-way door):** Inspect the diff for one-way-door surfaces: data migrations or deletion, schema drops, auth/security boundaries, billing/money, breaking public API contracts, or destructive infra/deploy scripts. `bottega ship --ready` is a backstop on top of this check: it blocks paths named like migrations, schema, auth, security, permissions, billing, payments, deploy, infra or terraform, `drop`/`delete`, `*.tf` and `.github/workflows/`. Public API and concurrency changes have no path pattern, so judge those yourself. If any are present, **force `stop` (Draft PR)** and tell the user why; do not allow `full` auto-merge on one-way doors.
+3. **Reversibility check (two-way vs. one-way door):** Inspect the diff for one-way doors (the list in `../maestro/SKILL.md`, **Risk**). `bottega ship --ready` is a backstop on top of this check: it blocks paths named like migrations, schema, auth, security, permissions, billing, payments, deploy, infra or terraform, `drop`/`delete`, `*.tf` and `.github/workflows/`. Public API and concurrency changes have no path pattern, so judge those yourself. If any are present, **force `stop` (Draft PR)** and tell the user why; do not allow `full` auto-merge on one-way doors.
 
 ## Ask the mode once
 
 - If the reversibility check forced `stop`, skip this question and run Mode 2 directly.
-- If the user already passed `full` (e.g., `/ship full`) or `stop` (e.g., `/ship stop`), skip this question and run that mode directly (subject to the reversibility check above).
+- If the user or the caller (`/autopilot`) already passed `full` (e.g., `/ship full`) or `stop` (e.g., `/ship stop`), skip this question and run that mode directly (subject to the reversibility check above).
 - Otherwise, before committing, pushing, or touching GitHub, ask the user one question with two options:
 
 1. **Full auto (`/ship full`):** Commit, push the branch, open a ready PR, watch CI checks and review bots, fix legitimate failures, and merge automatically once all required checks are green.
@@ -41,15 +43,15 @@ Wait for the user's choice before running any write/push command.
 
 ## Mode 1: Full auto (`/ship full`)
 
-1. **Optional pre-merge swarm:** If the run was `normal` risk and did not run a `verify-<app>` pass, you may run a 2-verifier swarm (`../swarm/SKILL.md`, with the slices in `../review/SKILL.md` **Verifier swarm**) before pushing when extra auto-merge confidence is wanted.
+1. **Optional pre-merge swarm:** If the run was `normal` risk and did not run a `verify-<app>` pass, you may run a 2-verifier swarm (`../swarm/SKILL.md`, **Verifier swarm**) before pushing when extra auto-merge confidence is wanted.
 2. Run `<maestro dir>/scripts/bottega ship --ready --title "<title>" --body "<body>"`.
 3. **Babysit CI and review bots:**
-   - Watch checks with `gh pr checks --watch` (or poll until all checks complete).
+   - Watch with `<maestro dir>/scripts/bottega pr watch <pr>`: it waits for checks and returns `green`, `red` (a failed check or requested changes) or `pending` (timeout), with the merge state.
    - Inspect any failed check logs (`gh run view <id> --log-failed`) and any bot/reviewer comments (`gh pr view --comments`).
    - Distinguish **legitimate failures** (broken tests, type/lint errors, real review findings) from **flaky/infra noise**.
    - For legitimate failures: fix the root cause, re-run `bottega verify` to keep the proof ledger green, commit, push, and watch checks again.
-   - After 2 fix rounds on the same check (the cap in `../review/SKILL.md`, **Caps**), or when a fix requires an irreversible/product decision, **stop and escalate** to the user instead of looping.
-4. **Merge:** Once all required checks are green and no blocking review comments remain, merge (`gh pr merge --squash --delete-branch`, or `--auto` if branch protection requires it) and report the merged PR URL.
+   - Past the fix-round cap on the same check (`../review/fix.md`, **Caps**), or when a fix requires an irreversible/product decision, **stop and escalate** to the user instead of looping.
+4. **Merge:** Run `<maestro dir>/scripts/bottega pr merge <pr>`. It merges (squash, delete branch) only when checks are green, no reviewer requested changes, the PR is not a draft, and the branch is up to date and conflict-free; it never uses `--admin`. When it refuses because the branch is behind, update the branch, watch again, then merge. Report the merged PR URL.
 
 ## Existing PR or Stack (`babysit` / `land`)
 

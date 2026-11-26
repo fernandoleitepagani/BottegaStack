@@ -8,7 +8,7 @@
 4. Pin it: the smallest test that fails for the reported reason, written before the fix, when a cheap test path exists; otherwise the closest rerunnable check. If the fix changes a shared interface, run `<maestro dir>/../blast-radius/SKILL.md` on it first.
 5. Delegate the fix to an implementer (router **Subagents**) with the cause, the pin, the paths it may write, and the checks that prove done.
 6. Verify on the same surface: the original repro now passes. Inconclusive or wrong surface is not a pass (**Prove It Works**).
-7. Review per `<maestro dir>/../review/SKILL.md`. At most 2 fix rounds, then ESCALATE.
+7. Review per `<maestro dir>/../review/SKILL.md`. Fix rounds follow `../../review/fix.md` (**Caps**).
 8. Commit the failing test before the fix on the run's own branch; in the user's checkout leave changes uncommitted for `/ship` (`../worker.md`). Run the final gate (`<maestro dir>/playbooks/final-gate.md`).
 
 **Reply:** what was broken, the root cause, the fix, and the failing-then-passing output.

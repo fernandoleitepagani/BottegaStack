@@ -1,6 +1,6 @@
 ---
 name: tickets
-description: "Split a spec into tickets that each fit one fresh orchestrator session (300k tokens, ±10%), with the orchestrator/subagent split, roles and abstract model tiers (heavy, medium, standard, fast), and an implementation order with parallel waves. Use for /tickets, 'break this into tickets', or after /plan."
+description: "Split a spec into tickets that each fit one fresh orchestrator session (one vertical slice that one session finishes without compacting), with the orchestrator/subagent split, roles and abstract model tiers (heavy, medium, standard, fast), and an implementation order with parallel waves. Use for /tickets, 'break this into tickets', or after /plan."
 disable-model-invocation: true
 ---
 
@@ -24,22 +24,9 @@ A spec path (`.bottega/plans/<slug>/spec.md`), or the plan agreed in this conver
 - **Wide refactors** go expand, migrate, contract: add the new path, move callers in batches (a ticket per batch), delete the old path.
 - **Acceptance criteria are checks.** Each is a command or observation and the output that proves it, drawn from the spec's **Done when** and **Test seams**.
 
-## 2. Budget each ticket (orchestrator only)
+## 2. Size each ticket
 
-The budget is the orchestrator's own context in a fresh session: **300k tokens, ±10% (hard limit 330k)**. Subagent contexts don't count; only their briefs and reports do. Estimate in tokens, at about 4 characters per token:
-
-| Item | Estimate |
-|---|---|
-| Session overhead (system prompt, tools, CLAUDE.md, maestro, `/implement`, the playbook and skill files it reads) | 45k, or the figure `/context` showed at the start of the last fresh session |
-| Ticket and spec | file size ÷ 4 |
-| Files the orchestrator reads itself | file size ÷ 4 for each, counted once |
-| Each subagent | about 5k (brief plus report) |
-| Diff review and the gate | 2 × diff size ÷ 4, plus 10k |
-| Tool output and replies | 20% of everything above |
-
-Plan each ticket at or under **300k**. Split one estimated above it. The 10% band up to 330k is slack for surprises during the run, not planned room: `/implement` hands off before passing 330k.
-
-To keep the orchestrator inside budget, push wide reads into explorer subagents and have the orchestrator read only the files it must judge: the ones it reviews in the diff and the ones that hold the data shape.
+Each ticket is one vertical slice that a fresh orchestrator session can finish without compacting its context. Split a ticket that needs more than one session's worth of reading, review or fix rounds. Keep the orchestrator lean: push wide reads into explorer subagents and read yourself only the files you must judge (the diff and the data shape).
 
 ## 3. Split the work inside each ticket
 
@@ -72,7 +59,7 @@ The user sets the orchestrator model at the start of the ticket's fresh session 
 
 ## 6. Agree, then write
 
-Show the breakdown as one numbered table: ticket, title, blocked by, wave, orchestrator tier, budget estimate, risk. Ask the user directly in chat: Is the granularity right? Are the blocking edges right? Should any tickets merge or split? Iterate until they approve. Then write the files:
+Show the breakdown as one numbered table: ticket, title, blocked by, wave, orchestrator tier, risk. Ask the user directly in chat: Is the granularity right? Are the blocking edges right? Should any tickets merge or split? Iterate until they approve. Then write the files:
 
 **`.bottega/plans/<slug>/tickets/T<nn>-<slug>.md`**, one per ticket, numbered blockers first:
 
@@ -83,7 +70,6 @@ Blocked by: T<nn>, ... | none
 Wave: <n>
 Risk: normal | high
 Orchestrator: heavy | medium | standard | fast: <why>
-Budget: ~<n>k of 300k (overhead <n>k, reads <n>k, <n> subagents <n>k, diff and gate <n>k, margin <n>k)
 
 ## What to build
 <the vertical slice, in two to five lines>

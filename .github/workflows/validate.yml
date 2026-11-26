@@ -1,0 +1,56 @@
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "skills/**"
+      - "scripts/**"
+      - "plugin.json"
+      - ".claude-plugin/**"
+      - ".agents/**"
+      - "harnesses/**"
+      - "docs/**"
+      - "README.md"
+      - ".github/workflows/validate.yml"
+
+jobs:
+  scripts:
+    # The scripts claim bash 3.2 and BSD tools, so they run on macOS's /bin/bash too.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Shell syntax
+        run: |
+          for f in skills/maestro/scripts/*.sh skills/maestro/scripts/bottega skills/wizard/template.sh scripts/*.sh; do
+            /bin/bash -n "$f"
+          done
+
+      - name: Script tests
+        run: /bin/bash scripts/test-scripts.sh
+
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skill and doc lint
+        run: python3 scripts/lint-skills.py
+
+      - name: ShellCheck
+        run: shellcheck -S warning skills/maestro/scripts/bottega skills/maestro/scripts/gate-check.sh skills/maestro/scripts/log.sh skills/wizard/template.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate the Claude Code plugin
+        run: |
+          npm install -g @anthropic-ai/claude-code@2.1.332
+          claude plugin validate . --strict

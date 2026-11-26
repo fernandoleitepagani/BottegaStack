@@ -64,7 +64,7 @@ A test is a claim about what users of the code can observe. Keep a test that fai
 
 ## Guard the Context Window
 
-Send bulk output to files and wide reads to subagents; keep their summaries, not raw payloads. Read each file once. Budget the context a fan-out or loop will cost before starting it. `/implement` holds each session to 300k tokens, ±10%.
+Send bulk output to files and wide reads to subagents; keep their summaries, not raw payloads. Read each file once. Budget the context a fan-out or loop will cost before starting it.
 
 ## Never Block on the Human
 

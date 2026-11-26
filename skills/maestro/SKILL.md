@@ -32,6 +32,8 @@ Restate the goal in one line: the problem, and the smallest change you expect to
 | Pick up earlier work or context from prior sessions and `.bottega/` | `playbooks/session-pickup.md` (it runs `/recall`) |
 | Pause now | `playbooks/pause-safely.md` |
 | Ship a verified, gate-approved diff (`/ship stop` draft PR or `/ship full` to merge) | `/ship` (`../ship/SKILL.md`) |
+| Babysit an existing PR, or land a stack of PRs | `/ship` (`../ship/SKILL.md`, **Existing PR or Stack**) |
+| Runtime config (CI, build, deploy, flags, dependencies) or a data migration | `playbooks/bug-fix.md` if it repairs something, else `playbooks/feature.md`; migrations are high risk |
 | Run while the user is away, or run a ticket plan unattended | `/autopilot` (`../autopilot/SKILL.md`) |
 | Write or change a skill | `playbooks/authoring-a-skill.md` |
 | Clean up worktrees | `playbooks/worktree-cleanup.md` |
@@ -49,7 +51,7 @@ Act when you are at least 95% sure what the user wants. Below that, observe what
 
 ## Risk
 
-**High** when the change touches auth, security, money, data migrations or deletion, concurrency, a public API, or anything hard to undo (one-way doors), or when the user says so. Otherwise **normal** (two-way doors). Risk only rises during a run; say when and why, and move from `small-fix` to the full playbook when it does. It picks the column of the role table, turns on the high-risk review (blast radius or a verifier swarm), and forces one-way doors to `/ship stop` (draft PR).
+**High** when the change touches auth, security, money, data migrations or deletion, schema drops, concurrency, a breaking public API, destructive infra or deploy scripts, or anything hard to undo (one-way doors), or when the user says so. This is the one list of one-way doors; `/ship` and `/autopilot` link here. Otherwise **normal** (two-way doors). Risk only rises during a run; say when and why, and move from `small-fix` to the full playbook when it does. It picks the column of the role table, turns on the high-risk review (blast radius or a verifier swarm), and forces one-way doors to `/ship stop` (draft PR).
 
 ## Autonomy
 
@@ -73,7 +75,7 @@ Before your first spawn, read your harness file (`harness/<your harness>.md`: ho
 
 - Pick the lowest tier that stays precise; lower effort one step for routine work, never raise it, and never use `xhigh` or `max`.
 - Every spawn sets the model and effort for its role and difficulty, passes file pointers instead of pasted context, and runs a writer in its own worktree beside another writer.
-- Every delegate brief's first line is `Read <maestro dir>/worker.md before starting.` Read `worker.md` yourself only when you write code.
+- Every delegate brief's first line is `Read <maestro dir>/worker.md before starting.` Read `worker.md` yourself when you write code (small-fix carries the four rules it needs inline).
 - Fresh subagents by default: a fix round, follow-up, retry or next queue item goes to a new one with the original brief, later directives, and the prior report and branch.
 - More than one in parallel follows `/swarm` (`../swarm/SKILL.md`). Ask before spawning more than 3 at once, unless a full-autonomy grant covers it.
 - You own every subagent's work: read the diff, write your own summary.
@@ -81,7 +83,7 @@ Before your first spawn, read your harness file (`harness/<your harness>.md`: ho
 ## Shared rules
 
 - **Principles.** `principles.md`, one page. Name each one that changed a decision.
-- **Context.** Bulk goes to files and subagents (**Guard the Context Window**). An orchestrator session stops at 300k tokens, ±10%: past about 270k, run `playbooks/pause-safely.md`, tell the user to `/clear`, and resume with `playbooks/session-pickup.md`. `/clear` when the task changes. Never switch `/model` mid-session.
+- **Context.** Bulk goes to files and subagents (**Guard the Context Window**). When the session's context is nearly full (the harness warns or is about to compact), run `playbooks/pause-safely.md`, tell the user to `/clear`, and resume with `playbooks/session-pickup.md`. `/clear` when the task changes. Never switch `/model` mid-session.
 - **Out of scope.** Log problems outside this task by appending `- [ ] <title> | <file:line> | <what was hit> | <suggested fix>` to `.bottega/followups.md`, not into the diff.
 
 ## Writing the reply

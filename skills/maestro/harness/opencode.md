@@ -9,6 +9,7 @@ Bottega's skills use harness-neutral words. Read this file once per session, bef
 | spawn an **explorer** (read-only) | the native subagent (task) tool with a read-only agent; the brief says "do not edit files" (*check* the agent name) |
 | spawn a **delegate** (implementer, reviewer, verifier) | the native subagent tool; the brief's first line is `Read <maestro dir>/worker.md before starting.` |
 | in **its own worktree** | a separate git worktree per parallel writer |
+| in the **background** | the native subagent tool's background mode when it has one; otherwise spawn and wait, one at a time |
 | the role's **model and effort** | **Models** below, as `provider/model` |
 
 ## Models
@@ -20,7 +21,7 @@ Bottega's skills use harness-neutral words. Read this file once per session, bef
 | **`standard`** | `deepseek v4.1 flash`* |
 | **`fast`** | `glm-5.3-flash`* |
 
-Non-Anthropic models: try the free version first, then OpenCode Go's if it is unavailable or rate-limited.
+`*` marks a non-Anthropic model: try the free version first, then OpenCode Go's if it is unavailable or rate-limited.
 
 Tiers per role and difficulty are in the router's **Subagents** table; `~/.bottega/models.md` overrides any cell.
 

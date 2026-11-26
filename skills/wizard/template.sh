@@ -86,7 +86,8 @@ confirm() {
   local reply=""
   printf '  %s? %s [y/N] ' "$YELLOW" "$1"
   read -r reply || true
-  [[ "$reply" =~ ^[Yy] ]]
+  if [[ "$reply" =~ ^[Yy] ]]; then return 0; fi
+  return 1
 }
 
 # _existing KEY: current value of KEY in ENV_FILE, if any, with write_env's single
