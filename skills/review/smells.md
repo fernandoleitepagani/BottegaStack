@@ -1,6 +1,6 @@
 # Smell baseline
 
-From Matt Pocock's `code-review` (MIT, see NOTICE). Read by the Standards reviewer.
+From Matt Pocock's `code-review` (MIT, see LICENSE). Read by the Standards reviewer.
 
 On top of whatever the repo documents, the Standards axis always carries this **smell baseline**: a fixed set of Fowler code smells (_Refactoring_, ch.3) that applies even when a repo documents nothing. Two rules bind it:
 

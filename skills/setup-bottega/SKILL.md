@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Setup bottega
 
-Write the user's model file: which model and effort each role runs at, per difficulty. Adapted from pstack's `setup-pstack` (MIT, see NOTICE). Run it on `/maestro setup`, "configure bottega models", or a budget change. Re-running it updates the file.
+Write the user's model file: which model and effort each role runs at, per difficulty. Adapted from pstack's `setup-pstack` (MIT, see LICENSE). Run it on `/maestro setup`, "configure bottega models", or a budget change. Re-running it updates the file.
 
 **Difficulty** is the run's route: **simple** is the small-fix playbook (one file, about 20 lines, normal risk), **medium** is normal risk, **hard** is high risk. **Roles** are the ones in the router's **Subagents** table (`../maestro/SKILL.md`): orchestrator, explorer, implementer, reviewer, verifier.
 

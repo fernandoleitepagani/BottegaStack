@@ -22,7 +22,7 @@ The two branches produce very different artifacts, so getting this wrong wastes 
 
 ## In bottega
 
-Adapted from mattpocock/skills `prototype` (MIT, see NOTICE). These rules take precedence where they differ:
+Adapted from mattpocock/skills `prototype` (MIT, see LICENSE). These rules take precedence where they differ:
 
 - **Routing.** `/plan` sends a question it can't settle by grilling here, and so does `/maestro` for "a design fork that only seeing it can settle". The answer goes back to `/plan` as a decision, or to `/implement` for the real build. The prototype itself never ships.
 - **No gate.** Nothing from a prototype reaches the main branch, so it skips the final gate. The real build goes through `/implement` and its gate.

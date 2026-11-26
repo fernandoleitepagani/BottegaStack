@@ -37,7 +37,7 @@ Tiers per role and difficulty are in the router's **Subagents** table; `~/.botte
 |---|---|
 | **transcripts** | `~/.gemini/antigravity-cli/brain/` (*check*) |
 | **project skills dir** | `.agents/skills/` |
-| **installed skills** | `~/.agents/skills/<name>` (symlinks from `harnesses/antigravity/install.sh`) |
+| **installed skills** | the plugin under `~/.gemini/config/plugins/bottega/` (`agy plugin install`) |
 
 ## Manual-only skills
 

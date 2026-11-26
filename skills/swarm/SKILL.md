@@ -42,7 +42,7 @@ Return one consolidated in-chat report with a result table, issue one-liners, ga
 
 ## In bottega
 
-Adapted from pstack's `swarm` (MIT, see NOTICE). Every bottega fan-out of more than one worker follows this file. These rules take precedence where they differ:
+Adapted from pstack's `swarm` (MIT, see LICENSE). Every bottega fan-out of more than one worker follows this file. These rules take precedence where they differ:
 
 - **Where it runs.** The high-risk review of a large diff (**Verifier swarm** below), the optional pre-merge swarm in `/ship full`, `/triage`'s parallel investigation, `/maintain-verification-skill`'s source wave, and a wide blast-radius check (`../blast-radius/SKILL.md`).
 - **Todo list:** put the four phases in the todo list.

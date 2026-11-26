@@ -1,12 +1,12 @@
 # Harnesses
 
-Bottega's 20 core skills under [`skills/`](../skills/) are harness-agnostic. Each directory here holds the thin installer and adapter for a specific agent harness:
+Bottega's 20 core skills under [`skills/`](../skills/) are harness-agnostic. Claude Code, Antigravity and Codex install bottega as a plugin with their own commands; OpenCode, which has no plugin format for skill bundles, uses a symlink installer:
 
 | Harness | Status | Install | Target |
 |---|---|---|---|
-| **Claude Code** | Supported | `claude plugin marketplace add <path-or-repo> && claude plugin install bottega@bottega` | Claude Code plugin (`./skills`) |
-| [**Antigravity CLI**](./antigravity/README.md) | Experimental (#46) | `./harnesses/antigravity/install.sh` | `~/.agents/skills/<name>` |
-| [**Codex**](./codex/README.md) | Experimental (#46) | `./harnesses/codex/install.sh` | `~/.codex/skills/<name>` |
+| **Claude Code** | Supported | `claude plugin marketplace add fernandoleitepagani/BottegaStack` then `claude plugin install bottega@bottega` | `.claude-plugin/` (plugin + marketplace) |
+| [**Antigravity CLI**](./antigravity/README.md) | Experimental (#46) | `agy plugin install https://github.com/fernandoleitepagani/BottegaStack` | root `plugin.json` |
+| [**Codex**](./codex/README.md) | Experimental (#46) | `codex plugin marketplace add fernandoleitepagani/BottegaStack` then `codex plugin add bottega@bottega` | root `plugin.json` + `.agents/plugins/marketplace.json` |
 | [**OpenCode**](./opencode/README.md) | Experimental (#46) | `./harnesses/opencode/install.sh` | `~/.config/opencode/skills/<name>` |
 
 Abstract model tiers (`heavy`, `medium`, `standard`, `fast`) per role and difficulty are in the router's **Subagents** table ([`skills/maestro/SKILL.md`](../skills/maestro/SKILL.md#subagents)); each harness file under [`skills/maestro/harness/`](../skills/maestro/harness/) holds that harness's **Models** table.
@@ -15,4 +15,5 @@ Abstract model tiers (`heavy`, `medium`, `standard`, `fast`) per role and diffic
 
 - **Every harness** uses its own native subagents; bottega ships no agent definition. Every delegate brief's first line is `Read <maestro dir>/worker.md before starting.`
 - **One vocabulary.** Skills use harness-neutral words (explorer, delegate, its own worktree, todo list, fresh session, model file, transcripts). Each harness has one translation file under [`skills/maestro/harness/`](../skills/maestro/harness/) that maps them, the way pstack's `docs/harness/claude-code.md` does.
-- **Install layout:** Non-Claude installers symlink each skill under its real name (`<skills dir>/implement -> skills/implement`), so sibling links like `../implement/SKILL.md` resolve whether a harness follows the symlink or normalizes the path text. Because the names are unprefixed, an installer stops before linking anything if a skill of the same name already exists there and isn't a Bottega link. Older `bottega-<name>` links are removed on install and uninstall.
+- **Manifests.** Claude Code reads `.claude-plugin/`; Antigravity and Codex read the root `plugin.json` (one file, as pstack's root `plugin.json`); Codex also reads `.agents/plugins/marketplace.json`.
+- **OpenCode install layout.** `harnesses/opencode/install.sh` symlinks each skill under its real name, so sibling links like `../implement/SKILL.md` resolve; it stops before linking anything if a skill of the same name already exists there.

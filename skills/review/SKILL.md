@@ -10,7 +10,7 @@ How a code playbook reviews a finished diff and fixes what the review proves. At
 
 ## The reviewers (two parallel axes)
 
-Adapted from mattpocock/skills `code-review` (MIT, see NOTICE). The text below is upstream's, minus the parts bottega sets itself; **In bottega** after it says how it runs inside `/implement`.
+Adapted from mattpocock/skills `code-review` (MIT, see LICENSE). The text below is upstream's, minus the parts bottega sets itself; **In bottega** after it says how it runs inside `/implement`.
 
 Two-axis review of the diff between `HEAD` and a fixed point:
 

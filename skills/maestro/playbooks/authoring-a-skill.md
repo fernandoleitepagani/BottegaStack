@@ -1,6 +1,6 @@
 ### Authoring or changing a skill
 
-**You own the skill's voice.** Adapted from pstack's `poteto-mode` authoring-a-skill playbook (MIT, see NOTICE). A skill edit changes every future session, so it runs as a gated change.
+**You own the skill's voice.** Adapted from pstack's `poteto-mode` authoring-a-skill playbook (MIT, see LICENSE). A skill edit changes every future session, so it runs as a gated change.
 
 1. Open the run (`<maestro dir>/playbooks/final-gate.md`, step 0), with conditions for what the skill must now make an agent do.
 2. Write or edit the `SKILL.md`. Keep only prose that changes a decision. Tell it to do the thing; explain only when the rule is confusing without a reason. Point at structural sources (types, READMEs, config) instead of restating them (**Mechanize It**). Delegate to other skills by path, never restate them.

@@ -7,7 +7,7 @@ In this page you install the plugin, pick which models bottega uses, and run you
 In a shell, run:
 
 ```bash
-claude plugin marketplace add <path-or-repo>
+claude plugin marketplace add fernandoleitepagani/BottegaStack
 claude plugin install bottega@bottega
 ```
 
@@ -15,15 +15,13 @@ Claude Code prefixes plugin commands, so each command in this guide can also be 
 
 ### Other harnesses (experimental)
 
-For Antigravity CLI, Codex, or OpenCode, run the matching installer from the repo root:
-
 ```bash
-./harnesses/antigravity/install.sh   # ~/.agents/skills/<name>
-./harnesses/codex/install.sh         # ~/.codex/skills/<name>
-./harnesses/opencode/install.sh      # ~/.config/opencode/skills/<name>
+agy plugin install https://github.com/fernandoleitepagani/BottegaStack                     # Antigravity CLI
+codex plugin marketplace add fernandoleitepagani/BottegaStack && codex plugin add bottega@bottega   # Codex
+git clone https://github.com/fernandoleitepagani/BottegaStack && ./BottegaStack/harnesses/opencode/install.sh   # OpenCode
 ```
 
-Skills install under their real names; the installer stops if one would replace a skill you already have. Pass `--uninstall` to remove the symlinks. See [`harnesses/README.md`](../../harnesses/README.md) for experimental status (#46) and how non-Claude harnesses dispatch subagents.
+OpenCode has no plugin format for skill bundles, so its installer links each skill into `~/.config/opencode/skills/` and stops if one would replace a skill you already have. See [`harnesses/README.md`](../../harnesses/README.md) for experimental status (#46) and how each harness dispatches subagents.
 
 ## Pick your models
 

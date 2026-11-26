@@ -1,6 +1,6 @@
 # Worktree cleanup
 
-Adapted from pstack's `poteto-mode` worktree-cleanup playbook (MIT, see NOTICE), mapped to bottega's script, paths and principle names.
+Adapted from pstack's `poteto-mode` worktree-cleanup playbook (MIT, see LICENSE), mapped to bottega's script, paths and principle names.
 
 1. Snapshot and audit. Record `df -h /`, then run `<maestro dir>/scripts/bottega worktree audit [-b <pr-base-ref>] --transcripts <dir> [repo-path]`, with the transcript folder from your harness file (wraps `worktree-audit.sh`, **Mechanize It**). Without `-b` it checks `MERGED` against `origin/HEAD`, so pass `-b origin/<branch>` when PRs target another branch. It reads paths from `git worktree list`, never hand-typed, since a hand-typed `myrepo-worktrees/x` misses one that lives in a harness's own worktree folder (harness file) (**Mechanize It**). If it can read no transcripts, it marks no worktree `safe`; everything it would have called safe becomes `verify-recent-chat`. It classifies each worktree by size, age, merge state, uncommitted work, PR state, and the newest chat that touched it (from the transcripts your harness file names), then suggests a bucket. The transcript scan is slow, so background it.
 2. The bucket is advice, not permission. The pinned and active chats are the real artifact (**Prove It Works**). Get that set from the user and cross-check every candidate. The audit has marked `safe` a worktree the user had pinned, so the pinned set wins.

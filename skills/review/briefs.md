@@ -1,6 +1,6 @@
 # Reviewer briefs
 
-From Matt Pocock's `code-review` (MIT, see NOTICE). Each reviewer reads only its own section. You are a reviewer, never the agent that wrote the code; you get the diff command, the commit list, check output paths and your axis input, never the implementer's self-assessment.
+From Matt Pocock's `code-review` (MIT, see LICENSE). Each reviewer reads only its own section. You are a reviewer, never the agent that wrote the code; you get the diff command, the commit list, check output paths and your axis input, never the implementer's self-assessment.
 
 ## Standards
 

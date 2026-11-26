@@ -12,7 +12,7 @@ If the user passed arguments, treat them as a description of what the next sessi
 
 ## In bottega
 
-Adapted from mattpocock/skills `handoff` (MIT, see NOTICE). These rules take precedence where they differ:
+Adapted from mattpocock/skills `handoff` (MIT, see LICENSE). These rules take precedence where they differ:
 
 - **Where it goes.** Write `.bottega/handoff.md`: `.bottega/` is untracked, survives a reboot, and `/recall` reads it first.
 - **Suggested skills** means bottega skills, named as `/maestro`, `/implement <ticket>`, `/plan`, and so on.

@@ -1,6 +1,6 @@
 ### Session pickup
 
-**You own the resume point. Read the prior trail, don't redo it.** Adapted from pstack's `poteto-mode` session-pickup playbook (MIT, see NOTICE).
+**You own the resume point. Read the prior trail, don't redo it.** Adapted from pstack's `poteto-mode` session-pickup playbook (MIT, see LICENSE).
 
 1. Run `/recall` (`../../recall/SKILL.md`). It reads `.bottega/handoff.md` first, then the patch it names, then this workspace's transcripts, in a subagent, and returns a short brief. Never read transcripts from other projects.
 2. Rebuild state from git: the branch and worktree, what already landed (`git log`, `git diff` against the base), open todos, decisions made. The trail is authoritative; don't re-derive it. Apply a saved `.bottega/pause-*.patch` when the work continues from it.

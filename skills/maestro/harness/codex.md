@@ -36,7 +36,7 @@ Tiers per role and difficulty are in the router's **Subagents** table; `~/.botte
 |---|---|
 | **transcripts** | `~/.codex/sessions/` (*check*) |
 | **project skills dir** | `.codex/skills/` (*check*) |
-| **installed skills** | `~/.codex/skills/<name>` (symlinks from `harnesses/codex/install.sh`) |
+| **installed skills** | the plugin under `~/.codex/plugins/cache/bottega/` (`codex plugin add bottega@bottega`) |
 
 ## Manual-only skills
 

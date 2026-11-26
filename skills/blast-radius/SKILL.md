@@ -51,7 +51,7 @@ Write it through `unslop`, cite real code, and strip anything private before it 
 
 ## In bottega
 
-Adapted from pstack's `blast-radius` (MIT, see NOTICE). These rules take precedence where they differ:
+Adapted from pstack's `blast-radius` (MIT, see LICENSE). These rules take precedence where they differ:
 
 - **When it runs.** Only where a change can break code it doesn't touch:
   1. Before shaping: always in `../maestro/playbooks/refactoring.md` (step 2), and in `../maestro/playbooks/feature.md` or `../maestro/playbooks/bug-fix.md` when the change touches a shared interface, public API, data format, schema or config other code reads. Run it on the planned change; it hands back the dependents to migrate and the safety fact the pin must prove.

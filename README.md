@@ -10,16 +10,37 @@ The goal is not more code. It's less code, of higher quality, that you can trust
 
 ## install
 
-**Claude Code:**
+Each harness installs bottega with its own plugin command. Start a new session afterwards.
+
+**Claude Code** (supported):
 
 ```bash
-claude plugin marketplace add <path-or-repo>
+claude plugin marketplace add fernandoleitepagani/BottegaStack
 claude plugin install bottega@bottega
 ```
 
-Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan` is also `/bottega:plan`; use the prefix when Claude Code's built-in `/plan` clashes (built-in plan mode stays off during grilling). bottega uses no hooks.
+Claude Code prefixes plugin commands, so `/plan` is also `/bottega:plan`; use the prefix when Claude Code's built-in `/plan` clashes (built-in plan mode stays off during grilling). bottega uses no hooks.
 
-**Antigravity CLI, Codex, and OpenCode (experimental, #46):** run the harness installer (`./harnesses/antigravity/install.sh`, `./harnesses/codex/install.sh`, or `./harnesses/opencode/install.sh`). See [`harnesses/`](./harnesses/) for status and subagent dispatch notes.
+**Antigravity CLI** (experimental, #46):
+
+```bash
+agy plugin install https://github.com/fernandoleitepagani/BottegaStack
+```
+
+**Codex** (experimental, #46):
+
+```bash
+codex plugin marketplace add fernandoleitepagani/BottegaStack
+codex plugin add bottega@bottega
+```
+
+**OpenCode** (experimental, #46). OpenCode has no plugin format for skill bundles yet, so clone the repo and link the skills:
+
+```bash
+git clone https://github.com/fernandoleitepagani/BottegaStack && ./BottegaStack/harnesses/opencode/install.sh
+```
+
+Uninstall with `claude plugin uninstall bottega`, `agy plugin uninstall bottega`, `codex plugin remove bottega@bottega`, or `./harnesses/opencode/install.sh --uninstall`. See [`harnesses/`](./harnesses/) for status and subagent notes.
 
 **platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Native Windows is not supported; under WSL, bottega runs as on Linux.
 
@@ -108,7 +129,7 @@ bottega does not drive or screenshot a UI: the agent says what to look at and yo
 
 ## license
 
-MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE) and [NOTICE](./NOTICE).
+MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE); `skills/frontend-design` keeps its own Apache 2.0 [LICENSE.txt](./skills/frontend-design/LICENSE.txt).
 
 ## credits
 
