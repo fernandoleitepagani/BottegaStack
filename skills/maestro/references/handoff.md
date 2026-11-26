@@ -4,7 +4,7 @@
 
 ## Pause
 
-Explicit only, plus the handoff threshold in **Token rules** of `../SKILL.md` and the context budget in `/implement`, an allowed automatic trigger even under a keep-going grant. On "keep going" or "don't stop", do not pause.
+Explicit only, plus the handoff threshold in **Context.** of `../SKILL.md` and the context budget in `/implement`, an allowed automatic trigger even under a keep-going grant. On "keep going" or "don't stop", do not pause.
 
 1. Stop at a safe boundary. Finish or back out of the current atomic step. Start nothing new and cancel nested subagents.
 2. Take no irreversible action to pause: no new PR, no push.

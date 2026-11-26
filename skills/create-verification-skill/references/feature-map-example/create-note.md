@@ -16,15 +16,15 @@ Create note lets a user save a titled note from the CLI and confirm the saved no
 Preconditions:
 
 - Notes is healthy at `http://127.0.0.1:4173`.
-- No note is titled `Release checklist`.
+- No note is titled `CLI note`.
 - `control-notes doctor` reports the expected URL and disposable data directory.
 
 - **CLI entry.** Create a note. Run `control-notes cli -- notes create --title "CLI note" --body "Created from terminal" --format json`. Exit code `0` and stdout contain the new note ID and title.
-- **Proof.** Read both notes back. Run `control-notes cli -- notes list --format json > artifacts/create-note/list.json`. The artifact shows `Release checklist` and `CLI note`.
+- **Proof.** Read the note back. Run `control-notes cli -- notes list --format json > artifacts/create-note/list.json`. The artifact shows `CLI note`.
 
 ## Gotchas
 
 - UI check for a human: the `New note` button and the `n` key open `Note editor`, `Save note` shows `Note saved`, and `Cancel` drops the draft.
 - Titles are trimmed on save. Assert the stored title, not the input value.
 - A save status alone is insufficient proof. Read the note back from the list.
-- Remove `Release checklist` and `CLI note` during fixture cleanup, but retain their proof artifacts.
+- Remove `CLI note` during fixture cleanup, but retain its proof artifacts.

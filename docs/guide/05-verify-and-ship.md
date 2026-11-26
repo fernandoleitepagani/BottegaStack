@@ -1,6 +1,6 @@
 # Verify the result and open a PR
 
-"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/references/principles.md#prove-it-works) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, running checks and the gate in one call (`bottega verify`), generating a verification skill for your app, and shipping via [`/ship`](../../skills/ship/SKILL.md) (either `full-send` + `babysit-pr` to merge, or `full-stop` to open a Draft PR).
+"It compiles" is not evidence. The [Prove It Works principle](../../skills/maestro/references/principles.md#prove-it-works) makes the agent check the real artifact before it reports success, and your job is to make "the real artifact" checkable. This page covers stating a finish condition, running checks and the gate in one call (`bottega verify`), generating a verification skill for your app, and shipping via [`/ship`](../../skills/ship/SKILL.md) (either `/ship full` to watch CI and merge, or `/ship stop` to open a Draft PR).
 
 Verification is the slowest step in most agent work, because it's the step that usually waits on a human. Make the agent able to do it, and you stop being the bottleneck. Skip it, and running more agents only gets you more unchecked work to review.
 
@@ -79,7 +79,7 @@ Apps change, and feature maps go out of date. Run this regularly, for example on
 /maestro open the pr. small ordered commits, evidence in the description.
 ```
 
-The final gate's [Opening a PR](../../skills/maestro/references/final-gate.md) step works from a worktree in small ordered commits, runs the comments self-check, unslops the description, and returns the PR link. Five narrow PRs beat one fat one, and stacked follow-ups beat a growing branch.
+[`/ship`](../../skills/ship/SKILL.md) owns PR creation (`/ship stop` for a Draft PR, `/ship full` for a Ready PR + CI watching + merge): it works from a feature branch in small ordered Conventional Commits, runs the comments self-check, unslops the description, enforces the final gate and one-way-door checks via `bottega ship`, and returns the PR link. Five narrow PRs beat one fat one, and stacked follow-ups beat a growing branch.
 
 ## Watch the PR and land it
 

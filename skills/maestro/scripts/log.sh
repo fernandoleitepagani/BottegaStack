@@ -20,7 +20,7 @@ fi
 bdir=""
 d="$(cd "$logdir" 2>/dev/null && pwd -P || true)"
 while [ -n "$d" ] && [ "$d" != "/" ]; do
-	if [ "$(basename "$d")" = ".bottega" ]; then bdir="$d"; fi
+	if [ "$(basename "$d")" = ".bottega" ]; then bdir="$d"; break; fi
 	d="$(dirname "$d")"
 done
 if [ -n "$bdir" ] && [ ! -e "$bdir/.gitignore" ]; then

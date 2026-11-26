@@ -43,7 +43,7 @@ Check the real artifact, never a self-report or "it compiles" (**Prove It Works*
 
 ## 6. Review
 
-Always run one reviewer subagent over the finished diff, per `<maestro dir>/references/review.md`. At high risk the review is adversarial and logs the `crossfire` row the gate needs. Verified findings go through the fix step in that file: at most **2 fix rounds**, and a third failure is ESCALATE.
+Review the finished diff per `<maestro dir>/references/review.md`: at normal risk, two parallel `standard` reviewers (Spec + Standards); at high risk, `heavy` adversarial review (1 reviewer for ≤100 lines and ≤2 files, or a 2–3 parallel verifier swarm for larger diffs) that logs the `crossfire` row the gate needs. Verified findings go through the fix step in that file: at most **2 fix rounds**, and a third failure is ESCALATE.
 
 ## 7. Close
 

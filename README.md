@@ -2,7 +2,7 @@
 
 ![Linux](https://img.shields.io/badge/Linux-supported-FCC624?logo=linux&logoColor=black) ![macOS](https://img.shields.io/badge/macOS-supported-000000?logo=apple&logoColor=white)
 
-bottega is a Claude Code plugin for one workflow: **plan, split into tickets, implement**. You write a prompt. The agent grills you until the plan is clear, splits it into tickets that each fit one fresh session, says what the orchestrator does and what each subagent does, orders the tickets into parallel waves, picks an opus- or sonnet-level orchestrator for each, then builds them one session at a time and proves every result.
+bottega is a multi-harness agent workflow plugin (Claude Code, Antigravity CLI, Codex, OpenCode) for one workflow: **plan, split into tickets, implement**. You write a prompt. The agent grills you until the plan is clear, splits it into tickets that each fit one fresh session, says what the orchestrator does and what each subagent does, orders the tickets into parallel waves, assigns an abstract model tier (`heavy`, `medium`, `standard`, `fast`) for each, then builds them one session at a time and proves every result.
 
 **credit.** bottega started as a Claude Code port of [pstack](https://github.com/cursor/plugins), the skill set written by [Lauren Tan (poteto)](https://x.com/poteto) for Cursor. The principles and much of the rule text come from her work, used under the MIT license (see [LICENSE](./LICENSE)). The grilling, spec, ticket-slicing and map ideas are adapted from Matt Pocock's [skills](https://github.com/mattpocock/skills) (MIT).
 
@@ -10,12 +10,16 @@ The goal is not more code. It's less code, of higher quality, that you can trust
 
 ## install
 
+**Claude Code:**
+
 ```bash
 claude plugin marketplace add <path-or-repo>
 claude plugin install bottega@bottega
 ```
 
 Start a new session afterwards. Claude Code prefixes plugin commands, so `/plan` is also `/bottega:plan`; use the prefix when Claude Code's built-in `/plan` clashes (built-in plan mode stays off during grilling). bottega uses no hooks.
+
+**Antigravity CLI, Codex, and OpenCode:** run the harness installer (`./harnesses/antigravity/install.sh`, `./harnesses/codex/install.sh`, or `./harnesses/opencode/install.sh`). See [`harnesses/`](./harnesses/).
 
 **platforms.** Linux and macOS only. The scripts need only `bash` and `git`, plus `gh` for opening and watching PRs. Python is used only by the developer lint and evals. Native Windows is not supported; under WSL, bottega runs as on Linux.
 
@@ -35,9 +39,9 @@ Each ticket file carries:
 
 - what to build (one vertical slice) and acceptance criteria written as runnable checks
 - a budget for the orchestrator's own context (300k, ±10%, subagents excluded), itemized
-- what the orchestrator does itself, and a table of subagents: role (explorer, implementer, reviewer), `subagent_type`, model, task, write scope, and which run together
+- what the orchestrator does itself, and a table of subagents: role (explorer, implementer, reviewer), abstract tier, task, write scope, and which run together
 - blocked by and wave: `PLAN.md` lists which tickets can run in parallel and which must wait
-- the orchestrator level, opus or sonnet, and why
+- the orchestrator tier (`heavy`, `medium`, or `standard`, translated per harness in [`models.md`](./skills/maestro/references/models.md)) and why
 
 New here? The [bottega guide](./docs/guide/README.md) walks through it with real prompts.
 
@@ -64,7 +68,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 | [`/create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. Generates a `verify-<app>` skill with a feature map. |
 | [`/maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. |
 
-Everything else is a short reference file under [`skills/maestro/references/`](./skills/maestro/references/), read only when a step needs it: exploring code and answering questions, review and fix rounds, prototypes, unattended runs, handoffs, worktree cleanup, the final gate, the role table, and the principles.
+Everything else is a short reference file under [`skills/maestro/references/`](./skills/maestro/references/), read only when a step needs it: exploring code and answering questions, review and fix rounds, prototypes, handoffs, worktree cleanup, the final gate, the role table, abstract model tiers (`models.md`), and the principles.
 
 ## risk and the final gate
 
@@ -78,14 +82,16 @@ Implementers and reviewers run as [`subagent_type: "bottega:maestro-agent"`](./h
 
 ## models
 
-| role | type | normal | high |
-|---|---|---|---|
-| orchestrator | your session | opus- or sonnet-level, per ticket | opus |
-| explorer | `Explore` | haiku high | haiku high |
-| implementer | `bottega:maestro-agent` | sonnet low | sonnet medium |
-| reviewer | `bottega:maestro-agent` | sonnet low | sonnet medium |
+Roles use 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) translated per harness in [`skills/maestro/references/models.md`](./skills/maestro/references/models.md) and [`skills/maestro/references/subagents.md`](./skills/maestro/references/subagents.md).
 
-To change a role, write `~/.claude/rules/bottega-models.md` with one line per role: `role: <normal model effort> | <high model effort>`. Never `xhigh` or `max`, and `high` only on haiku.
+| role | normal | high |
+|---|---|---|
+| orchestrator | `standard` or `medium` (per ticket) | `heavy` |
+| explorer | `fast` | `fast` |
+| implementer | `standard` | `medium` |
+| reviewer | `standard` | `medium` (`heavy` for adversarial crossfire) |
+
+To override tiers or roles, write `~/.bottega/models.md` (or `~/.claude/rules/bottega-models.md` on Claude Code). Effort ceiling: never `xhigh` or `max`.
 
 ## principles
 
@@ -93,7 +99,7 @@ To change a role, write `~/.claude/rules/bottega-models.md` with one line per ro
 
 ## not shipped here
 
-bottega does not drive or screenshot a UI: the agent says what to look at and you check it. PR watching uses `gh`, not a bundled watcher. There are no hooks and no CLI. Plans and tickets live in `.bottega/` (untracked) unless you ask for GitHub issues.
+bottega does not drive or screenshot a UI: the agent says what to look at and you check it. PR watching uses `gh`, not a bundled watcher. There are no hooks and no compiled binary (only the thin Bash wrapper [`skills/maestro/scripts/bottega`](./skills/maestro/scripts/bottega) around `gate-check.sh`, `log.sh`, and `worktree-audit.sh`). Plans and tickets live in `.bottega/` (untracked) unless you ask for GitHub issues.
 
 ## license
 
@@ -102,5 +108,5 @@ MIT. Original pstack by Lauren Tan (poteto). See [LICENSE](./LICENSE).
 ## credits
 
 - `plan` and `tickets` adapt the grilling, `to-spec`, `to-tickets` and `wayfinder` ideas from Matt Pocock's [mattpocock/skills](https://github.com/mattpocock/skills) (MIT), rewritten for bottega.
-- The unattended and handoff rules and the explore reference are original works by the bottega author, drawing on pstack.
+- The `/autopilot` skill, handoff rules, and explore reference are original works by the bottega author, drawing on pstack.
 - `frontend-design` is Anthropic's skill from [anthropics/skills](https://github.com/anthropics/skills/tree/main/skills/frontend-design), adapted under the Apache License 2.0 (see [its LICENSE.txt](./skills/frontend-design/LICENSE.txt)).

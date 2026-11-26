@@ -4,7 +4,7 @@ Each ticket runs in a fresh session. Start it the way `PLAN.md` says:
 
 ```text
 /clear
-/model sonnet
+# set model to your harness's translation of the ticket's tier (e.g. standard)
 /implement .bottega/plans/team-workspaces/tickets/T01-schema-and-types.md
 ```
 

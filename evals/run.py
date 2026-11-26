@@ -243,20 +243,23 @@ def check(g, workdir, info):
             return None, "not applicable: 0 spawns"
         return all(i.get("model") for i in spawns), f"{len(spawns)} spawns"
     if "opened_first" in g:
+        start_re = re.compile(r"(?:gate-check\.sh[^\n]*--start|\bbottega\s+start\b)")
+        edit_re = re.compile(r"\bsed\s+-i|\bperl\s+-pi|\btee\b|>\s*[\w./-]+")
         first_start = first_edit = None
         for i, (n, inp) in enumerate(uses):
             cmd = str(inp.get("command", "")) if n == "Bash" else ""
-            if first_start is None and (("gate-check.sh" in cmd and "--start" in cmd) or re.search(r"\bbottega\s+start\b", cmd)):
+            if first_start is None and start_re.search(cmd):
                 first_start = i
-            if first_edit is None and (n in ("Edit", "Write", "NotebookEdit")
-                                       or re.search(r"\bsed -i|\bperl -pi|>\s*[\w./-]+\.py\b", cmd)):
+            if first_edit is None and (n in ("Edit", "Write", "NotebookEdit", "Agent")
+                                       or edit_re.search(cmd)):
                 first_edit = i
         if first_start is None:
             return False, "no --start call"
         if first_edit is not None and first_start == first_edit:  # one chained command: compare positions
             cmd = str(uses[first_start][1].get("command", ""))
-            m = re.search(r"\bsed -i|\bperl -pi|>\s*[\w./-]+\.py\b", cmd)
-            return bool(m) and cmd.find("--start") < m.start(), "start and first edit in one command"
+            ms = start_re.search(cmd)
+            me = edit_re.search(cmd)
+            return bool(ms and me) and ms.start() < me.start(), "start and first edit in one command"
         return first_edit is None or first_start < first_edit, f"start at call {first_start}, first edit at {first_edit}"
     if "gate_completed" in g:
         last = gate_results(info.get("raw", ""))
@@ -288,9 +291,12 @@ def gate_results(raw):
                 text = b.get("content")
                 if isinstance(text, list):
                     text = " ".join(x.get("text", "") for x in text if isinstance(x, dict))
-                m = re.findall(r"gate-check: (APPROVE allowed|ESCALATE|incomplete)", str(text))
+                text_s = str(text)
+                m = re.findall(r"gate-check: (APPROVE allowed|ESCALATE|incomplete)", text_s)
                 if m:
                     out.append(m[-1])
+                elif "bottega verify: checks failed" in text_s:
+                    out.append("checks failed")
     return out
 
 
@@ -353,35 +359,47 @@ def run_one(task, arm, trial, args):
     cmd = command(task, arm, args)
     start = time.time()
     try:
-        env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
-        p = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True, timeout=args.timeout, env=env)
-        raw, exit_code = p.stdout, p.returncode
-    except subprocess.TimeoutExpired as e:
-        raw, exit_code = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or ""), "timeout"
-    info = parse_stream(raw)
-    info["raw"] = raw
-    lines, files = changed_lines(workdir)
-    checks = grade(task, workdir, info, arm, changed=bool(files)) + expect_checks(task, lines, files)
-    row = {
-        "task": task["name"], "kind": task["kind"], "arm": arm, "trial": trial,
-        "model": args.model, "effort": args.effort, "exit": exit_code,
-        "wall_s": round(time.time() - start, 1), "changed_lines": lines, "changed_files": files,
-        "pass": all(c["pass"] for c in checks if not c["behavior"]),
-        "behavior_pass": (all(c["pass"] for c in checks if c["behavior"])
-                          if any(c["behavior"] for c in checks) else None),
-        "checks": checks,
-        **{k: info[k] for k in ("turns", "duration_ms", "tokens", "cache_read", "cost_usd", "denied",
-                                "tool_calls", "skills_read")},
-    }
-    transcript = os.path.join(args.out_dir, f"{task['name']}.{arm}.{trial}.jsonl")
-    with open(transcript, "w") as f:
-        f.write(raw)
-    row["transcript"] = os.path.relpath(transcript, REPO)
-    if args.keep:
-        row["workdir"] = workdir
-    else:
-        shutil.rmtree(workdir, ignore_errors=True)
-    return row
+        try:
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+            p = subprocess.run(cmd, cwd=workdir, capture_output=True, text=True, timeout=args.timeout, env=env)
+            raw, stderr, exit_code = p.stdout, p.stderr, p.returncode
+        except subprocess.TimeoutExpired as e:
+            raw = (e.stdout or b"").decode() if isinstance(e.stdout, bytes) else (e.stdout or "")
+            stderr = (e.stderr or b"").decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
+            exit_code = "timeout"
+        if args.harness == "agy":
+            info = {"result": raw.strip(), "turns": None, "duration_ms": None, "tokens": None,
+                    "cache_read": None, "cost_usd": None, "denied": 0, "tool_calls": {},
+                    "skills_read": [], "tool_uses": []}
+        else:
+            info = parse_stream(raw)
+        info["raw"] = raw
+        lines, files = changed_lines(workdir)
+        checks = grade(task, workdir, info, arm, changed=bool(files)) + expect_checks(task, lines, files)
+        row = {
+            "task": task["name"], "kind": task["kind"], "arm": arm, "trial": trial,
+            "model": args.model, "effort": args.effort, "exit": exit_code,
+            "wall_s": round(time.time() - start, 1), "changed_lines": lines, "changed_files": files,
+            "pass": all(c["pass"] for c in checks if not c["behavior"]),
+            "behavior_pass": (all(c["pass"] for c in checks if c["behavior"])
+                              if any(c["behavior"] for c in checks) else None),
+            "checks": checks,
+            **{k: info[k] for k in ("turns", "duration_ms", "tokens", "cache_read", "cost_usd", "denied",
+                                    "tool_calls", "skills_read")},
+        }
+        transcript = os.path.join(args.out_dir, f"{task['name']}.{arm}.{trial}.jsonl")
+        with open(transcript, "w") as f:
+            f.write(raw)
+        if stderr:
+            with open(os.path.join(args.out_dir, f"{task['name']}.{arm}.{trial}.stderr.txt"), "w") as f:
+                f.write(stderr)
+        row["transcript"] = os.path.relpath(transcript, REPO)
+        if args.keep:
+            row["workdir"] = workdir
+        return row
+    finally:
+        if not args.keep:
+            shutil.rmtree(workdir, ignore_errors=True)
 
 
 def summarize(rows):
@@ -407,13 +425,9 @@ def summarize(rows):
               f"total ${sum(costs):.2f}")
 
 
-def selftest(tasks):
-    """Graders must fail on the untouched fixture and pass on the reference solution,
-    or the task measures nothing. Makes no model calls. Behavior checks need a transcript,
-    so they are left to real runs."""
-    bad = 0
-    for t in tasks:
-        wd = make_workdir(t, 0)
+def _selftest_one(t):
+    wd = make_workdir(t, 0)
+    try:
         before = [c["name"] for c in grade(t, wd, empty_info()) if not c["pass"]]
         sol = os.path.join(TASKS, t["name"], "solution")
         answer = ""
@@ -422,15 +436,29 @@ def selftest(tasks):
                 with open(os.path.join(sol, f)) as fh:
                     answer = fh.read()
             else:
-                shutil.copy(os.path.join(sol, f), os.path.join(wd, f))
+                src = os.path.join(sol, f)
+                dst = os.path.join(wd, f)
+                (shutil.copytree if os.path.isdir(src) else shutil.copy)(src, dst)
         after = grade(t, wd, empty_info(answer))
         lines, files = changed_lines(wd)
         after += expect_checks(t, lines, files)
-        shutil.rmtree(wd, ignore_errors=True)
         failing_after = [c["name"] for c in after if not c["pass"]]
         ok = bool(before) and not failing_after
+        return t["name"], ok, before, failing_after
+    finally:
+        shutil.rmtree(wd, ignore_errors=True)
+
+
+def selftest(tasks):
+    """Graders must fail on the untouched fixture and pass on the reference solution,
+    or the task measures nothing. Makes no model calls. Behavior checks need a transcript,
+    so they are left to real runs."""
+    bad = 0
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(8, max(1, len(tasks)))) as pool:
+        results = list(pool.map(_selftest_one, tasks))
+    for name, ok, before, failing_after in results:
         bad += not ok
-        print(f"{t['name']:<22}{'ok' if ok else 'BROKEN'}  pristine fails: {before or 'nothing'}"
+        print(f"{name:<22}{'ok' if ok else 'BROKEN'}  pristine fails: {before or 'nothing'}"
               f"  solution fails: {failing_after or 'nothing'}")
     return bad
 
@@ -457,7 +485,8 @@ def main():
     if args.selftest:
         sys.exit(1 if selftest(tasks) else 0)
     global SETTINGS
-    SETTINGS = sandbox_settings()
+    if args.harness == "claude":
+        SETTINGS = sandbox_settings()
     if args.dry_run:
         for t in tasks:
             for a in arms:
@@ -472,20 +501,22 @@ def main():
     if "bottega" in arms:
         plugin_copy()  # once, before the workers start
     rows = []
-    with open(os.path.join(RESULTS, f"{stamp}.jsonl"), "w") as out, \
-            concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        print(f"{len(jobs)} runs, {max(1, args.jobs)} at a time", flush=True)
-        futures = {pool.submit(run_one, t, a, trial, args): (t["name"], a, trial) for t, trial, a in jobs}
-        for fut in concurrent.futures.as_completed(futures):
-            name, a, trial = futures[fut]
-            row = fut.result()
-            print(f"done {name} [{a}] trial {trial + 1}/{args.trials}: "
-                  f"{'pass' if row['pass'] else 'FAIL'}", flush=True)
-            out.write(json.dumps(row) + "\n")
-            out.flush()
-            rows.append(row)
+    try:
+        with open(os.path.join(RESULTS, f"{stamp}.jsonl"), "w") as out, \
+                concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
+            print(f"{len(jobs)} runs, {max(1, args.jobs)} at a time", flush=True)
+            futures = {pool.submit(run_one, t, a, trial, args): (t["name"], a, trial) for t, trial, a in jobs}
+            for fut in concurrent.futures.as_completed(futures):
+                name, a, trial = futures[fut]
+                row = fut.result()
+                print(f"done {name} [{a}] trial {trial + 1}/{args.trials}: "
+                      f"{'pass' if row['pass'] else 'FAIL'}", flush=True)
+                out.write(json.dumps(row) + "\n")
+                out.flush()
+                rows.append(row)
+    finally:
+        shutil.rmtree(PLUGIN or "", ignore_errors=True)
     rows.sort(key=lambda r: (r["task"], r["trial"], r["arm"]))
-    shutil.rmtree(PLUGIN or "", ignore_errors=True)
     summarize(rows)
     print(f"\nresults: {os.path.relpath(out.name, REPO)}")
     print("compare with the saved baseline: python3 evals/gate.py " + os.path.relpath(out.name, REPO))

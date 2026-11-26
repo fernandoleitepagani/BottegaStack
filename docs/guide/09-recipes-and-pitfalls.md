@@ -39,7 +39,7 @@ You answer questions, not write specs. `/tickets` returns one ticket per session
 
 ```text
 /clear
-/model sonnet
+# set model to your harness's translation of the ticket's tier
 /implement .bottega/plans/team-workspaces/tickets/T03-invite-flow.md
 ```
 
@@ -118,7 +118,7 @@ Catch-up tells you in plain words what changed since your last message, then lis
 - **Skipping the plan for big work.** A multi-session change built in one session runs out of context halfway. Run `/plan` and `/tickets` first.
 - **Answering the grilling passively.** "Sure, whatever you think" puts the agent's guesses in your spec. Push back, and say "I don't know" when you don't.
 - **Clearing between `/plan` and `/tickets`.** The grilling is the context the tickets are cut from. Run them in one session.
-- **Ignoring the ticket's model.** A sonnet-level orchestrator on an opus-level ticket misses design calls; the reverse wastes money.
+- **Ignoring the ticket's tier.** A `standard`-tier orchestrator on a `heavy`-tier ticket misses design calls; the reverse wastes tokens and money.
 - **A vague finish condition.** "make it better" gives `/loop` nothing to check. Give a command or artifact that can pass or fail.
 - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.
 - **Parallel tickets in one worktree.** They overwrite each other. One session and one worktree per ticket.

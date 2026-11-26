@@ -8,8 +8,8 @@ Everything in this directory is exclusive to **Codex**.
 ./harnesses/codex/install.sh
 ```
 
-Symlinks all 12 skills into `~/.codex/skills/bottega-<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
+Symlinks all 16 skills into `~/.codex/skills/bottega-<name>`. Uninstall with `./harnesses/codex/install.sh --uninstall`.
 
 ## Subagents
 
-See [`subagents.md`](./subagents.md) for the model-tier mapping.
+See [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and [`models.md`](../../skills/maestro/references/models.md) for the role and model-tier mapping.

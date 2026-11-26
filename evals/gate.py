@@ -41,8 +41,8 @@ def group(rows):
 
 def stats(rs):
     behav = [r["behavior_pass"] for r in rs if r.get("behavior_pass") is not None]
-    toks = [r["tokens"] for r in rs if r.get("tokens")]
-    costs = [r["cost_usd"] for r in rs if r.get("cost_usd")]
+    toks = [r["tokens"] for r in rs if r.get("tokens") is not None]
+    costs = [r["cost_usd"] for r in rs if r.get("cost_usd") is not None]
     checks = defaultdict(list)
     for r in rs:
         for c in r["checks"]:
@@ -53,6 +53,7 @@ def stats(rs):
         "behavior": sum(behav) / len(behav) if behav else None,
         "tokens": sum(toks) / len(toks) if toks else None,
         "cost": sum(costs) / len(costs) if costs else None,
+        "denied": sum(r.get("denied") or 0 for r in rs),
         "checks": checks,
         "setup": {(r.get("model"), r.get("effort")) for r in rs},
     }
@@ -65,12 +66,14 @@ def pct(x):
 def promote(paths, merge=False):
     latest = {}
     src = ([BASELINE] if merge and os.path.exists(BASELINE) else []) + list(paths)
-    for r in load(src):  # later files win for the same task and arm
-        latest.setdefault((r["task"], r["arm"]), {})[r["trial"]] = r
+    for p in src:  # later files win for the same task and arm (replacing all its trials)
+        by_key = group(load([p]))
+        for key, rs in by_key.items():
+            latest[key] = sorted(rs, key=lambda r: r["trial"])
     with open(BASELINE, "w") as f:
         for key in sorted(latest):
-            for trial in sorted(latest[key]):
-                f.write(json.dumps(latest[key][trial]) + "\n")
+            for r in latest[key]:
+                f.write(json.dumps(r) + "\n")
     mode = "merged" if merge else "replaced"
     print(f"baseline ({mode}): {len(latest)} task/arm pairs from {len(paths)} file(s) -> {os.path.relpath(BASELINE)}")
 
@@ -97,6 +100,12 @@ def compare(new_path, base_path, jump, cost_jump):
                 bad.append(f"{tag}: behavior {pct(b['behavior'])} -> {pct(n['behavior'])}")
             elif n["behavior"] > b["behavior"]:
                 notes.append(f"{tag}: behavior improved {pct(b['behavior'])} -> {pct(n['behavior'])}")
+        elif b["behavior"] is None and n["behavior"] is not None and n["behavior"] < 1.0:
+            bad.append(f"{tag}: behavior newly failing (- -> {pct(n['behavior'])})")
+        elif b["behavior"] is not None and n["behavior"] is None:
+            notes.append(f"{tag}: behavior grading dropped ({pct(b['behavior'])} -> -)")
+        if n["denied"] > 0:
+            notes.append(f"{tag}: {n['denied']} permission denial(s)")
         for name, results in n["checks"].items():
             was = b["checks"].get(name)
             if was and all(was) and not all(results):
@@ -120,7 +129,7 @@ def compare(new_path, base_path, jump, cost_jump):
         print(f"note  {line}")
     for line in bad:
         print(f"FAIL  {line}")
-    single = any(stats(rs)["n"] == 1 for rs in new.values())
+    single = any(len(rs) == 1 for rs in new.values())
     if bad and single:
         tasks = sorted({line.split(" [")[0] for line in bad})
         print(f"\nOne trial per task is noisy. Confirm before acting:\n"

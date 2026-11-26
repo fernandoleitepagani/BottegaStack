@@ -19,9 +19,11 @@ class T(unittest.TestCase):
     def test_save_export(self):
         import os, tempfile
         handlers.handle_create_user("c", "c@x")
-        p = os.path.join(tempfile.mkdtemp(), "o.csv")
-        cli.save_export(p)
-        self.assertEqual(open(p).read(), "name,email\nc,c@x\n")
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "o.csv")
+            cli.save_export(p)
+            with open(p) as f:
+                self.assertEqual(f.read(), "name,email\nc,c@x\n")
 
 
 if __name__ == "__main__":

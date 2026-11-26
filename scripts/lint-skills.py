@@ -37,10 +37,6 @@ def frontmatter(text):
     return fm
 
 
-def kebab(title):
-    return re.sub(r"[^a-z0-9-]", "", title.lower().replace(" ", "-"))
-
-
 skills = sorted(d for d in os.listdir(SKILLS) if os.path.isfile(os.path.join(SKILLS, d, "SKILL.md")))
 for d in sorted(os.listdir(SKILLS)):
     if os.path.isdir(os.path.join(SKILLS, d)) and d not in skills:
@@ -83,7 +79,12 @@ for t in set(named) - set(principles):
     problems.append(f"delegate.md Principles: '{t}' has no section in principles.md")
 
 words = {8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen", 15: "fifteen", 16: "sixteen", 17: "seventeen"}
-COUNTED = ["README.md", "HANDOFF.md"] + ["docs/guide/" + f for f in sorted(os.listdir(os.path.join(ROOT, "docs", "guide"))) if f.endswith(".md")]
+COUNTED = (
+    ["README.md", "evals/README.md"]
+    + ["docs/guide/" + f for f in sorted(os.listdir(os.path.join(ROOT, "docs", "guide"))) if f.endswith(".md")]
+    + [f"harnesses/{h}/README.md" for h in sorted(os.listdir(os.path.join(ROOT, "harnesses")))
+       if os.path.isfile(os.path.join(ROOT, "harnesses", h, "README.md"))]
+)
 for path in COUNTED:
     text = read(*path.split("/"))
     for kind, want in (("skills", len(skills)), ("principles", len(principles))):
@@ -95,10 +96,11 @@ for path in COUNTED:
 
 # Skills that were cut must not be named as live anywhere a user or agent reads.
 CUT = ["understand", "crossfire", "parallel", "architect", "wayfinder", "figure-it-out", "setup-maestro", "pr",
+       "grill", "unattended",
        "interface-review", "better-interface", "better-accessibility", "better-colors", "better-layout",
        "better-typography", "better-ui", "better-writing", "tdd"]
 CUT_REF = re.compile(r"(?:`/?|/)(" + "|".join(re.escape(c) for c in CUT) + r")(?:`| skill)")
-LIVE = ["harnesses/claude/agents/maestro-agent.md"] + [p for p in COUNTED if p != "HANDOFF.md"]
+LIVE = ["harnesses/claude/agents/maestro-agent.md"] + COUNTED
 for dirpath, _, files in os.walk(SKILLS):
     LIVE += [os.path.relpath(os.path.join(dirpath, f), ROOT) for f in files if f.endswith(".md")]
 for path in LIVE:

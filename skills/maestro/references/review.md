@@ -8,12 +8,14 @@ Spawn two fresh `bottega:maestro-agent` reviewers in parallel on the reviewer ro
 
 1. **Spec reviewer:** Gets the ticket/spec (or stated goal) + diff. Checks: does the diff meet every acceptance criterion, cover edge cases, and avoid scope creep (no unrequested changes, no files outside the write list)?
 2. **Standards reviewer:** Gets repo conventions/principles + diff. Checks: type safety, boundary validation, dead code, test seams (would tests fail if behavior broke?), and security/high-risk traps.
-   - **Normal risk:** one pass on both axes.
-   - **High risk:** Standards reviewer runs the **Adversarial brief** below in rounds (using the role's High column).
+   - **Normal risk:** one pass on both axes (`standard` tier).
+   - **High risk (diff-sized hybrid, `heavy` tier):**
+     - **Small diff (≤100 lines and ≤2 files):** one `heavy` adversarial reviewer runs the **Adversarial brief** below in budgeted rounds.
+     - **Large diff (>100 lines or >2 files, or explicitly requested):** replace the single adversarial pass with the **Verifier swarm** below.
 
-## Verifier swarm (high risk, or opted-in `full-send`)
+## Verifier swarm (large high-risk diff, or opted-in `/ship full`)
 
-For high-risk diffs (or when the user opts into stronger pre-merge verification on `full-send`), replace the single sequential adversarial pass with **2–3 parallel `bottega:maestro-agent` verifiers** (default 3 at high risk, tunable 1–4):
+For large high-risk diffs (>100 lines or >2 files), or when the user opts into stronger pre-merge verification on `/ship full`, spawn **2–3 parallel `heavy` verifiers** (default 3 at high risk, tunable 1–4):
 
 1. **Regression verifier:** Drives existing features end-to-end via the project's `verify-<app>` skill (if present) or integration suite to catch regressions outside the diff.
 2. **Edge-case / boundary fuzzer:** Attacks malformed inputs, empty/zero/many states, concurrency, retries, restarts, and permission boundaries using the **Adversarial brief** below.

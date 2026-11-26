@@ -5,9 +5,10 @@
 # changes a worktree; deletion stays a human-gated step in references/worktree-cleanup.md. Its one
 # write is a best-effort `git fetch` of the base ref, so MERGED is current.
 #
-# Usage: worktree-audit.sh [-b|--base <ref>] [--no-sizes] [repo-path]
+# Usage: worktree-audit.sh [-b|--base <ref>] [--no-sizes] [--no-transcripts] [repo-path]
 #   --no-sizes skips `du`, the slow part on worktrees with large dependency trees,
 #   for a quick look at merge, PR and chat state. SIZE shows "-" and rows sort by age.
+#   --no-transcripts skips scanning ~/.claude/projects/ transcripts (LAST_CHAT shows "-").
 #   repo-path defaults to the current repo.
 #   -b sets the ref the MERGED column checks against (e.g. origin/integration).
 #   Without it the base is origin/HEAD, then origin/main, then origin/master.
@@ -17,10 +18,12 @@ set -u
 
 base=""
 sizes=1
+scan_transcripts=1
 while [ $# -gt 0 ]; do
 	case "$1" in
 	-b|--base) [ $# -ge 2 ] || { echo "error: $1 needs a ref" >&2; exit 2; }; base="$2"; shift 2 ;;
 	--no-sizes) sizes=0; shift ;;
+	--no-transcripts) scan_transcripts=0; shift ;;
 	-h|--help) sed -n '2,/^set -u/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
 	-*) echo "error: unknown option: $1" >&2; exit 2 ;;
 	*) break ;;
@@ -66,7 +69,7 @@ fi
 # cannot read this repo's PRs.
 prs=$(mktemp)
 trap 'rm -f "$prs"' EXIT
-if ! gh pr list --author "@me" --state all --limit 1000 --json number,state,headRefName \
+if ! gh pr list --state all --limit 1000 --json number,state,headRefName \
 	--jq '.[] | "\(.headRefName)\t#\(.number)/\(.state | ascii_downcase)"' > "$prs" 2>/dev/null; then
 	: > "$prs"; echo "warn: could not read PRs with gh; the PR column is blank" >&2
 fi
@@ -88,6 +91,11 @@ printf "SIZE\tAGE\tMERGED\tDIRTY\tREMOTE\tPR\tLAST_CHAT\tBUCKET\tWORKTREE\n"
 
 git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt; do
 	[ "$wt" = "$main_wt" ] && continue
+
+	if [ ! -d "$wt" ]; then
+		printf "-\t?\tno\tmissing\t-\t-\t-\tprunable\t%s\n" "$wt"
+		continue
+	fi
 
 	size=-
 	[ "$sizes" -eq 1 ] && size=$(du -sh "$wt" 2>/dev/null | awk '{print $1}')
@@ -129,8 +137,8 @@ git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt
 	# Most recent chat whose transcript operated in this worktree. Match path
 	# followed by "/" or a quote so feat-482 does not match feat-482-r37.
 	last="-"; last_ts=0
-	if [ -d "$transcripts" ]; then
-		f=$(grep_files "$wt" "$transcripts" | while IFS= read -r t; do stat "${stat_fmt[@]}" "$t" 2>/dev/null; done \
+	if [ "$scan_transcripts" -eq 1 ] && [ -d "$transcripts" ]; then
+		f=$(grep_files "$wt" "$transcripts" | tr '\n' '\0' | xargs -0 stat "${stat_fmt[@]}" 2>/dev/null \
 			| sort -rn | head -1)
 		if [ -n "$f" ]; then last_ts=$(echo "$f" | awk '{print $1}')
 			last=$(fmt_day "$last_ts" 2>/dev/null); fi

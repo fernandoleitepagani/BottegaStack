@@ -9,11 +9,12 @@ Read before your first spawn. Concrete model + effort values come from `referenc
 | **implementer** | writes code and tests in one scope; unattended PR owners | `standard` | `medium` |
 | **reviewer** | Spec & Standards review (`review.md`), repros, PR verification | `standard` | `medium` (`heavy` for adversarial crossfire) |
 
-**Harness mapping:**
-- **Claude Code:** `explorer` → `Explore`; `implementer`/`reviewer` → `bottega:maestro-agent` (`harnesses/claude/agents/maestro-agent.md`), `run_in_background: true`, `isolation: "worktree"` beside another writer. Pass both `model` and `effort` from `references/models.md`.
-- **Antigravity CLI:** see `harnesses/antigravity/subagents.md`.
-- **Codex:** see `harnesses/codex/subagents.md`.
-- **OpenCode:** see `harnesses/opencode/subagents.md`.
+**Harness mapping** (self-contained; concrete model + effort values live in `references/models.md`):
+
+- **Claude Code:** `explorer` → `Explore`; `implementer`/`reviewer` → `bottega:maestro-agent`, `run_in_background: true`, `isolation: "worktree"` beside another writer. Pass both `model` and `effort` from `references/models.md`.
+- **Antigravity CLI:** `explorer` and Spec/Standards `reviewer` → `TypeName: research`, `Workspace: inherit`; `implementer` → `TypeName: self`, `Workspace: share` (or `branch` for parallel writers); adversarial/crossfire → `TypeName: self`, `Workspace: share`. Reactive wakeup (never poll).
+- **Codex:** translate tiers via `references/models.md` (`sol` / `terra` / `luna`); isolate parallel writers in separate git worktrees.
+- **OpenCode:** translate tiers via `references/models.md`; for non-Anthropic models (`deepseek v4.1 flash`, `glm-5.3-flash`), try the free version first and fall back to OpenCode Go if rate-limited or unavailable; isolate parallel writers in separate git worktrees.
 
 **Orchestrator.** `/tickets` picks the lowest abstract tier (`heavy`, `medium`, `standard`, `fast`) that stays precise for both the orchestrator and every subagent. Without a ticket, use `medium` (normal) or `heavy` (high risk). Never switch models mid-session. Context limit: 300k tokens, ±10% (`/implement`).
 

@@ -65,7 +65,7 @@ When you're back, ask for the run in review form:
 /maestro catch me up on what you did last night, and show me the decision trail
 ```
 
-At high risk, a reviewer on a different Claude tier reads the trail and the transcript before the reply, and the reply ends with an Attention section listing what deserves your scrutiny. Read that section first, then the log rows it points at. You're auditing decisions, not re-reading the whole night.
+At high risk, a fresh `reviewer` reads the trail and the transcript before the reply, and the reply ends with an Attention section listing what deserves your scrutiny. Read that section first, then the log rows it points at. You're auditing decisions, not re-reading the whole night.
 
 For a quick status instead of an audit, ask "catch me up" in the chat that ran the work (**Catch-up** in [`references/explore.md`](../../skills/maestro/references/explore.md)). It reads only, and tells you in plain words what changed since your last message, with any small diagrams the work produced. Then it lists each call waiting on you, such as a merge, an approval, or a choice between options, with its pick, the evidence, and the risk, so you can decide from the reply alone.
 
@@ -73,19 +73,19 @@ For a quick status instead of an audit, ask "catch me up" in the chat that ran t
 
 The contract above drives one task to one finish condition. Some nights hold more, a queue of independent changes or a whole program. Two modes of `/autopilot` scale the same trust up.
 
-[`/autopilot`](../../skills/autopilot/SKILL.md) in `queue land` mode runs a queue of independent PRs to merged. Each PR gets one owner agent that carries it from build through merge, and no owner merges on its own verdict. Fresh reviewers check the owner's code-ready head. A later rebase or minor fix gets one fresh reviewer, and only new behavior or a large new diff calls the full set again. Only a clean verdict on the patch that merges authorizes the merge:
+[`/autopilot`](../../skills/autopilot/SKILL.md) in `queue` mode with `/ship full` runs a queue of independent PRs to merged. The orchestrator drives each unit in its own worktree, delegating leaf implementers and fresh reviewers, and only a clean verdict on the patch that merges authorizes the merge:
 
 ```text
 /maestro full autopilot on this queue. each item is independent. i want them merged by morning.
 ```
 
-`stack` mode is the same queue without the merge. You wake up to verified PRs, each with its verdict, and you review and land them yourself. A PR stacks only on a PR it builds on. Pick it over `land` when you want your own eyes on the work before anything merges:
+With `/ship stop`, it runs the same queue without merging. You wake up to verified Draft PRs, each with its verdict, and you review and land them yourself. Pick `/ship stop` over `/ship full` when you want your own eyes on the work before anything merges:
 
 ```text
 /maestro autopilot these five changes, but don't merge. i'll land them in the morning.
 ```
 
-[`/autopilot`](../../skills/autopilot/SKILL.md) in `program` mode is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator decides which agent does each piece of work, checks what each one produces, and never writes code itself. If one agent could finish the work in a session, `/autopilot` routes you back to the overnight contract above:
+[`/autopilot`](../../skills/autopilot/SKILL.md) in `program` mode is for a program that outlives any single session: multi-day, many stacked PRs, coordinated from one standing orchestrator chat that delegates all writes to leaf implementers in isolated worktrees. If one session could finish the work, `/autopilot` routes you back to `task` mode:
 
 ```text
 /maestro orchestrate the store migration. own it until every package is converted and merged. i'll check in twice a day.
@@ -93,10 +93,10 @@ The contract above drives one task to one finish condition. Some nights hold mor
 
 ## Run a ticket plan overnight
 
-A `PLAN.md` from `/tickets` is a ready-made queue. Each ticket becomes one owner that runs `/implement` on it in its own worktree, and the waves set the order:
+A `PLAN.md` from `/tickets` is a ready-made queue. The orchestrator drives each ticket in wave order in its own worktree, delegating leaf implementers and reviewers:
 
 ```text
-/maestro run .bottega/plans/team-workspaces/PLAN.md unattended. stack mode, don't merge. keep a decision log.
+/maestro run .bottega/plans/team-workspaces/PLAN.md unattended. /ship stop, don't merge. keep a decision log.
 ```
 
 ## Run many tasks in parallel

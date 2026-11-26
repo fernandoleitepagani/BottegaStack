@@ -2,7 +2,7 @@
 
 `/maestro` is the front door. Type it with your goal and how you'll know it's done, and it sends the prompt to the right step. You can also skip it and call `/plan`, `/tickets` or `/implement` yourself.
 
-![A dispatcher pulls a switch lever to route robots on rail handcars toward lit gates, under a /maestro departure board listing BUG FIX, FEATURE, and INVESTIGATION.](./images/router.jpg)
+![A dispatcher pulls a switch lever to route rail handcars toward lit gates under a /maestro departure board.](./images/router.jpg)
 
 ## Where each prompt goes
 

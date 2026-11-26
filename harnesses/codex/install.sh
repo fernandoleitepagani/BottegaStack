@@ -8,24 +8,42 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 DEST="${BOTTEGA_CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 
-if [ "${1:-}" = "--uninstall" ]; then
-	for d in "$ROOT/skills"/*; do
-		[ -d "$d" ] || continue
-		name="$(basename "$d")"
-		target="$DEST/bottega-$name"
-		if [ -L "$target" ]; then
+usage() {
+	sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'
+	exit "${1:-0}"
+}
+
+case "${1:-}" in
+"") ;;
+-h|--help) usage 0 ;;
+--uninstall)
+	for target in "$DEST"/bottega-*; do
+		[ -L "$target" ] || continue
+		link="$(readlink "$target" || true)"
+		case "$link" in
+		"$ROOT/skills/"*)
 			rm "$target"
 			printf 'removed  %s\n' "$target"
-		fi
+			;;
+		esac
 	done
 	exit 0
-fi
+	;;
+*)
+	echo "error: unknown option: $1" >&2
+	usage 2
+	;;
+esac
 
 mkdir -p "$DEST"
 for d in "$ROOT/skills"/*; do
 	[ -f "$d/SKILL.md" ] || continue
 	name="$(basename "$d")"
 	target="$DEST/bottega-$name"
+	if [ -d "$target" ] && [ ! -L "$target" ]; then
+		echo "error: $target exists as a directory (not a symlink); remove or move it first" >&2
+		exit 1
+	fi
 	ln -sfn "$d" "$target"
 	printf 'linked   %s -> %s\n' "$target" "$d"
 done

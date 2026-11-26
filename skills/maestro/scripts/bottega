@@ -27,23 +27,27 @@ usage() {
 detect_checks() {
 	mkdir -p .bottega
 	[ -e .bottega/.gitignore ] || printf '*\n' > .bottega/.gitignore
-	[ -f .bottega/checks.env ] && return 0
+	[ -s .bottega/checks.env ] && return 0
 	local cmds=()
 	if [ -f package.json ]; then
-		grep -q '"typecheck"' package.json 2>/dev/null && cmds+=("npm run typecheck")
-		grep -q '"lint"' package.json 2>/dev/null && cmds+=("npm run lint")
-		grep -q '"test"' package.json 2>/dev/null && cmds+=("npm test")
-	elif [ -f pyproject.toml ] || [ -f pytest.ini ]; then
+		local scripts_block
+		scripts_block="$(awk '/"scripts"[[:space:]]*:[[:space:]]*\{/{f=1;next} f&&/\}/{f=0} f' package.json 2>/dev/null || true)"
+		printf '%s\n' "$scripts_block" | grep -q '"typecheck"[[:space:]]*:' && cmds+=("npm run typecheck")
+		printf '%s\n' "$scripts_block" | grep -q '"lint"[[:space:]]*:' && cmds+=("npm run lint")
+		printf '%s\n' "$scripts_block" | grep -q '"test"[[:space:]]*:' && cmds+=("npm test")
+	fi
+	if [ -f pyproject.toml ] || [ -f pytest.ini ]; then
 		command -v pytest >/dev/null 2>&1 && cmds+=("pytest -q")
-	elif [ -f go.mod ]; then
+	fi
+	if [ -f go.mod ]; then
 		cmds+=("go test ./...")
-	elif [ -f Cargo.toml ]; then
+	fi
+	if [ -f Cargo.toml ]; then
 		cmds+=("cargo test")
 	fi
-	: > .bottega/checks.env
 	if [ "${#cmds[@]}" -gt 0 ]; then
 		printf '%s\n' "${cmds[@]}" > .bottega/checks.env
-		printf 'bottega: detected checks -> %s\n' "$(paste -sd '; ' .bottega/checks.env)"
+		printf 'bottega: detected checks -> %s\n' "$(awk 'NR > 1 { printf "; " } { printf "%s", $0 }' .bottega/checks.env)"
 	fi
 }
 
@@ -83,7 +87,7 @@ cmd_verify() {
 	done
 
 	if [ "$run_detected" -eq 1 ] && [ -f .bottega/checks.env ]; then
-		while IFS= read -r line; do
+		while IFS= read -r line || [ -n "$line" ]; do
 			[ -n "$line" ] && checks+=("$line")
 		done < .bottega/checks.env
 	fi
@@ -95,14 +99,15 @@ cmd_verify() {
 
 	local failed=0
 	if [ "${#checks[@]}" -gt 0 ]; then
-		local c
+		local c start_line
 		for c in "${checks[@]}"; do
 			printf '=== %s ===\n' "$c" >> "$logfile"
+			start_line=$(( $(wc -l < "$logfile" | tr -d ' ') + 1 ))
 			if PYTHONDONTWRITEBYTECODE=1 bash -c "$c" >> "$logfile" 2>&1; then
 				printf 'PASS  %s\n' "$c"
 			else
 				printf 'FAIL  %s (see %s)\n' "$c" "$logfile"
-				tail -n 15 "$logfile" | sed 's/^/  | /'
+				tail -n +"$start_line" "$logfile" | tail -n 15 | sed 's/^/  | /'
 				failed=1
 			fi
 		done
@@ -124,8 +129,8 @@ cmd_ship() {
 		case "$1" in
 		--draft) mode="draft"; shift ;;
 		--ready) mode="ready"; shift ;;
-		--title) title="$2"; shift 2 ;;
-		--body) body="$2"; shift 2 ;;
+		--title) [ $# -ge 2 ] || { echo "error: --title needs a value" >&2; exit 2; }; title="$2"; shift 2 ;;
+		--body) [ $# -ge 2 ] || { echo "error: --body needs a value" >&2; exit 2; }; body="$2"; shift 2 ;;
 		*) echo "error: unknown ship option: $1" >&2; exit 2 ;;
 		esac
 	done
@@ -157,6 +162,14 @@ cmd_ship() {
 				exit 1
 			fi
 		fi
+	fi
+	if [ -n "$(git status --porcelain 2>/dev/null || true)" ]; then
+		echo "error: working tree has uncommitted changes; commit or stash before shipping" >&2
+		exit 1
+	fi
+	if ! "$GATE" >/dev/null 2>&1; then
+		echo "error: final gate not passed; run bottega verify before shipping" >&2
+		exit 1
 	fi
 	git push -u origin "$branch"
 	if [ "$mode" = "draft" ]; then

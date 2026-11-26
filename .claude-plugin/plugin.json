@@ -7,7 +7,7 @@
     "name": "BottegaStack"
   },
   "license": "MIT",
-  "keywords": ["workflow", "playbooks", "subagents", "verification"],
+  "keywords": ["workflow", "skills", "subagents", "verification"],
   "skills": ["./skills"],
   "agents": ["./harnesses/claude/agents/maestro-agent.md"]
 }

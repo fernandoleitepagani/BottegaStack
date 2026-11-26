@@ -12,10 +12,11 @@
     },
     {
       "name": "crossfire ran at high risk (ledger row)",
+      "before_hidden": true,
       "arms": [
         "bottega"
       ],
-      "run": "awk -F'\\t' '$2 == \"crossfire\"' .bottega/proofs.tsv 2>/dev/null | grep -q ."
+      "run": "awk -F'\\t' 'NR > 1 { if ($2 == \"run\") c = \"\"; else if ($2 == \"crossfire\") c = $6 } END { exit (c != \"PASS\") }' .bottega/proofs.tsv 2>/dev/null"
     }
   ],
   "hidden": {

@@ -30,9 +30,11 @@ class H(unittest.TestCase):
 
     def test_direct_callers(self):
         import os, tempfile
-        p = os.path.join(tempfile.mkdtemp(), "o.csv")
-        cli.save_export(p)
-        self.assertEqual(open(p).read(), "name,email\na,a@x\nb,b@x\n")
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "o.csv")
+            cli.save_export(p)
+            with open(p) as f:
+                self.assertEqual(f.read(), "name,email\na,a@x\nb,b@x\n")
 
     def test_other_actions(self):
         self.assertEqual(dispatch.run("delete-user", "a"), "deleted a")

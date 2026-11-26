@@ -1,6 +1,6 @@
 # Delegate brief
 
-Shared rules for the `/maestro` orchestrator and every `maestro-agent` delegate. The orchestrator's routing, autonomy, model and reply rules live in `../SKILL.md`. A delegate does not need them.
+Shared rules for the `/maestro` orchestrator and every `maestro-agent` delegate. The orchestrator's routing, autonomy, and reply rules live in `../SKILL.md`; role and model tiers live in `subagents.md` and `models.md`. A delegate does not need them.
 
 ## Your role as a delegate
 

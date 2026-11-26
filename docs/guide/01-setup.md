@@ -15,14 +15,14 @@ Claude Code prefixes plugin commands, so each command in this guide can also be 
 
 ## Pick your models
 
-The defaults need no setup. There are four roles in [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md):
+The defaults need no setup. Roles map to 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`) in [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and translate per harness (Claude Code, Antigravity CLI, Codex, OpenCode) in [`skills/maestro/references/models.md`](../../skills/maestro/references/models.md):
 
-- **orchestrator**: the session you type in. Each ticket says whether it needs an opus-level or a sonnet-level orchestrator, and you set it with `/model` when you start that ticket.
-- **explorer**: read-only mapping and research, `haiku` at high effort.
-- **implementer**: writes code and tests, `sonnet` at low effort (medium at high risk).
-- **reviewer**: reviews the finished diff and runs repros, `sonnet` at low effort (medium at high risk, and always for adversarial review).
+- **orchestrator**: the session you type in. Each ticket names an abstract tier (`standard`, `medium`, or `heavy`), and you set your session model when starting that ticket.
+- **explorer**: read-only mapping and research (`fast`).
+- **implementer**: writes code and tests (`standard`; `medium` at high risk).
+- **reviewer**: reviews the finished diff and runs repros (`standard`; `medium` or `heavy` at high risk).
 
-To change a role, write `~/.claude/rules/bottega-models.md` yourself, one line per role you want to override: `role: <normal model effort> | <high model effort>`, for example `implementer: sonnet medium | sonnet medium`. Roles without a line keep the default. Never use `xhigh` or `max`, or `high` on anything but haiku. Bottega's scripts make `.bottega/` ignore itself, so there is nothing to add to your git excludes.
+To override a tier or role, write `~/.bottega/models.md` (or `~/.claude/rules/bottega-models.md` on Claude Code). Effort ceiling: never `xhigh` or `max`. Bottega's scripts make `.bottega/` ignore itself, so there is nothing to add to your git excludes.
 
 ## Add a verification skill
 
@@ -39,8 +39,8 @@ A rule file you edit applies to new sessions.
 bottega spends extra tokens on subagents and review. That's the price of the rigor. To spend fewer:
 
 - Pick cheaper models or lower effort in the rule file. A strong model in the main chat with cheaper, faster models in the code roles is a good split.
-- Lower a role's effort or model. `haiku` and `sonnet` at low effort cost far less than `opus`.
-- Run sonnet-level tickets on sonnet. `/tickets` marks which ones need opus.
+- Lower a tier's model or effort in `~/.bottega/models.md`. `fast` and `standard` tiers cost far less than `heavy`.
+- Run `standard`-tier tickets on your `standard` model. `/tickets` marks which ones need `medium` or `heavy`.
 - Save `/maestro` for work that needs rigor. A small, obvious edit doesn't.
 
 ## Run your first task

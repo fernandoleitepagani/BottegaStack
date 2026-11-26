@@ -47,11 +47,4 @@ Unless the user already said what to do, end with one line: `Next: open a PR, co
 
 ## 4. Opening a PR
 
-On `open a PR`, or inside an Unattended run:
-
-- Work from a worktree off trunk, in small ordered commits with Conventional Commits subjects (`type(scope): subject`).
-- Run the comments self-check (`delegate.md`, **Comments**) before pushing.
-- Open it ready, not draft (`gh pr create`), unless an Unattended owner opens a draft early so CI runs. Prefer several narrow PRs to one large one; a stacked child targets its parent branch (`--base <parent>`).
-- The body is a one-minute briefing under about 40 lines, written through **unslop**: `## Why` (the goal), `## What changed`, `## Scope` (covered and left out), `## Verification` (each real run and its outcome), and `## Review` (the review's rounds and outcome).
-- When the work continues someone else's PR or branch, keep their commits and authorship, add `Co-authored-by:` trailers for human contributors, and credit and link the original PR.
-- Post the URL. Opening a PR does not start babysitting; watch or land it via `../../ship/SKILL.md` (`/ship full`).
+All PR creation, watching, and landing live in `../../ship/SKILL.md` (`/ship stop` for a Draft PR, `/ship full` for a Ready PR + CI/review watching + merge). On `open a PR`, invoke `/ship`.

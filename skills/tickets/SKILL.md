@@ -45,11 +45,11 @@ To keep the orchestrator inside budget, push wide reads into explorer subagents 
 
 **The orchestrator does:** read the ticket, decide the data shape and the interfaces, write the subagent briefs, review every diff, run or check the acceptance criteria, and run the final gate. It writes code itself only for an edit of a few lines that would cost more to brief than to make.
 
-**Subagents do** everything else. Name each one with its role, its `subagent_type`, and its model and effort from the role table at the ticket's risk:
+**Subagents do** everything else. Name each one with its role and abstract tier from `references/subagents.md` at the ticket's risk (harness types and concrete models come from `references/subagents.md` and `references/models.md`):
 
-- **explorer** (`Explore`): read-only mapping, tracing, and fact-finding.
-- **implementer** (`bottega:maestro-agent`): writes code and tests in one scope. Use `isolation: "worktree"` when two implementers run at once.
-- **reviewer** (`bottega:maestro-agent`): reviews the finished diff against the ticket and runs repros (`<maestro dir>/references/review.md`). At high risk it is also the adversarial review.
+- **explorer**: read-only mapping, tracing, and fact-finding (`fast`).
+- **implementer**: writes code and tests in one scope (`standard`, or `medium` at high risk). Isolate in a separate worktree/branch when two implementers run at once.
+- **reviewer**: reviews the finished diff against the ticket and runs repros (`<maestro dir>/references/review.md`). At high risk it runs adversarial verification.
 
 Mark which subagents run in parallel. Two subagents run in parallel only when their write sets don't overlap.
 
@@ -117,7 +117,7 @@ Spec: spec.md
 
 ## Running a ticket
 1. Fresh session (`/clear`, or a new terminal; one git worktree per parallel ticket).
-2. `/model <level from the ticket>`.
+2. Set the session model to your harness's translation of the ticket's `Orchestrator` tier (`references/models.md`).
 3. `/implement .bottega/plans/<slug>/tickets/T<nn>-<slug>.md`
 ```
 

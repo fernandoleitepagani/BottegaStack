@@ -1,5 +1,6 @@
 import io
 import os
+import shutil
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -25,6 +26,7 @@ class Hidden(unittest.TestCase):
 
     def tearDown(self):
         os.chdir(self.cwd)
+        shutil.rmtree(self.dir, ignore_errors=True)
 
     def test_list_all_unchanged(self):
         _, out = run("list")

@@ -2,7 +2,7 @@
 
 A small, repeatable check that bottega makes agents do better work than plain Claude Code. It complements a one-off blind comparison, which designs a one-off blinded experiment for a single skill change. This harness is the fixed baseline you rerun after every change to the stack.
 
-Nothing here ships with the plugin. `plugin.json` only loads `skills/` and `agents/`.
+Nothing here ships with the plugin. `plugin.json` only loads `./skills` and `./harnesses/claude/agents/maestro-agent.md`.
 
 ## What it measures
 
@@ -31,7 +31,7 @@ Runs that change code (kinds `bug-fix`, `feature`, `refactoring`) also need:
 
 These code checks are skipped for a run that changed no files (it stopped to ask), since there is nothing to gate.
 
-Tasks add their own, scoped to an arm with `"arms": ["bottega"]` or applied to both arms with `"behavior": true`. Check types: `run` (shell, exit 0 passes), `answer_regex`, `tool_absent`, `tool_max`, `bash_absent`, `tool_input_regex` (some tool call's input matches, such as a crossfire spawn), `agents_have_model`.
+Tasks add their own, scoped to an arm with `"arms": ["bottega"]` or applied to both arms with `"behavior": true`. Check types: `run` (shell, exit 0 passes), `answer_regex`, `tool_absent`, `tool_max`, `bash_absent`, `tool_input_regex` (some tool call's input matches, such as an adversarial review spawn), `agents_have_model`, `opened_first`, `gate_completed`, `transcript_absent`.
 
 ## Tasks
 
@@ -54,7 +54,7 @@ Each task is `tasks/<name>/` with `task.json` (prompt, grade checks, limits, opt
 
 ## Blinding and isolation
 
-Follows `eval.md`'s rules. Work dirs get neutral names (`ledger-x1y2`). The plugin is copied to a neutral temp folder, so candidates can't find `evals/`. Prompts read like a user's request. Hidden checks are named `hidden_check_*.py` and arrive after the agent finishes.
+Work dirs get neutral names (`ledger-x1y2`). The plugin is copied to a neutral temp folder, so candidates can't find `evals/`. Prompts read like a user's request. Hidden checks are named `hidden_check_*.py` and arrive after the agent finishes.
 
 Each run passes `--settings` with Claude Code's sandbox on and sandboxed Bash auto-allowed. Bash can write only to the work dir and a per-user temp dir, and has no network. Your `settings.json` is not touched. An earlier per-command allowlist denied ordinary compound commands (`cat a && ls`) and skewed results, mostly against bottega, which writes more of them. `AskUserQuestion` is denied in `dontAsk` mode, so a run that wants to ask must ask in its reply.
 
@@ -95,7 +95,7 @@ Results go to `evals/results/<stamp>.jsonl`, plus one stream-json transcript per
 
 It notes improvements, new tasks and skipped tasks without failing. With one trial per task a single flip can be noise, so on a failure it prints the `--trials 3` command to confirm before you act.
 
-Use it after any edit to maestro, `grill`, `tickets`, `implement`, a reference or delegate.md, after a Claude Code or model update, and before a release. Promote a run to baseline only after reading its failures, so a regression never becomes the new normal.
+Use it after any edit to `maestro`, `plan`, `tickets`, `implement`, a reference or `delegate.md`, after a Claude Code or model update, and before a release. Promote a run to baseline only after reading its failures, so a regression never becomes the new normal.
 
 ## Adding a task
 
@@ -131,7 +131,7 @@ Use it after any edit to maestro, `grill`, `tickets`, `implement`, a reference o
 
 Things an automated eval can't see. Run them by hand in a scratch repo after installing or changing bottega.
 
-- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: `/maestro`, `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/garden` appear under `/`.
+- **Install.** `claude plugin marketplace add ~/Projects/BottegaStack`, `claude plugin install bottega@bottega`. If the version in `plugin.json` did not change, delete `~/.claude/plugins/cache/bottega` first, or the old copy loads. Pass: all 16 skills (`/maestro`, `/reframe`, `/recall`, `/triage`, `/plan`, `/sharpen`, `/tickets`, `/implement`, `/ship`, `/autopilot`, `/correct`, `/garden`, `/unslop`, `/frontend-design`, `/create-verification-skill`, `/maintain-verification-skill`) appear under `/`.
 - **Subagents.** In a `/maestro` run that spawns, the transcript shows `subagent_type: "bottega:maestro-agent"` with a `model` and `effort` from the table, and background spawns.
 - **A real run.** The first reply names the goal, the smallest change, and the risk; a vague request gets a question; `--start` runs before the first edit; the reply ends with a Decision block and one `Next:` line; nothing is committed unless you asked.
 - **Plan and tickets.** `/plan` on a multi-session prompt asks numbered questions with recommended answers and looks facts up instead of asking; the spec holds only what you said. `/tickets` shows the table and asks before writing; each ticket has a budget under 300k, a subagent table, a wave, and an orchestrator level.

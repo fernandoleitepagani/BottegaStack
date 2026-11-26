@@ -52,7 +52,7 @@ while [ $# -gt 0 ]; do
 			case "$3" in user:*) ;; *) echo "error: a WAIVED --proof needs evidence starting with user: and the user's words" >&2; exit 2 ;; esac
 		fi
 		proofs_in="$proofs_in$2$sep$3$sep$4$sep"; nproofs=$((nproofs + 1)); shift 4 ;;
-	--start) [ $# -ge 2 ] || { echo "error: --start needs the goal" >&2; exit 2; }; start="$2"; shift 2 ;;
+	--start) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --start needs the goal" >&2; exit 2; }; start="$2"; shift 2 ;;
 	--condition) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --condition needs the condition text" >&2; exit 2; }; conds_in="$conds_in$2$sep"; shift 2 ;;
 	--expect) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --expect needs a path or glob" >&2; exit 2; }; expects_in="$expects_in$2$sep"; shift 2 ;;
 	-h|--help) sed -n '2,/^set -u/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
@@ -81,7 +81,15 @@ dirty() {
 			path=${entry:3}
 			case "${entry:0:2}" in R*) from=R ;; C*) from=C ;; esac
 			case "$path" in .bottega|.bottega/*|*/.bottega/*) continue ;; esac
-			if [ -f "$1/$path" ]; then h=$(git -C "$1" hash-object -- "$path"); else h=deleted; fi
+			if [ -L "$1/$path" ]; then
+				h="symlink:$(readlink "$1/$path")"
+			elif [ -f "$1/$path" ]; then
+				h=$(git -C "$1" hash-object -- "$path")
+			elif [ -d "$1/$path" ]; then
+				h="dir:$(git -C "$1/$path" rev-parse --verify --quiet HEAD 2>/dev/null || echo tree)"
+			else
+				h=deleted
+			fi
 			printf '%s\t%s\n' "$h" "$path"
 		done
 	}
@@ -176,19 +184,30 @@ if ! awk -F'\t' 'NR > 1 && $2 == "run" { found = 1 } END { exit !found }' "$ledg
 fi
 [ "$(awk -F'\t' 'NR > 1 && $2 == "run" { r = $5 } END { print r }' "$ledger")" = "risk=high" ] && risk=high
 rows=$(awk -F'\t' 'NR > 1 { if ($2 == "run") buf = ""; else buf = buf $0 "\n" } END { printf "%s", buf }' "$ledger")
-count() { printf '%s' "$rows" | awk -F'\t' -v p="$1" -v r="$2" '$2 == p && (r == "" || $6 == r)' | grep -c . ; }
-
-# Only the latest proof row per condition counts, so a FAIL that was fixed and proven again
-# approves. Earlier rows stay in the ledger as the run's history.
-latest=$(printf '%s' "$rows" | awk -F'\t' '$2 == "proof" { if (!($3 in last)) order[++n] = $3; last[$3] = $0 }
-	END { for (i = 1; i <= n; i++) print last[order[i]] }')
-lcount() { printf '%s' "$latest" | awk -F'\t' -v r="$1" 'r == "" || $6 == r' | grep -c . ; }
-proofs=$(count proof "")
-pass=$(lcount PASS)
-fail=$(lcount FAIL)
-inconclusive=$(lcount INCONCLUSIVE)
-waived=$(lcount WAIVED)
-crossfire=$(printf '%s' "$rows" | awk -F'\t' '$2 == "crossfire" { last = $6 } END { print last }')
+# Compute all run metrics in a single awk pass (latest proof per condition counts).
+eval "$(printf '%s' "$rows" | awk -F'\t' '
+	$2 == "condition" { conditions++ }
+	$2 == "proof" {
+		proofs++
+		if (!($3 in last)) order[++n] = $3
+		last[$3] = $6
+		last_ev[$3] = $5
+	}
+	$2 == "crossfire" { cf = $6 }
+	END {
+		for (i = 1; i <= n; i++) {
+			c = order[i]; r = last[c]
+			if (r == "PASS") pass++
+			else if (r == "FAIL") fail++
+			else if (r == "INCONCLUSIVE") inconclusive++
+			else if (r == "WAIVED") {
+				waived++
+				if (last_ev[c] !~ /^user:/) bad_waivers++
+			}
+		}
+		printf "proofs=%d; conditions=%d; pass=%d; fail=%d; inconclusive=%d; waived=%d; bad_waivers=%d; crossfire=\"%s\"\n", \
+			proofs+0, conditions+0, pass+0, fail+0, inconclusive+0, waived+0, bad_waivers+0, cf
+	}')"
 
 missing=0
 escalate=0
@@ -197,25 +216,23 @@ if [ "$proofs" -eq 0 ]; then
 	echo "MISSING: no proof rows for this run. Log one per acceptance condition, whatever the size of the change."
 	missing=1
 fi
-conditions=$(count condition "")
 if [ "$conditions" -eq 0 ]; then
 	echo "MISSING: no acceptance conditions declared for this run. Add them with --condition \"<condition>\"."
 	missing=1
 fi
 # Declared conditions with no proof row, and proof rows for undeclared conditions.
-uncovered=$(printf '%s' "$rows" | awk -F'\t' '$2 == "condition" { c[$3] = 1; order[++n] = $3 } $2 == "proof" { p[$3] = 1 }
-	END { for (i = 1; i <= n; i++) if (!(order[i] in p) && !(order[i] in seen)) { seen[order[i]] = 1; print order[i] } }')
+uncovered=$(printf '%s' "$rows" | awk -F'\t' -v q="'" '$2 == "condition" { c[$3] = 1; order[++n] = $3 } $2 == "proof" { p[$3] = 1 }
+	END { for (i = 1; i <= n; i++) if (!(order[i] in p) && !(order[i] in seen)) { seen[order[i]] = 1; s = order[i]; if (substr(s, 1, 1) == q && substr(s, 2, 1) ~ /[-+=@]/) s = substr(s, 2); print s } }')
 if [ -n "$uncovered" ]; then
 	echo "MISSING: declared condition(s) with no proof row (log PASS, FAIL, INCONCLUSIVE or WAIVED for each):"
 	printf '%s\n' "$uncovered" | sed 's/^/  - /'
 	missing=1
 fi
-undeclared=$(printf '%s' "$rows" | awk -F'\t' '$2 == "condition" { c[$3] = 1 } $2 == "proof" && !($3 in c) { print $3 }')
+undeclared=$(printf '%s' "$rows" | awk -F'\t' -v q="'" '$2 == "condition" { c[$3] = 1 } $2 == "proof" && !($3 in c) { s = $3; if (substr(s, 1, 1) == q && substr(s, 2, 1) ~ /[-+=@]/) s = substr(s, 2); print s }')
 if [ -n "$undeclared" ]; then
 	echo "note: proof row(s) for conditions never declared (declare them with --condition, or match the declared text):"
 	printf '%s\n' "$undeclared" | sed 's/^/  - /'
 fi
-bad_waivers=$(printf '%s' "$latest" | awk -F'\t' '$6 == "WAIVED" && $5 !~ /^user:/' | grep -c .)
 if [ "$bad_waivers" -gt 0 ]; then
 	echo "MISSING: $bad_waivers WAIVED row(s) without the user's words. Evidence must start with user: and quote them."
 	missing=1
@@ -254,16 +271,16 @@ elif [ "$scope" -eq 0 ]; then
 else
 	echo "note: not a git repo, so the changed-files check was skipped."
 fi
-if [ "$risk" = high ]; then
-	if [ -z "$crossfire" ]; then
-		echo "MISSING: no crossfire row. High risk runs the adversarial review (references/review.md) on the finished diff, whatever its size."
-		missing=1
-	elif [ "$crossfire" != PASS ]; then
+if [ -n "$crossfire" ]; then
+	if [ "$crossfire" != PASS ]; then
 		echo "ESCALATE: crossfire's latest verdict is $crossfire."
 		escalate=1
 	else
 		echo "crossfire: PASS"
 	fi
+elif [ "$risk" = high ]; then
+	echo "MISSING: no crossfire row. High risk runs the adversarial review (references/review.md) on the finished diff, whatever its size."
+	missing=1
 fi
 
 if [ "$missing" -eq 1 ]; then

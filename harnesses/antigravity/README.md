@@ -8,7 +8,7 @@ Everything in this directory is exclusive to **Antigravity CLI**.
 ./harnesses/antigravity/install.sh
 ```
 
-This symlinks every skill in `skills/` into `~/.agents/skills/bottega-<name>` so Antigravity CLI discovers them automatically (all 12 skills use the standard `SKILL.md` + YAML frontmatter format).
+This symlinks every skill in `skills/` into `~/.agents/skills/bottega-<name>` so Antigravity CLI discovers them automatically (all 16 skills use the standard `SKILL.md` + YAML frontmatter format).
 
 To uninstall:
 
@@ -18,4 +18,4 @@ To uninstall:
 
 ## Subagents
 
-See [`subagents.md`](./subagents.md) for the role-to-`invoke_subagent` mapping.
+See [`skills/maestro/references/subagents.md`](../../skills/maestro/references/subagents.md) and [`models.md`](../../skills/maestro/references/models.md) for the role and model-tier mapping.

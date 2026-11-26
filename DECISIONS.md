@@ -2,12 +2,12 @@
 
 The decisions that shape the stack and why. History lives in git, not here. When a decision changes, edit its line instead of appending a new round.
 
-Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Pocock's plan, spec, tickets and implement flow (mattpocock/skills, MIT). All changes happen inside `BottegaStack/`.
+Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Pocock's plan, spec, tickets and implement flow (mattpocock/skills, MIT).
 
 ## Scope
 
 - **Multi-harness via `harnesses/`.** Core skills in `skills/` stay harness-agnostic; thin adapters live under `harnesses/claude/`, `harnesses/antigravity/`, `harnesses/codex/`, and `harnesses/opencode/`.
-- **No hooks, no compiled binary.** Rules are prose the model follows; `skills/maestro/scripts/bottega` is a thin Bash wrapper around `gate-check.sh` and `log.sh` that collapses verification turns and keeps raw logs out of context without adding dependencies.
+- **No hooks, no compiled binary.** Rules are prose the model follows; `skills/maestro/scripts/bottega` is a thin Bash wrapper around `gate-check.sh`, `log.sh`, and `worktree-audit.sh` (plus `ship`, `followup`, `garden`, `hygiene`, and `checks.env` auto-detection) that collapses verification turns and keeps raw logs out of context without adding dependencies.
 - **Per-repo state only.** `.bottega/` holds run state, plans and tickets, and stays untracked. Cross-repo memory is left to Claude Code.
 - **Linux and macOS only.** bash 3.2, BSD and GNU tools, no `jq`. Python 3.9+ only for the developer lint and evals. Native Windows is not supported; WSL counts as Linux.
 - **No UI driving.** Where a change needs a visual check, the agent says what to look at and the user checks it.
@@ -22,14 +22,14 @@ Base: a port of pstack (Lauren Tan, MIT), reshaped on 2026-11-24 around Matt Poc
 - **`/implement`** runs one ticket per fresh session (or one small direct task): explore, shape before logic, pin behavior by kind (bug, refactor, feature), delegate, verify, review (parallel Spec + Standards axes), final gate, then mark the ticket done and list what it unblocked. It replaces the bug-fix, feature, refactoring and investigate playbooks.
 - **`/maestro`** is a one-page front door: a routing table plus the shared rules (confidence, risk, autonomy, subagents, context, replies).
 - **Skills (16):** maestro, reframe, recall, triage, plan, sharpen, tickets, implement, ship, autopilot, correct, garden, unslop, frontend-design, create- and maintain-verification-skill. Every one sets `disable-model-invocation: true`.
-- **References under `maestro/references/`**, read only when a step needs them: `delegate.md`, `final-gate.md`, `subagents.md`, `principles.md`, `explore.md` (was `understand` and Investigate), `review.md` (was `crossfire` and `parallel`), `prototype.md`, `handoff.md`, `worktree-cleanup.md`.
+- **References under `maestro/references/`**, read only when a step needs them: `delegate.md`, `final-gate.md`, `subagents.md`, `models.md`, `principles.md`, `explore.md` (was `understand` and Investigate), `review.md` (was `crossfire` and `parallel`), `prototype.md`, `handoff.md`, `worktree-cleanup.md`.
 - **Principles:** 17, on one page, each a short section. Delegates read a section before applying it.
 
 ## Models
 
-- The role table in `maestro/references/subagents.md` is the only source of truth. Four roles: orchestrator (the session, opus- or sonnet-level per ticket), explorer (`Explore`, haiku high), implementer and reviewer (`bottega:maestro-agent`, sonnet low; medium at high risk).
-- Overrides live in an optional `~/.claude/rules/bottega-models.md`, written by the user.
-- Effort is never `xhigh` or `max`, and never `high` except on haiku. Adversarial review uses the reviewer's High column at any risk.
+- `maestro/references/subagents.md` maps roles to 4 abstract tiers (`heavy`, `medium`, `standard`, `fast`); `maestro/references/models.md` translates those tiers per harness (Claude Code, Antigravity CLI, Codex, OpenCode).
+- Overrides live in an optional `~/.bottega/models.md` (or `~/.claude/rules/bottega-models.md` on Claude Code), written by the user.
+- Effort ceiling: never `xhigh` or `max`. Adversarial crossfire review uses `heavy` at any risk.
 - Risk only goes up during a run. Never switch `/model` mid-session; the user sets the orchestrator model at the start of each ticket's session.
 
 ## Workflow rules
