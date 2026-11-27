@@ -42,6 +42,15 @@ conds_in=""
 expects_in=""
 ledger_arg=""
 sep=$(printf '\037')
+is_broad_expect() {
+	[ -z "$(printf '%s' "$1" | tr -d '*?/.')" ]
+}
+is_valid_waiver() {
+	case "$1" in
+	user:*) [ -n "$(printf '%s' "${1#user:}" | tr -d '[:space:]')" ] ;;
+	*) return 1 ;;
+	esac
+}
 while [ $# -gt 0 ]; do
 	case "$1" in
 	--risk) [ $# -ge 2 ] || { echo "error: --risk needs normal or high" >&2; exit 2; }; risk="$2"; shift 2 ;;
@@ -49,12 +58,17 @@ while [ $# -gt 0 ]; do
 		[ $# -ge 4 ] || { echo "error: --proof needs <condition> <evidence> <RESULT>" >&2; exit 2; }
 		case "$4" in PASS|FAIL|INCONCLUSIVE|WAIVED) ;; *) echo "error: --proof RESULT is PASS, FAIL, INCONCLUSIVE or WAIVED" >&2; exit 2 ;; esac
 		if [ "$4" = WAIVED ]; then
-			case "$3" in user:*) ;; *) echo "error: a WAIVED --proof needs evidence starting with user: and the user's words" >&2; exit 2 ;; esac
+			is_valid_waiver "$3" || { echo "error: a WAIVED --proof needs evidence starting with user: and the user's words" >&2; exit 2; }
 		fi
 		proofs_in="$proofs_in$2$sep$3$sep$4$sep"; nproofs=$((nproofs + 1)); shift 4 ;;
 	--start) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --start needs the goal" >&2; exit 2; }; start="$2"; shift 2 ;;
 	--condition) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --condition needs the condition text" >&2; exit 2; }; conds_in="$conds_in$2$sep"; shift 2 ;;
-	--expect) [ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --expect needs a path or glob" >&2; exit 2; }; expects_in="$expects_in$2$sep"; shift 2 ;;
+	--expect)
+		[ $# -ge 2 ] && [ -n "$2" ] || { echo "error: --expect needs a path or glob" >&2; exit 2; }
+		if is_broad_expect "$2"; then
+			echo "error: --expect pattern '$2' is too broad; name specific files, globs, or directories" >&2; exit 2
+		fi
+		expects_in="$expects_in$2$sep"; shift 2 ;;
 	-h|--help) sed -n '2,/^set -u/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit 0 ;;
 	-*) echo "error: unknown option: $1" >&2; exit 2 ;;
 	*)
@@ -205,7 +219,7 @@ IFS=$'\t' read -r proofs conditions pass fail inconclusive waived bad_waivers cr
 			else if (r == "INCONCLUSIVE") inconclusive++
 			else if (r == "WAIVED") {
 				waived++
-				if (last_ev[c] !~ /^user:/) bad_waivers++
+				if (last_ev[c] !~ /^user:[[:space:]]*[^[:space:]]/) bad_waivers++
 			}
 		}
 		printf "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n", \
@@ -239,6 +253,10 @@ fi
 if [ "$bad_waivers" -gt 0 ]; then
 	echo "MISSING: $bad_waivers WAIVED row(s) without the user's words. Evidence must start with user: and quote them."
 	missing=1
+elif [ "$waived" -gt 0 ]; then
+	echo "WAIVED (verify the user actually granted each waiver):"
+	printf '%s' "$rows" | awk -F'\t' '$2 == "proof" { if (!($3 in last)) order[++n] = $3; last[$3] = $6; last_ev[$3] = $5 }
+		END { for (i = 1; i <= n; i++) { c = order[i]; if (last[c] == "WAIVED") printf "  - %s: %s\n", c, last_ev[c] } }'
 fi
 if [ "$fail" -gt 0 ] || [ "$inconclusive" -gt 0 ]; then
 	echo "ESCALATE: $((fail + inconclusive)) condition(s) whose latest proof is FAIL or INCONCLUSIVE."
@@ -263,11 +281,24 @@ elif [ "$scope" -eq 0 ]; then
 			# shellcheck disable=SC2086
 			set -- $globs
 			IFS=$oldifs; set +f
-			outside_files=$(printf '%s\n' "$changed" | outside "$@")
-			if [ -n "$outside_files" ]; then
-				echo "MISSING: changed file(s) outside --expect. Revert them, or add them with --expect if the change needs them:"
-				printf '%s\n' "$outside_files" | sed 's/^/  - /'
+			broad_globs=""
+			for g in "$@"; do
+				if is_broad_expect "$g"; then
+					broad_globs="${broad_globs}${broad_globs:+
+}$g"
+				fi
+			done
+			if [ -n "$broad_globs" ]; then
+				echo "MISSING: --expect pattern(s) too broad; name specific files, globs, or directories:"
+				printf '%s\n' "$broad_globs" | sed 's/^/  - /'
 				missing=1
+			else
+				outside_files=$(printf '%s\n' "$changed" | outside "$@")
+				if [ -n "$outside_files" ]; then
+					echo "MISSING: changed file(s) outside --expect. Revert them, or add them with --expect if the change needs them:"
+					printf '%s\n' "$outside_files" | sed 's/^/  - /'
+					missing=1
+				fi
 			fi
 		fi
 	fi

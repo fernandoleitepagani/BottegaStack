@@ -46,12 +46,35 @@ Uninstall with `claude plugin uninstall bottega`, `agy plugin uninstall bottega`
 
 ## the workflow
 
+```mermaid
+flowchart TD
+    Prompt["Your prompt"] --> Maestro["/maestro (router)"]
+    Maestro -->|"Small, clear change"| Impl["/implement"]
+    Maestro -->|"Needs decisions or >1 session"| Plan["/plan (grill -> spec.md)"]
+    Plan --> Tickets["/tickets (waves, roles, tiers -> PLAN.md)"]
+    Tickets -->|"Interactive: /clear + /model per ticket"| Impl
+    Tickets -->|"Unattended queue"| Auto["/autopilot"]
+    Auto --> Impl
+
+    subgraph ImplLoop["Inside /implement (one session = one vertical slice)"]
+        direction TB
+        Start["bottega start (snapshot + acceptance conditions)"] --> Build["Explore, shape & delegate (implementer in worktree)"]
+        Build --> Review["/review (Spec + Standards; high risk adds /blast-radius or /swarm)"]
+        Review --> Gate["bottega verify + gate-check.sh (scope, proofs, crossfire)"]
+    end
+
+    Impl --> ImplLoop
+    Gate -->|"Exit 0: APPROVE"| Ship["/ship (bottega ship: Draft or Ready PR; blocks one-way doors)"]
+    Gate -->|"Exit 1: ESCALATE"| Human["Human decision"]
+```
+
 ```
 /maestro <prompt>          routes the prompt; big work goes to /plan
 /plan                      grills you one decision at a time, writes .bottega/plans/<slug>/spec.md
 /tickets                   one ticket per session, roles, waves, models → PLAN.md
 /clear, /model <level>     a fresh session per ticket, with the model the ticket names
 /implement <ticket>        explore, shape, delegate, verify, review, final gate
+/ship                      open a Draft (/ship stop) or Ready PR + merge (/ship full)
 ```
 
 Small, clear changes skip the plan: `/maestro fix the off-by-one in pagination` goes straight to `/implement`.
@@ -98,7 +121,7 @@ New here? The [bottega guide](./docs/guide/README.md) walks through it with real
 
 Each run states a risk, `normal` or `high`, and risk only goes up during a run. High risk raises subagent effort and hardens the review: a small diff gets a blast-radius check that proves the one fact it's safe because of, a larger one a swarm of verifiers, and a finding counts only when a run proves it.
 
-Every change ends at the final gate. `gate-check.sh` reads the logged proofs in `.bottega/proofs.tsv` and decides: APPROVE only on exit 0, otherwise ESCALATE. A waiver needs your words. Fix rounds stop at 2.
+Every change ends at the final gate. `gate-check.sh` reads the logged proofs in `.bottega/proofs.tsv`, checks that every changed file matches a specific `--expect` pattern (rejecting catch-all globs like `*`), and decides: APPROVE only on exit 0, otherwise ESCALATE. A waiver needs your words and is echoed for verification. Fix rounds stop at 2. `bottega ship --ready` blocks one-way-door paths and destructive SQL diffs, forcing them to a Draft PR.
 
 ## delegates
 

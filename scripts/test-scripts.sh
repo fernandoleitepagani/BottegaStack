@@ -56,7 +56,10 @@ expect "gate-check --proof: logs and approves in one call" 0 "$maestro/gate-chec
 	&& pass "gate-check --proof: rows kept intact" || fail "gate-check --proof: rows kept intact"
 expect "gate-check --condition: a late condition needs its own proof" 2 "$maestro/gate-check.sh" --condition "docs updated"
 expect "gate-check --proof: waiver without the user's words is a usage error" 2 "$maestro/gate-check.sh" --proof "docs updated" "skipped" WAIVED
+expect "gate-check --proof: waiver with empty user: text is a usage error" 2 "$maestro/gate-check.sh" --proof "docs updated" "user:   " WAIVED
 expect "gate-check --proof: waiver quoting the user approves" 0 "$maestro/gate-check.sh" --proof "docs updated" "user: \"skip the docs\"" WAIVED
+grep -q "WAIVED (verify the user actually granted each waiver):" "$tmp/out" \
+	&& pass "gate-check: lists WAIVED conditions for user verification" || fail "gate-check: lists WAIVED conditions for user verification"
 expect "gate-check --proof: FAIL row escalates" 1 "$maestro/gate-check.sh" --proof "edge case" "repro.py" FAIL --condition "edge case"
 expect "gate-check --proof: bad RESULT is a usage error" 2 "$maestro/gate-check.sh" --proof "x" "y" MAYBE
 # gate-check.sh: the latest proof per condition counts; history stays in the ledger.
@@ -74,6 +77,9 @@ echo "user edit" >> user.txt
 "$maestro/gate-check.sh" --start "goal" --condition "ok" >/dev/null
 echo fix >> a.py
 expect "gate-check: changed files with no --expect is missing" 2 "$maestro/gate-check.sh" --proof "ok" "ran" PASS
+expect "gate-check: --expect '*' is rejected as too broad" 2 "$maestro/gate-check.sh" --expect "*"
+expect "gate-check: --expect '**/*' is rejected as too broad" 2 "$maestro/gate-check.sh" --expect "**/*"
+expect "gate-check: --expect '.' is rejected as too broad" 2 "$maestro/gate-check.sh" --expect "."
 expect "gate-check: changes inside --expect approve; the user's earlier edit doesn't count" 0 "$maestro/gate-check.sh" --expect "a.py"
 echo junk > stray.log
 expect "gate-check: a stray new file blocks" 2 "$maestro/gate-check.sh"
@@ -176,6 +182,16 @@ git checkout -q -b feat-migration && mkdir -p migrations && echo "DROP TABLE x;"
 if "$maestro/bottega" ship --ready --title "drop x" --body "test" 2>&1 | grep -q "one-way-door"; then
 	pass "bottega ship --ready blocks one-way-door migration"
 else fail "bottega ship --ready blocks one-way-door migration"; fi
+git checkout -q main 2>/dev/null || git checkout -q master
+git checkout -q -b feat-flyway && mkdir -p db && echo "SELECT 1;" > db/V2__drop_users.sql && git_q add db/V2__drop_users.sql && git_q commit -qm "add flyway"
+if "$maestro/bottega" ship --ready --title "drop users" --body "test" 2>&1 | grep -q "one-way-door"; then
+	pass "bottega ship --ready blocks db/V2__drop_users.sql"
+else fail "bottega ship --ready blocks db/V2__drop_users.sql"; fi
+git checkout -q main 2>/dev/null || git checkout -q master
+git checkout -q -b feat-sql-diff && mkdir -p db && echo "DROP TABLE users;" > db/V2__cleanup.sql && git_q add db/V2__cleanup.sql && git_q commit -qm "add sql cleanup"
+if "$maestro/bottega" ship --ready --title "cleanup" --body "test" 2>&1 | grep -q "one-way-door"; then
+	pass "bottega ship --ready blocks destructive SQL diff"
+else fail "bottega ship --ready blocks destructive SQL diff"; fi
 help_out="$("$maestro/bottega" --help)"
 printf '%s\n' "$help_out" | grep -q "bottega start" && printf '%s\n' "$help_out" | grep -q "bottega pr merge" \
 	&& ! printf '%s\n' "$help_out" | grep -q "pipefail" \

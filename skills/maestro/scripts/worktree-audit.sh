@@ -74,9 +74,12 @@ fi
 # cannot read this repo's PRs.
 prs=$(mktemp)
 trap 'rm -f "$prs"' EXIT
+prs_truncated=0
 if ! gh pr list --state all --limit 1000 --json number,state,headRefName \
 	--jq '.[] | "\(.headRefName)\t#\(.number)/\(.state | ascii_downcase)"' > "$prs" 2>/dev/null; then
 	: > "$prs"; echo "warn: could not read PRs with gh; the PR column is blank" >&2
+elif [ "$(wc -l < "$prs" | tr -d ' ')" -ge 1000 ]; then
+	prs_truncated=1
 fi
 
 # Transcripts dir: ~/.claude/projects/<slug>/ holds <session>.jsonl, with
@@ -123,7 +126,7 @@ git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt
 		dirty=""
 		[ "$n_wip" -gt 0 ] && dirty="wip:$n_wip"
 		[ "$n_new" -gt 0 ] && dirty="${dirty:+$dirty,}scratch:$n_new"
-		if [ -d "$wt/.bottega" ] && [ -n "$(ls -A "$wt/.bottega" 2>/dev/null | grep -v '^\.gitignore$')" ]; then
+		if [ -d "$wt/.bottega" ] && find "$wt/.bottega" -mindepth 1 -maxdepth 1 ! -name '.gitignore' 2>/dev/null | grep -q .; then
 			dirty="${dirty:+$dirty,}bottega-state"
 		fi
 		[ -z "$dirty" ] && dirty=clean
@@ -140,6 +143,10 @@ git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r wt
 	else remote=no-remote; fi
 
 	pr=$([ -n "$branch" ] && awk -F'\t' -v b="$branch" '$1 == b { print $2; exit }' "$prs")
+	if [ -z "$pr" ] && [ -n "$branch" ] && [ "$prs_truncated" -eq 1 ]; then
+		pr=$(gh pr list --state all --head "$branch" --limit 1 --json number,state \
+			--jq '.[0] | "#\(.number)/\(.state | ascii_downcase)"' 2>/dev/null || true)
+	fi
 	[ -z "$pr" ] && pr="-"
 
 	# Most recent chat whose transcript operated in this worktree. Match path

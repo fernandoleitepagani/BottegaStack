@@ -10,7 +10,7 @@ Here's what you'll learn:
 4. [Implement a ticket](./04-implement.md). `/implement` explores, shapes, delegates, reviews, and ends at the final gate.
 5. [Verify and ship](./05-verify-and-ship.md). Prove behavior with real commands, then open a focused PR and drive it to merged.
 6. [Run work while you sleep](./06-overnight.md). An overnight contract, a decision log you can audit, and a ticket plan run as a queue.
-7. [Steer with principle names](./07-principles.md). The 17 names that redirect an agent mid-task.
+7. [Steer with principle names](./07-principles.md). The 18 names that redirect an agent mid-task.
 8. [Make it yours](./08-make-it-yours.md). `/correct` for repeated mistakes, `/unslop`, and testing a skill change.
 9. [Recipes and pitfalls](./09-recipes-and-pitfalls.md). Prompts to copy and mistakes to skip.
 

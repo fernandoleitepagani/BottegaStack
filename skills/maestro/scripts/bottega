@@ -120,8 +120,21 @@ cmd_ship() {
 		local changed=""
 		changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || true)"
 		if [ -n "$changed" ]; then
-			local owd
-			owd="$(printf '%s\n' "$changed" | grep -Ei '(^|/)(data_)?migrations?(/|\.|_|-|$)|(^|/)(schema|auth|billing|payments?|security|permissions?|deploy|infra|terraform|drop|delete)(/|\.|_|-|$)|\.tf$|^\.github/workflows/' || true)"
+			local owd="" f
+			owd="$(printf '%s\n' "$changed" | grep -Ei '(^|/|_|-)(data_)?migrations?(/|\.|_|-|$)|(^|/|_|-)(schema|auth|billing|payments?|security|permissions?|deploy|infra|terraform|drop|delete)(/|\.|_|-|$)|\.tf$|^\.github/workflows/' || true)"
+			while IFS= read -r f; do
+				[ -n "$f" ] || continue
+				case "$f" in
+				*.sql|*.SQL)
+					if git diff "$base"...HEAD -- "$f" 2>/dev/null | grep -Eiq '^\+.*(DROP[[:space:]]+(TABLE|DATABASE|SCHEMA|COLUMN|INDEX)|TRUNCATE[[:space:]]+TABLE|ALTER[[:space:]]+TABLE|DELETE[[:space:]]+FROM)'; then
+						owd="${owd}${owd:+
+}$f"
+					fi ;;
+				esac
+			done <<EOF_CHANGED
+$changed
+EOF_CHANGED
+			owd="$(printf '%s\n' "$owd" | grep . | sort -u || true)"
 			if [ -n "$owd" ]; then
 				echo "error: one-way-door files changed; --ready is blocked (use --draft / /ship stop):" >&2
 				printf '%s\n' "$owd" | sed 's/^/  - /' >&2

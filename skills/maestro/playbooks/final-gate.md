@@ -28,7 +28,7 @@ Read at the start of every `/implement` run (and every unattended unit), and do 
 - **Proof.** One `--proof` per declared condition, with its exact text. Only a condition's latest proof counts, so after a fix round log the new result for the same condition. A WAIVED row's evidence starts with `user:` and quotes the user's words, for example `"user: \"skip the docs check\""`. Never waive on your own.
 - **Exit 0** allows APPROVE. **Exit 1** means ESCALATE: a latest proof is FAIL or INCONCLUSIVE, or crossfire's latest verdict is not PASS. **Exit 2** means a step is missing: do it, then rerun without repeating the proofs already logged. Never end a run on exit 2. A missing crossfire row means run the high-risk review.
 
-At high risk (from `--start` or this call), run the high-risk review (`/review` decides: `/blast-radius` for a small diff, `/swarm`'s verifier swarm for a large one) on the finished diff first. It logs the `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/log.sh .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
+At high risk (from `--start` or this call), run the high-risk review (`/review` decides: `/blast-radius` for a small diff, `/swarm`'s verifier swarm for a large one) on the finished diff first. It logs the `crossfire` row. To log a row by hand, use `<maestro dir>/scripts/bottega log .bottega/proofs.tsv proof "<condition>" "<how>" "<evidence>" <RESULT>`.
 
 ## 2. Write the decision
 
@@ -54,7 +54,7 @@ All PR creation, watching, and landing live in `../../ship/SKILL.md` (`/ship sto
 At high risk, the blast-radius check or the verifier swarm logs its verdict so the gate sees it:
 
 ```bash
-<maestro dir>/scripts/log.sh .bottega/proofs.tsv crossfire "<scope>" "<rounds, reviewer model>" "FINDINGS: <n>; WORST: <line>" <PASS|FAIL>
+<maestro dir>/scripts/bottega log .bottega/proofs.tsv crossfire "<scope>" "<rounds, reviewer model>" "FINDINGS: <n>; WORST: <line>" <PASS|FAIL>
 ```
 
 PASS when no verified blocker is open and, for a blast-radius check, its safety fact was proven by a run (step 4 or 5); FAIL otherwise. After a fix round, review the new diff and log a new row; the gate reads the latest one.

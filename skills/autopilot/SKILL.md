@@ -61,6 +61,6 @@ Everything on the **Always pause** list in `../maestro/SKILL.md` (**Autonomy**) 
 
 ## Decision trail
 
-Any unattended run keeps an append-only trail in `.bottega/decisions.tsv` (or `.bottega/<task-slug>.tsv`), columns `ts phase decision why evidence result`, written with `../maestro/scripts/log.sh`. Log decision points (forks, unit verdicts, pivots/reverts, blockers): one row per loop iteration, evidence as pointers (SHA, PR, `file:line`, artifact path). Before handing back, audit the trail against the session transcript; at high risk, have a `reviewer` check it. Keep it local (never commit unless asked).
+Any unattended run keeps an append-only trail in `.bottega/decisions.tsv` (or `.bottega/<task-slug>.tsv`), columns `ts phase decision why evidence result`, written with `../maestro/scripts/bottega log`. Log decision points (forks, unit verdicts, pivots/reverts, blockers): one row per loop iteration, evidence as pointers (SHA, PR, `file:line`, artifact path). Before handing back, audit the trail against the session transcript; at high risk, have a `reviewer` check it. Keep it local (never commit unless asked).
 
 **Reply:** Catch the user up per **Catch-up** in `../maestro/playbooks/investigation.md`: exit condition and whether it holds, each PR's state and link, what was discarded/dropped and why, and any calls waiting on the user. Run through `../unslop/SKILL.md`.
